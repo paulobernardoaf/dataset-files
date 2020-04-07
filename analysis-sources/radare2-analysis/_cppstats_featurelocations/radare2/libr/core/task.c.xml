@@ -1,0 +1,638 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" revision="1.0.0" language="C" filename="D:\Pesquisa\Projects\radare2-analysis\_cppstats_featurelocations\radare2\libr\core\task.c">
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;r_core.h&gt;</cpp:file></cpp:include>
+
+<function><type><name>R_API</name> <name>void</name></type> <name>r_core_task_scheduler_init</name> <parameter_list>(<parameter><decl><type><name>RCoreTaskScheduler</name> <modifier>*</modifier></type><name>tasks</name></decl></parameter>, <parameter><decl><type><name>RCore</name> <modifier>*</modifier></type><name>core</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<expr_stmt><expr><name><name>tasks</name><operator>-&gt;</operator><name>task_id_next</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>tasks</name><operator>-&gt;</operator><name>tasks</name></name> <operator>=</operator> <call><name>r_list_newf</name> <argument_list>(<argument><expr><operator>(</operator><name>RListFree</name><operator>)</operator><name>r_core_task_decref</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>tasks</name><operator>-&gt;</operator><name>tasks_queue</name></name> <operator>=</operator> <call><name>r_list_new</name> <argument_list>()</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>tasks</name><operator>-&gt;</operator><name>oneshot_queue</name></name> <operator>=</operator> <call><name>r_list_newf</name> <argument_list>(<argument><expr><name>free</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>tasks</name><operator>-&gt;</operator><name>oneshots_enqueued</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>tasks</name><operator>-&gt;</operator><name>lock</name></name> <operator>=</operator> <call><name>r_th_lock_new</name> <argument_list>(<argument><expr><name>true</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>tasks</name><operator>-&gt;</operator><name>tasks_running</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>tasks</name><operator>-&gt;</operator><name>oneshot_running</name></name> <operator>=</operator> <name>false</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>tasks</name><operator>-&gt;</operator><name>main_task</name></name> <operator>=</operator> <call><name>r_core_task_new</name> <argument_list>(<argument><expr><name>core</name></expr></argument>, <argument><expr><name>false</name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>r_list_append</name> <argument_list>(<argument><expr><name><name>tasks</name><operator>-&gt;</operator><name>tasks</name></name></expr></argument>, <argument><expr><name><name>tasks</name><operator>-&gt;</operator><name>main_task</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>tasks</name><operator>-&gt;</operator><name>current_task</name></name> <operator>=</operator> <name>NULL</name></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><name>R_API</name> <name>void</name></type> <name>r_core_task_scheduler_fini</name> <parameter_list>(<parameter><decl><type><name>RCoreTaskScheduler</name> <modifier>*</modifier></type><name>tasks</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<expr_stmt><expr><call><name>r_list_free</name> <argument_list>(<argument><expr><name><name>tasks</name><operator>-&gt;</operator><name>tasks</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>r_list_free</name> <argument_list>(<argument><expr><name><name>tasks</name><operator>-&gt;</operator><name>tasks_queue</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>r_list_free</name> <argument_list>(<argument><expr><name><name>tasks</name><operator>-&gt;</operator><name>oneshot_queue</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>r_th_lock_free</name> <argument_list>(<argument><expr><name><name>tasks</name><operator>-&gt;</operator><name>lock</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><name>HAVE_PTHREAD</name></expr></cpp:if>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>TASK_SIGSET_T</name></cpp:macro> <cpp:value>sigset_t</cpp:value></cpp:define>
+<function><type><specifier>static</specifier> <name>void</name></type> <name>tasks_lock_block_signals</name><parameter_list>(<parameter><decl><type><name>sigset_t</name> <modifier>*</modifier></type><name>old_sigset</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<decl_stmt><decl><type><name>sigset_t</name></type> <name>block_sigset</name></decl>;</decl_stmt>
+<expr_stmt><expr><call><name>sigemptyset</name> <argument_list>(<argument><expr><operator>&amp;</operator><name>block_sigset</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>sigaddset</name> <argument_list>(<argument><expr><operator>&amp;</operator><name>block_sigset</name></expr></argument>, <argument><expr><name>SIGWINCH</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>r_signal_sigmask</name> <argument_list>(<argument><expr><name>SIG_BLOCK</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>block_sigset</name></expr></argument>, <argument><expr><name>old_sigset</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>tasks_lock_block_signals_reset</name><parameter_list>(<parameter><decl><type><name>sigset_t</name> <modifier>*</modifier></type><name>old_sigset</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<expr_stmt><expr><call><name>r_signal_sigmask</name> <argument_list>(<argument><expr><name>SIG_SETMASK</name></expr></argument>, <argument><expr><name>old_sigset</name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+<cpp:else>#<cpp:directive>else</cpp:directive></cpp:else>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>TASK_SIGSET_T</name></cpp:macro> <cpp:value>void *</cpp:value></cpp:define>
+<function><type><specifier>static</specifier> <name>void</name></type> <name>tasks_lock_block_signals</name><parameter_list>(<parameter><decl><type><name>TASK_SIGSET_T</name> <modifier>*</modifier></type><name>old_sigset</name></decl></parameter>)</parameter_list> <block>{<block_content> <expr_stmt><expr><operator>(</operator><name>void</name><operator>)</operator><name>old_sigset</name></expr>;</expr_stmt> </block_content>}</block></function>
+<function><type><specifier>static</specifier> <name>void</name></type> <name>tasks_lock_block_signals_reset</name><parameter_list>(<parameter><decl><type><name>TASK_SIGSET_T</name> <modifier>*</modifier></type><name>old_sigset</name></decl></parameter>)</parameter_list> <block>{<block_content> <expr_stmt><expr><operator>(</operator><name>void</name><operator>)</operator><name>old_sigset</name></expr>;</expr_stmt> </block_content>}</block></function>
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>tasks_lock_enter</name><parameter_list>(<parameter><decl><type><name>RCoreTaskScheduler</name> <modifier>*</modifier></type><name>scheduler</name></decl></parameter>, <parameter><decl><type><name>TASK_SIGSET_T</name> <modifier>*</modifier></type><name>old_sigset</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<expr_stmt><expr><call><name>tasks_lock_block_signals</name> <argument_list>(<argument><expr><name>old_sigset</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>r_th_lock_enter</name> <argument_list>(<argument><expr><name><name>scheduler</name><operator>-&gt;</operator><name>lock</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>tasks_lock_leave</name><parameter_list>(<parameter><decl><type><name>RCoreTaskScheduler</name> <modifier>*</modifier></type><name>scheduler</name></decl></parameter>, <parameter><decl><type><name>TASK_SIGSET_T</name> <modifier>*</modifier></type><name>old_sigset</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<expr_stmt><expr><call><name>r_th_lock_leave</name> <argument_list>(<argument><expr><name><name>scheduler</name><operator>-&gt;</operator><name>lock</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>tasks_lock_block_signals_reset</name> <argument_list>(<argument><expr><name>old_sigset</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<typedef>typedef <type><struct>struct <name>oneshot_t</name> <block>{
+<decl_stmt><decl><type><name>RCoreTaskOneShot</name></type> <name>func</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>void</name> <modifier>*</modifier></type><name>user</name></decl>;</decl_stmt>
+}</block></struct></type> <name>OneShot</name>;</typedef>
+
+<function><type><name>R_API</name> <name>void</name></type> <name>r_core_task_print</name> <parameter_list>(<parameter><decl><type><name>RCore</name> <modifier>*</modifier></type><name>core</name></decl></parameter>, <parameter><decl><type><name>RCoreTask</name> <modifier>*</modifier></type><name>task</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>mode</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<switch>switch <condition>(<expr><name>mode</name></expr>)</condition> <block>{<block_content>
+<case>case <expr><literal type="char">'j'</literal></expr>:</case>
+<block>{<block_content>
+<expr_stmt><expr><call><name>r_cons_printf</name> <argument_list>(<argument><expr><literal type="string">"{\"id\":%d,\"state\":\""</literal></expr></argument>, <argument><expr><name><name>task</name><operator>-&gt;</operator><name>id</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<switch>switch <condition>(<expr><name><name>task</name><operator>-&gt;</operator><name>state</name></name></expr>)</condition> <block>{<block_content>
+<case>case <expr><name>R_CORE_TASK_STATE_BEFORE_START</name></expr>:</case>
+<expr_stmt><expr><call><name>r_cons_print</name> <argument_list>(<argument><expr><literal type="string">"before_start"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>R_CORE_TASK_STATE_RUNNING</name></expr>:</case>
+<expr_stmt><expr><call><name>r_cons_print</name> <argument_list>(<argument><expr><literal type="string">"running"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>R_CORE_TASK_STATE_SLEEPING</name></expr>:</case>
+<expr_stmt><expr><call><name>r_cons_print</name> <argument_list>(<argument><expr><literal type="string">"sleeping"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>R_CORE_TASK_STATE_DONE</name></expr>:</case>
+<expr_stmt><expr><call><name>r_cons_print</name> <argument_list>(<argument><expr><literal type="string">"done"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+</block_content>}</block></switch>
+<expr_stmt><expr><call><name>r_cons_printf</name> <argument_list>(<argument><expr><literal type="string">"\",\"transient\":%s,\"cmd\":"</literal></expr></argument>, <argument><expr><ternary><condition><expr><name><name>task</name><operator>-&gt;</operator><name>transient</name></name></expr> ?</condition><then> <expr><literal type="string">"true"</literal></expr> </then><else>: <expr><literal type="string">"false"</literal></expr></else></ternary></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>task</name><operator>-&gt;</operator><name>cmd</name></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>r_cons_printf</name> <argument_list>(<argument><expr><literal type="string">"\"%s\"}"</literal></expr></argument>, <argument><expr><name><name>task</name><operator>-&gt;</operator><name>cmd</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<expr_stmt><expr><call><name>r_cons_printf</name> <argument_list>(<argument><expr><literal type="string">"null}"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></else></if_stmt>
+</block_content>}</block>
+<break>break;</break>
+<default>default:</default> <block>{<block_content>
+<decl_stmt><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>info</name> <init>= <expr><name><name>task</name><operator>-&gt;</operator><name>cmd</name></name></expr></init></decl>;</decl_stmt>
+<if_stmt><if>if <condition>(<expr><name>task</name> <operator>==</operator> <name><name>core</name><operator>-&gt;</operator><name>tasks</name><operator>.</operator><name>main_task</name></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name>info</name> <operator>=</operator> <literal type="string">"-- MAIN TASK --"</literal></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+<expr_stmt><expr><call><name>r_cons_printf</name> <argument_list>(<argument><expr><literal type="string">"%3d %3s %12s %s\n"</literal></expr></argument>,
+<argument><expr><name><name>task</name><operator>-&gt;</operator><name>id</name></name></expr></argument>,
+<argument><expr><ternary><condition><expr><name><name>task</name><operator>-&gt;</operator><name>transient</name></name></expr> ?</condition><then> <expr><literal type="string">"(t)"</literal></expr> </then><else>: <expr><literal type="string">""</literal></expr></else></ternary></expr></argument>,
+<argument><expr><call><name>r_core_task_status</name> <argument_list>(<argument><expr><name>task</name></expr></argument>)</argument_list></call></expr></argument>,
+<argument><expr><ternary><condition><expr><name>info</name></expr> ?</condition><then> <expr><name>info</name></expr> </then><else>: <expr><literal type="string">""</literal></expr></else></ternary></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block>
+<break>break;</break>
+</block_content>}</block></switch>
+</block_content>}</block></function>
+
+<function><type><name>R_API</name> <name>void</name></type> <name>r_core_task_list</name><parameter_list>(<parameter><decl><type><name>RCore</name> <modifier>*</modifier></type><name>core</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>mode</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<decl_stmt><decl><type><name>RListIter</name> <modifier>*</modifier></type><name>iter</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>RCoreTask</name> <modifier>*</modifier></type><name>task</name></decl>;</decl_stmt>
+<if_stmt><if>if <condition>(<expr><name>mode</name> <operator>==</operator> <literal type="char">'j'</literal></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>r_cons_printf</name> <argument_list>(<argument><expr><literal type="string">"["</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+<decl_stmt><decl><type><name>TASK_SIGSET_T</name></type> <name>old_sigset</name></decl>;</decl_stmt>
+<expr_stmt><expr><call><name>tasks_lock_enter</name> <argument_list>(<argument><expr><operator>&amp;</operator><name><name>core</name><operator>-&gt;</operator><name>tasks</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name>old_sigset</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<macro><name>r_list_foreach</name> <argument_list>(<argument>core-&gt;tasks.tasks</argument>, <argument>iter</argument>, <argument>task</argument>)</argument_list></macro> <block>{<block_content>
+<expr_stmt><expr><call><name>r_core_task_print</name> <argument_list>(<argument><expr><name>core</name></expr></argument>, <argument><expr><name>task</name></expr></argument>, <argument><expr><name>mode</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name>mode</name> <operator>==</operator> <literal type="char">'j'</literal> <operator>&amp;&amp;</operator> <name><name>iter</name><operator>-&gt;</operator><name>n</name></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>r_cons_printf</name> <argument_list>(<argument><expr><literal type="string">","</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block>
+<if_stmt><if>if <condition>(<expr><name>mode</name> <operator>==</operator> <literal type="char">'j'</literal></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>r_cons_printf</name> <argument_list>(<argument><expr><literal type="string">"]\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<expr_stmt><expr><call><name>r_cons_printf</name> <argument_list>(<argument><expr><literal type="string">"--\ntotal running: %d\n"</literal></expr></argument>, <argument><expr><name><name>core</name><operator>-&gt;</operator><name>tasks</name><operator>.</operator><name>tasks_running</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></else></if_stmt>
+<expr_stmt><expr><call><name>tasks_lock_leave</name> <argument_list>(<argument><expr><operator>&amp;</operator><name><name>core</name><operator>-&gt;</operator><name>tasks</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name>old_sigset</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><name>R_API</name> <name>int</name></type> <name>r_core_task_running_tasks_count</name><parameter_list>(<parameter><decl><type><name>RCoreTaskScheduler</name> <modifier>*</modifier></type><name>scheduler</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<decl_stmt><decl><type><name>RListIter</name> <modifier>*</modifier></type><name>iter</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>RCoreTask</name> <modifier>*</modifier></type><name>task</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>count</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>TASK_SIGSET_T</name></type> <name>old_sigset</name></decl>;</decl_stmt>
+<expr_stmt><expr><call><name>tasks_lock_enter</name> <argument_list>(<argument><expr><name>scheduler</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>old_sigset</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<macro><name>r_list_foreach</name> <argument_list>(<argument>scheduler-&gt;tasks</argument>, <argument>iter</argument>, <argument>task</argument>)</argument_list></macro> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name>task</name> <operator>!=</operator> <name><name>scheduler</name><operator>-&gt;</operator><name>main_task</name></name> <operator>&amp;&amp;</operator> <name><name>task</name><operator>-&gt;</operator><name>state</name></name> <operator>!=</operator> <name>R_CORE_TASK_STATE_DONE</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name>count</name><operator>++</operator></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block>
+<expr_stmt><expr><call><name>tasks_lock_leave</name> <argument_list>(<argument><expr><name>scheduler</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>old_sigset</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>count</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>task_join</name><parameter_list>(<parameter><decl><type><name>RCoreTask</name> <modifier>*</modifier></type><name>task</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<decl_stmt><decl><type><name>RThreadSemaphore</name> <modifier>*</modifier></type><name>sem</name> <init>= <expr><name><name>task</name><operator>-&gt;</operator><name>running_sem</name></name></expr></init></decl>;</decl_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>sem</name></expr>)</condition> <block>{<block_content>
+<return>return;</return>
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>r_th_sem_wait</name> <argument_list>(<argument><expr><name>sem</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>r_th_sem_post</name> <argument_list>(<argument><expr><name>sem</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><name>R_API</name> <name>void</name></type> <name>r_core_task_join</name><parameter_list>(<parameter><decl><type><name>RCoreTaskScheduler</name> <modifier>*</modifier></type><name>scheduler</name></decl></parameter>, <parameter><decl><type><name>RCoreTask</name> <modifier>*</modifier></type><name>current</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>id</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name>current</name> <operator>&amp;&amp;</operator> <name>id</name> <operator>==</operator> <name><name>current</name><operator>-&gt;</operator><name>id</name></name></expr>)</condition> <block>{<block_content>
+<return>return;</return>
+</block_content>}</block></if></if_stmt>
+<if_stmt><if>if <condition>(<expr><name>id</name> <operator>&gt;=</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+<decl_stmt><decl><type><name>RCoreTask</name> <modifier>*</modifier></type><name>task</name> <init>= <expr><call><name>r_core_task_get_incref</name> <argument_list>(<argument><expr><name>scheduler</name></expr></argument>, <argument><expr><name>id</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>task</name></expr>)</condition> <block>{<block_content>
+<return>return;</return>
+</block_content>}</block></if></if_stmt>
+<if_stmt><if>if <condition>(<expr><name>current</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>r_core_task_sleep_begin</name> <argument_list>(<argument><expr><name>current</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+<expr_stmt><expr><call><name>task_join</name> <argument_list>(<argument><expr><name>task</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name>current</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>r_core_task_sleep_end</name> <argument_list>(<argument><expr><name>current</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+<expr_stmt><expr><call><name>r_core_task_decref</name> <argument_list>(<argument><expr><name>task</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<decl_stmt><decl><type><name>TASK_SIGSET_T</name></type> <name>old_sigset</name></decl>;</decl_stmt>
+<expr_stmt><expr><call><name>tasks_lock_enter</name> <argument_list>(<argument><expr><name>scheduler</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>old_sigset</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<decl_stmt><decl><type><name>RList</name> <modifier>*</modifier></type><name>tasks</name> <init>= <expr><call><name>r_list_clone</name> <argument_list>(<argument><expr><name><name>scheduler</name><operator>-&gt;</operator><name>tasks</name></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>RListIter</name> <modifier>*</modifier></type><name>iter</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>RCoreTask</name> <modifier>*</modifier></type><name>task</name></decl>;</decl_stmt>
+<macro><name>r_list_foreach</name> <argument_list>(<argument>tasks</argument>, <argument>iter</argument>, <argument>task</argument>)</argument_list></macro> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name>current</name> <operator>==</operator> <name>task</name></expr>)</condition> <block>{<block_content>
+<continue>continue;</continue>
+</block_content>}</block></if></if_stmt>
+<expr_stmt><expr><call><name>r_core_task_incref</name> <argument_list>(<argument><expr><name>task</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block>
+<expr_stmt><expr><call><name>tasks_lock_leave</name> <argument_list>(<argument><expr><name>scheduler</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>old_sigset</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<macro><name>r_list_foreach</name> <argument_list>(<argument>tasks</argument>, <argument>iter</argument>, <argument>task</argument>)</argument_list></macro> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name>current</name> <operator>==</operator> <name>task</name></expr>)</condition> <block>{<block_content>
+<continue>continue;</continue>
+</block_content>}</block></if></if_stmt>
+<if_stmt><if>if <condition>(<expr><name>current</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>r_core_task_sleep_begin</name> <argument_list>(<argument><expr><name>current</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+<expr_stmt><expr><call><name>task_join</name> <argument_list>(<argument><expr><name>task</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name>current</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>r_core_task_sleep_end</name> <argument_list>(<argument><expr><name>current</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+<expr_stmt><expr><call><name>r_core_task_decref</name> <argument_list>(<argument><expr><name>task</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block>
+<expr_stmt><expr><call><name>r_list_free</name> <argument_list>(<argument><expr><name>tasks</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></else></if_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>task_free</name> <parameter_list>(<parameter><decl><type><name>RCoreTask</name> <modifier>*</modifier></type><name>task</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>task</name></expr>)</condition> <block>{<block_content>
+<return>return;</return>
+</block_content>}</block></if></if_stmt>
+<expr_stmt><expr><call><name>free</name> <argument_list>(<argument><expr><name><name>task</name><operator>-&gt;</operator><name>cmd</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>free</name> <argument_list>(<argument><expr><name><name>task</name><operator>-&gt;</operator><name>res</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>r_th_free</name> <argument_list>(<argument><expr><name><name>task</name><operator>-&gt;</operator><name>thread</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>r_th_sem_free</name> <argument_list>(<argument><expr><name><name>task</name><operator>-&gt;</operator><name>running_sem</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>r_th_cond_free</name> <argument_list>(<argument><expr><name><name>task</name><operator>-&gt;</operator><name>dispatch_cond</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>r_th_lock_free</name> <argument_list>(<argument><expr><name><name>task</name><operator>-&gt;</operator><name>dispatch_lock</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>r_cons_context_free</name> <argument_list>(<argument><expr><name><name>task</name><operator>-&gt;</operator><name>cons_context</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>free</name> <argument_list>(<argument><expr><name>task</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><name>R_API</name> <name>RCoreTask</name> <modifier>*</modifier></type><name>r_core_task_new</name><parameter_list>(<parameter><decl><type><name>RCore</name> <modifier>*</modifier></type><name>core</name></decl></parameter>, <parameter><decl><type><name>bool</name></type> <name>create_cons</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>cmd</name></decl></parameter>, <parameter><decl><type><name>RCoreTaskCallback</name></type> <name>cb</name></decl></parameter>, <parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>user</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<decl_stmt><decl><type><name>RCoreTask</name> <modifier>*</modifier></type><name>task</name> <init>= <expr><call><name>R_NEW0</name> <argument_list>(<argument><expr><name>RCoreTask</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>task</name></expr>)</condition> <block>{<block_content>
+<goto>goto <name>hell</name>;</goto>
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>task</name><operator>-&gt;</operator><name>thread</name></name> <operator>=</operator> <name>NULL</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>task</name><operator>-&gt;</operator><name>cmd</name></name> <operator>=</operator> <ternary><condition><expr><name>cmd</name></expr> ?</condition><then> <expr><call><name>strdup</name> <argument_list>(<argument><expr><name>cmd</name></expr></argument>)</argument_list></call></expr> </then><else>: <expr><name>NULL</name></expr></else></ternary></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>task</name><operator>-&gt;</operator><name>cmd_log</name></name> <operator>=</operator> <name>false</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>task</name><operator>-&gt;</operator><name>res</name></name> <operator>=</operator> <name>NULL</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>task</name><operator>-&gt;</operator><name>running_sem</name></name> <operator>=</operator> <name>NULL</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>task</name><operator>-&gt;</operator><name>dispatched</name></name> <operator>=</operator> <name>false</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>task</name><operator>-&gt;</operator><name>dispatch_cond</name></name> <operator>=</operator> <call><name>r_th_cond_new</name> <argument_list>()</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>task</name><operator>-&gt;</operator><name>dispatch_lock</name></name> <operator>=</operator> <call><name>r_th_lock_new</name> <argument_list>(<argument><expr><name>false</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>task</name><operator>-&gt;</operator><name>dispatch_cond</name></name> <operator>||</operator> <operator>!</operator><name><name>task</name><operator>-&gt;</operator><name>dispatch_lock</name></name></expr>)</condition> <block>{<block_content>
+<goto>goto <name>hell</name>;</goto>
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>create_cons</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name><name>task</name><operator>-&gt;</operator><name>cons_context</name></name> <operator>=</operator> <call><name>r_cons_context_new</name> <argument_list>(<argument><expr><call><name>r_cons_singleton</name> <argument_list>()</argument_list></call><operator>-&gt;</operator><name>context</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>task</name><operator>-&gt;</operator><name>cons_context</name></name></expr>)</condition> <block>{<block_content>
+<goto>goto <name>hell</name>;</goto>
+</block_content>}</block></if></if_stmt>
+<expr_stmt><expr><name><name>task</name><operator>-&gt;</operator><name>cons_context</name><operator>-&gt;</operator><name>cmd_depth</name></name> <operator>=</operator> <name><name>core</name><operator>-&gt;</operator><name>max_cmd_depth</name></name></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>task</name><operator>-&gt;</operator><name>id</name></name> <operator>=</operator> <name><name>core</name><operator>-&gt;</operator><name>tasks</name><operator>.</operator><name>task_id_next</name></name><operator>++</operator></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>task</name><operator>-&gt;</operator><name>state</name></name> <operator>=</operator> <name>R_CORE_TASK_STATE_BEFORE_START</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>task</name><operator>-&gt;</operator><name>refcount</name></name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>task</name><operator>-&gt;</operator><name>transient</name></name> <operator>=</operator> <name>false</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>task</name><operator>-&gt;</operator><name>core</name></name> <operator>=</operator> <name>core</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>task</name><operator>-&gt;</operator><name>user</name></name> <operator>=</operator> <name>user</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>task</name><operator>-&gt;</operator><name>cb</name></name> <operator>=</operator> <name>cb</name></expr>;</expr_stmt>
+
+<return>return <expr><name>task</name></expr>;</return>
+
+<label><name>hell</name>:</label>
+<expr_stmt><expr><call><name>task_free</name> <argument_list>(<argument><expr><name>task</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>NULL</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><name>R_API</name> <name>void</name></type> <name>r_core_task_incref</name> <parameter_list>(<parameter><decl><type><name>RCoreTask</name> <modifier>*</modifier></type><name>task</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>task</name></expr>)</condition> <block>{<block_content>
+<return>return;</return>
+</block_content>}</block></if></if_stmt>
+<decl_stmt><decl><type><name>TASK_SIGSET_T</name></type> <name>old_sigset</name></decl>;</decl_stmt>
+<expr_stmt><expr><call><name>tasks_lock_enter</name> <argument_list>(<argument><expr><operator>&amp;</operator><name><name>task</name><operator>-&gt;</operator><name>core</name><operator>-&gt;</operator><name>tasks</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name>old_sigset</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>task</name><operator>-&gt;</operator><name>refcount</name></name><operator>++</operator></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>tasks_lock_leave</name> <argument_list>(<argument><expr><operator>&amp;</operator><name><name>task</name><operator>-&gt;</operator><name>core</name><operator>-&gt;</operator><name>tasks</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name>old_sigset</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><name>R_API</name> <name>void</name></type> <name>r_core_task_decref</name> <parameter_list>(<parameter><decl><type><name>RCoreTask</name> <modifier>*</modifier></type><name>task</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>task</name></expr>)</condition> <block>{<block_content>
+<return>return;</return>
+</block_content>}</block></if></if_stmt>
+<decl_stmt><decl><type><name>TASK_SIGSET_T</name></type> <name>old_sigset</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>RCoreTaskScheduler</name> <modifier>*</modifier></type><name>scheduler</name> <init>= <expr><operator>&amp;</operator><name><name>task</name><operator>-&gt;</operator><name>core</name><operator>-&gt;</operator><name>tasks</name></name></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><call><name>tasks_lock_enter</name> <argument_list>(<argument><expr><name>scheduler</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>old_sigset</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>task</name><operator>-&gt;</operator><name>refcount</name></name><operator>--</operator></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>task</name><operator>-&gt;</operator><name>refcount</name></name> <operator>&lt;=</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>task_free</name> <argument_list>(<argument><expr><name>task</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+<expr_stmt><expr><call><name>tasks_lock_leave</name> <argument_list>(<argument><expr><name>scheduler</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>old_sigset</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><name>R_API</name> <name>void</name></type> <name>r_core_task_schedule</name><parameter_list>(<parameter><decl><type><name>RCoreTask</name> <modifier>*</modifier></type><name>current</name></decl></parameter>, <parameter><decl><type><name>RTaskState</name></type> <name>next_state</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<decl_stmt><decl><type><name>RCore</name> <modifier>*</modifier></type><name>core</name> <init>= <expr><name><name>current</name><operator>-&gt;</operator><name>core</name></name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>RCoreTaskScheduler</name> <modifier>*</modifier></type><name>scheduler</name> <init>= <expr><operator>&amp;</operator><name><name>core</name><operator>-&gt;</operator><name>tasks</name></name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>bool</name></type> <name>stop</name> <init>= <expr><name>next_state</name> <operator>!=</operator> <name>R_CORE_TASK_STATE_RUNNING</name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>scheduler</name><operator>-&gt;</operator><name>oneshot_running</name></name> <operator>||</operator> <operator>(</operator><operator>!</operator><name>stop</name> <operator>&amp;&amp;</operator> <name><name>scheduler</name><operator>-&gt;</operator><name>tasks_running</name></name> <operator>==</operator> <literal type="number">1</literal> <operator>&amp;&amp;</operator> <name><name>scheduler</name><operator>-&gt;</operator><name>oneshots_enqueued</name></name> <operator>==</operator> <literal type="number">0</literal><operator>)</operator></expr>)</condition> <block>{<block_content>
+<return>return;</return>
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>scheduler</name><operator>-&gt;</operator><name>current_task</name></name> <operator>=</operator> <name>NULL</name></expr>;</expr_stmt>
+
+<decl_stmt><decl><type><name>TASK_SIGSET_T</name></type> <name>old_sigset</name></decl>;</decl_stmt>
+<expr_stmt><expr><call><name>tasks_lock_enter</name> <argument_list>(<argument><expr><name>scheduler</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>old_sigset</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>current</name><operator>-&gt;</operator><name>state</name></name> <operator>=</operator> <name>next_state</name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>stop</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name><name>scheduler</name><operator>-&gt;</operator><name>tasks_running</name></name><operator>--</operator></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+
+
+
+<decl_stmt><decl><type><name>OneShot</name> <modifier>*</modifier></type><name>oneshot</name></decl>;</decl_stmt>
+<while>while <condition>(<expr><operator>(</operator><name>oneshot</name> <operator>=</operator> <call><name>r_list_pop_head</name> <argument_list>(<argument><expr><name><name>scheduler</name><operator>-&gt;</operator><name>oneshot_queue</name></name></expr></argument>)</argument_list></call><operator>)</operator></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name><name>scheduler</name><operator>-&gt;</operator><name>oneshots_enqueued</name></name><operator>--</operator></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>scheduler</name><operator>-&gt;</operator><name>oneshot_running</name></name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name><name>oneshot</name><operator>-&gt;</operator><name>func</name></name> <argument_list>(<argument><expr><name><name>oneshot</name><operator>-&gt;</operator><name>user</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>scheduler</name><operator>-&gt;</operator><name>oneshot_running</name></name> <operator>=</operator> <name>false</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>free</name> <argument_list>(<argument><expr><name>oneshot</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></while>
+
+<decl_stmt><decl><type><name>RCoreTask</name> <modifier>*</modifier></type><name>next</name> <init>= <expr><call><name>r_list_pop_head</name> <argument_list>(<argument><expr><name><name>scheduler</name><operator>-&gt;</operator><name>tasks_queue</name></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>next</name> <operator>&amp;&amp;</operator> <operator>!</operator><name>stop</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>r_list_append</name> <argument_list>(<argument><expr><name><name>scheduler</name><operator>-&gt;</operator><name>tasks_queue</name></name></expr></argument>, <argument><expr><name>current</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>r_th_lock_enter</name> <argument_list>(<argument><expr><name><name>current</name><operator>-&gt;</operator><name>dispatch_lock</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>tasks_lock_leave</name> <argument_list>(<argument><expr><name>scheduler</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>old_sigset</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>next</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>r_cons_context_reset</name> <argument_list>()</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>r_th_lock_enter</name> <argument_list>(<argument><expr><name><name>next</name><operator>-&gt;</operator><name>dispatch_lock</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>next</name><operator>-&gt;</operator><name>dispatched</name></name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>r_th_lock_leave</name> <argument_list>(<argument><expr><name><name>next</name><operator>-&gt;</operator><name>dispatch_lock</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>r_th_cond_signal</name> <argument_list>(<argument><expr><name><name>next</name><operator>-&gt;</operator><name>dispatch_cond</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>stop</name></expr>)</condition> <block>{<block_content>
+<while>while <condition>(<expr><operator>!</operator><name><name>current</name><operator>-&gt;</operator><name>dispatched</name></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>r_th_cond_wait</name> <argument_list>(<argument><expr><name><name>current</name><operator>-&gt;</operator><name>dispatch_cond</name></name></expr></argument>, <argument><expr><name><name>current</name><operator>-&gt;</operator><name>dispatch_lock</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></while>
+<expr_stmt><expr><name><name>current</name><operator>-&gt;</operator><name>dispatched</name></name> <operator>=</operator> <name>false</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>r_th_lock_leave</name> <argument_list>(<argument><expr><name><name>current</name><operator>-&gt;</operator><name>dispatch_lock</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>stop</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name><name>scheduler</name><operator>-&gt;</operator><name>current_task</name></name> <operator>=</operator> <name>current</name></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>current</name><operator>-&gt;</operator><name>cons_context</name></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>r_cons_context_load</name> <argument_list>(<argument><expr><name><name>current</name><operator>-&gt;</operator><name>cons_context</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<expr_stmt><expr><call><name>r_cons_context_reset</name> <argument_list>()</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></else></if_stmt>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>task_wakeup</name><parameter_list>(<parameter><decl><type><name>RCoreTask</name> <modifier>*</modifier></type><name>current</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<decl_stmt><decl><type><name>RCore</name> <modifier>*</modifier></type><name>core</name> <init>= <expr><name><name>current</name><operator>-&gt;</operator><name>core</name></name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>RCoreTaskScheduler</name> <modifier>*</modifier></type><name>scheduler</name> <init>= <expr><operator>&amp;</operator><name><name>core</name><operator>-&gt;</operator><name>tasks</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>TASK_SIGSET_T</name></type> <name>old_sigset</name></decl>;</decl_stmt>
+<expr_stmt><expr><call><name>tasks_lock_enter</name> <argument_list>(<argument><expr><name>scheduler</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>old_sigset</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>scheduler</name><operator>-&gt;</operator><name>tasks_running</name></name><operator>++</operator></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>current</name><operator>-&gt;</operator><name>state</name></name> <operator>=</operator> <name>R_CORE_TASK_STATE_RUNNING</name></expr>;</expr_stmt>
+
+
+<decl_stmt><decl><type><name>bool</name></type> <name>single</name> <init>= <expr><name><name>scheduler</name><operator>-&gt;</operator><name>tasks_running</name></name> <operator>==</operator> <literal type="number">1</literal> <operator>||</operator> <name><name>scheduler</name><operator>-&gt;</operator><name>tasks_running</name></name> <operator>==</operator> <literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>r_th_lock_enter</name> <argument_list>(<argument><expr><name><name>current</name><operator>-&gt;</operator><name>dispatch_lock</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>single</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>r_list_append</name> <argument_list>(<argument><expr><name><name>scheduler</name><operator>-&gt;</operator><name>tasks_queue</name></name></expr></argument>, <argument><expr><name>current</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>tasks_lock_leave</name> <argument_list>(<argument><expr><name>scheduler</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>old_sigset</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>single</name></expr>)</condition> <block>{<block_content>
+<while>while <condition>(<expr><operator>!</operator><name><name>current</name><operator>-&gt;</operator><name>dispatched</name></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>r_th_cond_wait</name> <argument_list>(<argument><expr><name><name>current</name><operator>-&gt;</operator><name>dispatch_cond</name></name></expr></argument>, <argument><expr><name><name>current</name><operator>-&gt;</operator><name>dispatch_lock</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></while>
+<expr_stmt><expr><name><name>current</name><operator>-&gt;</operator><name>dispatched</name></name> <operator>=</operator> <name>false</name></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>r_th_lock_leave</name> <argument_list>(<argument><expr><name><name>current</name><operator>-&gt;</operator><name>dispatch_lock</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>scheduler</name><operator>-&gt;</operator><name>current_task</name></name> <operator>=</operator> <name>current</name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>current</name><operator>-&gt;</operator><name>cons_context</name></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>r_cons_context_load</name> <argument_list>(<argument><expr><name><name>current</name><operator>-&gt;</operator><name>cons_context</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<expr_stmt><expr><call><name>r_cons_context_reset</name> <argument_list>()</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></else></if_stmt>
+</block_content>}</block></function>
+
+<function><type><name>R_API</name> <name>void</name></type> <name>r_core_task_yield</name><parameter_list>(<parameter><decl><type><name>RCoreTaskScheduler</name> <modifier>*</modifier></type><name>scheduler</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<decl_stmt><decl><type><name>RCoreTask</name> <modifier>*</modifier></type><name>task</name> <init>= <expr><call><name>r_core_task_self</name> <argument_list>(<argument><expr><name>scheduler</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>task</name></expr>)</condition> <block>{<block_content>
+<return>return;</return>
+</block_content>}</block></if></if_stmt>
+<expr_stmt><expr><call><name>r_core_task_schedule</name> <argument_list>(<argument><expr><name>task</name></expr></argument>, <argument><expr><name>R_CORE_TASK_STATE_RUNNING</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>task_end</name><parameter_list>(<parameter><decl><type><name>RCoreTask</name> <modifier>*</modifier></type><name>t</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<expr_stmt><expr><call><name>r_core_task_schedule</name> <argument_list>(<argument><expr><name>t</name></expr></argument>, <argument><expr><name>R_CORE_TASK_STATE_DONE</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>RThreadFunctionRet</name></type> <name>task_run</name><parameter_list>(<parameter><decl><type><name>RCoreTask</name> <modifier>*</modifier></type><name>task</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<decl_stmt><decl><type><name>RCore</name> <modifier>*</modifier></type><name>core</name> <init>= <expr><name><name>task</name><operator>-&gt;</operator><name>core</name></name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>RCoreTaskScheduler</name> <modifier>*</modifier></type><name>scheduler</name> <init>= <expr><operator>&amp;</operator><name><name>task</name><operator>-&gt;</operator><name>core</name><operator>-&gt;</operator><name>tasks</name></name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>task_wakeup</name> <argument_list>(<argument><expr><name>task</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>task</name><operator>-&gt;</operator><name>cons_context</name></name> <operator>&amp;&amp;</operator> <name><name>task</name><operator>-&gt;</operator><name>cons_context</name><operator>-&gt;</operator><name>breaked</name></name></expr>)</condition> <block>{<block_content>
+
+<goto>goto <name>stillbirth</name>;</goto>
+</block_content>}</block></if></if_stmt>
+
+<decl_stmt><decl><type><name>char</name> <modifier>*</modifier></type><name>res_str</name></decl>;</decl_stmt>
+<if_stmt><if>if <condition>(<expr><name>task</name> <operator>==</operator> <name><name>scheduler</name><operator>-&gt;</operator><name>main_task</name></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>r_core_cmd</name> <argument_list>(<argument><expr><name>core</name></expr></argument>, <argument><expr><name><name>task</name><operator>-&gt;</operator><name>cmd</name></name></expr></argument>, <argument><expr><name><name>task</name><operator>-&gt;</operator><name>cmd_log</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>res_str</name> <operator>=</operator> <name>NULL</name></expr>;</expr_stmt>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<expr_stmt><expr><name>res_str</name> <operator>=</operator> <call><name>r_core_cmd_str</name> <argument_list>(<argument><expr><name>core</name></expr></argument>, <argument><expr><name><name>task</name><operator>-&gt;</operator><name>cmd</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></else></if_stmt>
+
+<expr_stmt><expr><call><name>free</name> <argument_list>(<argument><expr><name><name>task</name><operator>-&gt;</operator><name>res</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>task</name><operator>-&gt;</operator><name>res</name></name> <operator>=</operator> <name>res_str</name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>task</name> <operator>!=</operator> <name><name>scheduler</name><operator>-&gt;</operator><name>main_task</name></name> <operator>&amp;&amp;</operator> <call><name>r_cons_default_context_is_interactive</name> <argument_list>()</argument_list></call></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>eprintf</name> <argument_list>(<argument><expr><literal type="string">"\nTask %d finished\n"</literal></expr></argument>, <argument><expr><name><name>task</name><operator>-&gt;</operator><name>id</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+
+<decl_stmt><decl><type><name>TASK_SIGSET_T</name></type> <name>old_sigset</name></decl>;</decl_stmt>
+<label><name>stillbirth</name>:</label>
+<expr_stmt><expr><call><name>tasks_lock_enter</name> <argument_list>(<argument><expr><name>scheduler</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>old_sigset</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>task_end</name> <argument_list>(<argument><expr><name>task</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>task</name><operator>-&gt;</operator><name>cb</name></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name><name>task</name><operator>-&gt;</operator><name>cb</name></name> <argument_list>(<argument><expr><name><name>task</name><operator>-&gt;</operator><name>user</name></name></expr></argument>, <argument><expr><name><name>task</name><operator>-&gt;</operator><name>res</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>task</name><operator>-&gt;</operator><name>running_sem</name></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>r_th_sem_post</name> <argument_list>(<argument><expr><name><name>task</name><operator>-&gt;</operator><name>running_sem</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>task</name><operator>-&gt;</operator><name>cons_context</name></name> <operator>&amp;&amp;</operator> <name><name>task</name><operator>-&gt;</operator><name>cons_context</name><operator>-&gt;</operator><name>break_stack</name></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>r_cons_context_break_pop</name> <argument_list>(<argument><expr><name><name>task</name><operator>-&gt;</operator><name>cons_context</name></name></expr></argument>, <argument><expr><name>false</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>ret</name> <init>= <expr><name>R_TH_STOP</name></expr></init></decl>;</decl_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>task</name><operator>-&gt;</operator><name>transient</name></name></expr>)</condition> <block>{<block_content>
+<decl_stmt><decl><type><name>RCoreTask</name> <modifier>*</modifier></type><name>ltask</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>RListIter</name> <modifier>*</modifier></type><name>iter</name></decl>;</decl_stmt>
+<macro><name>r_list_foreach</name> <argument_list>(<argument>scheduler-&gt;tasks</argument>, <argument>iter</argument>, <argument>ltask</argument>)</argument_list></macro> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name>ltask</name> <operator>==</operator> <name>task</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>r_list_delete</name> <argument_list>(<argument><expr><name><name>scheduler</name><operator>-&gt;</operator><name>tasks</name></name></expr></argument>, <argument><expr><name>iter</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <name>R_TH_FREED</name></expr>;</expr_stmt>
+<break>break;</break>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block>
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>tasks_lock_leave</name> <argument_list>(<argument><expr><name>scheduler</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>old_sigset</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>ret</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>RThreadFunctionRet</name></type> <name>task_run_thread</name><parameter_list>(<parameter><decl><type><name>RThread</name> <modifier>*</modifier></type><name>th</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<decl_stmt><decl><type><name>RCoreTask</name> <modifier>*</modifier></type><name>task</name> <init>= <expr><operator>(</operator><name>RCoreTask</name> <operator>*</operator><operator>)</operator><name><name>th</name><operator>-&gt;</operator><name>user</name></name></expr></init></decl>;</decl_stmt>
+<return>return <expr><call><name>task_run</name> <argument_list>(<argument><expr><name>task</name></expr></argument>)</argument_list></call></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><name>R_API</name> <name>void</name></type> <name>r_core_task_enqueue</name><parameter_list>(<parameter><decl><type><name>RCoreTaskScheduler</name> <modifier>*</modifier></type><name>scheduler</name></decl></parameter>, <parameter><decl><type><name>RCoreTask</name> <modifier>*</modifier></type><name>task</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>scheduler</name> <operator>||</operator> <operator>!</operator><name>task</name></expr>)</condition> <block>{<block_content>
+<return>return;</return>
+</block_content>}</block></if></if_stmt>
+<decl_stmt><decl><type><name>TASK_SIGSET_T</name></type> <name>old_sigset</name></decl>;</decl_stmt>
+<expr_stmt><expr><call><name>tasks_lock_enter</name> <argument_list>(<argument><expr><name>scheduler</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>old_sigset</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>task</name><operator>-&gt;</operator><name>running_sem</name></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name><name>task</name><operator>-&gt;</operator><name>running_sem</name></name> <operator>=</operator> <call><name>r_th_sem_new</name> <argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>task</name><operator>-&gt;</operator><name>running_sem</name></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>r_th_sem_wait</name> <argument_list>(<argument><expr><name><name>task</name><operator>-&gt;</operator><name>running_sem</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>task</name><operator>-&gt;</operator><name>cons_context</name></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>r_cons_context_break_push</name> <argument_list>(<argument><expr><name><name>task</name><operator>-&gt;</operator><name>cons_context</name></name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>, <argument><expr><name>false</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+<expr_stmt><expr><call><name>r_list_append</name> <argument_list>(<argument><expr><name><name>scheduler</name><operator>-&gt;</operator><name>tasks</name></name></expr></argument>, <argument><expr><name>task</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>task</name><operator>-&gt;</operator><name>thread</name></name> <operator>=</operator> <call><name>r_th_new</name> <argument_list>(<argument><expr><name>task_run_thread</name></expr></argument>, <argument><expr><name>task</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>tasks_lock_leave</name> <argument_list>(<argument><expr><name>scheduler</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>old_sigset</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><name>R_API</name> <name>void</name></type> <name>r_core_task_enqueue_oneshot</name><parameter_list>(<parameter><decl><type><name>RCoreTaskScheduler</name> <modifier>*</modifier></type><name>scheduler</name></decl></parameter>, <parameter><decl><type><name>RCoreTaskOneShot</name></type> <name>func</name></decl></parameter>, <parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>user</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>scheduler</name> <operator>||</operator> <operator>!</operator><name>func</name></expr>)</condition> <block>{<block_content>
+<return>return;</return>
+</block_content>}</block></if></if_stmt>
+<decl_stmt><decl><type><name>TASK_SIGSET_T</name></type> <name>old_sigset</name></decl>;</decl_stmt>
+<expr_stmt><expr><call><name>tasks_lock_enter</name> <argument_list>(<argument><expr><name>scheduler</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>old_sigset</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>scheduler</name><operator>-&gt;</operator><name>tasks_running</name></name> <operator>==</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+
+<expr_stmt><expr><name><name>scheduler</name><operator>-&gt;</operator><name>oneshot_running</name></name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>func</name> <argument_list>(<argument><expr><name>user</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>scheduler</name><operator>-&gt;</operator><name>oneshot_running</name></name> <operator>=</operator> <name>false</name></expr>;</expr_stmt>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<decl_stmt><decl><type><name>OneShot</name> <modifier>*</modifier></type><name>oneshot</name> <init>= <expr><call><name>R_NEW</name> <argument_list>(<argument><expr><name>OneShot</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<if_stmt><if>if <condition>(<expr><name>oneshot</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name><name>oneshot</name><operator>-&gt;</operator><name>func</name></name> <operator>=</operator> <name>func</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>oneshot</name><operator>-&gt;</operator><name>user</name></name> <operator>=</operator> <name>user</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>r_list_append</name> <argument_list>(<argument><expr><name><name>scheduler</name><operator>-&gt;</operator><name>oneshot_queue</name></name></expr></argument>, <argument><expr><name>oneshot</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>scheduler</name><operator>-&gt;</operator><name>oneshots_enqueued</name></name><operator>++</operator></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block></else></if_stmt>
+<expr_stmt><expr><call><name>tasks_lock_leave</name> <argument_list>(<argument><expr><name>scheduler</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>old_sigset</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><name>R_API</name> <name>int</name></type> <name>r_core_task_run_sync</name><parameter_list>(<parameter><decl><type><name>RCoreTaskScheduler</name> <modifier>*</modifier></type><name>scheduler</name></decl></parameter>, <parameter><decl><type><name>RCoreTask</name> <modifier>*</modifier></type><name>task</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<expr_stmt><expr><name><name>task</name><operator>-&gt;</operator><name>thread</name></name> <operator>=</operator> <name>NULL</name></expr>;</expr_stmt>
+<return>return <expr><call><name>task_run</name> <argument_list>(<argument><expr><name>task</name></expr></argument>)</argument_list></call></expr>;</return>
+</block_content>}</block></function>
+
+
+<function><type><name>R_API</name> <name>void</name></type> <name>r_core_task_sync_begin</name><parameter_list>(<parameter><decl><type><name>RCoreTaskScheduler</name> <modifier>*</modifier></type><name>scheduler</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<decl_stmt><decl><type><name>RCoreTask</name> <modifier>*</modifier></type><name>task</name> <init>= <expr><name><name>scheduler</name><operator>-&gt;</operator><name>main_task</name></name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>TASK_SIGSET_T</name></type> <name>old_sigset</name></decl>;</decl_stmt>
+<expr_stmt><expr><call><name>tasks_lock_enter</name> <argument_list>(<argument><expr><name>scheduler</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>old_sigset</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>task</name><operator>-&gt;</operator><name>thread</name></name> <operator>=</operator> <name>NULL</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>task</name><operator>-&gt;</operator><name>cmd</name></name> <operator>=</operator> <name>NULL</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>task</name><operator>-&gt;</operator><name>cmd_log</name></name> <operator>=</operator> <name>false</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>task</name><operator>-&gt;</operator><name>state</name></name> <operator>=</operator> <name>R_CORE_TASK_STATE_BEFORE_START</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>tasks_lock_leave</name> <argument_list>(<argument><expr><name>scheduler</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>old_sigset</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>task_wakeup</name> <argument_list>(<argument><expr><name>task</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+
+<function><type><name>R_API</name> <name>void</name></type> <name>r_core_task_sync_end</name><parameter_list>(<parameter><decl><type><name>RCoreTaskScheduler</name> <modifier>*</modifier></type><name>scheduler</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<expr_stmt><expr><call><name>task_end</name> <argument_list>(<argument><expr><name><name>scheduler</name><operator>-&gt;</operator><name>main_task</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+
+
+<function><type><name>R_API</name> <name>void</name></type> <name>r_core_task_sleep_begin</name><parameter_list>(<parameter><decl><type><name>RCoreTask</name> <modifier>*</modifier></type><name>task</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<expr_stmt><expr><call><name>r_core_task_schedule</name> <argument_list>(<argument><expr><name>task</name></expr></argument>, <argument><expr><name>R_CORE_TASK_STATE_SLEEPING</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><name>R_API</name> <name>void</name></type> <name>r_core_task_sleep_end</name><parameter_list>(<parameter><decl><type><name>RCoreTask</name> <modifier>*</modifier></type><name>task</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<expr_stmt><expr><call><name>task_wakeup</name> <argument_list>(<argument><expr><name>task</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><name>R_API</name> <specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>r_core_task_status</name> <parameter_list>(<parameter><decl><type><name>RCoreTask</name> <modifier>*</modifier></type><name>task</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<switch>switch <condition>(<expr><name><name>task</name><operator>-&gt;</operator><name>state</name></name></expr>)</condition> <block>{<block_content>
+<case>case <expr><name>R_CORE_TASK_STATE_RUNNING</name></expr>:</case>
+<return>return <expr><literal type="string">"running"</literal></expr>;</return>
+<case>case <expr><name>R_CORE_TASK_STATE_SLEEPING</name></expr>:</case>
+<return>return <expr><literal type="string">"sleeping"</literal></expr>;</return>
+<case>case <expr><name>R_CORE_TASK_STATE_DONE</name></expr>:</case>
+<return>return <expr><literal type="string">"done"</literal></expr>;</return>
+<case>case <expr><name>R_CORE_TASK_STATE_BEFORE_START</name></expr>:</case>
+<return>return <expr><literal type="string">"before start"</literal></expr>;</return>
+<default>default:</default>
+<return>return <expr><literal type="string">"unknown"</literal></expr>;</return>
+</block_content>}</block></switch>
+</block_content>}</block></function>
+
+<function><type><name>R_API</name> <name>RCoreTask</name> <modifier>*</modifier></type><name>r_core_task_self</name> <parameter_list>(<parameter><decl><type><name>RCoreTaskScheduler</name> <modifier>*</modifier></type><name>scheduler</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<return>return <expr><ternary><condition><expr><name><name>scheduler</name><operator>-&gt;</operator><name>current_task</name></name></expr> ?</condition><then> <expr><name><name>scheduler</name><operator>-&gt;</operator><name>current_task</name></name></expr> </then><else>: <expr><name><name>scheduler</name><operator>-&gt;</operator><name>main_task</name></name></expr></else></ternary></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>RCoreTask</name> <modifier>*</modifier></type><name>task_get</name> <parameter_list>(<parameter><decl><type><name>RCoreTaskScheduler</name> <modifier>*</modifier></type><name>scheduler</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>id</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<decl_stmt><decl><type><name>RCoreTask</name> <modifier>*</modifier></type><name>task</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>RListIter</name> <modifier>*</modifier></type><name>iter</name></decl>;</decl_stmt>
+<macro><name>r_list_foreach</name> <argument_list>(<argument>scheduler-&gt;tasks</argument>, <argument>iter</argument>, <argument>task</argument>)</argument_list></macro> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name><name>task</name><operator>-&gt;</operator><name>id</name></name> <operator>==</operator> <name>id</name></expr>)</condition> <block>{<block_content>
+<return>return <expr><name>task</name></expr>;</return>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block>
+<return>return <expr><name>NULL</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><name>R_API</name> <name>RCoreTask</name> <modifier>*</modifier></type><name>r_core_task_get_incref</name><parameter_list>(<parameter><decl><type><name>RCoreTaskScheduler</name> <modifier>*</modifier></type><name>scheduler</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>id</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<decl_stmt><decl><type><name>TASK_SIGSET_T</name></type> <name>old_sigset</name></decl>;</decl_stmt>
+<expr_stmt><expr><call><name>tasks_lock_enter</name> <argument_list>(<argument><expr><name>scheduler</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>old_sigset</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<decl_stmt><decl><type><name>RCoreTask</name> <modifier>*</modifier></type><name>task</name> <init>= <expr><call><name>task_get</name> <argument_list>(<argument><expr><name>scheduler</name></expr></argument>, <argument><expr><name>id</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<if_stmt><if>if <condition>(<expr><name>task</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>r_core_task_incref</name> <argument_list>(<argument><expr><name>task</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+<expr_stmt><expr><call><name>tasks_lock_leave</name> <argument_list>(<argument><expr><name>scheduler</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>old_sigset</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>task</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><name>R_API</name> <name>void</name></type> <name>r_core_task_break</name><parameter_list>(<parameter><decl><type><name>RCoreTaskScheduler</name> <modifier>*</modifier></type><name>scheduler</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>id</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<decl_stmt><decl><type><name>TASK_SIGSET_T</name></type> <name>old_sigset</name></decl>;</decl_stmt>
+<expr_stmt><expr><call><name>tasks_lock_enter</name> <argument_list>(<argument><expr><name>scheduler</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>old_sigset</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<decl_stmt><decl><type><name>RCoreTask</name> <modifier>*</modifier></type><name>task</name> <init>= <expr><call><name>task_get</name> <argument_list>(<argument><expr><name>scheduler</name></expr></argument>, <argument><expr><name>id</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>task</name> <operator>||</operator> <name><name>task</name><operator>-&gt;</operator><name>state</name></name> <operator>==</operator> <name>R_CORE_TASK_STATE_DONE</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>tasks_lock_leave</name> <argument_list>(<argument><expr><name>scheduler</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>old_sigset</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return;</return>
+</block_content>}</block></if></if_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>task</name><operator>-&gt;</operator><name>cons_context</name></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>r_cons_context_break</name> <argument_list>(<argument><expr><name><name>task</name><operator>-&gt;</operator><name>cons_context</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+<expr_stmt><expr><call><name>tasks_lock_leave</name> <argument_list>(<argument><expr><name>scheduler</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>old_sigset</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><name>R_API</name> <name>void</name></type> <name>r_core_task_break_all</name><parameter_list>(<parameter><decl><type><name>RCoreTaskScheduler</name> <modifier>*</modifier></type><name>scheduler</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<decl_stmt><decl><type><name>TASK_SIGSET_T</name></type> <name>old_sigset</name></decl>;</decl_stmt>
+<expr_stmt><expr><call><name>tasks_lock_enter</name> <argument_list>(<argument><expr><name>scheduler</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>old_sigset</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<decl_stmt><decl><type><name>RCoreTask</name> <modifier>*</modifier></type><name>task</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>RListIter</name> <modifier>*</modifier></type><name>iter</name></decl>;</decl_stmt>
+<macro><name>r_list_foreach</name> <argument_list>(<argument>scheduler-&gt;tasks</argument>, <argument>iter</argument>, <argument>task</argument>)</argument_list></macro> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name><name>task</name><operator>-&gt;</operator><name>state</name></name> <operator>!=</operator> <name>R_CORE_TASK_STATE_DONE</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>r_cons_context_break</name> <argument_list>(<argument><expr><name><name>task</name><operator>-&gt;</operator><name>cons_context</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block>
+<expr_stmt><expr><call><name>tasks_lock_leave</name> <argument_list>(<argument><expr><name>scheduler</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>old_sigset</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><name>R_API</name> <name>int</name></type> <name>r_core_task_del</name> <parameter_list>(<parameter><decl><type><name>RCoreTaskScheduler</name> <modifier>*</modifier></type><name>scheduler</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>id</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<decl_stmt><decl><type><name>RCoreTask</name> <modifier>*</modifier></type><name>task</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>RListIter</name> <modifier>*</modifier></type><name>iter</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>bool</name></type> <name>ret</name> <init>= <expr><name>false</name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>TASK_SIGSET_T</name></type> <name>old_sigset</name></decl>;</decl_stmt>
+<expr_stmt><expr><call><name>tasks_lock_enter</name> <argument_list>(<argument><expr><name>scheduler</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>old_sigset</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<macro><name>r_list_foreach</name> <argument_list>(<argument>scheduler-&gt;tasks</argument>, <argument>iter</argument>, <argument>task</argument>)</argument_list></macro> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name><name>task</name><operator>-&gt;</operator><name>id</name></name> <operator>==</operator> <name>id</name></expr>)</condition> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name>task</name> <operator>==</operator> <name><name>scheduler</name><operator>-&gt;</operator><name>main_task</name></name></expr>)</condition> <block>{<block_content>
+<break>break;</break>
+</block_content>}</block></if></if_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>task</name><operator>-&gt;</operator><name>state</name></name> <operator>==</operator> <name>R_CORE_TASK_STATE_DONE</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>r_list_delete</name> <argument_list>(<argument><expr><name><name>scheduler</name><operator>-&gt;</operator><name>tasks</name></name></expr></argument>, <argument><expr><name>iter</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<expr_stmt><expr><name><name>task</name><operator>-&gt;</operator><name>transient</name></name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+</block_content>}</block></else></if_stmt>
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+<break>break;</break>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block>
+<expr_stmt><expr><call><name>tasks_lock_leave</name> <argument_list>(<argument><expr><name>scheduler</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>old_sigset</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>ret</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><name>R_API</name> <name>void</name></type> <name>r_core_task_del_all_done</name> <parameter_list>(<parameter><decl><type><name>RCoreTaskScheduler</name> <modifier>*</modifier></type><name>scheduler</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<decl_stmt><decl><type><name>RCoreTask</name> <modifier>*</modifier></type><name>task</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>RListIter</name> <modifier>*</modifier></type><name>iter</name></decl>, <decl><type ref="prev"><modifier>*</modifier></type><name>iter2</name></decl>;</decl_stmt>
+<macro><name>r_list_foreach_safe</name> <argument_list>(<argument>scheduler-&gt;tasks</argument>, <argument>iter</argument>, <argument>iter2</argument>, <argument>task</argument>)</argument_list></macro> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name>task</name> <operator>!=</operator> <name><name>scheduler</name><operator>-&gt;</operator><name>main_task</name></name> <operator>&amp;&amp;</operator> <name><name>task</name><operator>-&gt;</operator><name>state</name></name> <operator>==</operator> <name>R_CORE_TASK_STATE_DONE</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>r_list_delete</name> <argument_list>(<argument><expr><name><name>scheduler</name><operator>-&gt;</operator><name>tasks</name></name></expr></argument>, <argument><expr><name>iter</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block>
+</block_content>}</block></function>
+</unit>

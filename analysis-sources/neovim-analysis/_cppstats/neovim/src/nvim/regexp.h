@@ -1,0 +1,13 @@
+#include "nvim/types.h"
+#include "nvim/buffer_defs.h"
+#include "nvim/regexp_defs.h"
+#define RE_MAGIC 1 
+#define RE_STRING 2 
+#define RE_STRICT 4 
+#define RE_AUTO 8 
+#define REX_SET 1 
+#define REX_USE 2 
+#define REX_ALL (REX_SET | REX_USE)
+#if defined(INCLUDE_GENERATED_DECLARATIONS)
+#include "regexp.h.generated.h"
+#endif

@@ -1,0 +1,576 @@
+#include "config.h"
+#include "version.h"
+#include "libavutil/avassert.h"
+#include "libavutil/avutil.h"
+#include "libavutil/common.h"
+#include "libavutil/intreadwrite.h"
+#include "libavutil/log.h"
+#include "libavutil/pixfmt.h"
+#include "libavutil/pixdesc.h"
+#include "libavutil/ppc/util_altivec.h"
+#define STR(s) AV_TOSTRING(s) 
+#define YUVRGB_TABLE_HEADROOM 512
+#define YUVRGB_TABLE_LUMA_HEADROOM 512
+#define MAX_FILTER_SIZE SWS_MAX_FILTER_SIZE
+#define DITHER1XBPP
+#if HAVE_BIGENDIAN
+#define ALT32_CORR (-1)
+#else
+#define ALT32_CORR 1
+#endif
+#if ARCH_X86_64
+#define APCK_PTR2 8
+#define APCK_COEF 16
+#define APCK_SIZE 24
+#else
+#define APCK_PTR2 4
+#define APCK_COEF 8
+#define APCK_SIZE 16
+#endif
+#define RETCODE_USE_CASCADE -12345
+struct SwsContext;
+typedef enum SwsDither {
+SWS_DITHER_NONE = 0,
+SWS_DITHER_AUTO,
+SWS_DITHER_BAYER,
+SWS_DITHER_ED,
+SWS_DITHER_A_DITHER,
+SWS_DITHER_X_DITHER,
+NB_SWS_DITHER,
+} SwsDither;
+typedef enum SwsAlphaBlend {
+SWS_ALPHA_BLEND_NONE = 0,
+SWS_ALPHA_BLEND_UNIFORM,
+SWS_ALPHA_BLEND_CHECKERBOARD,
+SWS_ALPHA_BLEND_NB,
+} SwsAlphaBlend;
+typedef int (*SwsFunc)(struct SwsContext *context, const uint8_t *src[],
+int srcStride[], int srcSliceY, int srcSliceH,
+uint8_t *dst[], int dstStride[]);
+typedef void (*yuv2planar1_fn)(const int16_t *src, uint8_t *dest, int dstW,
+const uint8_t *dither, int offset);
+typedef void (*yuv2planarX_fn)(const int16_t *filter, int filterSize,
+const int16_t **src, uint8_t *dest, int dstW,
+const uint8_t *dither, int offset);
+typedef void (*yuv2interleavedX_fn)(struct SwsContext *c,
+const int16_t *chrFilter,
+int chrFilterSize,
+const int16_t **chrUSrc,
+const int16_t **chrVSrc,
+uint8_t *dest, int dstW);
+typedef void (*yuv2packed1_fn)(struct SwsContext *c, const int16_t *lumSrc,
+const int16_t *chrUSrc[2],
+const int16_t *chrVSrc[2],
+const int16_t *alpSrc, uint8_t *dest,
+int dstW, int uvalpha, int y);
+typedef void (*yuv2packed2_fn)(struct SwsContext *c, const int16_t *lumSrc[2],
+const int16_t *chrUSrc[2],
+const int16_t *chrVSrc[2],
+const int16_t *alpSrc[2],
+uint8_t *dest,
+int dstW, int yalpha, int uvalpha, int y);
+typedef void (*yuv2packedX_fn)(struct SwsContext *c, const int16_t *lumFilter,
+const int16_t **lumSrc, int lumFilterSize,
+const int16_t *chrFilter,
+const int16_t **chrUSrc,
+const int16_t **chrVSrc, int chrFilterSize,
+const int16_t **alpSrc, uint8_t *dest,
+int dstW, int y);
+typedef void (*yuv2anyX_fn)(struct SwsContext *c, const int16_t *lumFilter,
+const int16_t **lumSrc, int lumFilterSize,
+const int16_t *chrFilter,
+const int16_t **chrUSrc,
+const int16_t **chrVSrc, int chrFilterSize,
+const int16_t **alpSrc, uint8_t **dest,
+int dstW, int y);
+struct SwsSlice;
+struct SwsFilterDescriptor;
+typedef struct SwsContext {
+const AVClass *av_class;
+SwsFunc swscale;
+int srcW; 
+int srcH; 
+int dstH; 
+int chrSrcW; 
+int chrSrcH; 
+int chrDstW; 
+int chrDstH; 
+int lumXInc, chrXInc;
+int lumYInc, chrYInc;
+enum AVPixelFormat dstFormat; 
+enum AVPixelFormat srcFormat; 
+int dstFormatBpp; 
+int srcFormatBpp; 
+int dstBpc, srcBpc;
+int chrSrcHSubSample; 
+int chrSrcVSubSample; 
+int chrDstHSubSample; 
+int chrDstVSubSample; 
+int vChrDrop; 
+int sliceDir; 
+double param[2]; 
+struct SwsContext *cascaded_context[3];
+int cascaded_tmpStride[4];
+uint8_t *cascaded_tmp[4];
+int cascaded1_tmpStride[4];
+uint8_t *cascaded1_tmp[4];
+int cascaded_mainindex;
+double gamma_value;
+int gamma_flag;
+int is_internal_gamma;
+uint16_t *gamma;
+uint16_t *inv_gamma;
+int numDesc;
+int descIndex[2];
+int numSlice;
+struct SwsSlice *slice;
+struct SwsFilterDescriptor *desc;
+uint32_t pal_yuv[256];
+uint32_t pal_rgb[256];
+float uint2float_lut[256];
+int lastInLumBuf; 
+int lastInChrBuf; 
+uint8_t *formatConvBuffer;
+int needAlpha;
+int16_t *hLumFilter; 
+int16_t *hChrFilter; 
+int16_t *vLumFilter; 
+int16_t *vChrFilter; 
+int32_t *hLumFilterPos; 
+int32_t *hChrFilterPos; 
+int32_t *vLumFilterPos; 
+int32_t *vChrFilterPos; 
+int hLumFilterSize; 
+int hChrFilterSize; 
+int vLumFilterSize; 
+int vChrFilterSize; 
+int lumMmxextFilterCodeSize; 
+int chrMmxextFilterCodeSize; 
+uint8_t *lumMmxextFilterCode; 
+uint8_t *chrMmxextFilterCode; 
+int canMMXEXTBeUsed;
+int warned_unuseable_bilinear;
+int dstY; 
+int flags; 
+void *yuvTable; 
+DECLARE_ALIGNED(16, int, table_gV)[256 + 2*YUVRGB_TABLE_HEADROOM];
+uint8_t *table_rV[256 + 2*YUVRGB_TABLE_HEADROOM];
+uint8_t *table_gU[256 + 2*YUVRGB_TABLE_HEADROOM];
+uint8_t *table_bU[256 + 2*YUVRGB_TABLE_HEADROOM];
+DECLARE_ALIGNED(16, int32_t, input_rgb2yuv_table)[16+40*4]; 
+#define RY_IDX 0
+#define GY_IDX 1
+#define BY_IDX 2
+#define RU_IDX 3
+#define GU_IDX 4
+#define BU_IDX 5
+#define RV_IDX 6
+#define GV_IDX 7
+#define BV_IDX 8
+#define RGB2YUV_SHIFT 15
+int *dither_error[4];
+int contrast, brightness, saturation; 
+int srcColorspaceTable[4];
+int dstColorspaceTable[4];
+int srcRange; 
+int dstRange; 
+int src0Alpha;
+int dst0Alpha;
+int srcXYZ;
+int dstXYZ;
+int src_h_chr_pos;
+int dst_h_chr_pos;
+int src_v_chr_pos;
+int dst_v_chr_pos;
+int yuv2rgb_y_offset;
+int yuv2rgb_y_coeff;
+int yuv2rgb_v2r_coeff;
+int yuv2rgb_v2g_coeff;
+int yuv2rgb_u2g_coeff;
+int yuv2rgb_u2b_coeff;
+#define RED_DITHER "0*8"
+#define GREEN_DITHER "1*8"
+#define BLUE_DITHER "2*8"
+#define Y_COEFF "3*8"
+#define VR_COEFF "4*8"
+#define UB_COEFF "5*8"
+#define VG_COEFF "6*8"
+#define UG_COEFF "7*8"
+#define Y_OFFSET "8*8"
+#define U_OFFSET "9*8"
+#define V_OFFSET "10*8"
+#define LUM_MMX_FILTER_OFFSET "11*8"
+#define CHR_MMX_FILTER_OFFSET "11*8+4*4*"AV_STRINGIFY(MAX_FILTER_SIZE)
+#define DSTW_OFFSET "11*8+4*4*"AV_STRINGIFY(MAX_FILTER_SIZE)"*2"
+#define ESP_OFFSET "11*8+4*4*"AV_STRINGIFY(MAX_FILTER_SIZE)"*2+8"
+#define VROUNDER_OFFSET "11*8+4*4*"AV_STRINGIFY(MAX_FILTER_SIZE)"*2+16"
+#define U_TEMP "11*8+4*4*"AV_STRINGIFY(MAX_FILTER_SIZE)"*2+24"
+#define V_TEMP "11*8+4*4*"AV_STRINGIFY(MAX_FILTER_SIZE)"*2+32"
+#define Y_TEMP "11*8+4*4*"AV_STRINGIFY(MAX_FILTER_SIZE)"*2+40"
+#define ALP_MMX_FILTER_OFFSET "11*8+4*4*"AV_STRINGIFY(MAX_FILTER_SIZE)"*2+48"
+#define UV_OFF_PX "11*8+4*4*"AV_STRINGIFY(MAX_FILTER_SIZE)"*3+48"
+#define UV_OFF_BYTE "11*8+4*4*"AV_STRINGIFY(MAX_FILTER_SIZE)"*3+56"
+#define DITHER16 "11*8+4*4*"AV_STRINGIFY(MAX_FILTER_SIZE)"*3+64"
+#define DITHER32 "11*8+4*4*"AV_STRINGIFY(MAX_FILTER_SIZE)"*3+80"
+#define DITHER32_INT (11*8+4*4*MAX_FILTER_SIZE*3+80) 
+DECLARE_ALIGNED(8, uint64_t, redDither);
+DECLARE_ALIGNED(8, uint64_t, greenDither);
+DECLARE_ALIGNED(8, uint64_t, blueDither);
+DECLARE_ALIGNED(8, uint64_t, yCoeff);
+DECLARE_ALIGNED(8, uint64_t, vrCoeff);
+DECLARE_ALIGNED(8, uint64_t, ubCoeff);
+DECLARE_ALIGNED(8, uint64_t, vgCoeff);
+DECLARE_ALIGNED(8, uint64_t, ugCoeff);
+DECLARE_ALIGNED(8, uint64_t, yOffset);
+DECLARE_ALIGNED(8, uint64_t, uOffset);
+DECLARE_ALIGNED(8, uint64_t, vOffset);
+int32_t lumMmxFilter[4 * MAX_FILTER_SIZE];
+int32_t chrMmxFilter[4 * MAX_FILTER_SIZE];
+int dstW; 
+DECLARE_ALIGNED(8, uint64_t, esp);
+DECLARE_ALIGNED(8, uint64_t, vRounder);
+DECLARE_ALIGNED(8, uint64_t, u_temp);
+DECLARE_ALIGNED(8, uint64_t, v_temp);
+DECLARE_ALIGNED(8, uint64_t, y_temp);
+int32_t alpMmxFilter[4 * MAX_FILTER_SIZE];
+DECLARE_ALIGNED(8, ptrdiff_t, uv_off); 
+DECLARE_ALIGNED(8, ptrdiff_t, uv_offx2); 
+DECLARE_ALIGNED(8, uint16_t, dither16)[8];
+DECLARE_ALIGNED(8, uint32_t, dither32)[8];
+const uint8_t *chrDither8, *lumDither8;
+#if HAVE_ALTIVEC
+vector signed short CY;
+vector signed short CRV;
+vector signed short CBU;
+vector signed short CGU;
+vector signed short CGV;
+vector signed short OY;
+vector unsigned short CSHIFT;
+vector signed short *vYCoeffsBank, *vCCoeffsBank;
+#endif
+int use_mmx_vfilter;
+#define XYZ_GAMMA (2.6f)
+#define RGB_GAMMA (2.2f)
+int16_t *xyzgamma;
+int16_t *rgbgamma;
+int16_t *xyzgammainv;
+int16_t *rgbgammainv;
+int16_t xyz2rgb_matrix[3][4];
+int16_t rgb2xyz_matrix[3][4];
+yuv2planar1_fn yuv2plane1;
+yuv2planarX_fn yuv2planeX;
+yuv2interleavedX_fn yuv2nv12cX;
+yuv2packed1_fn yuv2packed1;
+yuv2packed2_fn yuv2packed2;
+yuv2packedX_fn yuv2packedX;
+yuv2anyX_fn yuv2anyX;
+void (*lumToYV12)(uint8_t *dst, const uint8_t *src, const uint8_t *src2, const uint8_t *src3,
+int width, uint32_t *pal);
+void (*alpToYV12)(uint8_t *dst, const uint8_t *src, const uint8_t *src2, const uint8_t *src3,
+int width, uint32_t *pal);
+void (*chrToYV12)(uint8_t *dstU, uint8_t *dstV,
+const uint8_t *src1, const uint8_t *src2, const uint8_t *src3,
+int width, uint32_t *pal);
+void (*readLumPlanar)(uint8_t *dst, const uint8_t *src[4], int width, int32_t *rgb2yuv);
+void (*readChrPlanar)(uint8_t *dstU, uint8_t *dstV, const uint8_t *src[4],
+int width, int32_t *rgb2yuv);
+void (*readAlpPlanar)(uint8_t *dst, const uint8_t *src[4], int width, int32_t *rgb2yuv);
+void (*hyscale_fast)(struct SwsContext *c,
+int16_t *dst, int dstWidth,
+const uint8_t *src, int srcW, int xInc);
+void (*hcscale_fast)(struct SwsContext *c,
+int16_t *dst1, int16_t *dst2, int dstWidth,
+const uint8_t *src1, const uint8_t *src2,
+int srcW, int xInc);
+void (*hyScale)(struct SwsContext *c, int16_t *dst, int dstW,
+const uint8_t *src, const int16_t *filter,
+const int32_t *filterPos, int filterSize);
+void (*hcScale)(struct SwsContext *c, int16_t *dst, int dstW,
+const uint8_t *src, const int16_t *filter,
+const int32_t *filterPos, int filterSize);
+void (*lumConvertRange)(int16_t *dst, int width);
+void (*chrConvertRange)(int16_t *dst1, int16_t *dst2, int width);
+int needs_hcscale; 
+SwsDither dither;
+SwsAlphaBlend alphablend;
+} SwsContext;
+SwsFunc ff_yuv2rgb_get_func_ptr(SwsContext *c);
+int ff_yuv2rgb_c_init_tables(SwsContext *c, const int inv_table[4],
+int fullRange, int brightness,
+int contrast, int saturation);
+void ff_yuv2rgb_init_tables_ppc(SwsContext *c, const int inv_table[4],
+int brightness, int contrast, int saturation);
+void ff_updateMMXDitherTables(SwsContext *c, int dstY);
+av_cold void ff_sws_init_range_convert(SwsContext *c);
+SwsFunc ff_yuv2rgb_init_x86(SwsContext *c);
+SwsFunc ff_yuv2rgb_init_ppc(SwsContext *c);
+static av_always_inline int is16BPS(enum AVPixelFormat pix_fmt)
+{
+const AVPixFmtDescriptor *desc = av_pix_fmt_desc_get(pix_fmt);
+av_assert0(desc);
+return desc->comp[0].depth == 16;
+}
+static av_always_inline int isNBPS(enum AVPixelFormat pix_fmt)
+{
+const AVPixFmtDescriptor *desc = av_pix_fmt_desc_get(pix_fmt);
+av_assert0(desc);
+return desc->comp[0].depth >= 9 && desc->comp[0].depth <= 14;
+}
+static av_always_inline int isBE(enum AVPixelFormat pix_fmt)
+{
+const AVPixFmtDescriptor *desc = av_pix_fmt_desc_get(pix_fmt);
+av_assert0(desc);
+return desc->flags & AV_PIX_FMT_FLAG_BE;
+}
+static av_always_inline int isYUV(enum AVPixelFormat pix_fmt)
+{
+const AVPixFmtDescriptor *desc = av_pix_fmt_desc_get(pix_fmt);
+av_assert0(desc);
+return !(desc->flags & AV_PIX_FMT_FLAG_RGB) && desc->nb_components >= 2;
+}
+static av_always_inline int isPlanarYUV(enum AVPixelFormat pix_fmt)
+{
+const AVPixFmtDescriptor *desc = av_pix_fmt_desc_get(pix_fmt);
+av_assert0(desc);
+return ((desc->flags & AV_PIX_FMT_FLAG_PLANAR) && isYUV(pix_fmt));
+}
+static av_always_inline int isSemiPlanarYUV(enum AVPixelFormat pix_fmt)
+{
+const AVPixFmtDescriptor *desc = av_pix_fmt_desc_get(pix_fmt);
+av_assert0(desc);
+return (isPlanarYUV(pix_fmt) && desc->comp[1].plane == desc->comp[2].plane);
+}
+static av_always_inline int isRGB(enum AVPixelFormat pix_fmt)
+{
+const AVPixFmtDescriptor *desc = av_pix_fmt_desc_get(pix_fmt);
+av_assert0(desc);
+return (desc->flags & AV_PIX_FMT_FLAG_RGB);
+}
+static av_always_inline int isGray(enum AVPixelFormat pix_fmt)
+{
+const AVPixFmtDescriptor *desc = av_pix_fmt_desc_get(pix_fmt);
+av_assert0(desc);
+return !(desc->flags & AV_PIX_FMT_FLAG_PAL) &&
+!(desc->flags & AV_PIX_FMT_FLAG_HWACCEL) &&
+desc->nb_components <= 2 &&
+pix_fmt != AV_PIX_FMT_MONOBLACK &&
+pix_fmt != AV_PIX_FMT_MONOWHITE;
+}
+static av_always_inline int isRGBinInt(enum AVPixelFormat pix_fmt)
+{
+return pix_fmt == AV_PIX_FMT_RGB48BE ||
+pix_fmt == AV_PIX_FMT_RGB48LE ||
+pix_fmt == AV_PIX_FMT_RGB32 ||
+pix_fmt == AV_PIX_FMT_RGB32_1 ||
+pix_fmt == AV_PIX_FMT_RGB24 ||
+pix_fmt == AV_PIX_FMT_RGB565BE ||
+pix_fmt == AV_PIX_FMT_RGB565LE ||
+pix_fmt == AV_PIX_FMT_RGB555BE ||
+pix_fmt == AV_PIX_FMT_RGB555LE ||
+pix_fmt == AV_PIX_FMT_RGB444BE ||
+pix_fmt == AV_PIX_FMT_RGB444LE ||
+pix_fmt == AV_PIX_FMT_RGB8 ||
+pix_fmt == AV_PIX_FMT_RGB4 ||
+pix_fmt == AV_PIX_FMT_RGB4_BYTE ||
+pix_fmt == AV_PIX_FMT_RGBA64BE ||
+pix_fmt == AV_PIX_FMT_RGBA64LE ||
+pix_fmt == AV_PIX_FMT_MONOBLACK ||
+pix_fmt == AV_PIX_FMT_MONOWHITE;
+}
+static av_always_inline int isBGRinInt(enum AVPixelFormat pix_fmt)
+{
+return pix_fmt == AV_PIX_FMT_BGR48BE ||
+pix_fmt == AV_PIX_FMT_BGR48LE ||
+pix_fmt == AV_PIX_FMT_BGR32 ||
+pix_fmt == AV_PIX_FMT_BGR32_1 ||
+pix_fmt == AV_PIX_FMT_BGR24 ||
+pix_fmt == AV_PIX_FMT_BGR565BE ||
+pix_fmt == AV_PIX_FMT_BGR565LE ||
+pix_fmt == AV_PIX_FMT_BGR555BE ||
+pix_fmt == AV_PIX_FMT_BGR555LE ||
+pix_fmt == AV_PIX_FMT_BGR444BE ||
+pix_fmt == AV_PIX_FMT_BGR444LE ||
+pix_fmt == AV_PIX_FMT_BGR8 ||
+pix_fmt == AV_PIX_FMT_BGR4 ||
+pix_fmt == AV_PIX_FMT_BGR4_BYTE ||
+pix_fmt == AV_PIX_FMT_BGRA64BE ||
+pix_fmt == AV_PIX_FMT_BGRA64LE ||
+pix_fmt == AV_PIX_FMT_MONOBLACK ||
+pix_fmt == AV_PIX_FMT_MONOWHITE;
+}
+static av_always_inline int isBayer(enum AVPixelFormat pix_fmt)
+{
+const AVPixFmtDescriptor *desc = av_pix_fmt_desc_get(pix_fmt);
+av_assert0(desc);
+return !!(desc->flags & AV_PIX_FMT_FLAG_BAYER);
+}
+static av_always_inline int isAnyRGB(enum AVPixelFormat pix_fmt)
+{
+const AVPixFmtDescriptor *desc = av_pix_fmt_desc_get(pix_fmt);
+av_assert0(desc);
+return (desc->flags & AV_PIX_FMT_FLAG_RGB) ||
+pix_fmt == AV_PIX_FMT_MONOBLACK || pix_fmt == AV_PIX_FMT_MONOWHITE;
+}
+static av_always_inline int isFloat(enum AVPixelFormat pix_fmt)
+{
+const AVPixFmtDescriptor *desc = av_pix_fmt_desc_get(pix_fmt);
+av_assert0(desc);
+return desc->flags & AV_PIX_FMT_FLAG_FLOAT;
+}
+static av_always_inline int isALPHA(enum AVPixelFormat pix_fmt)
+{
+const AVPixFmtDescriptor *desc = av_pix_fmt_desc_get(pix_fmt);
+av_assert0(desc);
+if (pix_fmt == AV_PIX_FMT_PAL8)
+return 1;
+return desc->flags & AV_PIX_FMT_FLAG_ALPHA;
+}
+static av_always_inline int isPacked(enum AVPixelFormat pix_fmt)
+{
+const AVPixFmtDescriptor *desc = av_pix_fmt_desc_get(pix_fmt);
+av_assert0(desc);
+return (desc->nb_components >= 2 && !(desc->flags & AV_PIX_FMT_FLAG_PLANAR)) ||
+pix_fmt == AV_PIX_FMT_PAL8 ||
+pix_fmt == AV_PIX_FMT_MONOBLACK || pix_fmt == AV_PIX_FMT_MONOWHITE;
+}
+static av_always_inline int isPlanar(enum AVPixelFormat pix_fmt)
+{
+const AVPixFmtDescriptor *desc = av_pix_fmt_desc_get(pix_fmt);
+av_assert0(desc);
+return (desc->nb_components >= 2 && (desc->flags & AV_PIX_FMT_FLAG_PLANAR));
+}
+static av_always_inline int isPackedRGB(enum AVPixelFormat pix_fmt)
+{
+const AVPixFmtDescriptor *desc = av_pix_fmt_desc_get(pix_fmt);
+av_assert0(desc);
+return ((desc->flags & (AV_PIX_FMT_FLAG_PLANAR | AV_PIX_FMT_FLAG_RGB)) == AV_PIX_FMT_FLAG_RGB);
+}
+static av_always_inline int isPlanarRGB(enum AVPixelFormat pix_fmt)
+{
+const AVPixFmtDescriptor *desc = av_pix_fmt_desc_get(pix_fmt);
+av_assert0(desc);
+return ((desc->flags & (AV_PIX_FMT_FLAG_PLANAR | AV_PIX_FMT_FLAG_RGB)) ==
+(AV_PIX_FMT_FLAG_PLANAR | AV_PIX_FMT_FLAG_RGB));
+}
+static av_always_inline int usePal(enum AVPixelFormat pix_fmt)
+{
+switch (pix_fmt) {
+case AV_PIX_FMT_PAL8:
+case AV_PIX_FMT_BGR4_BYTE:
+case AV_PIX_FMT_BGR8:
+case AV_PIX_FMT_GRAY8:
+case AV_PIX_FMT_RGB4_BYTE:
+case AV_PIX_FMT_RGB8:
+return 1;
+default:
+return 0;
+}
+}
+extern const uint64_t ff_dither4[2];
+extern const uint64_t ff_dither8[2];
+extern const uint8_t ff_dither_2x2_4[3][8];
+extern const uint8_t ff_dither_2x2_8[3][8];
+extern const uint8_t ff_dither_4x4_16[5][8];
+extern const uint8_t ff_dither_8x8_32[9][8];
+extern const uint8_t ff_dither_8x8_73[9][8];
+extern const uint8_t ff_dither_8x8_128[9][8];
+extern const uint8_t ff_dither_8x8_220[9][8];
+extern const int32_t ff_yuv2rgb_coeffs[11][4];
+extern const AVClass ff_sws_context_class;
+void ff_get_unscaled_swscale(SwsContext *c);
+void ff_get_unscaled_swscale_ppc(SwsContext *c);
+void ff_get_unscaled_swscale_arm(SwsContext *c);
+void ff_get_unscaled_swscale_aarch64(SwsContext *c);
+SwsFunc ff_getSwsFunc(SwsContext *c);
+void ff_sws_init_input_funcs(SwsContext *c);
+void ff_sws_init_output_funcs(SwsContext *c,
+yuv2planar1_fn *yuv2plane1,
+yuv2planarX_fn *yuv2planeX,
+yuv2interleavedX_fn *yuv2nv12cX,
+yuv2packed1_fn *yuv2packed1,
+yuv2packed2_fn *yuv2packed2,
+yuv2packedX_fn *yuv2packedX,
+yuv2anyX_fn *yuv2anyX);
+void ff_sws_init_swscale_ppc(SwsContext *c);
+void ff_sws_init_swscale_vsx(SwsContext *c);
+void ff_sws_init_swscale_x86(SwsContext *c);
+void ff_sws_init_swscale_aarch64(SwsContext *c);
+void ff_sws_init_swscale_arm(SwsContext *c);
+void ff_hyscale_fast_c(SwsContext *c, int16_t *dst, int dstWidth,
+const uint8_t *src, int srcW, int xInc);
+void ff_hcscale_fast_c(SwsContext *c, int16_t *dst1, int16_t *dst2,
+int dstWidth, const uint8_t *src1,
+const uint8_t *src2, int srcW, int xInc);
+int ff_init_hscaler_mmxext(int dstW, int xInc, uint8_t *filterCode,
+int16_t *filter, int32_t *filterPos,
+int numSplits);
+void ff_hyscale_fast_mmxext(SwsContext *c, int16_t *dst,
+int dstWidth, const uint8_t *src,
+int srcW, int xInc);
+void ff_hcscale_fast_mmxext(SwsContext *c, int16_t *dst1, int16_t *dst2,
+int dstWidth, const uint8_t *src1,
+const uint8_t *src2, int srcW, int xInc);
+struct SwsContext *sws_alloc_set_opts(int srcW, int srcH, enum AVPixelFormat srcFormat,
+int dstW, int dstH, enum AVPixelFormat dstFormat,
+int flags, const double *param);
+int ff_sws_alphablendaway(SwsContext *c, const uint8_t *src[],
+int srcStride[], int srcSliceY, int srcSliceH,
+uint8_t *dst[], int dstStride[]);
+static inline void fillPlane16(uint8_t *plane, int stride, int width, int height, int y,
+int alpha, int bits, const int big_endian)
+{
+int i, j;
+uint8_t *ptr = plane + stride * y;
+int v = alpha ? 0xFFFF>>(16-bits) : (1<<(bits-1));
+for (i = 0; i < height; i++) {
+#define FILL(wfunc) for (j = 0; j < width; j++) {wfunc(ptr+2*j, v);}
+if (big_endian) {
+FILL(AV_WB16);
+} else {
+FILL(AV_WL16);
+}
+ptr += stride;
+}
+}
+#define MAX_SLICE_PLANES 4
+typedef struct SwsPlane
+{
+int available_lines; 
+int sliceY; 
+int sliceH; 
+uint8_t **line; 
+uint8_t **tmp; 
+} SwsPlane;
+typedef struct SwsSlice
+{
+int width; 
+int h_chr_sub_sample; 
+int v_chr_sub_sample; 
+int is_ring; 
+int should_free_lines; 
+enum AVPixelFormat fmt; 
+SwsPlane plane[MAX_SLICE_PLANES]; 
+} SwsSlice;
+typedef struct SwsFilterDescriptor
+{
+SwsSlice *src; 
+SwsSlice *dst; 
+int alpha; 
+void *instance; 
+int (*process)(SwsContext *c, struct SwsFilterDescriptor *desc, int sliceY, int sliceH);
+} SwsFilterDescriptor;
+int ff_init_slice_from_src(SwsSlice * s, uint8_t *src[4], int stride[4], int srcW, int lumY, int lumH, int chrY, int chrH, int relative);
+int ff_init_filters(SwsContext *c);
+int ff_free_filters(SwsContext *c);
+int ff_rotate_slice(SwsSlice *s, int lum, int chr);
+int ff_init_gamma_convert(SwsFilterDescriptor *desc, SwsSlice * src, uint16_t *table);
+int ff_init_desc_fmt_convert(SwsFilterDescriptor *desc, SwsSlice * src, SwsSlice *dst, uint32_t *pal);
+int ff_init_desc_hscale(SwsFilterDescriptor *desc, SwsSlice *src, SwsSlice *dst, uint16_t *filter, int * filter_pos, int filter_size, int xInc);
+int ff_init_desc_cfmt_convert(SwsFilterDescriptor *desc, SwsSlice * src, SwsSlice *dst, uint32_t *pal);
+int ff_init_desc_chscale(SwsFilterDescriptor *desc, SwsSlice *src, SwsSlice *dst, uint16_t *filter, int * filter_pos, int filter_size, int xInc);
+int ff_init_desc_no_chr(SwsFilterDescriptor *desc, SwsSlice * src, SwsSlice *dst);
+int ff_init_vscale(SwsContext *c, SwsFilterDescriptor *desc, SwsSlice *src, SwsSlice *dst);
+void ff_init_vscale_pfn(SwsContext *c, yuv2planar1_fn yuv2plane1, yuv2planarX_fn yuv2planeX,
+yuv2interleavedX_fn yuv2nv12cX, yuv2packed1_fn yuv2packed1, yuv2packed2_fn yuv2packed2,
+yuv2packedX_fn yuv2packedX, yuv2anyX_fn yuv2anyX, int use_mmx);
+#define MAX_LINES_AHEAD 4

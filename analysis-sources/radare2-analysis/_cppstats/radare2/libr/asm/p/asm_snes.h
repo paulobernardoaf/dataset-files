@@ -1,0 +1,4 @@
+struct snes_asm_flags {
+unsigned char M; 
+unsigned char X;
+};

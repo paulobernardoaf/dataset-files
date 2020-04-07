@@ -1,0 +1,4 @@
+#include "r_utf8.h"
+R_API int r_utf32_decode(const ut8 *ptr, int ptrlen, RRune *ch, bool bigendian);
+R_API int r_utf32le_decode(const ut8 *ptr, int ptrlen, RRune *ch);
+R_API int r_utf32le_decode(const ut8 *ptr, int ptrlen, RRune *ch);

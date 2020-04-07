@@ -1,0 +1,338 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" revision="1.0.0" language="C" filename="D:\Pesquisa\Projects\obs-analysis\_cppstats\obs-studio\plugins\rtmp-services\twitch.c"><cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;file-updater/file-updater.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;util/threading.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;util/platform.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;obs-module.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;util/dstr.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;jansson.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"twitch.h"</cpp:file></cpp:include>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>update_info_t</name> <modifier>*</modifier></type><name>twitch_update_info</name> <init>= <expr><name>NULL</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>pthread_mutex_t</name></type> <name>mutex</name> <init>= <expr><name>PTHREAD_MUTEX_INITIALIZER</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>bool</name></type> <name>ingests_refreshed</name> <init>= <expr><name>false</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>bool</name></type> <name>ingests_refreshing</name> <init>= <expr><name>false</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>bool</name></type> <name>ingests_loaded</name> <init>= <expr><name>false</name></expr></init></decl>;</decl_stmt>
+
+<struct>struct <name>ingest</name> <block>{
+
+<decl_stmt><decl><type><name>char</name> <modifier>*</modifier></type><name>name</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>char</name> <modifier>*</modifier></type><name>url</name></decl>;</decl_stmt>
+
+}</block>;</struct>
+
+<expr_stmt><expr><specifier>static</specifier> <macro><name>DARRAY</name><argument_list>(<argument>struct ingest</argument>)</argument_list></macro> <name>cur_ingests</name></expr>;</expr_stmt>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>free_ingests</name><parameter_list>(<parameter><decl><type><name>void</name></type></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<for>for <control>(<init><decl><type><name>size_t</name></type> <name>i</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name><name>cur_ingests</name><operator>.</operator><name>num</name></name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>ingest</name></name> <modifier>*</modifier></type><name>ingest</name> <init>= <expr><name><name>cur_ingests</name><operator>.</operator><name>array</name></name> <operator>+</operator> <name>i</name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>bfree</name><argument_list>(<argument><expr><name><name>ingest</name><operator>-&gt;</operator><name>name</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>bfree</name><argument_list>(<argument><expr><name><name>ingest</name><operator>-&gt;</operator><name>url</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></for>
+
+<expr_stmt><expr><call><name>da_free</name><argument_list>(<argument><expr><name>cur_ingests</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>bool</name></type> <name>load_ingests</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>json</name></decl></parameter>, <parameter><decl><type><name>bool</name></type> <name>write_file</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>json_t</name> <modifier>*</modifier></type><name>root</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>json_t</name> <modifier>*</modifier></type><name>ingests</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>bool</name></type> <name>success</name> <init>= <expr><name>false</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>char</name> <modifier>*</modifier></type><name>cache_old</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>char</name> <modifier>*</modifier></type><name>cache_new</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>size_t</name></type> <name>count</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>root</name> <operator>=</operator> <call><name>json_loads</name><argument_list>(<argument><expr><name>json</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>root</name></expr>)</condition><block type="pseudo"><block_content>
+
+<goto>goto <name>finish</name>;</goto></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>ingests</name> <operator>=</operator> <call><name>json_object_get</name><argument_list>(<argument><expr><name>root</name></expr></argument>, <argument><expr><literal type="string">"ingests"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>ingests</name></expr>)</condition><block type="pseudo"><block_content>
+
+<goto>goto <name>finish</name>;</goto></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>count</name> <operator>=</operator> <call><name>json_array_size</name><argument_list>(<argument><expr><name>ingests</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>count</name> <operator>&lt;=</operator> <literal type="number">1</literal> <operator>&amp;&amp;</operator> <name><name>cur_ingests</name><operator>.</operator><name>num</name></name></expr>)</condition><block type="pseudo"><block_content>
+
+<goto>goto <name>finish</name>;</goto></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>free_ingests</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<for>for <control>(<init><decl><type><name>size_t</name></type> <name>i</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>count</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+
+<decl_stmt><decl><type><name>json_t</name> <modifier>*</modifier></type><name>item</name> <init>= <expr><call><name>json_array_get</name><argument_list>(<argument><expr><name>ingests</name></expr></argument>, <argument><expr><name>i</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>json_t</name> <modifier>*</modifier></type><name>item_name</name> <init>= <expr><call><name>json_object_get</name><argument_list>(<argument><expr><name>item</name></expr></argument>, <argument><expr><literal type="string">"name"</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>json_t</name> <modifier>*</modifier></type><name>item_url</name> <init>= <expr><call><name>json_object_get</name><argument_list>(<argument><expr><name>item</name></expr></argument>, <argument><expr><literal type="string">"url_template"</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>ingest</name></name></type> <name>ingest</name> <init>= <expr><block>{<expr><literal type="number">0</literal></expr>}</block></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>dstr</name></name></type> <name>url</name> <init>= <expr><block>{<expr><literal type="number">0</literal></expr>}</block></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>item_name</name> <operator>||</operator> <operator>!</operator><name>item_url</name></expr>)</condition><block type="pseudo"><block_content>
+
+<continue>continue;</continue></block_content></block></if></if_stmt>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>url_str</name> <init>= <expr><call><name>json_string_value</name><argument_list>(<argument><expr><name>item_url</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>name_str</name> <init>= <expr><call><name>json_string_value</name><argument_list>(<argument><expr><name>item_name</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>strstr</name><argument_list>(<argument><expr><name>name_str</name></expr></argument>, <argument><expr><literal type="string">"deprecated"</literal></expr></argument>)</argument_list></call> <operator>!=</operator> <name>NULL</name> <operator>||</operator>
+
+<call><name>strstr</name><argument_list>(<argument><expr><name>name_str</name></expr></argument>, <argument><expr><literal type="string">"depracated"</literal></expr></argument>)</argument_list></call> <operator>!=</operator> <name>NULL</name></expr>)</condition><block type="pseudo"><block_content>
+
+<continue>continue;</continue></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>dstr_copy</name><argument_list>(<argument><expr><operator>&amp;</operator><name>url</name></expr></argument>, <argument><expr><name>url_str</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>dstr_replace</name><argument_list>(<argument><expr><operator>&amp;</operator><name>url</name></expr></argument>, <argument><expr><literal type="string">"/{stream_key}"</literal></expr></argument>, <argument><expr><literal type="string">""</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>ingest</name><operator>.</operator><name>name</name></name> <operator>=</operator> <call><name>bstrdup</name><argument_list>(<argument><expr><name>name_str</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>ingest</name><operator>.</operator><name>url</name></name> <operator>=</operator> <name><name>url</name><operator>.</operator><name>array</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>da_push_back</name><argument_list>(<argument><expr><name>cur_ingests</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>ingest</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></for>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>cur_ingests</name><operator>.</operator><name>num</name></name></expr>)</condition><block type="pseudo"><block_content>
+
+<goto>goto <name>finish</name>;</goto></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>success</name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>write_file</name></expr>)</condition><block type="pseudo"><block_content>
+
+<goto>goto <name>finish</name>;</goto></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>cache_old</name> <operator>=</operator> <call><name>obs_module_config_path</name><argument_list>(<argument><expr><literal type="string">"twitch_ingests.json"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>cache_new</name> <operator>=</operator> <call><name>obs_module_config_path</name><argument_list>(<argument><expr><literal type="string">"twitch_ingests.new.json"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>os_quick_write_utf8_file</name><argument_list>(<argument><expr><name>cache_new</name></expr></argument>, <argument><expr><name>json</name></expr></argument>, <argument><expr><call><name>strlen</name><argument_list>(<argument><expr><name>json</name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name>false</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>os_safe_replace</name><argument_list>(<argument><expr><name>cache_old</name></expr></argument>, <argument><expr><name>cache_new</name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>bfree</name><argument_list>(<argument><expr><name>cache_old</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>bfree</name><argument_list>(<argument><expr><name>cache_new</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<label><name>finish</name>:</label>
+
+<if_stmt><if>if <condition>(<expr><name>root</name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>json_decref</name><argument_list>(<argument><expr><name>root</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<return>return <expr><name>success</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>bool</name></type> <name>twitch_ingest_update</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>param</name></decl></parameter>, <parameter><decl><type><name><name>struct</name> <name>file_download_data</name></name> <modifier>*</modifier></type><name>data</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>bool</name></type> <name>success</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_lock</name><argument_list>(<argument><expr><operator>&amp;</operator><name>mutex</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>success</name> <operator>=</operator> <call><name>load_ingests</name><argument_list>(<argument><expr><operator>(</operator><specifier>const</specifier> <name>char</name> <operator>*</operator><operator>)</operator><name><name>data</name><operator>-&gt;</operator><name>buffer</name><operator>.</operator><name>array</name></name></expr></argument>, <argument><expr><name>true</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_unlock</name><argument_list>(<argument><expr><operator>&amp;</operator><name>mutex</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>success</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>os_atomic_set_bool</name><argument_list>(<argument><expr><operator>&amp;</operator><name>ingests_refreshed</name></expr></argument>, <argument><expr><name>true</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>os_atomic_set_bool</name><argument_list>(<argument><expr><operator>&amp;</operator><name>ingests_loaded</name></expr></argument>, <argument><expr><name>true</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>UNUSED_PARAMETER</name><argument_list>(<argument><expr><name>param</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>true</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><name>void</name></type> <name>twitch_ingests_lock</name><parameter_list>(<parameter><decl><type><name>void</name></type></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>pthread_mutex_lock</name><argument_list>(<argument><expr><operator>&amp;</operator><name>mutex</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><name>void</name></type> <name>twitch_ingests_unlock</name><parameter_list>(<parameter><decl><type><name>void</name></type></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>pthread_mutex_unlock</name><argument_list>(<argument><expr><operator>&amp;</operator><name>mutex</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><name>size_t</name></type> <name>twitch_ingest_count</name><parameter_list>(<parameter><decl><type><name>void</name></type></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<return>return <expr><name><name>cur_ingests</name><operator>.</operator><name>num</name></name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><name><name>struct</name> <name>twitch_ingest</name></name></type> <name>twitch_ingest</name><parameter_list>(<parameter><decl><type><name>size_t</name></type> <name>idx</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>twitch_ingest</name></name></type> <name>ingest</name></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>cur_ingests</name><operator>.</operator><name>num</name></name> <operator>&lt;=</operator> <name>idx</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name><name>ingest</name><operator>.</operator><name>name</name></name> <operator>=</operator> <name>NULL</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>ingest</name><operator>.</operator><name>url</name></name> <operator>=</operator> <name>NULL</name></expr>;</expr_stmt>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<expr_stmt><expr><name>ingest</name> <operator>=</operator> <operator>*</operator><operator>(</operator>struct <name>twitch_ingest</name> <operator>*</operator><operator>)</operator><operator>(</operator><name><name>cur_ingests</name><operator>.</operator><name>array</name></name> <operator>+</operator> <name>idx</name><operator>)</operator></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+<return>return <expr><name>ingest</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><name>void</name></type> <name>init_twitch_data</name><parameter_list>(<parameter><decl><type><name>void</name></type></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>da_init</name><argument_list>(<argument><expr><name>cur_ingests</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_init</name><argument_list>(<argument><expr><operator>&amp;</operator><name>mutex</name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function_decl><type><specifier>extern</specifier> <specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>get_module_name</name><parameter_list>(<parameter><decl><type><name>void</name></type></decl></parameter>)</parameter_list>;</function_decl>
+
+<function><type><name>void</name></type> <name>twitch_ingests_refresh</name><parameter_list>(<parameter><decl><type><name>int</name></type> <name>seconds</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><call><name>os_atomic_load_bool</name><argument_list>(<argument><expr><operator>&amp;</operator><name>ingests_refreshed</name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return;</return></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>os_atomic_load_bool</name><argument_list>(<argument><expr><operator>&amp;</operator><name>ingests_refreshing</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>os_atomic_set_bool</name><argument_list>(<argument><expr><operator>&amp;</operator><name>ingests_refreshing</name></expr></argument>, <argument><expr><name>true</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>twitch_update_info</name> <operator>=</operator> <call><name>update_info_create_single</name><argument_list>(
+
+<argument><expr><literal type="string">"[twitch ingest update] "</literal></expr></argument>, <argument><expr><call><name>get_module_name</name><argument_list>()</argument_list></call></expr></argument>,
+
+<argument><expr><literal type="string">"https://ingest.twitch.tv/api/v2/ingests"</literal></expr></argument>,
+
+<argument><expr><name>twitch_ingest_update</name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>os_atomic_load_bool</name><argument_list>(<argument><expr><operator>&amp;</operator><name>ingests_loaded</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<for>for <control>(<init><decl><type><name>int</name></type> <name>i</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>seconds</name> <operator>*</operator> <literal type="number">100</literal></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><call><name>os_atomic_load_bool</name><argument_list>(<argument><expr><operator>&amp;</operator><name>ingests_refreshed</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<break>break;</break>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>os_sleep_ms</name><argument_list>(<argument><expr><literal type="number">10</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></for>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></function>
+
+<function><type><name>void</name></type> <name>load_twitch_data</name><parameter_list>(<parameter><decl><type><name>void</name></type></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>char</name> <modifier>*</modifier></type><name>twitch_cache</name> <init>= <expr><call><name>obs_module_config_path</name><argument_list>(<argument><expr><literal type="string">"twitch_ingests.json"</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>ingest</name></name></type> <name>def</name> <init>= <expr><block>{<expr><operator>.</operator><name>name</name> <operator>=</operator> <call><name>bstrdup</name><argument_list>(<argument><expr><literal type="string">"Default"</literal></expr></argument>)</argument_list></call></expr>,
+
+<expr><operator>.</operator><name>url</name> <operator>=</operator> <macro><name>bstrdup</name><argument_list>(<argument><literal type="string">"rtmp://live.twitch.tv/app"</literal></argument>)</argument_list></macro></expr>}</block></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_lock</name><argument_list>(<argument><expr><operator>&amp;</operator><name>mutex</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>da_push_back</name><argument_list>(<argument><expr><name>cur_ingests</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>def</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_unlock</name><argument_list>(<argument><expr><operator>&amp;</operator><name>mutex</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>os_file_exists</name><argument_list>(<argument><expr><name>twitch_cache</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<decl_stmt><decl><type><name>char</name> <modifier>*</modifier></type><name>data</name> <init>= <expr><call><name>os_quick_read_utf8_file</name><argument_list>(<argument><expr><name>twitch_cache</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>bool</name></type> <name>success</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_lock</name><argument_list>(<argument><expr><operator>&amp;</operator><name>mutex</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>success</name> <operator>=</operator> <call><name>load_ingests</name><argument_list>(<argument><expr><name>data</name></expr></argument>, <argument><expr><name>false</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_unlock</name><argument_list>(<argument><expr><operator>&amp;</operator><name>mutex</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>success</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>os_atomic_set_bool</name><argument_list>(<argument><expr><operator>&amp;</operator><name>ingests_loaded</name></expr></argument>, <argument><expr><name>true</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>bfree</name><argument_list>(<argument><expr><name>data</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>bfree</name><argument_list>(<argument><expr><name>twitch_cache</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><name>void</name></type> <name>unload_twitch_data</name><parameter_list>(<parameter><decl><type><name>void</name></type></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>update_info_destroy</name><argument_list>(<argument><expr><name>twitch_update_info</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>free_ingests</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_destroy</name><argument_list>(<argument><expr><operator>&amp;</operator><name>mutex</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+</unit>

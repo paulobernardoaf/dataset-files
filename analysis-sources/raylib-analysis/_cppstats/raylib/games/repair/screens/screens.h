@@ -1,0 +1,61 @@
+#define BASE_HEAD_WIDTH 400
+#define BASE_HAIR_WIDTH 500
+#define BASE_NOSE_WIDTH 80
+#define BASE_MOUTH_WIDTH 170
+#define BASE_EYES_WIDTH 240
+typedef enum GameScreen { LOGO = 0, TITLE, OPTIONS, GAMEPLAY, ENDING } GameScreen;
+typedef struct {
+int head;
+int colHead;
+int eyes; 
+int nose; 
+int mouth; 
+int hair; 
+int colHair; 
+int glasses; 
+} Character;
+extern const unsigned int headColors[6];
+extern const unsigned int hairColors[10];
+extern GameScreen currentScreen;
+extern Font font;
+extern Music music;
+extern Sound fxCoin;
+extern Texture2D background;
+extern Texture2D texNPatch;
+extern NPatchInfo npInfo;
+extern Texture2D texHead, texHair, texNose, texMouth, texEyes, texComp;
+extern Texture2D texMakeup;
+extern Character player;
+extern Character playerBase;
+extern Character dating;
+extern Character datingBase;
+#if defined(__cplusplus)
+extern "C" { 
+#endif
+bool GuiButton(Rectangle rec, const char *text, int forcedState);
+Character GenerateCharacter(void);
+void CustomizeCharacter(Character *character);
+void DrawCharacter(Character character, Vector2 position);
+void InitLogoScreen(void);
+void UpdateLogoScreen(void);
+void DrawLogoScreen(void);
+void UnloadLogoScreen(void);
+int FinishLogoScreen(void);
+void InitTitleScreen(void);
+void UpdateTitleScreen(void);
+void DrawTitleScreen(void);
+void UnloadTitleScreen(void);
+int FinishTitleScreen(void);
+void InitGameplayScreen(void);
+void UpdateGameplayScreen(void);
+void DrawGameplayScreen(void);
+void UnloadGameplayScreen(void);
+int FinishGameplayScreen(void);
+void InitEndingScreen(void);
+void UpdateEndingScreen(void);
+void DrawEndingScreen(void);
+void UnloadEndingScreen(void);
+int FinishEndingScreen(void);
+#if defined(__cplusplus)
+}
+#endif

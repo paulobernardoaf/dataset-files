@@ -1,0 +1,52 @@
+
+
+
+
+
+
+
+
+#include "tomcrypt_private.h"
+
+
+
+
+
+
+#if defined(LTC_CURVE25519)
+
+
+
+
+
+
+
+
+
+int x25519_shared_secret(const curve25519_key *private_key,
+const curve25519_key *public_key,
+unsigned char *out, unsigned long *outlen)
+{
+LTC_ARGCHK(private_key != NULL);
+LTC_ARGCHK(public_key != NULL);
+LTC_ARGCHK(out != NULL);
+LTC_ARGCHK(outlen != NULL);
+
+if(private_key->type != PK_PRIVATE) return CRYPT_PK_INVALID_TYPE;
+
+if(*outlen < 32uL) {
+*outlen = 32uL;
+return CRYPT_BUFFER_OVERFLOW;
+}
+
+tweetnacl_crypto_scalarmult(out, private_key->priv, public_key->pub);
+*outlen = 32uL;
+
+return CRYPT_OK;
+}
+
+#endif
+
+
+
+

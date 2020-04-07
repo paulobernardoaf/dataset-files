@@ -1,0 +1,67 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#if !defined(_GL_POLL_H)
+#define _GL_POLL_H
+
+#if defined(_WIN32_WINNT) && _WIN32_WINNT >= 0x600
+
+#undef POLLIN
+#undef POLLPRI
+#undef POLLOUT
+#undef POLLERR
+#undef POLLHUP
+#undef POLLNVAL
+#undef POLLRDNORM
+#undef POLLRDBAND
+#undef POLLWRNORM
+#undef POLLWRBAND
+#define pollfd compat_pollfd
+#endif
+
+
+#define POLLIN 0x0001 
+#define POLLPRI 0x0002 
+#define POLLOUT 0x0004 
+#define POLLERR 0x0008 
+#define POLLHUP 0x0010 
+#define POLLNVAL 0x0020 
+#define POLLRDNORM 0x0040
+#define POLLRDBAND 0x0080
+#define POLLWRNORM 0x0100
+#define POLLWRBAND 0x0200
+
+struct pollfd
+{
+int fd; 
+short events; 
+short revents; 
+};
+
+typedef unsigned long nfds_t;
+
+extern int poll (struct pollfd *pfd, nfds_t nfd, int timeout);
+
+
+#if !defined (_POSIX_C_SOURCE) && !defined (_XOPEN_SOURCE)
+#define INFTIM (-1)
+#endif
+
+#endif 

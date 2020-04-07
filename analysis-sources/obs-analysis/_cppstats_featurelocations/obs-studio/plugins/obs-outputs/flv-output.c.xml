@@ -1,0 +1,281 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" revision="1.0.0" language="C" filename="D:\Pesquisa\Projects\obs-analysis\_cppstats_featurelocations\obs-studio\plugins\obs-outputs\flv-output.c">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;stdio.h&gt;</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;obs-module.h&gt;</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;obs-avc.h&gt;</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;util/platform.h&gt;</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;util/dstr.h&gt;</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;util/threading.h&gt;</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;inttypes.h&gt;</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"flv-mux.h"</cpp:file></cpp:include>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>do_log</name><parameter_list>(<parameter><type><name>level</name></type></parameter>, <parameter><type><name>format</name></type></parameter>, <parameter><type><modifier>...</modifier></type></parameter>)</parameter_list></cpp:macro> <cpp:value>blog(level, "[flv output: '%s'] " format, obs_output_get_name(stream-&gt;output), ##__VA_ARGS__)</cpp:value></cpp:define>
+
+
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>warn</name><parameter_list>(<parameter><type><name>format</name></type></parameter>, <parameter><type><modifier>...</modifier></type></parameter>)</parameter_list></cpp:macro> <cpp:value>do_log(LOG_WARNING, format, ##__VA_ARGS__)</cpp:value></cpp:define>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>info</name><parameter_list>(<parameter><type><name>format</name></type></parameter>, <parameter><type><modifier>...</modifier></type></parameter>)</parameter_list></cpp:macro> <cpp:value>do_log(LOG_INFO, format, ##__VA_ARGS__)</cpp:value></cpp:define>
+
+<struct>struct <name>flv_output</name> <block>{
+<decl_stmt><decl><type><name>obs_output_t</name> <modifier>*</modifier></type><name>output</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name><name>struct</name> <name>dstr</name></name></type> <name>path</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>FILE</name> <modifier>*</modifier></type><name>file</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><specifier>volatile</specifier> <name>bool</name></type> <name>active</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><specifier>volatile</specifier> <name>bool</name></type> <name>stopping</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>uint64_t</name></type> <name>stop_ts</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>bool</name></type> <name>sent_headers</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int64_t</name></type> <name>last_packet_ts</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>pthread_mutex_t</name></type> <name>mutex</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>bool</name></type> <name>got_first_video</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int32_t</name></type> <name>start_dts_offset</name></decl>;</decl_stmt>
+}</block>;</struct>
+
+<function><type><specifier>static</specifier> <specifier>inline</specifier> <name>bool</name></type> <name>stopping</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>flv_output</name></name> <modifier>*</modifier></type><name>stream</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<return>return <expr><call><name>os_atomic_load_bool</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>stream</name><operator>-&gt;</operator><name>stopping</name></name></expr></argument>)</argument_list></call></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <specifier>inline</specifier> <name>bool</name></type> <name>active</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>flv_output</name></name> <modifier>*</modifier></type><name>stream</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<return>return <expr><call><name>os_atomic_load_bool</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>stream</name><operator>-&gt;</operator><name>active</name></name></expr></argument>)</argument_list></call></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>flv_output_getname</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>unused</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<expr_stmt><expr><call><name>UNUSED_PARAMETER</name><argument_list>(<argument><expr><name>unused</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><call><name>obs_module_text</name><argument_list>(<argument><expr><literal type="string">"FLVOutput"</literal></expr></argument>)</argument_list></call></expr>;</return>
+</block_content>}</block></function>
+
+<function_decl><type><specifier>static</specifier> <name>void</name></type> <name>flv_output_stop</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>, <parameter><decl><type><name>uint64_t</name></type> <name>ts</name></decl></parameter>)</parameter_list>;</function_decl>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>flv_output_destroy</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>flv_output</name></name> <modifier>*</modifier></type><name>stream</name> <init>= <expr><name>data</name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_destroy</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>stream</name><operator>-&gt;</operator><name>mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>dstr_free</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>stream</name><operator>-&gt;</operator><name>path</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>bfree</name><argument_list>(<argument><expr><name>stream</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name> <modifier>*</modifier></type><name>flv_output_create</name><parameter_list>(<parameter><decl><type><name>obs_data_t</name> <modifier>*</modifier></type><name>settings</name></decl></parameter>, <parameter><decl><type><name>obs_output_t</name> <modifier>*</modifier></type><name>output</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>flv_output</name></name> <modifier>*</modifier></type><name>stream</name> <init>= <expr><call><name>bzalloc</name><argument_list>(<argument><expr><sizeof>sizeof<argument_list>(<argument><expr>struct <name>flv_output</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><name><name>stream</name><operator>-&gt;</operator><name>output</name></name> <operator>=</operator> <name>output</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>pthread_mutex_init</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>stream</name><operator>-&gt;</operator><name>mutex</name></name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>UNUSED_PARAMETER</name><argument_list>(<argument><expr><name>settings</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>stream</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>write_packet</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>flv_output</name></name> <modifier>*</modifier></type><name>stream</name></decl></parameter>,
+<parameter><decl><type><name><name>struct</name> <name>encoder_packet</name></name> <modifier>*</modifier></type><name>packet</name></decl></parameter>, <parameter><decl><type><name>bool</name></type> <name>is_header</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>uint8_t</name> <modifier>*</modifier></type><name>data</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>size_t</name></type> <name>size</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>ret</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>stream</name><operator>-&gt;</operator><name>last_packet_ts</name></name> <operator>=</operator> <call><name>get_ms_time</name><argument_list>(<argument><expr><name>packet</name></expr></argument>, <argument><expr><name><name>packet</name><operator>-&gt;</operator><name>dts</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>flv_packet_mux</name><argument_list>(<argument><expr><name>packet</name></expr></argument>, <argument><expr><ternary><condition><expr><name>is_header</name></expr> ?</condition><then> <expr><literal type="number">0</literal></expr> </then><else>: <expr><name><name>stream</name><operator>-&gt;</operator><name>start_dts_offset</name></name></expr></else></ternary></expr></argument>, <argument><expr><operator>&amp;</operator><name>data</name></expr></argument>,
+<argument><expr><operator>&amp;</operator><name>size</name></expr></argument>, <argument><expr><name>is_header</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>fwrite</name><argument_list>(<argument><expr><name>data</name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>, <argument><expr><name>size</name></expr></argument>, <argument><expr><name><name>stream</name><operator>-&gt;</operator><name>file</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>bfree</name><argument_list>(<argument><expr><name>data</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>ret</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>write_meta_data</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>flv_output</name></name> <modifier>*</modifier></type><name>stream</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>uint8_t</name> <modifier>*</modifier></type><name>meta_data</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>size_t</name></type> <name>meta_data_size</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>flv_meta_data</name><argument_list>(<argument><expr><name><name>stream</name><operator>-&gt;</operator><name>output</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name>meta_data</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>meta_data_size</name></expr></argument>, <argument><expr><name>true</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>fwrite</name><argument_list>(<argument><expr><name>meta_data</name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>, <argument><expr><name>meta_data_size</name></expr></argument>, <argument><expr><name><name>stream</name><operator>-&gt;</operator><name>file</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>bfree</name><argument_list>(<argument><expr><name>meta_data</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>write_audio_header</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>flv_output</name></name> <modifier>*</modifier></type><name>stream</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>obs_output_t</name> <modifier>*</modifier></type><name>context</name> <init>= <expr><name><name>stream</name><operator>-&gt;</operator><name>output</name></name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>obs_encoder_t</name> <modifier>*</modifier></type><name>aencoder</name> <init>= <expr><call><name>obs_output_get_audio_encoder</name><argument_list>(<argument><expr><name>context</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>encoder_packet</name></name></type> <name>packet</name> <init>= <expr><block>{<expr><operator>.</operator><name>type</name> <operator>=</operator> <name>OBS_ENCODER_AUDIO</name></expr>,
+<expr><operator>.</operator><name>timebase_den</name> <operator>=</operator> <literal type="number">1</literal></expr>}</block></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>obs_encoder_get_extra_data</name><argument_list>(<argument><expr><name>aencoder</name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>packet</name><operator>.</operator><name>data</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>packet</name><operator>.</operator><name>size</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>write_packet</name><argument_list>(<argument><expr><name>stream</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>packet</name></expr></argument>, <argument><expr><name>true</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>write_video_header</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>flv_output</name></name> <modifier>*</modifier></type><name>stream</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>obs_output_t</name> <modifier>*</modifier></type><name>context</name> <init>= <expr><name><name>stream</name><operator>-&gt;</operator><name>output</name></name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>obs_encoder_t</name> <modifier>*</modifier></type><name>vencoder</name> <init>= <expr><call><name>obs_output_get_video_encoder</name><argument_list>(<argument><expr><name>context</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>uint8_t</name> <modifier>*</modifier></type><name>header</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>size_t</name></type> <name>size</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>encoder_packet</name></name></type> <name>packet</name> <init>= <expr><block>{
+<expr><operator>.</operator><name>type</name> <operator>=</operator> <name>OBS_ENCODER_VIDEO</name></expr>, <expr><operator>.</operator><name>timebase_den</name> <operator>=</operator> <literal type="number">1</literal></expr>, <expr><operator>.</operator><name>keyframe</name> <operator>=</operator> <name>true</name></expr>}</block></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>obs_encoder_get_extra_data</name><argument_list>(<argument><expr><name>vencoder</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>header</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>size</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>packet</name><operator>.</operator><name>size</name></name> <operator>=</operator> <call><name>obs_parse_avc_header</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>packet</name><operator>.</operator><name>data</name></name></expr></argument>, <argument><expr><name>header</name></expr></argument>, <argument><expr><name>size</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>write_packet</name><argument_list>(<argument><expr><name>stream</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>packet</name></expr></argument>, <argument><expr><name>true</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>bfree</name><argument_list>(<argument><expr><name><name>packet</name><operator>.</operator><name>data</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>write_headers</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>flv_output</name></name> <modifier>*</modifier></type><name>stream</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<expr_stmt><expr><call><name>write_meta_data</name><argument_list>(<argument><expr><name>stream</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>write_video_header</name><argument_list>(<argument><expr><name>stream</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>write_audio_header</name><argument_list>(<argument><expr><name>stream</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>bool</name></type> <name>flv_output_start</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>flv_output</name></name> <modifier>*</modifier></type><name>stream</name> <init>= <expr><name>data</name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>obs_data_t</name> <modifier>*</modifier></type><name>settings</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>path</name></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>obs_output_can_begin_data_capture</name><argument_list>(<argument><expr><name><name>stream</name><operator>-&gt;</operator><name>output</name></name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><name>false</name></expr>;</return></block_content></block></if></if_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>obs_output_initialize_encoders</name><argument_list>(<argument><expr><name><name>stream</name><operator>-&gt;</operator><name>output</name></name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><name>false</name></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name><name>stream</name><operator>-&gt;</operator><name>got_first_video</name></name> <operator>=</operator> <name>false</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>stream</name><operator>-&gt;</operator><name>sent_headers</name></name> <operator>=</operator> <name>false</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>os_atomic_set_bool</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>stream</name><operator>-&gt;</operator><name>stopping</name></name></expr></argument>, <argument><expr><name>false</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+
+<expr_stmt><expr><name>settings</name> <operator>=</operator> <call><name>obs_output_get_settings</name><argument_list>(<argument><expr><name><name>stream</name><operator>-&gt;</operator><name>output</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>path</name> <operator>=</operator> <call><name>obs_data_get_string</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"path"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>dstr_copy</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>stream</name><operator>-&gt;</operator><name>path</name></name></expr></argument>, <argument><expr><name>path</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>obs_data_release</name><argument_list>(<argument><expr><name>settings</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>stream</name><operator>-&gt;</operator><name>file</name></name> <operator>=</operator> <call><name>os_fopen</name><argument_list>(<argument><expr><name><name>stream</name><operator>-&gt;</operator><name>path</name><operator>.</operator><name>array</name></name></expr></argument>, <argument><expr><literal type="string">"wb"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>stream</name><operator>-&gt;</operator><name>file</name></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>warn</name><argument_list>(<argument><expr><literal type="string">"Unable to open FLV file '%s'"</literal></expr></argument>, <argument><expr><name><name>stream</name><operator>-&gt;</operator><name>path</name><operator>.</operator><name>array</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>false</name></expr>;</return>
+</block_content>}</block></if></if_stmt>
+
+
+<expr_stmt><expr><call><name>os_atomic_set_bool</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>stream</name><operator>-&gt;</operator><name>active</name></name></expr></argument>, <argument><expr><name>true</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>obs_output_begin_data_capture</name><argument_list>(<argument><expr><name><name>stream</name><operator>-&gt;</operator><name>output</name></name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>info</name><argument_list>(<argument><expr><literal type="string">"Writing FLV file '%s'..."</literal></expr></argument>, <argument><expr><name><name>stream</name><operator>-&gt;</operator><name>path</name><operator>.</operator><name>array</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>true</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>flv_output_stop</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>, <parameter><decl><type><name>uint64_t</name></type> <name>ts</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>flv_output</name></name> <modifier>*</modifier></type><name>stream</name> <init>= <expr><name>data</name></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><name><name>stream</name><operator>-&gt;</operator><name>stop_ts</name></name> <operator>=</operator> <name>ts</name> <operator>/</operator> <literal type="number">1000</literal></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>os_atomic_set_bool</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>stream</name><operator>-&gt;</operator><name>stopping</name></name></expr></argument>, <argument><expr><name>true</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>flv_output_actual_stop</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>flv_output</name></name> <modifier>*</modifier></type><name>stream</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>code</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<expr_stmt><expr><call><name>os_atomic_set_bool</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>stream</name><operator>-&gt;</operator><name>active</name></name></expr></argument>, <argument><expr><name>false</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>stream</name><operator>-&gt;</operator><name>file</name></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>write_file_info</name><argument_list>(<argument><expr><name><name>stream</name><operator>-&gt;</operator><name>file</name></name></expr></argument>, <argument><expr><name><name>stream</name><operator>-&gt;</operator><name>last_packet_ts</name></name></expr></argument>,
+<argument><expr><call><name>os_ftelli64</name><argument_list>(<argument><expr><name><name>stream</name><operator>-&gt;</operator><name>file</name></name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>fclose</name><argument_list>(<argument><expr><name><name>stream</name><operator>-&gt;</operator><name>file</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+<if_stmt><if>if <condition>(<expr><name>code</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>obs_output_signal_stop</name><argument_list>(<argument><expr><name><name>stream</name><operator>-&gt;</operator><name>output</name></name></expr></argument>, <argument><expr><name>code</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<expr_stmt><expr><call><name>obs_output_end_data_capture</name><argument_list>(<argument><expr><name><name>stream</name><operator>-&gt;</operator><name>output</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></else></if_stmt>
+
+<expr_stmt><expr><call><name>info</name><argument_list>(<argument><expr><literal type="string">"FLV file output complete"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>flv_output_data</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>, <parameter><decl><type><name><name>struct</name> <name>encoder_packet</name></name> <modifier>*</modifier></type><name>packet</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>flv_output</name></name> <modifier>*</modifier></type><name>stream</name> <init>= <expr><name>data</name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name><name>struct</name> <name>encoder_packet</name></name></type> <name>parsed_packet</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_lock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>stream</name><operator>-&gt;</operator><name>mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>active</name><argument_list>(<argument><expr><name>stream</name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+<goto>goto <name>unlock</name>;</goto></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>packet</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>flv_output_actual_stop</name><argument_list>(<argument><expr><name>stream</name></expr></argument>, <argument><expr><name>OBS_OUTPUT_ENCODE_ERROR</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<goto>goto <name>unlock</name>;</goto>
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>stopping</name><argument_list>(<argument><expr><name>stream</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name><name>packet</name><operator>-&gt;</operator><name>sys_dts_usec</name></name> <operator>&gt;=</operator> <operator>(</operator><name>int64_t</name><operator>)</operator><name><name>stream</name><operator>-&gt;</operator><name>stop_ts</name></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>flv_output_actual_stop</name><argument_list>(<argument><expr><name>stream</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<goto>goto <name>unlock</name>;</goto>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>stream</name><operator>-&gt;</operator><name>sent_headers</name></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>write_headers</name><argument_list>(<argument><expr><name>stream</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>stream</name><operator>-&gt;</operator><name>sent_headers</name></name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>packet</name><operator>-&gt;</operator><name>type</name></name> <operator>==</operator> <name>OBS_ENCODER_VIDEO</name></expr>)</condition> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>stream</name><operator>-&gt;</operator><name>got_first_video</name></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name><name>stream</name><operator>-&gt;</operator><name>start_dts_offset</name></name> <operator>=</operator>
+<call><name>get_ms_time</name><argument_list>(<argument><expr><name>packet</name></expr></argument>, <argument><expr><name><name>packet</name><operator>-&gt;</operator><name>dts</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>stream</name><operator>-&gt;</operator><name>got_first_video</name></name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>obs_parse_avc_packet</name><argument_list>(<argument><expr><operator>&amp;</operator><name>parsed_packet</name></expr></argument>, <argument><expr><name>packet</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>write_packet</name><argument_list>(<argument><expr><name>stream</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>parsed_packet</name></expr></argument>, <argument><expr><name>false</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>obs_encoder_packet_release</name><argument_list>(<argument><expr><operator>&amp;</operator><name>parsed_packet</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<expr_stmt><expr><call><name>write_packet</name><argument_list>(<argument><expr><name>stream</name></expr></argument>, <argument><expr><name>packet</name></expr></argument>, <argument><expr><name>false</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></else></if_stmt>
+
+<label><name>unlock</name>:</label>
+<expr_stmt><expr><call><name>pthread_mutex_unlock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>stream</name><operator>-&gt;</operator><name>mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>obs_properties_t</name> <modifier>*</modifier></type><name>flv_output_properties</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>unused</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<expr_stmt><expr><call><name>UNUSED_PARAMETER</name><argument_list>(<argument><expr><name>unused</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<decl_stmt><decl><type><name>obs_properties_t</name> <modifier>*</modifier></type><name>props</name> <init>= <expr><call><name>obs_properties_create</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>obs_properties_add_text</name><argument_list>(<argument><expr><name>props</name></expr></argument>, <argument><expr><literal type="string">"path"</literal></expr></argument>,
+<argument><expr><call><name>obs_module_text</name><argument_list>(<argument><expr><literal type="string">"FLVOutput.FilePath"</literal></expr></argument>)</argument_list></call></expr></argument>,
+<argument><expr><name>OBS_TEXT_DEFAULT</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>props</name></expr>;</return>
+</block_content>}</block></function>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>obs_output_info</name></name></type> <name>flv_output_info</name> <init>= <expr><block>{
+<expr><operator>.</operator><name>id</name> <operator>=</operator> <literal type="string">"flv_output"</literal></expr>,
+<expr><operator>.</operator><name>flags</name> <operator>=</operator> <name>OBS_OUTPUT_AV</name> <operator>|</operator> <name>OBS_OUTPUT_ENCODED</name></expr>,
+<expr><operator>.</operator><name>encoded_video_codecs</name> <operator>=</operator> <literal type="string">"h264"</literal></expr>,
+<expr><operator>.</operator><name>encoded_audio_codecs</name> <operator>=</operator> <literal type="string">"aac"</literal></expr>,
+<expr><operator>.</operator><name>get_name</name> <operator>=</operator> <name>flv_output_getname</name></expr>,
+<expr><operator>.</operator><name>create</name> <operator>=</operator> <name>flv_output_create</name></expr>,
+<expr><operator>.</operator><name>destroy</name> <operator>=</operator> <name>flv_output_destroy</name></expr>,
+<expr><operator>.</operator><name>start</name> <operator>=</operator> <name>flv_output_start</name></expr>,
+<expr><operator>.</operator><name>stop</name> <operator>=</operator> <name>flv_output_stop</name></expr>,
+<expr><operator>.</operator><name>encoded_packet</name> <operator>=</operator> <name>flv_output_data</name></expr>,
+<expr><operator>.</operator><name>get_properties</name> <operator>=</operator> <name>flv_output_properties</name></expr>,
+}</block></expr></init></decl>;</decl_stmt>
+</unit>

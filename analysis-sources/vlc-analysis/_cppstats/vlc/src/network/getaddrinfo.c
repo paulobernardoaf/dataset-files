@@ -1,0 +1,71 @@
+#if defined(HAVE_CONFIG_H)
+#include "config.h"
+#endif
+#include <vlc_common.h>
+#include <stddef.h> 
+#include <string.h> 
+#include <stdlib.h> 
+#include <errno.h>
+#include <assert.h>
+#include <sys/types.h>
+#include <vlc_network.h>
+int vlc_getnameinfo( const struct sockaddr *sa, int salen,
+char *host, int hostlen, int *portnum, int flags )
+{
+char psz_servbuf[6], *psz_serv;
+int i_servlen, i_val;
+flags |= NI_NUMERICSERV;
+if( portnum != NULL )
+{
+psz_serv = psz_servbuf;
+i_servlen = sizeof( psz_servbuf );
+}
+else
+{
+psz_serv = NULL;
+i_servlen = 0;
+}
+i_val = getnameinfo(sa, salen, host, hostlen, psz_serv, i_servlen, flags);
+if( portnum != NULL )
+*portnum = atoi( psz_serv );
+return i_val;
+}
+int vlc_getaddrinfo (const char *node, unsigned port,
+const struct addrinfo *hints, struct addrinfo **res)
+{
+char hostbuf[NI_MAXHOST], portbuf[6], *servname;
+if (port != 0)
+{
+if (port > 65535)
+return EAI_SERVICE;
+snprintf (portbuf, sizeof (portbuf), "%u", port);
+servname = portbuf;
+}
+else
+servname = NULL;
+if (node != NULL)
+{
+if (node[0] == '[')
+{
+size_t len = strlen (node + 1);
+if ((len <= sizeof (hostbuf)) && (node[len] == ']'))
+{
+assert (len > 0);
+memcpy (hostbuf, node + 1, len - 1);
+hostbuf[len - 1] = '\0';
+node = hostbuf;
+}
+}
+if (node[0] == '\0')
+node = NULL;
+}
+return getaddrinfo (node, servname, hints, res);
+}
+#if defined (_WIN32) || defined (__OS2__) || defined (__ANDROID__) || defined (__APPLE__) || defined (__native_client__)
+#warning vlc_getaddrinfo_i11e() not implemented!
+int vlc_getaddrinfo_i11e(const char *node, unsigned port,
+const struct addrinfo *hints, struct addrinfo **res)
+{
+return vlc_getaddrinfo(node, port, hints, res);
+}
+#endif

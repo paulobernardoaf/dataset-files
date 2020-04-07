@@ -1,0 +1,83 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#include <r_types.h>
+#if !defined(GRUB_FBFS_H)
+#define GRUB_FBFS_H 1
+
+#define FB_MAGIC "FBBF"
+#define FB_MAGIC_LONG 0x46424246
+
+#define FB_AR_MAGIC "FBAR"
+#define FB_AR_MAGIC_LONG 0x52414246
+
+#define FB_VER_MAJOR 1
+#define FB_VER_MINOR 6
+
+R_PACKED(
+struct fb_mbr
+{
+grub_uint8_t jmp_code;
+grub_uint8_t jmp_ofs;
+grub_uint8_t boot_code[0x1ab];
+grub_uint8_t max_sec; 
+grub_uint16_t lba; 
+grub_uint8_t spt; 
+grub_uint8_t heads; 
+grub_uint16_t boot_base; 
+grub_uint32_t fb_magic; 
+grub_uint8_t mbr_table[0x46]; 
+grub_uint16_t end_magic; 
+});
+
+R_PACKED (
+struct fb_data
+{
+grub_uint16_t boot_size; 
+grub_uint16_t flags; 
+grub_uint8_t ver_major; 
+grub_uint8_t ver_minor; 
+grub_uint16_t list_used; 
+grub_uint16_t list_size; 
+grub_uint16_t pri_size; 
+grub_uint32_t ext_size; 
+});
+
+R_PACKED (
+struct fb_ar_data
+{
+grub_uint32_t ar_magic; 
+grub_uint8_t ver_major; 
+grub_uint8_t ver_minor; 
+grub_uint16_t list_used; 
+grub_uint16_t list_size; 
+grub_uint16_t pri_size; 
+grub_uint32_t ext_size; 
+});
+
+R_PACKED (
+struct fbm_file
+{
+grub_uint8_t size;
+grub_uint8_t flag;
+grub_uint32_t data_start;
+grub_uint32_t data_size;
+grub_uint32_t data_time;
+char name[0];
+});
+
+#endif 

@@ -1,0 +1,419 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" revision="1.0.0" language="C" filename="D:\Pesquisa\Projects\obs-analysis\_cppstats\obs-studio\libobs\media-io\media-remux.c"><cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"media-remux.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"../util/base.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"../util/bmem.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"../util/platform.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;libavformat/avformat.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;sys/types.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;sys/stat.h&gt;</cpp:file></cpp:include>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><name>LIBAVCODEC_VERSION_MAJOR</name> <operator>&gt;=</operator> <literal type="number">58</literal></expr></cpp:if>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>CODEC_FLAG_GLOBAL_H</name></cpp:macro> <cpp:value>AV_CODEC_FLAG_GLOBAL_HEADER</cpp:value></cpp:define>
+
+<cpp:else>#<cpp:directive>else</cpp:directive></cpp:else>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>CODEC_FLAG_GLOBAL_H</name></cpp:macro> <cpp:value>CODEC_FLAG_GLOBAL_HEADER</cpp:value></cpp:define>
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+<struct>struct <name>media_remux_job</name> <block>{
+
+<decl_stmt><decl><type><name>int64_t</name></type> <name>in_size</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>AVFormatContext</name> <modifier>*</modifier></type><name>ifmt_ctx</name></decl>, <decl><type ref="prev"><modifier>*</modifier></type><name>ofmt_ctx</name></decl>;</decl_stmt>
+
+}</block>;</struct>
+
+<function><type><specifier>static</specifier> <specifier>inline</specifier> <name>void</name></type> <name>init_size</name><parameter_list>(<parameter><decl><type><name>media_remux_job_t</name></type> <name>job</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>in_filename</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><call><name>defined</name><argument_list>(<argument><expr><name>_MSC_VER</name></expr></argument>)</argument_list></call></expr></cpp:if>
+<decl_stmt><decl><type><name><name>struct</name> <name>_stat64</name></name></type> <name>st</name> <init>= <expr><block>{<expr><literal type="number">0</literal></expr>}</block></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>_stat64</name><argument_list>(<argument><expr><name>in_filename</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>st</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<cpp:else>#<cpp:directive>else</cpp:directive></cpp:else>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>stat</name></name></type> <name>st</name> <init>= <expr><block>{<expr><literal type="number">0</literal></expr>}</block></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>stat</name><argument_list>(<argument><expr><name>in_filename</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>st</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+<expr_stmt><expr><name><name>job</name><operator>-&gt;</operator><name>in_size</name></name> <operator>=</operator> <name><name>st</name><operator>.</operator><name>st_size</name></name></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <specifier>inline</specifier> <name>bool</name></type> <name>init_input</name><parameter_list>(<parameter><decl><type><name>media_remux_job_t</name></type> <name>job</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>in_filename</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>int</name></type> <name>ret</name> <init>= <expr><call><name>avformat_open_input</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>job</name><operator>-&gt;</operator><name>ifmt_ctx</name></name></expr></argument>, <argument><expr><name>in_filename</name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>ret</name> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>blog</name><argument_list>(<argument><expr><name>LOG_ERROR</name></expr></argument>, <argument><expr><literal type="string">"media_remux: Could not open input file '%s'"</literal></expr></argument>,
+
+<argument><expr><name>in_filename</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>false</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <call><name>avformat_find_stream_info</name><argument_list>(<argument><expr><name><name>job</name><operator>-&gt;</operator><name>ifmt_ctx</name></name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>ret</name> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>blog</name><argument_list>(<argument><expr><name>LOG_ERROR</name></expr></argument>, <argument><expr><literal type="string">"media_remux: Failed to retrieve input stream"</literal>
+
+<literal type="string">" information"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>false</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><operator>!</operator><call><name>defined</name><argument_list>(<argument><expr><name>_NDEBUG</name></expr></argument>)</argument_list></call></expr></cpp:if>
+<expr_stmt><expr><call><name>av_dump_format</name><argument_list>(<argument><expr><name><name>job</name><operator>-&gt;</operator><name>ifmt_ctx</name></name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><name>in_filename</name></expr></argument>, <argument><expr><name>false</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+<return>return <expr><name>true</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <specifier>inline</specifier> <name>bool</name></type> <name>init_output</name><parameter_list>(<parameter><decl><type><name>media_remux_job_t</name></type> <name>job</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>out_filename</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>int</name></type> <name>ret</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>avformat_alloc_output_context2</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>job</name><operator>-&gt;</operator><name>ofmt_ctx</name></name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>,
+
+<argument><expr><name>out_filename</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>job</name><operator>-&gt;</operator><name>ofmt_ctx</name></name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>blog</name><argument_list>(<argument><expr><name>LOG_ERROR</name></expr></argument>, <argument><expr><literal type="string">"media_remux: Could not create output context"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>false</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<for>for <control>(<init><decl><type><name>unsigned</name></type> <name>i</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name><name>job</name><operator>-&gt;</operator><name>ifmt_ctx</name><operator>-&gt;</operator><name>nb_streams</name></name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+
+<decl_stmt><decl><type><name>AVStream</name> <modifier>*</modifier></type><name>in_stream</name> <init>= <expr><name><name>job</name><operator>-&gt;</operator><name>ifmt_ctx</name><operator>-&gt;</operator><name>streams</name><index>[<expr><name>i</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>AVStream</name> <modifier>*</modifier></type><name>out_stream</name> <init>= <expr><call><name>avformat_new_stream</name><argument_list>(
+
+<argument><expr><name><name>job</name><operator>-&gt;</operator><name>ofmt_ctx</name></name></expr></argument>, <argument><expr><name><name>in_stream</name><operator>-&gt;</operator><name>codec</name><operator>-&gt;</operator><name>codec</name></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>out_stream</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>blog</name><argument_list>(<argument><expr><name>LOG_ERROR</name></expr></argument>, <argument><expr><literal type="string">"media_remux: Failed to allocate output"</literal>
+
+<literal type="string">" stream"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>false</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><name>LIBAVCODEC_VERSION_INT</name> <operator>&gt;=</operator> <call><name>AV_VERSION_INT</name><argument_list>(<argument><expr><literal type="number">57</literal><operator>,</operator> <literal type="number">48</literal><operator>,</operator> <literal type="number">101</literal></expr></argument>)</argument_list></call></expr></cpp:if>
+
+<decl_stmt><decl><type><name>AVCodecParameters</name> <modifier>*</modifier></type><name>par</name> <init>= <expr><call><name>avcodec_parameters_alloc</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <call><name>avcodec_parameters_from_context</name><argument_list>(<argument><expr><name>par</name></expr></argument>, <argument><expr><name><name>in_stream</name><operator>-&gt;</operator><name>codec</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>ret</name> <operator>==</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <call><name>avcodec_parameters_to_context</name><argument_list>(<argument><expr><name><name>out_stream</name><operator>-&gt;</operator><name>codec</name></name></expr></argument>,
+
+<argument><expr><name>par</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>avcodec_parameters_free</name><argument_list>(<argument><expr><operator>&amp;</operator><name>par</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<cpp:else>#<cpp:directive>else</cpp:directive></cpp:else>
+
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <call><name>avcodec_copy_context</name><argument_list>(<argument><expr><name><name>out_stream</name><operator>-&gt;</operator><name>codec</name></name></expr></argument>, <argument><expr><name><name>in_stream</name><operator>-&gt;</operator><name>codec</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+<if_stmt><if>if <condition>(<expr><name>ret</name> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>blog</name><argument_list>(<argument><expr><name>LOG_ERROR</name></expr></argument>, <argument><expr><literal type="string">"media_remux: Failed to copy context"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>false</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>out_stream</name><operator>-&gt;</operator><name>time_base</name></name> <operator>=</operator> <name><name>out_stream</name><operator>-&gt;</operator><name>codec</name><operator>-&gt;</operator><name>time_base</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>av_dict_copy</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>out_stream</name><operator>-&gt;</operator><name>metadata</name></name></expr></argument>, <argument><expr><name><name>in_stream</name><operator>-&gt;</operator><name>metadata</name></name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>out_stream</name><operator>-&gt;</operator><name>codec</name><operator>-&gt;</operator><name>codec_tag</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>job</name><operator>-&gt;</operator><name>ofmt_ctx</name><operator>-&gt;</operator><name>oformat</name><operator>-&gt;</operator><name>flags</name></name> <operator>&amp;</operator> <name>AVFMT_GLOBALHEADER</name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name><name>out_stream</name><operator>-&gt;</operator><name>codec</name><operator>-&gt;</operator><name>flags</name></name> <operator>|=</operator> <name>CODEC_FLAG_GLOBAL_H</name></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+</block_content>}</block></for>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><operator>!</operator><call><name>defined</name><argument_list>(<argument><expr><name>_NDEBUG</name></expr></argument>)</argument_list></call></expr></cpp:if>
+<expr_stmt><expr><call><name>av_dump_format</name><argument_list>(<argument><expr><name><name>job</name><operator>-&gt;</operator><name>ofmt_ctx</name></name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><name>out_filename</name></expr></argument>, <argument><expr><name>true</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><operator>(</operator><name><name>job</name><operator>-&gt;</operator><name>ofmt_ctx</name><operator>-&gt;</operator><name>oformat</name><operator>-&gt;</operator><name>flags</name></name> <operator>&amp;</operator> <name>AVFMT_NOFILE</name><operator>)</operator></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <call><name>avio_open</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>job</name><operator>-&gt;</operator><name>ofmt_ctx</name><operator>-&gt;</operator><name>pb</name></name></expr></argument>, <argument><expr><name>out_filename</name></expr></argument>,
+
+<argument><expr><name>AVIO_FLAG_WRITE</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>ret</name> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>blog</name><argument_list>(<argument><expr><name>LOG_ERROR</name></expr></argument>,
+
+<argument><expr><literal type="string">"media_remux: Failed to open output"</literal>
+
+<literal type="string">" file '%s'"</literal></expr></argument>,
+
+<argument><expr><name>out_filename</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>false</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<return>return <expr><name>true</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><name>bool</name></type> <name>media_remux_job_create</name><parameter_list>(<parameter><decl><type><name>media_remux_job_t</name> <modifier>*</modifier></type><name>job</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>in_filename</name></decl></parameter>,
+
+<parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>out_filename</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>job</name></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>false</name></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><operator>*</operator><name>job</name> <operator>=</operator> <name>NULL</name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>os_file_exists</name><argument_list>(<argument><expr><name>in_filename</name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>false</name></expr>;</return></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>strcmp</name><argument_list>(<argument><expr><name>in_filename</name></expr></argument>, <argument><expr><name>out_filename</name></expr></argument>)</argument_list></call> <operator>==</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>false</name></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><operator>*</operator><name>job</name> <operator>=</operator> <operator>(</operator><name>media_remux_job_t</name><operator>)</operator><call><name>bzalloc</name><argument_list>(<argument><expr><sizeof>sizeof<argument_list>(<argument><expr>struct <name>media_remux_job</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><operator>*</operator><name>job</name></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>false</name></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>init_size</name><argument_list>(<argument><expr><operator>*</operator><name>job</name></expr></argument>, <argument><expr><name>in_filename</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><name>LIBAVCODEC_VERSION_INT</name> <operator>&lt;</operator> <call><name>AV_VERSION_INT</name><argument_list>(<argument><expr><literal type="number">58</literal><operator>,</operator> <literal type="number">9</literal><operator>,</operator> <literal type="number">100</literal></expr></argument>)</argument_list></call></expr></cpp:if>
+
+<expr_stmt><expr><call><name>av_register_all</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>init_input</name><argument_list>(<argument><expr><operator>*</operator><name>job</name></expr></argument>, <argument><expr><name>in_filename</name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+
+<goto>goto <name>fail</name>;</goto></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>init_output</name><argument_list>(<argument><expr><operator>*</operator><name>job</name></expr></argument>, <argument><expr><name>out_filename</name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+
+<goto>goto <name>fail</name>;</goto></block_content></block></if></if_stmt>
+
+<return>return <expr><name>true</name></expr>;</return>
+
+<label><name>fail</name>:</label>
+
+<expr_stmt><expr><call><name>media_remux_job_destroy</name><argument_list>(<argument><expr><operator>*</operator><name>job</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>false</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <specifier>inline</specifier> <name>void</name></type> <name>process_packet</name><parameter_list>(<parameter><decl><type><name>AVPacket</name> <modifier>*</modifier></type><name>pkt</name></decl></parameter>, <parameter><decl><type><name>AVStream</name> <modifier>*</modifier></type><name>in_stream</name></decl></parameter>,
+
+<parameter><decl><type><name>AVStream</name> <modifier>*</modifier></type><name>out_stream</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><name><name>pkt</name><operator>-&gt;</operator><name>pts</name></name> <operator>=</operator> <call><name>av_rescale_q_rnd</name><argument_list>(<argument><expr><name><name>pkt</name><operator>-&gt;</operator><name>pts</name></name></expr></argument>, <argument><expr><name><name>in_stream</name><operator>-&gt;</operator><name>time_base</name></name></expr></argument>,
+
+<argument><expr><name><name>out_stream</name><operator>-&gt;</operator><name>time_base</name></name></expr></argument>,
+
+<argument><expr><name>AV_ROUND_NEAR_INF</name> <operator>|</operator> <name>AV_ROUND_PASS_MINMAX</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>pkt</name><operator>-&gt;</operator><name>dts</name></name> <operator>=</operator> <call><name>av_rescale_q_rnd</name><argument_list>(<argument><expr><name><name>pkt</name><operator>-&gt;</operator><name>dts</name></name></expr></argument>, <argument><expr><name><name>in_stream</name><operator>-&gt;</operator><name>time_base</name></name></expr></argument>,
+
+<argument><expr><name><name>out_stream</name><operator>-&gt;</operator><name>time_base</name></name></expr></argument>,
+
+<argument><expr><name>AV_ROUND_NEAR_INF</name> <operator>|</operator> <name>AV_ROUND_PASS_MINMAX</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>pkt</name><operator>-&gt;</operator><name>duration</name></name> <operator>=</operator> <operator>(</operator><name>int</name><operator>)</operator><call><name>av_rescale_q</name><argument_list>(<argument><expr><name><name>pkt</name><operator>-&gt;</operator><name>duration</name></name></expr></argument>, <argument><expr><name><name>in_stream</name><operator>-&gt;</operator><name>time_base</name></name></expr></argument>,
+
+<argument><expr><name><name>out_stream</name><operator>-&gt;</operator><name>time_base</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>pkt</name><operator>-&gt;</operator><name>pos</name></name> <operator>=</operator> <operator>-</operator><literal type="number">1</literal></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <specifier>inline</specifier> <name>int</name></type> <name>process_packets</name><parameter_list>(<parameter><decl><type><name>media_remux_job_t</name></type> <name>job</name></decl></parameter>,
+
+<parameter><decl><type><name>media_remux_progress_callback</name></type> <name>callback</name></decl></parameter>,
+
+<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>AVPacket</name></type> <name>pkt</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>ret</name></decl>, <decl><type ref="prev"/><name>throttle</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+
+<for>for <control>(<init>;</init><condition>;</condition><incr/>)</control> <block>{<block_content>
+
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <call><name>av_read_frame</name><argument_list>(<argument><expr><name><name>job</name><operator>-&gt;</operator><name>ifmt_ctx</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name>pkt</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>ret</name> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><name>ret</name> <operator>!=</operator> <name>AVERROR_EOF</name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>blog</name><argument_list>(<argument><expr><name>LOG_ERROR</name></expr></argument>,
+
+<argument><expr><literal type="string">"media_remux: Error reading"</literal>
+
+<literal type="string">" packet: %s"</literal></expr></argument>,
+
+<argument><expr><call><name>av_err2str</name><argument_list>(<argument><expr><name>ret</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<break>break;</break>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>callback</name> <operator>!=</operator> <name>NULL</name> <operator>&amp;&amp;</operator> <name>throttle</name><operator>++</operator> <operator>&gt;</operator> <literal type="number">10</literal></expr>)</condition> <block>{<block_content>
+
+<decl_stmt><decl><type><name>float</name></type> <name>progress</name> <init>= <expr><name><name>pkt</name><operator>.</operator><name>pos</name></name> <operator>/</operator> <operator>(</operator><name>float</name><operator>)</operator><name><name>job</name><operator>-&gt;</operator><name>in_size</name></name> <operator>*</operator> <literal type="number">100.f</literal></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>callback</name><argument_list>(<argument><expr><name>data</name></expr></argument>, <argument><expr><name>progress</name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+
+<break>break;</break></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>throttle</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>process_packet</name><argument_list>(<argument><expr><operator>&amp;</operator><name>pkt</name></expr></argument>, <argument><expr><name><name>job</name><operator>-&gt;</operator><name>ifmt_ctx</name><operator>-&gt;</operator><name>streams</name><index>[<expr><name><name>pkt</name><operator>.</operator><name>stream_index</name></name></expr>]</index></name></expr></argument>,
+
+<argument><expr><name><name>job</name><operator>-&gt;</operator><name>ofmt_ctx</name><operator>-&gt;</operator><name>streams</name><index>[<expr><name><name>pkt</name><operator>.</operator><name>stream_index</name></name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <call><name>av_interleaved_write_frame</name><argument_list>(<argument><expr><name><name>job</name><operator>-&gt;</operator><name>ofmt_ctx</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name>pkt</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>av_packet_unref</name><argument_list>(<argument><expr><operator>&amp;</operator><name>pkt</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>ret</name> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>blog</name><argument_list>(<argument><expr><name>LOG_ERROR</name></expr></argument>, <argument><expr><literal type="string">"media_remux: Error muxing packet: %s"</literal></expr></argument>,
+
+<argument><expr><call><name>av_err2str</name><argument_list>(<argument><expr><name>ret</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<break>break;</break>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></for>
+
+<return>return <expr><name>ret</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><name>bool</name></type> <name>media_remux_job_process</name><parameter_list>(<parameter><decl><type><name>media_remux_job_t</name></type> <name>job</name></decl></parameter>,
+
+<parameter><decl><type><name>media_remux_progress_callback</name></type> <name>callback</name></decl></parameter>, <parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>int</name></type> <name>ret</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>bool</name></type> <name>success</name> <init>= <expr><name>false</name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>job</name></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>success</name></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <call><name>avformat_write_header</name><argument_list>(<argument><expr><name><name>job</name><operator>-&gt;</operator><name>ofmt_ctx</name></name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>ret</name> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>blog</name><argument_list>(<argument><expr><name>LOG_ERROR</name></expr></argument>, <argument><expr><literal type="string">"media_remux: Error opening output file: %s"</literal></expr></argument>,
+
+<argument><expr><call><name>av_err2str</name><argument_list>(<argument><expr><name>ret</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>success</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>callback</name> <operator>!=</operator> <name>NULL</name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>callback</name><argument_list>(<argument><expr><name>data</name></expr></argument>, <argument><expr><literal type="number">0.f</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <call><name>process_packets</name><argument_list>(<argument><expr><name>job</name></expr></argument>, <argument><expr><name>callback</name></expr></argument>, <argument><expr><name>data</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>success</name> <operator>=</operator> <name>ret</name> <operator>&gt;=</operator> <literal type="number">0</literal> <operator>||</operator> <name>ret</name> <operator>==</operator> <name>AVERROR_EOF</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <call><name>av_write_trailer</name><argument_list>(<argument><expr><name><name>job</name><operator>-&gt;</operator><name>ofmt_ctx</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>ret</name> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>blog</name><argument_list>(<argument><expr><name>LOG_ERROR</name></expr></argument>, <argument><expr><literal type="string">"media_remux: av_write_trailer: %s"</literal></expr></argument>,
+
+<argument><expr><call><name>av_err2str</name><argument_list>(<argument><expr><name>ret</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>success</name> <operator>=</operator> <name>false</name></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>callback</name> <operator>!=</operator> <name>NULL</name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>callback</name><argument_list>(<argument><expr><name>data</name></expr></argument>, <argument><expr><literal type="number">100.f</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<return>return <expr><name>success</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><name>void</name></type> <name>media_remux_job_destroy</name><parameter_list>(<parameter><decl><type><name>media_remux_job_t</name></type> <name>job</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>job</name></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>avformat_close_input</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>job</name><operator>-&gt;</operator><name>ifmt_ctx</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>job</name><operator>-&gt;</operator><name>ofmt_ctx</name></name> <operator>&amp;&amp;</operator> <operator>!</operator><operator>(</operator><name><name>job</name><operator>-&gt;</operator><name>ofmt_ctx</name><operator>-&gt;</operator><name>oformat</name><operator>-&gt;</operator><name>flags</name></name> <operator>&amp;</operator> <name>AVFMT_NOFILE</name><operator>)</operator></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>avio_close</name><argument_list>(<argument><expr><name><name>job</name><operator>-&gt;</operator><name>ofmt_ctx</name><operator>-&gt;</operator><name>pb</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>avformat_free_context</name><argument_list>(<argument><expr><name><name>job</name><operator>-&gt;</operator><name>ofmt_ctx</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>bfree</name><argument_list>(<argument><expr><name>job</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+</unit>

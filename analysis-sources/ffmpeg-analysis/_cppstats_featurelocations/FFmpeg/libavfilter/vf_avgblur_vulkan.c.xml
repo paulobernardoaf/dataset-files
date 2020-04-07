@@ -1,0 +1,408 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" revision="1.0.0" language="C" filename="D:\Pesquisa\Projects\ffmpeg-analysis\_cppstats_featurelocations\FFmpeg\libavfilter\vf_avgblur_vulkan.c">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"libavutil/opt.h"</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"vulkan.h"</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"internal.h"</cpp:file></cpp:include>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>CGS</name></cpp:macro> <cpp:value>32</cpp:value></cpp:define>
+
+<typedef>typedef <type><struct>struct <name>AvgBlurVulkanContext</name> <block>{
+<decl_stmt><decl><type><name>VulkanFilterContext</name></type> <name>vkctx</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>initialized</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>FFVkExecContext</name> <modifier>*</modifier></type><name>exec</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>VulkanPipeline</name> <modifier>*</modifier></type><name>pl_hor</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>VulkanPipeline</name> <modifier>*</modifier></type><name>pl_ver</name></decl>;</decl_stmt>
+
+
+<decl_stmt><decl><type><name>VkDescriptorImageInfo</name></type> <name><name>input_images</name><index>[<expr><literal type="number">3</literal></expr>]</index></name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>VkDescriptorImageInfo</name></type> <name><name>tmp_images</name><index>[<expr><literal type="number">3</literal></expr>]</index></name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>VkDescriptorImageInfo</name></type> <name><name>output_images</name><index>[<expr><literal type="number">3</literal></expr>]</index></name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>size_x</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>size_y</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>planes</name></decl>;</decl_stmt>
+}</block></struct></type> <name>AvgBlurVulkanContext</name>;</typedef>
+
+<decl_stmt><decl><type><specifier>static</specifier> <specifier>const</specifier> <name>char</name></type> <name><name>blur_kernel</name><index>[]</index></name> <init>= <expr><block>{
+<macro><name>C</name><argument_list>(<argument><literal type="number">0</literal></argument>, <argument>shared vec4 cache[DIR(gl_WorkGroupSize) + FILTER_RADIUS*<literal type="number">2</literal> + <literal type="number">1</literal>];</argument> )</argument_list></macro>
+<macro><name>C</name><argument_list>(<argument><literal type="number">0</literal></argument>, )</argument_list></macro>
+<macro><name>C</name><argument_list>(<argument><literal type="number">0</literal></argument>, <argument>void distort(const ivec2 pos, const int idx)</argument> )</argument_list></macro>
+<macro><name>C</name><argument_list>(<argument><literal type="number">0</literal></argument>, <argument>{</argument> )</argument_list></macro>
+<macro><name>C</name><argument_list>(<argument><literal type="number">1</literal></argument>, <argument>const uint cp = DIR(gl_LocalInvocationID) + FILTER_RADIUS;</argument> )</argument_list></macro>
+<macro><name>C</name><argument_list>(<argument><literal type="number">0</literal></argument>, )</argument_list></macro>
+<macro><name>C</name><argument_list>(<argument><literal type="number">1</literal></argument>, <argument>cache[cp] = texture(input_img[idx], pos);</argument> )</argument_list></macro>
+<macro><name>C</name><argument_list>(<argument><literal type="number">0</literal></argument>, )</argument_list></macro>
+<macro><name>C</name><argument_list>(<argument><literal type="number">1</literal></argument>, <argument>const ivec2 loc_l = pos - INC(FILTER_RADIUS);</argument> )</argument_list></macro>
+<macro><name>C</name><argument_list>(<argument><literal type="number">1</literal></argument>, <argument>cache[cp - FILTER_RADIUS] = texture(input_img[idx], loc_l);</argument> )</argument_list></macro>
+<macro><name>C</name><argument_list>(<argument><literal type="number">0</literal></argument>, )</argument_list></macro>
+<macro><name>C</name><argument_list>(<argument><literal type="number">1</literal></argument>, <argument>const ivec2 loc_h = pos + INC(DIR(gl_WorkGroupSize));</argument> )</argument_list></macro>
+<macro><name>C</name><argument_list>(<argument><literal type="number">1</literal></argument>, <argument>cache[cp + DIR(gl_WorkGroupSize)] = texture(input_img[idx], loc_h);</argument> )</argument_list></macro>
+<macro><name>C</name><argument_list>(<argument><literal type="number">0</literal></argument>, )</argument_list></macro>
+<macro><name>C</name><argument_list>(<argument><literal type="number">1</literal></argument>, <argument>barrier();</argument> )</argument_list></macro>
+<macro><name>C</name><argument_list>(<argument><literal type="number">0</literal></argument>, )</argument_list></macro>
+<macro><name>C</name><argument_list>(<argument><literal type="number">1</literal></argument>, <argument>vec4 sum = vec4(<literal type="number">0</literal>);</argument> )</argument_list></macro>
+<macro><name>C</name><argument_list>(<argument><literal type="number">1</literal></argument>, <argument>for (int p = -FILTER_RADIUS; p &lt;= FILTER_RADIUS; p++)</argument> )</argument_list></macro>
+<macro><name>C</name><argument_list>(<argument><literal type="number">2</literal></argument>, <argument>sum += cache[cp + p];</argument> )</argument_list></macro>
+<macro><name>C</name><argument_list>(<argument><literal type="number">0</literal></argument>, )</argument_list></macro>
+<macro><name>C</name><argument_list>(<argument><literal type="number">1</literal></argument>, <argument>sum /= vec4(FILTER_RADIUS*<literal type="number">2</literal> + <literal type="number">1</literal>);</argument> )</argument_list></macro>
+<macro><name>C</name><argument_list>(<argument><literal type="number">1</literal></argument>, <argument>imageStore(output_img[idx], pos, sum);</argument> )</argument_list></macro>
+<macro><name>C</name><argument_list>(<argument><literal type="number">0</literal></argument>, <argument>}</argument> )</argument_list></macro>
+}</block></expr></init></decl>;</decl_stmt>
+
+<function><type><specifier>static</specifier> <name>av_cold</name> <name>int</name></type> <name>init_filter</name><parameter_list>(<parameter><decl><type><name>AVFilterContext</name> <modifier>*</modifier></type><name>ctx</name></decl></parameter>, <parameter><decl><type><name>AVFrame</name> <modifier>*</modifier></type><name>in</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>int</name></type> <name>err</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>SPIRVShader</name> <modifier>*</modifier></type><name>shd</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>AvgBlurVulkanContext</name> <modifier>*</modifier></type><name>s</name> <init>= <expr><name><name>ctx</name><operator>-&gt;</operator><name>priv</name></name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><specifier>const</specifier> <name>int</name></type> <name>planes</name> <init>= <expr><call><name>av_pix_fmt_count_planes</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>vkctx</name><operator>.</operator><name>output_format</name></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>VkSampler</name> <modifier>*</modifier></type><name>sampler</name> <init>= <expr><call><name>ff_vk_init_sampler</name><argument_list>(<argument><expr><name>ctx</name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>, <argument><expr><name>VK_FILTER_LINEAR</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>VulkanDescriptorSetBinding</name></type> <name><name>desc_i</name><index>[<expr><literal type="number">2</literal></expr>]</index></name> <init>= <expr><block>{
+<expr><block>{
+<expr><operator>.</operator><name>name</name> <operator>=</operator> <literal type="string">"input_img"</literal></expr>,
+<expr><operator>.</operator><name>type</name> <operator>=</operator> <name>VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER</name></expr>,
+<expr><operator>.</operator><name>dimensions</name> <operator>=</operator> <literal type="number">2</literal></expr>,
+<expr><operator>.</operator><name>elems</name> <operator>=</operator> <name>planes</name></expr>,
+<expr><operator>.</operator><name>stages</name> <operator>=</operator> <name>VK_SHADER_STAGE_COMPUTE_BIT</name></expr>,
+<expr><operator>.</operator><name>samplers</name> <operator>=</operator> <call><name>DUP_SAMPLER_ARRAY4</name><argument_list>(<argument><expr><operator>*</operator><name>sampler</name></expr></argument>)</argument_list></call></expr>,
+}</block></expr>,
+<expr><block>{
+<expr><operator>.</operator><name>name</name> <operator>=</operator> <literal type="string">"output_img"</literal></expr>,
+<expr><operator>.</operator><name>type</name> <operator>=</operator> <name>VK_DESCRIPTOR_TYPE_STORAGE_IMAGE</name></expr>,
+<expr><operator>.</operator><name>mem_layout</name> <operator>=</operator> <call><name>ff_vk_shader_rep_fmt</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>vkctx</name><operator>.</operator><name>output_format</name></name></expr></argument>)</argument_list></call></expr>,
+<expr><operator>.</operator><name>mem_quali</name> <operator>=</operator> <literal type="string">"writeonly"</literal></expr>,
+<expr><operator>.</operator><name>dimensions</name> <operator>=</operator> <literal type="number">2</literal></expr>,
+<expr><operator>.</operator><name>elems</name> <operator>=</operator> <name>planes</name></expr>,
+<expr><operator>.</operator><name>stages</name> <operator>=</operator> <name>VK_SHADER_STAGE_COMPUTE_BIT</name></expr>,
+}</block></expr>,
+}</block></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>sampler</name></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><name>AVERROR_EXTERNAL</name></expr>;</return></block_content></block></if></if_stmt>
+
+<block>{<block_content> 
+<expr_stmt><expr><name><name>desc_i</name><index>[<expr><literal type="number">0</literal></expr>]</index></name><operator>.</operator><name>updater</name> <operator>=</operator> <name><name>s</name><operator>-&gt;</operator><name>input_images</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>desc_i</name><index>[<expr><literal type="number">1</literal></expr>]</index></name><operator>.</operator><name>updater</name> <operator>=</operator> <name><name>s</name><operator>-&gt;</operator><name>tmp_images</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>pl_hor</name></name> <operator>=</operator> <call><name>ff_vk_create_pipeline</name><argument_list>(<argument><expr><name>ctx</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>s</name><operator>-&gt;</operator><name>pl_hor</name></name></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><call><name>AVERROR</name><argument_list>(<argument><expr><name>ENOMEM</name></expr></argument>)</argument_list></call></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>shd</name> <operator>=</operator> <call><name>ff_vk_init_shader</name><argument_list>(<argument><expr><name>ctx</name></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>pl_hor</name></name></expr></argument>, <argument><expr><literal type="string">"avgblur_compute_hor"</literal></expr></argument>,
+<argument><expr><name>VK_SHADER_STAGE_COMPUTE_BIT</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<macro><name>ff_vk_set_compute_shader_sizes</name><argument_list>(<argument>ctx</argument>, <argument>shd</argument>, <argument>(int [<literal type="number">3</literal>]){ CGS</argument>, <argument><literal type="number">1</literal></argument>, <argument><literal type="number">1</literal> }</argument>)</argument_list></macro><empty_stmt>;</empty_stmt>
+
+<expr_stmt><expr><call><name>RET</name><argument_list>(<argument><expr><call><name>ff_vk_add_descriptor_set</name><argument_list>(<argument><expr><name>ctx</name></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>pl_hor</name></name></expr></argument>, <argument><expr><name>shd</name></expr></argument>, <argument><expr><name>desc_i</name></expr></argument>, <argument><expr><literal type="number">2</literal></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<macro><name>GLSLF</name><argument_list>(<argument><literal type="number">0</literal></argument>, <argument>#define FILTER_RADIUS (%i)</argument> ,<argument>s-&gt;size_x - <literal type="number">1</literal></argument>)</argument_list></macro><empty_stmt>;</empty_stmt>
+<macro><name>GLSLC</name><argument_list>(<argument><literal type="number">0</literal></argument>, <argument>#define INC(x) (ivec2(x, <literal type="number">0</literal>))</argument> )</argument_list></macro><empty_stmt>;</empty_stmt>
+<macro><name>GLSLC</name><argument_list>(<argument><literal type="number">0</literal></argument>, <argument>#define DIR(var) (var.x)</argument> )</argument_list></macro><empty_stmt>;</empty_stmt>
+<expr_stmt><expr><call><name>GLSLD</name><argument_list>( <argument><expr><name>blur_kernel</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>GLSLC</name><argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><name>void</name> <call><name>main</name><argument_list>()</argument_list></call></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+<macro><name>GLSLC</name><argument_list>(<argument><literal type="number">0</literal></argument>, <argument>{</argument> )</argument_list></macro><empty_stmt>;</empty_stmt>
+<macro><name>GLSLC</name><argument_list>(<argument><literal type="number">1</literal></argument>, <argument>ivec2 size;</argument> )</argument_list></macro><empty_stmt>;</empty_stmt>
+<macro><name>GLSLC</name><argument_list>(<argument><literal type="number">1</literal></argument>, <argument>const ivec2 pos = ivec2(gl_GlobalInvocationID.xy);</argument> )</argument_list></macro><empty_stmt>;</empty_stmt>
+<for>for <control>(<init><decl><type><name>int</name></type> <name>i</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>planes</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<expr_stmt><expr><call><name>GLSLC</name><argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>, )</argument_list></call></expr>;</expr_stmt>
+<macro><name>GLSLF</name><argument_list>(<argument><literal type="number">1</literal></argument>, <argument>size = imageSize(output_img[%i]);</argument> ,<argument>i</argument>)</argument_list></macro><empty_stmt>;</empty_stmt>
+<macro><name>GLSLC</name><argument_list>(<argument><literal type="number">1</literal></argument>, <argument>if (IS_WITHIN(pos, size)) {</argument> )</argument_list></macro><empty_stmt>;</empty_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>s</name><operator>-&gt;</operator><name>planes</name></name> <operator>&amp;</operator> <operator>(</operator><literal type="number">1</literal> <operator>&lt;&lt;</operator> <name>i</name><operator>)</operator></expr>)</condition> <block>{<block_content>
+<macro><name>GLSLF</name><argument_list>(<argument><literal type="number">2</literal></argument>, <argument>distort(pos, %i);</argument> ,<argument>i</argument>)</argument_list></macro><empty_stmt>;</empty_stmt>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<macro><name>GLSLF</name><argument_list>(<argument><literal type="number">2</literal></argument>, <argument>vec4 res = texture(input_img[%i], pos);</argument> ,<argument>i</argument>)</argument_list></macro><empty_stmt>;</empty_stmt>
+<macro><name>GLSLF</name><argument_list>(<argument><literal type="number">2</literal></argument>, <argument>imageStore(output_img[%i], pos, res);</argument> ,<argument>i</argument>)</argument_list></macro><empty_stmt>;</empty_stmt>
+</block_content>}</block></else></if_stmt>
+<expr_stmt><expr><call><name>GLSLC</name><argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>,</argument_list></call></expr></expr_stmt> </block_content>}</block></for> )</block_content></block><empty_stmt>;</empty_stmt>
+</block_content>}</block></function>
+<expr_stmt><expr><call><name>GLSLC</name><argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>,</argument_list></call></expr></expr_stmt> } )<empty_stmt>;</empty_stmt>
+
+<expr_stmt><expr><call><name>RET</name><argument_list>(<argument><expr><call><name>ff_vk_compile_shader</name><argument_list>(<argument><expr><name>ctx</name></expr></argument>, <argument><expr><name>shd</name></expr></argument>, <argument><expr><literal type="string">"main"</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>RET</name><argument_list>(<argument><expr><call><name>ff_vk_init_pipeline_layout</name><argument_list>(<argument><expr><name>ctx</name></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>pl_hor</name></name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>RET</name><argument_list>(<argument><expr><call><name>ff_vk_init_compute_pipeline</name><argument_list>(<argument><expr><name>ctx</name></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>pl_hor</name></name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+}
+
+{ 
+<expr_stmt><expr><name><name>desc_i</name><index>[<expr><literal type="number">0</literal></expr>]</index></name><operator>.</operator><name>updater</name> <operator>=</operator> <name><name>s</name><operator>-&gt;</operator><name>tmp_images</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>desc_i</name><index>[<expr><literal type="number">1</literal></expr>]</index></name><operator>.</operator><name>updater</name> <operator>=</operator> <name><name>s</name><operator>-&gt;</operator><name>output_images</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>pl_ver</name></name> <operator>=</operator> <call><name>ff_vk_create_pipeline</name><argument_list>(<argument><expr><name>ctx</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>s</name><operator>-&gt;</operator><name>pl_ver</name></name></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><call><name>AVERROR</name><argument_list>(<argument><expr><name>ENOMEM</name></expr></argument>)</argument_list></call></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>shd</name> <operator>=</operator> <call><name>ff_vk_init_shader</name><argument_list>(<argument><expr><name>ctx</name></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>pl_ver</name></name></expr></argument>, <argument><expr><literal type="string">"avgblur_compute_ver"</literal></expr></argument>,
+<argument><expr><name>VK_SHADER_STAGE_COMPUTE_BIT</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<macro><name>ff_vk_set_compute_shader_sizes</name><argument_list>(<argument>ctx</argument>, <argument>shd</argument>, <argument>(int [<literal type="number">3</literal>]){ <literal type="number">1</literal></argument>, <argument>CGS</argument>, <argument><literal type="number">1</literal> }</argument>)</argument_list></macro><empty_stmt>;</empty_stmt>
+
+<expr_stmt><expr><call><name>RET</name><argument_list>(<argument><expr><call><name>ff_vk_add_descriptor_set</name><argument_list>(<argument><expr><name>ctx</name></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>pl_ver</name></name></expr></argument>, <argument><expr><name>shd</name></expr></argument>, <argument><expr><name>desc_i</name></expr></argument>, <argument><expr><literal type="number">2</literal></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<macro><name>GLSLF</name><argument_list>(<argument><literal type="number">0</literal></argument>, <argument>#define FILTER_RADIUS (%i)</argument> ,<argument>s-&gt;size_y - <literal type="number">1</literal></argument>)</argument_list></macro><empty_stmt>;</empty_stmt>
+<macro><name>GLSLC</name><argument_list>(<argument><literal type="number">0</literal></argument>, <argument>#define INC(x) (ivec2(<literal type="number">0</literal>, x))</argument> )</argument_list></macro><empty_stmt>;</empty_stmt>
+<macro><name>GLSLC</name><argument_list>(<argument><literal type="number">0</literal></argument>, <argument>#define DIR(var) (var.y)</argument> )</argument_list></macro><empty_stmt>;</empty_stmt>
+<expr_stmt><expr><call><name>GLSLD</name><argument_list>( <argument><expr><name>blur_kernel</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>GLSLC</name><argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><name>void</name> <call><name>main</name><argument_list>()</argument_list></call></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+<macro><name>GLSLC</name><argument_list>(<argument><literal type="number">0</literal></argument>, <argument>{</argument> )</argument_list></macro><empty_stmt>;</empty_stmt>
+<macro><name>GLSLC</name><argument_list>(<argument><literal type="number">1</literal></argument>, <argument>ivec2 size;</argument> )</argument_list></macro><empty_stmt>;</empty_stmt>
+<macro><name>GLSLC</name><argument_list>(<argument><literal type="number">1</literal></argument>, <argument>const ivec2 pos = ivec2(gl_GlobalInvocationID.xy);</argument> )</argument_list></macro><empty_stmt>;</empty_stmt>
+<for>for <control>(<init><decl><type><name>int</name></type> <name>i</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>planes</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<expr_stmt><expr><call><name>GLSLC</name><argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>, )</argument_list></call></expr>;</expr_stmt>
+<macro><name>GLSLF</name><argument_list>(<argument><literal type="number">1</literal></argument>, <argument>size = imageSize(output_img[%i]);</argument> ,<argument>i</argument>)</argument_list></macro><empty_stmt>;</empty_stmt>
+<macro><name>GLSLC</name><argument_list>(<argument><literal type="number">1</literal></argument>, <argument>if (IS_WITHIN(pos, size)) {</argument> )</argument_list></macro><empty_stmt>;</empty_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>s</name><operator>-&gt;</operator><name>planes</name></name> <operator>&amp;</operator> <operator>(</operator><literal type="number">1</literal> <operator>&lt;&lt;</operator> <name>i</name><operator>)</operator></expr>)</condition> <block>{<block_content>
+<macro><name>GLSLF</name><argument_list>(<argument><literal type="number">2</literal></argument>, <argument>distort(pos, %i);</argument> ,<argument>i</argument>)</argument_list></macro><empty_stmt>;</empty_stmt>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<macro><name>GLSLF</name><argument_list>(<argument><literal type="number">2</literal></argument>, <argument>vec4 res = texture(input_img[%i], pos);</argument> ,<argument>i</argument>)</argument_list></macro><empty_stmt>;</empty_stmt>
+<macro><name>GLSLF</name><argument_list>(<argument><literal type="number">2</literal></argument>, <argument>imageStore(output_img[%i], pos, res);</argument> ,<argument>i</argument>)</argument_list></macro><empty_stmt>;</empty_stmt>
+</block_content>}</block></else></if_stmt>
+<expr_stmt><expr><call><name>GLSLC</name><argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>,</argument_list></call></expr></expr_stmt> </block_content>}</block></for> )<empty_stmt>;</empty_stmt>
+}
+GLSLC<expr_stmt><expr><operator>(</operator><literal type="number">0</literal><operator>,</operator></expr></expr_stmt> } )<empty_stmt>;</empty_stmt>
+
+<expr_stmt><expr><call><name>RET</name><argument_list>(<argument><expr><call><name>ff_vk_compile_shader</name><argument_list>(<argument><expr><name>ctx</name></expr></argument>, <argument><expr><name>shd</name></expr></argument>, <argument><expr><literal type="string">"main"</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>RET</name><argument_list>(<argument><expr><call><name>ff_vk_init_pipeline_layout</name><argument_list>(<argument><expr><name>ctx</name></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>pl_ver</name></name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>RET</name><argument_list>(<argument><expr><call><name>ff_vk_init_compute_pipeline</name><argument_list>(<argument><expr><name>ctx</name></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>pl_ver</name></name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+}
+
+
+RET<expr_stmt><expr><operator>(</operator><call><name>ff_vk_create_exec_ctx</name><argument_list>(<argument><expr><name>ctx</name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>exec</name></name></expr></argument>,
+<argument><expr><name><name>s</name><operator>-&gt;</operator><name>vkctx</name><operator>.</operator><name>hwctx</name><operator>-&gt;</operator><name>queue_family_comp_index</name></name></expr></argument>)</argument_list></call><operator>)</operator></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>initialized</name></name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+
+<label><name>fail</name>:</label>
+<return>return <expr><name>err</name></expr>;</return>
+}
+
+static <function><type><name>int</name></type> <name>process_frames</name><parameter_list>(<parameter><decl><type><name>AVFilterContext</name> <modifier>*</modifier></type><name>avctx</name></decl></parameter>, <parameter><decl><type><name>AVFrame</name> <modifier>*</modifier></type><name>out_f</name></decl></parameter>, <parameter><decl><type><name>AVFrame</name> <modifier>*</modifier></type><name>tmp_f</name></decl></parameter>, <parameter><decl><type><name>AVFrame</name> <modifier>*</modifier></type><name>in_f</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>int</name></type> <name>err</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>AvgBlurVulkanContext</name> <modifier>*</modifier></type><name>s</name> <init>= <expr><name><name>avctx</name><operator>-&gt;</operator><name>priv</name></name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>AVVkFrame</name> <modifier>*</modifier></type><name>in</name> <init>= <expr><operator>(</operator><name>AVVkFrame</name> <operator>*</operator><operator>)</operator><name><name>in_f</name><operator>-&gt;</operator><name>data</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>AVVkFrame</name> <modifier>*</modifier></type><name>tmp</name> <init>= <expr><operator>(</operator><name>AVVkFrame</name> <operator>*</operator><operator>)</operator><name><name>tmp_f</name><operator>-&gt;</operator><name>data</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>AVVkFrame</name> <modifier>*</modifier></type><name>out</name> <init>= <expr><operator>(</operator><name>AVVkFrame</name> <operator>*</operator><operator>)</operator><name><name>out_f</name><operator>-&gt;</operator><name>data</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>planes</name> <init>= <expr><call><name>av_pix_fmt_count_planes</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>vkctx</name><operator>.</operator><name>output_format</name></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<for>for <control>(<init><decl><type><name>int</name></type> <name>i</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>planes</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<expr_stmt><expr><call><name>RET</name><argument_list>(<argument><expr><call><name>ff_vk_create_imageview</name><argument_list>(<argument><expr><name>avctx</name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>input_images</name><index>[<expr><name>i</name></expr>]</index></name><operator>.</operator><name>imageView</name></expr></argument>, <argument><expr><name><name>in</name><operator>-&gt;</operator><name>img</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>,
+<argument><expr><call><name>av_vkfmt_from_pixfmt</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>vkctx</name><operator>.</operator><name>input_format</name></name></expr></argument>)</argument_list></call><index>[<expr><name>i</name></expr>]</index></expr></argument>,
+<argument><expr><name>ff_comp_identity_map</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>RET</name><argument_list>(<argument><expr><call><name>ff_vk_create_imageview</name><argument_list>(<argument><expr><name>avctx</name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>tmp_images</name><index>[<expr><name>i</name></expr>]</index></name><operator>.</operator><name>imageView</name></expr></argument>, <argument><expr><name><name>tmp</name><operator>-&gt;</operator><name>img</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>,
+<argument><expr><call><name>av_vkfmt_from_pixfmt</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>vkctx</name><operator>.</operator><name>output_format</name></name></expr></argument>)</argument_list></call><index>[<expr><name>i</name></expr>]</index></expr></argument>,
+<argument><expr><name>ff_comp_identity_map</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>RET</name><argument_list>(<argument><expr><call><name>ff_vk_create_imageview</name><argument_list>(<argument><expr><name>avctx</name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>output_images</name><index>[<expr><name>i</name></expr>]</index></name><operator>.</operator><name>imageView</name></expr></argument>, <argument><expr><name><name>out</name><operator>-&gt;</operator><name>img</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>,
+<argument><expr><call><name>av_vkfmt_from_pixfmt</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>vkctx</name><operator>.</operator><name>output_format</name></name></expr></argument>)</argument_list></call><index>[<expr><name>i</name></expr>]</index></expr></argument>,
+<argument><expr><name>ff_comp_identity_map</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>input_images</name><index>[<expr><name>i</name></expr>]</index></name><operator>.</operator><name>imageLayout</name> <operator>=</operator> <name>VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>tmp_images</name><index>[<expr><name>i</name></expr>]</index></name><operator>.</operator><name>imageLayout</name> <operator>=</operator> <name>VK_IMAGE_LAYOUT_GENERAL</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>output_images</name><index>[<expr><name>i</name></expr>]</index></name><operator>.</operator><name>imageLayout</name> <operator>=</operator> <name>VK_IMAGE_LAYOUT_GENERAL</name></expr>;</expr_stmt>
+</block_content>}</block></for>
+
+<expr_stmt><expr><call><name>ff_vk_update_descriptor_set</name><argument_list>(<argument><expr><name>avctx</name></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>pl_hor</name></name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ff_vk_update_descriptor_set</name><argument_list>(<argument><expr><name>avctx</name></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>pl_ver</name></name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>ff_vk_start_exec_recording</name><argument_list>(<argument><expr><name>avctx</name></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>exec</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<for>for <control>(<init><decl><type><name>int</name></type> <name>i</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>planes</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<decl_stmt><decl><type><name>VkImageMemoryBarrier</name></type> <name><name>bar</name><index>[]</index></name> <init>= <expr><block>{
+<expr><block>{
+<expr><operator>.</operator><name>sType</name> <operator>=</operator> <name>VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER</name></expr>,
+<expr><operator>.</operator><name>srcAccessMask</name> <operator>=</operator> <literal type="number">0</literal></expr>,
+<expr><operator>.</operator><name>dstAccessMask</name> <operator>=</operator> <name>VK_ACCESS_SHADER_READ_BIT</name></expr>,
+<expr><operator>.</operator><name>oldLayout</name> <operator>=</operator> <name><name>in</name><operator>-&gt;</operator><name>layout</name><index>[<expr><name>i</name></expr>]</index></name></expr>,
+<expr><operator>.</operator><name>newLayout</name> <operator>=</operator> <name><name>s</name><operator>-&gt;</operator><name>input_images</name><index>[<expr><name>i</name></expr>]</index></name><operator>.</operator><name>imageLayout</name></expr>,
+<expr><operator>.</operator><name>srcQueueFamilyIndex</name> <operator>=</operator> <name>VK_QUEUE_FAMILY_IGNORED</name></expr>,
+<expr><operator>.</operator><name>dstQueueFamilyIndex</name> <operator>=</operator> <name>VK_QUEUE_FAMILY_IGNORED</name></expr>,
+<expr><operator>.</operator><name>image</name> <operator>=</operator> <name><name>in</name><operator>-&gt;</operator><name>img</name><index>[<expr><name>i</name></expr>]</index></name></expr>,
+<expr><operator>.</operator><name><name>subresourceRange</name><operator>.</operator><name>aspectMask</name></name> <operator>=</operator> <name>VK_IMAGE_ASPECT_COLOR_BIT</name></expr>,
+<expr><operator>.</operator><name><name>subresourceRange</name><operator>.</operator><name>levelCount</name></name> <operator>=</operator> <literal type="number">1</literal></expr>,
+<expr><operator>.</operator><name><name>subresourceRange</name><operator>.</operator><name>layerCount</name></name> <operator>=</operator> <literal type="number">1</literal></expr>,
+}</block></expr>,
+<expr><block>{
+<expr><operator>.</operator><name>sType</name> <operator>=</operator> <name>VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER</name></expr>,
+<expr><operator>.</operator><name>srcAccessMask</name> <operator>=</operator> <literal type="number">0</literal></expr>,
+<expr><operator>.</operator><name>dstAccessMask</name> <operator>=</operator> <name>VK_ACCESS_SHADER_WRITE_BIT</name> <operator>|</operator> <name>VK_ACCESS_SHADER_READ_BIT</name></expr>,
+<expr><operator>.</operator><name>oldLayout</name> <operator>=</operator> <name><name>tmp</name><operator>-&gt;</operator><name>layout</name><index>[<expr><name>i</name></expr>]</index></name></expr>,
+<expr><operator>.</operator><name>newLayout</name> <operator>=</operator> <name><name>s</name><operator>-&gt;</operator><name>tmp_images</name><index>[<expr><name>i</name></expr>]</index></name><operator>.</operator><name>imageLayout</name></expr>,
+<expr><operator>.</operator><name>srcQueueFamilyIndex</name> <operator>=</operator> <name>VK_QUEUE_FAMILY_IGNORED</name></expr>,
+<expr><operator>.</operator><name>dstQueueFamilyIndex</name> <operator>=</operator> <name>VK_QUEUE_FAMILY_IGNORED</name></expr>,
+<expr><operator>.</operator><name>image</name> <operator>=</operator> <name><name>tmp</name><operator>-&gt;</operator><name>img</name><index>[<expr><name>i</name></expr>]</index></name></expr>,
+<expr><operator>.</operator><name><name>subresourceRange</name><operator>.</operator><name>aspectMask</name></name> <operator>=</operator> <name>VK_IMAGE_ASPECT_COLOR_BIT</name></expr>,
+<expr><operator>.</operator><name><name>subresourceRange</name><operator>.</operator><name>levelCount</name></name> <operator>=</operator> <literal type="number">1</literal></expr>,
+<expr><operator>.</operator><name><name>subresourceRange</name><operator>.</operator><name>layerCount</name></name> <operator>=</operator> <literal type="number">1</literal></expr>,
+}</block></expr>,
+<expr><block>{
+<expr><operator>.</operator><name>sType</name> <operator>=</operator> <name>VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER</name></expr>,
+<expr><operator>.</operator><name>srcAccessMask</name> <operator>=</operator> <literal type="number">0</literal></expr>,
+<expr><operator>.</operator><name>dstAccessMask</name> <operator>=</operator> <name>VK_ACCESS_SHADER_WRITE_BIT</name></expr>,
+<expr><operator>.</operator><name>oldLayout</name> <operator>=</operator> <name><name>out</name><operator>-&gt;</operator><name>layout</name><index>[<expr><name>i</name></expr>]</index></name></expr>,
+<expr><operator>.</operator><name>newLayout</name> <operator>=</operator> <name><name>s</name><operator>-&gt;</operator><name>output_images</name><index>[<expr><name>i</name></expr>]</index></name><operator>.</operator><name>imageLayout</name></expr>,
+<expr><operator>.</operator><name>srcQueueFamilyIndex</name> <operator>=</operator> <name>VK_QUEUE_FAMILY_IGNORED</name></expr>,
+<expr><operator>.</operator><name>dstQueueFamilyIndex</name> <operator>=</operator> <name>VK_QUEUE_FAMILY_IGNORED</name></expr>,
+<expr><operator>.</operator><name>image</name> <operator>=</operator> <name><name>out</name><operator>-&gt;</operator><name>img</name><index>[<expr><name>i</name></expr>]</index></name></expr>,
+<expr><operator>.</operator><name><name>subresourceRange</name><operator>.</operator><name>aspectMask</name></name> <operator>=</operator> <name>VK_IMAGE_ASPECT_COLOR_BIT</name></expr>,
+<expr><operator>.</operator><name><name>subresourceRange</name><operator>.</operator><name>levelCount</name></name> <operator>=</operator> <literal type="number">1</literal></expr>,
+<expr><operator>.</operator><name><name>subresourceRange</name><operator>.</operator><name>layerCount</name></name> <operator>=</operator> <literal type="number">1</literal></expr>,
+}</block></expr>,
+}</block></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>vkCmdPipelineBarrier</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>exec</name><operator>-&gt;</operator><name>buf</name></name></expr></argument>, <argument><expr><name>VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT</name></expr></argument>,
+<argument><expr><name>VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>,
+<argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><name>NULL</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><name>NULL</name></expr></argument>, <argument><expr><call><name>FF_ARRAY_ELEMS</name><argument_list>(<argument><expr><name>bar</name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name>bar</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>in</name><operator>-&gt;</operator><name>layout</name><index>[<expr><name>i</name></expr>]</index></name> <operator>=</operator> <name><name>bar</name><index>[<expr><literal type="number">0</literal></expr>]</index></name><operator>.</operator><name>newLayout</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>in</name><operator>-&gt;</operator><name>access</name><index>[<expr><name>i</name></expr>]</index></name> <operator>=</operator> <name><name>bar</name><index>[<expr><literal type="number">0</literal></expr>]</index></name><operator>.</operator><name>dstAccessMask</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>tmp</name><operator>-&gt;</operator><name>layout</name><index>[<expr><name>i</name></expr>]</index></name> <operator>=</operator> <name><name>bar</name><index>[<expr><literal type="number">1</literal></expr>]</index></name><operator>.</operator><name>newLayout</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>tmp</name><operator>-&gt;</operator><name>access</name><index>[<expr><name>i</name></expr>]</index></name> <operator>=</operator> <name><name>bar</name><index>[<expr><literal type="number">1</literal></expr>]</index></name><operator>.</operator><name>dstAccessMask</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>out</name><operator>-&gt;</operator><name>layout</name><index>[<expr><name>i</name></expr>]</index></name> <operator>=</operator> <name><name>bar</name><index>[<expr><literal type="number">2</literal></expr>]</index></name><operator>.</operator><name>newLayout</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>out</name><operator>-&gt;</operator><name>access</name><index>[<expr><name>i</name></expr>]</index></name> <operator>=</operator> <name><name>bar</name><index>[<expr><literal type="number">2</literal></expr>]</index></name><operator>.</operator><name>dstAccessMask</name></expr>;</expr_stmt>
+</block_content>}</block></for>
+
+<expr_stmt><expr><call><name>ff_vk_bind_pipeline_exec</name><argument_list>(<argument><expr><name>avctx</name></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>exec</name></name></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>pl_hor</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>vkCmdDispatch</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>exec</name><operator>-&gt;</operator><name>buf</name></name></expr></argument>, <argument><expr><call><name>FFALIGN</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>vkctx</name><operator>.</operator><name>output_width</name></name></expr></argument>, <argument><expr><name>CGS</name></expr></argument>)</argument_list></call><operator>/</operator><name>CGS</name></expr></argument>,
+<argument><expr><name><name>s</name><operator>-&gt;</operator><name>vkctx</name><operator>.</operator><name>output_height</name></name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>ff_vk_bind_pipeline_exec</name><argument_list>(<argument><expr><name>avctx</name></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>exec</name></name></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>pl_ver</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>vkCmdDispatch</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>exec</name><operator>-&gt;</operator><name>buf</name></name></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>vkctx</name><operator>.</operator><name>output_width</name></name></expr></argument>,
+<argument><expr><call><name>FFALIGN</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>vkctx</name><operator>.</operator><name>output_height</name></name></expr></argument>, <argument><expr><name>CGS</name></expr></argument>)</argument_list></call><operator>/</operator><name>CGS</name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>ff_vk_add_exec_dep</name><argument_list>(<argument><expr><name>avctx</name></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>exec</name></name></expr></argument>, <argument><expr><name>in_f</name></expr></argument>, <argument><expr><name>VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ff_vk_add_exec_dep</name><argument_list>(<argument><expr><name>avctx</name></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>exec</name></name></expr></argument>, <argument><expr><name>out_f</name></expr></argument>, <argument><expr><name>VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>err</name> <operator>=</operator> <call><name>ff_vk_submit_exec_queue</name><argument_list>(<argument><expr><name>avctx</name></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>exec</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name>err</name></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><name>err</name></expr>;</return></block_content></block></if></if_stmt>
+
+<label><name>fail</name>:</label>
+
+<for>for <control>(<init><decl><type><name>int</name></type> <name>i</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>planes</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<expr_stmt><expr><call><name>ff_vk_destroy_imageview</name><argument_list>(<argument><expr><name>avctx</name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>input_images</name><index>[<expr><name>i</name></expr>]</index></name><operator>.</operator><name>imageView</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ff_vk_destroy_imageview</name><argument_list>(<argument><expr><name>avctx</name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>tmp_images</name><index>[<expr><name>i</name></expr>]</index></name><operator>.</operator><name>imageView</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ff_vk_destroy_imageview</name><argument_list>(<argument><expr><name>avctx</name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>output_images</name><index>[<expr><name>i</name></expr>]</index></name><operator>.</operator><name>imageView</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></for>
+
+<return>return <expr><name>err</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>avgblur_vulkan_filter_frame</name><parameter_list>(<parameter><decl><type><name>AVFilterLink</name> <modifier>*</modifier></type><name>link</name></decl></parameter>, <parameter><decl><type><name>AVFrame</name> <modifier>*</modifier></type><name>in</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>int</name></type> <name>err</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>AVFrame</name> <modifier>*</modifier></type><name>tmp</name> <init>= <expr><name>NULL</name></expr></init></decl>, <decl><type ref="prev"><modifier>*</modifier></type><name>out</name> <init>= <expr><name>NULL</name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>AVFilterContext</name> <modifier>*</modifier></type><name>ctx</name> <init>= <expr><name><name>link</name><operator>-&gt;</operator><name>dst</name></name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>AvgBlurVulkanContext</name> <modifier>*</modifier></type><name>s</name> <init>= <expr><name><name>ctx</name><operator>-&gt;</operator><name>priv</name></name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>AVFilterLink</name> <modifier>*</modifier></type><name>outlink</name> <init>= <expr><name><name>ctx</name><operator>-&gt;</operator><name>outputs</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>out</name> <operator>=</operator> <call><name>ff_get_video_buffer</name><argument_list>(<argument><expr><name>outlink</name></expr></argument>, <argument><expr><name><name>outlink</name><operator>-&gt;</operator><name>w</name></name></expr></argument>, <argument><expr><name><name>outlink</name><operator>-&gt;</operator><name>h</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>out</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name>err</name> <operator>=</operator> <call><name>AVERROR</name><argument_list>(<argument><expr><name>ENOMEM</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<goto>goto <name>fail</name>;</goto>
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name>tmp</name> <operator>=</operator> <call><name>ff_get_video_buffer</name><argument_list>(<argument><expr><name>outlink</name></expr></argument>, <argument><expr><name><name>outlink</name><operator>-&gt;</operator><name>w</name></name></expr></argument>, <argument><expr><name><name>outlink</name><operator>-&gt;</operator><name>h</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>out</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name>err</name> <operator>=</operator> <call><name>AVERROR</name><argument_list>(<argument><expr><name>ENOMEM</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<goto>goto <name>fail</name>;</goto>
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>s</name><operator>-&gt;</operator><name>initialized</name></name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>RET</name><argument_list>(<argument><expr><call><name>init_filter</name><argument_list>(<argument><expr><name>ctx</name></expr></argument>, <argument><expr><name>in</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>RET</name><argument_list>(<argument><expr><call><name>process_frames</name><argument_list>(<argument><expr><name>ctx</name></expr></argument>, <argument><expr><name>out</name></expr></argument>, <argument><expr><name>tmp</name></expr></argument>, <argument><expr><name>in</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>err</name> <operator>=</operator> <call><name>av_frame_copy_props</name><argument_list>(<argument><expr><name>out</name></expr></argument>, <argument><expr><name>in</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name>err</name> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+<goto>goto <name>fail</name>;</goto></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>av_frame_free</name><argument_list>(<argument><expr><operator>&amp;</operator><name>in</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>av_frame_free</name><argument_list>(<argument><expr><operator>&amp;</operator><name>tmp</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><call><name>ff_filter_frame</name><argument_list>(<argument><expr><name>outlink</name></expr></argument>, <argument><expr><name>out</name></expr></argument>)</argument_list></call></expr>;</return>
+
+<label><name>fail</name>:</label>
+<expr_stmt><expr><call><name>av_frame_free</name><argument_list>(<argument><expr><operator>&amp;</operator><name>in</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>av_frame_free</name><argument_list>(<argument><expr><operator>&amp;</operator><name>tmp</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>av_frame_free</name><argument_list>(<argument><expr><operator>&amp;</operator><name>out</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>err</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>avgblur_vulkan_uninit</name><parameter_list>(<parameter><decl><type><name>AVFilterContext</name> <modifier>*</modifier></type><name>avctx</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>AvgBlurVulkanContext</name> <modifier>*</modifier></type><name>s</name> <init>= <expr><name><name>avctx</name><operator>-&gt;</operator><name>priv</name></name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>ff_vk_filter_uninit</name><argument_list>(<argument><expr><name>avctx</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>initialized</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>OFFSET</name><parameter_list>(<parameter><type><name>x</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>offsetof(AvgBlurVulkanContext, x)</cpp:value></cpp:define>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>FLAGS</name></cpp:macro> <cpp:value>(AV_OPT_FLAG_FILTERING_PARAM | AV_OPT_FLAG_VIDEO_PARAM)</cpp:value></cpp:define>
+<decl_stmt><decl><type><specifier>static</specifier> <specifier>const</specifier> <name>AVOption</name></type> <name><name>avgblur_vulkan_options</name><index>[]</index></name> <init>= <expr><block>{
+<expr><block>{ <expr><literal type="string">"sizeX"</literal></expr>, <expr><literal type="string">"Set horizontal radius"</literal></expr>, <expr><call><name>OFFSET</name><argument_list>(<argument><expr><name>size_x</name></expr></argument>)</argument_list></call></expr>, <expr><name>AV_OPT_TYPE_INT</name></expr>, <expr><block>{<expr><operator>.</operator><name>i64</name> <operator>=</operator> <literal type="number">3</literal></expr>}</block></expr>, <expr><literal type="number">1</literal></expr>, <expr><literal type="number">32</literal></expr>, <expr><operator>.</operator><name>flags</name> <operator>=</operator> <name>FLAGS</name></expr> }</block></expr>,
+<expr><block>{ <expr><literal type="string">"planes"</literal></expr>, <expr><literal type="string">"Set planes to filter (bitmask)"</literal></expr>, <expr><call><name>OFFSET</name><argument_list>(<argument><expr><name>planes</name></expr></argument>)</argument_list></call></expr>, <expr><name>AV_OPT_TYPE_INT</name></expr>, <expr><block>{<expr><operator>.</operator><name>i64</name> <operator>=</operator> <literal type="number">0xF</literal></expr>}</block></expr>, <expr><literal type="number">0</literal></expr>, <expr><literal type="number">0xF</literal></expr>, <expr><operator>.</operator><name>flags</name> <operator>=</operator> <name>FLAGS</name></expr> }</block></expr>,
+<expr><block>{ <expr><literal type="string">"sizeY"</literal></expr>, <expr><literal type="string">"Set vertical radius"</literal></expr>, <expr><call><name>OFFSET</name><argument_list>(<argument><expr><name>size_y</name></expr></argument>)</argument_list></call></expr>, <expr><name>AV_OPT_TYPE_INT</name></expr>, <expr><block>{<expr><operator>.</operator><name>i64</name> <operator>=</operator> <literal type="number">3</literal></expr>}</block></expr>, <expr><literal type="number">1</literal></expr>, <expr><literal type="number">32</literal></expr>, <expr><operator>.</operator><name>flags</name> <operator>=</operator> <name>FLAGS</name></expr> }</block></expr>,
+<expr><block>{ <expr><name>NULL</name></expr> }</block></expr>,
+}</block></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>AVFILTER_DEFINE_CLASS</name><argument_list>(<argument><expr><name>avgblur_vulkan</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <specifier>const</specifier> <name>AVFilterPad</name></type> <name><name>avgblur_vulkan_inputs</name><index>[]</index></name> <init>= <expr><block>{
+<expr><block>{
+<expr><operator>.</operator><name>name</name> <operator>=</operator> <literal type="string">"default"</literal></expr>,
+<expr><operator>.</operator><name>type</name> <operator>=</operator> <name>AVMEDIA_TYPE_VIDEO</name></expr>,
+<expr><operator>.</operator><name>filter_frame</name> <operator>=</operator> <operator>&amp;</operator><name>avgblur_vulkan_filter_frame</name></expr>,
+<expr><operator>.</operator><name>config_props</name> <operator>=</operator> <operator>&amp;</operator><name>ff_vk_filter_config_input</name></expr>,
+}</block></expr>,
+<expr><block>{ <expr><name>NULL</name></expr> }</block></expr>
+}</block></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <specifier>const</specifier> <name>AVFilterPad</name></type> <name><name>avgblur_vulkan_outputs</name><index>[]</index></name> <init>= <expr><block>{
+<expr><block>{
+<expr><operator>.</operator><name>name</name> <operator>=</operator> <literal type="string">"default"</literal></expr>,
+<expr><operator>.</operator><name>type</name> <operator>=</operator> <name>AVMEDIA_TYPE_VIDEO</name></expr>,
+<expr><operator>.</operator><name>config_props</name> <operator>=</operator> <operator>&amp;</operator><name>ff_vk_filter_config_output</name></expr>,
+}</block></expr>,
+<expr><block>{ <expr><name>NULL</name></expr> }</block></expr>
+}</block></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>AVFilter</name></type> <name>ff_vf_avgblur_vulkan</name> <init>= <expr><block>{
+<expr><operator>.</operator><name>name</name> <operator>=</operator> <literal type="string">"avgblur_vulkan"</literal></expr>,
+<expr><operator>.</operator><name>description</name> <operator>=</operator> <call><name>NULL_IF_CONFIG_SMALL</name><argument_list>(<argument><expr><literal type="string">"Apply avgblur mask to input video"</literal></expr></argument>)</argument_list></call></expr>,
+<expr><operator>.</operator><name>priv_size</name> <operator>=</operator> <sizeof>sizeof<argument_list>(<argument><expr><name>AvgBlurVulkanContext</name></expr></argument>)</argument_list></sizeof></expr>,
+<expr><operator>.</operator><name>init</name> <operator>=</operator> <operator>&amp;</operator><name>ff_vk_filter_init</name></expr>,
+<expr><operator>.</operator><name>uninit</name> <operator>=</operator> <operator>&amp;</operator><name>avgblur_vulkan_uninit</name></expr>,
+<expr><operator>.</operator><name>query_formats</name> <operator>=</operator> <operator>&amp;</operator><name>ff_vk_filter_query_formats</name></expr>,
+<expr><operator>.</operator><name>inputs</name> <operator>=</operator> <name>avgblur_vulkan_inputs</name></expr>,
+<expr><operator>.</operator><name>outputs</name> <operator>=</operator> <name>avgblur_vulkan_outputs</name></expr>,
+<expr><operator>.</operator><name>priv_class</name> <operator>=</operator> <operator>&amp;</operator><name>avgblur_vulkan_class</name></expr>,
+<expr><operator>.</operator><name>flags_internal</name> <operator>=</operator> <name>FF_FILTER_FLAG_HWFRAME_AWARE</name></expr>,
+}</block></expr></init></decl>;</decl_stmt>
+</unit>

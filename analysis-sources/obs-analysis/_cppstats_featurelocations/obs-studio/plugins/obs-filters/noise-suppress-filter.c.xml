@@ -1,0 +1,308 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" revision="1.0.0" language="C" filename="D:\Pesquisa\Projects\obs-analysis\_cppstats_featurelocations\obs-studio\plugins\obs-filters\noise-suppress-filter.c"><cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;stdint.h&gt;</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;inttypes.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;util/circlebuf.h&gt;</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;obs-module.h&gt;</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;speex/speex_preprocess.h&gt;</cpp:file></cpp:include>
+
+
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>do_log</name><parameter_list>(<parameter><type><name>level</name></type></parameter>, <parameter><type><name>format</name></type></parameter>, <parameter><type><modifier>...</modifier></type></parameter>)</parameter_list></cpp:macro> <cpp:value>blog(level, "[noise suppress: '%s'] " format, obs_source_get_name(ng-&gt;context), ##__VA_ARGS__)</cpp:value></cpp:define>
+
+
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>warn</name><parameter_list>(<parameter><type><name>format</name></type></parameter>, <parameter><type><modifier>...</modifier></type></parameter>)</parameter_list></cpp:macro> <cpp:value>do_log(LOG_WARNING, format, ##__VA_ARGS__)</cpp:value></cpp:define>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>info</name><parameter_list>(<parameter><type><name>format</name></type></parameter>, <parameter><type><modifier>...</modifier></type></parameter>)</parameter_list></cpp:macro> <cpp:value>do_log(LOG_INFO, format, ##__VA_ARGS__)</cpp:value></cpp:define>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><call><name>defined</name><argument_list>(<argument><expr><name>_DEBUG</name></expr></argument>)</argument_list></call></expr></cpp:if>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>debug</name><parameter_list>(<parameter><type><name>format</name></type></parameter>, <parameter><type><modifier>...</modifier></type></parameter>)</parameter_list></cpp:macro> <cpp:value>do_log(LOG_DEBUG, format, ##__VA_ARGS__)</cpp:value></cpp:define>
+<cpp:else>#<cpp:directive>else</cpp:directive></cpp:else>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>debug</name><parameter_list>(<parameter><type><name>format</name></type></parameter>, <parameter><type><modifier>...</modifier></type></parameter>)</parameter_list></cpp:macro></cpp:define>
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>S_SUPPRESS_LEVEL</name></cpp:macro> <cpp:value>"suppress_level"</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>MT_</name></cpp:macro> <cpp:value>obs_module_text</cpp:value></cpp:define>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>TEXT_SUPPRESS_LEVEL</name></cpp:macro> <cpp:value>MT_("NoiseSuppress.SuppressLevel")</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>MAX_PREPROC_CHANNELS</name></cpp:macro> <cpp:value>8</cpp:value></cpp:define>
+
+
+
+<struct>struct <name>noise_suppress_data</name> <block>{
+<decl_stmt><decl><type><name>obs_source_t</name> <modifier>*</modifier></type><name>context</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>suppress_level</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>uint64_t</name></type> <name>last_timestamp</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>size_t</name></type> <name>frames</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>size_t</name></type> <name>channels</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>circlebuf</name></name></type> <name>info_buffer</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name><name>struct</name> <name>circlebuf</name></name></type> <name><name>input_buffers</name><index>[<expr><name>MAX_PREPROC_CHANNELS</name></expr>]</index></name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name><name>struct</name> <name>circlebuf</name></name></type> <name><name>output_buffers</name><index>[<expr><name>MAX_PREPROC_CHANNELS</name></expr>]</index></name></decl>;</decl_stmt>
+
+
+<decl_stmt><decl><type><name>SpeexPreprocessState</name> <modifier>*</modifier></type><name><name>states</name><index>[<expr><name>MAX_PREPROC_CHANNELS</name></expr>]</index></name></decl>;</decl_stmt>
+
+
+<decl_stmt><decl><type><name>float</name> <modifier>*</modifier></type><name><name>copy_buffers</name><index>[<expr><name>MAX_PREPROC_CHANNELS</name></expr>]</index></name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>spx_int16_t</name> <modifier>*</modifier></type><name><name>segment_buffers</name><index>[<expr><name>MAX_PREPROC_CHANNELS</name></expr>]</index></name></decl>;</decl_stmt>
+
+
+<decl_stmt><decl><type><name><name>struct</name> <name>obs_audio_data</name></name></type> <name>output_audio</name></decl>;</decl_stmt>
+<macro><name>DARRAY</name><argument_list>(<argument>float</argument>)</argument_list></macro> <expr_stmt><expr><name>output_data</name></expr>;</expr_stmt>
+}</block>;</struct>
+
+
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>SUP_MIN</name></cpp:macro> <cpp:value>-60</cpp:value></cpp:define>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>SUP_MAX</name></cpp:macro> <cpp:value>0</cpp:value></cpp:define>
+
+<decl_stmt><decl><type><specifier>static</specifier> <specifier>const</specifier> <name>float</name></type> <name>c_32_to_16</name> <init>= <expr><operator>(</operator><name>float</name><operator>)</operator><name>INT16_MAX</name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><specifier>static</specifier> <specifier>const</specifier> <name>float</name></type> <name>c_16_to_32</name> <init>= <expr><operator>(</operator><operator>(</operator><name>float</name><operator>)</operator><name>INT16_MAX</name> <operator>+</operator> <literal type="number">1.0f</literal><operator>)</operator></expr></init></decl>;</decl_stmt>
+
+
+
+<function><type><specifier>static</specifier> <specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>noise_suppress_name</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>unused</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<expr_stmt><expr><call><name>UNUSED_PARAMETER</name><argument_list>(<argument><expr><name>unused</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><call><name>obs_module_text</name><argument_list>(<argument><expr><literal type="string">"NoiseSuppress"</literal></expr></argument>)</argument_list></call></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>noise_suppress_destroy</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>noise_suppress_data</name></name> <modifier>*</modifier></type><name>ng</name> <init>= <expr><name>data</name></expr></init></decl>;</decl_stmt>
+
+<for>for <control>(<init><decl><type><name>size_t</name></type> <name>i</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name><name>ng</name><operator>-&gt;</operator><name>channels</name></name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<expr_stmt><expr><call><name>speex_preprocess_state_destroy</name><argument_list>(<argument><expr><name><name>ng</name><operator>-&gt;</operator><name>states</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>circlebuf_free</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>ng</name><operator>-&gt;</operator><name>input_buffers</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>circlebuf_free</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>ng</name><operator>-&gt;</operator><name>output_buffers</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></for>
+
+<expr_stmt><expr><call><name>bfree</name><argument_list>(<argument><expr><name><name>ng</name><operator>-&gt;</operator><name>segment_buffers</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>bfree</name><argument_list>(<argument><expr><name><name>ng</name><operator>-&gt;</operator><name>copy_buffers</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>circlebuf_free</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>ng</name><operator>-&gt;</operator><name>info_buffer</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>da_free</name><argument_list>(<argument><expr><name><name>ng</name><operator>-&gt;</operator><name>output_data</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>bfree</name><argument_list>(<argument><expr><name>ng</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <specifier>inline</specifier> <name>void</name></type> <name>alloc_channel</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>noise_suppress_data</name></name> <modifier>*</modifier></type><name>ng</name></decl></parameter>,
+<parameter><decl><type><name>uint32_t</name></type> <name>sample_rate</name></decl></parameter>, <parameter><decl><type><name>size_t</name></type> <name>channel</name></decl></parameter>,
+<parameter><decl><type><name>size_t</name></type> <name>frames</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<expr_stmt><expr><name><name>ng</name><operator>-&gt;</operator><name>states</name><index>[<expr><name>channel</name></expr>]</index></name> <operator>=</operator>
+<call><name>speex_preprocess_state_init</name><argument_list>(<argument><expr><operator>(</operator><name>int</name><operator>)</operator><name>frames</name></expr></argument>, <argument><expr><name>sample_rate</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>circlebuf_reserve</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>ng</name><operator>-&gt;</operator><name>input_buffers</name><index>[<expr><name>channel</name></expr>]</index></name></expr></argument>, <argument><expr><name>frames</name> <operator>*</operator> <sizeof>sizeof<argument_list>(<argument><expr><name>float</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>circlebuf_reserve</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>ng</name><operator>-&gt;</operator><name>output_buffers</name><index>[<expr><name>channel</name></expr>]</index></name></expr></argument>, <argument><expr><name>frames</name> <operator>*</operator> <sizeof>sizeof<argument_list>(<argument><expr><name>float</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>noise_suppress_update</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>, <parameter><decl><type><name>obs_data_t</name> <modifier>*</modifier></type><name>s</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>noise_suppress_data</name></name> <modifier>*</modifier></type><name>ng</name> <init>= <expr><name>data</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>uint32_t</name></type> <name>sample_rate</name> <init>= <expr><call><name>audio_output_get_sample_rate</name><argument_list>(<argument><expr><call><name>obs_get_audio</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>size_t</name></type> <name>channels</name> <init>= <expr><call><name>audio_output_get_channels</name><argument_list>(<argument><expr><call><name>obs_get_audio</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>size_t</name></type> <name>frames</name> <init>= <expr><operator>(</operator><name>size_t</name><operator>)</operator><name>sample_rate</name> <operator>/</operator> <literal type="number">100</literal></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>ng</name><operator>-&gt;</operator><name>suppress_level</name></name> <operator>=</operator> <operator>(</operator><name>int</name><operator>)</operator><call><name>obs_data_get_int</name><argument_list>(<argument><expr><name>s</name></expr></argument>, <argument><expr><name>S_SUPPRESS_LEVEL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+
+<expr_stmt><expr><name><name>ng</name><operator>-&gt;</operator><name>frames</name></name> <operator>=</operator> <name>frames</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>ng</name><operator>-&gt;</operator><name>channels</name></name> <operator>=</operator> <name>channels</name></expr>;</expr_stmt>
+
+
+<if_stmt><if>if <condition>(<expr><name><name>ng</name><operator>-&gt;</operator><name>states</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr>)</condition><block type="pseudo"><block_content>
+<return>return;</return></block_content></block></if></if_stmt>
+
+
+<expr_stmt><expr><name><name>ng</name><operator>-&gt;</operator><name>copy_buffers</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>=</operator> <call><name>bmalloc</name><argument_list>(<argument><expr><name>frames</name> <operator>*</operator> <name>channels</name> <operator>*</operator> <sizeof>sizeof<argument_list>(<argument><expr><name>float</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>ng</name><operator>-&gt;</operator><name>segment_buffers</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>=</operator>
+<call><name>bmalloc</name><argument_list>(<argument><expr><name>frames</name> <operator>*</operator> <name>channels</name> <operator>*</operator> <sizeof>sizeof<argument_list>(<argument><expr><name>spx_int16_t</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<for>for <control>(<init><decl><type><name>size_t</name></type> <name>c</name> <init>= <expr><literal type="number">1</literal></expr></init></decl>;</init> <condition><expr><name>c</name> <operator>&lt;</operator> <name>channels</name></expr>;</condition> <incr><expr><operator>++</operator><name>c</name></expr></incr>)</control> <block>{<block_content>
+<expr_stmt><expr><name><name>ng</name><operator>-&gt;</operator><name>copy_buffers</name><index>[<expr><name>c</name></expr>]</index></name> <operator>=</operator> <name><name>ng</name><operator>-&gt;</operator><name>copy_buffers</name><index>[<expr><name>c</name> <operator>-</operator> <literal type="number">1</literal></expr>]</index></name> <operator>+</operator> <name>frames</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>ng</name><operator>-&gt;</operator><name>segment_buffers</name><index>[<expr><name>c</name></expr>]</index></name> <operator>=</operator> <name><name>ng</name><operator>-&gt;</operator><name>segment_buffers</name><index>[<expr><name>c</name> <operator>-</operator> <literal type="number">1</literal></expr>]</index></name> <operator>+</operator> <name>frames</name></expr>;</expr_stmt>
+</block_content>}</block></for>
+
+<for>for <control>(<init><decl><type><name>size_t</name></type> <name>i</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>channels</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>alloc_channel</name><argument_list>(<argument><expr><name>ng</name></expr></argument>, <argument><expr><name>sample_rate</name></expr></argument>, <argument><expr><name>i</name></expr></argument>, <argument><expr><name>frames</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></for>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name> <modifier>*</modifier></type><name>noise_suppress_create</name><parameter_list>(<parameter><decl><type><name>obs_data_t</name> <modifier>*</modifier></type><name>settings</name></decl></parameter>, <parameter><decl><type><name>obs_source_t</name> <modifier>*</modifier></type><name>filter</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>noise_suppress_data</name></name> <modifier>*</modifier></type><name>ng</name> <init>=
+<expr><call><name>bzalloc</name><argument_list>(<argument><expr><sizeof>sizeof<argument_list>(<argument><expr>struct <name>noise_suppress_data</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>ng</name><operator>-&gt;</operator><name>context</name></name> <operator>=</operator> <name>filter</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>noise_suppress_update</name><argument_list>(<argument><expr><name>ng</name></expr></argument>, <argument><expr><name>settings</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>ng</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <specifier>inline</specifier> <name>void</name></type> <name>process</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>noise_suppress_data</name></name> <modifier>*</modifier></type><name>ng</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+
+<for>for <control>(<init><decl><type><name>size_t</name></type> <name>i</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name><name>ng</name><operator>-&gt;</operator><name>channels</name></name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>circlebuf_pop_front</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>ng</name><operator>-&gt;</operator><name>input_buffers</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>, <argument><expr><name><name>ng</name><operator>-&gt;</operator><name>copy_buffers</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>,
+<argument><expr><name><name>ng</name><operator>-&gt;</operator><name>frames</name></name> <operator>*</operator> <sizeof>sizeof<argument_list>(<argument><expr><name>float</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></for>
+
+
+<for>for <control>(<init><decl><type><name>size_t</name></type> <name>i</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name><name>ng</name><operator>-&gt;</operator><name>channels</name></name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>speex_preprocess_ctl</name><argument_list>(<argument><expr><name><name>ng</name><operator>-&gt;</operator><name>states</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>,
+<argument><expr><name>SPEEX_PREPROCESS_SET_NOISE_SUPPRESS</name></expr></argument>,
+<argument><expr><operator>&amp;</operator><name><name>ng</name><operator>-&gt;</operator><name>suppress_level</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></for>
+
+
+<for>for <control>(<init><decl><type><name>size_t</name></type> <name>i</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name><name>ng</name><operator>-&gt;</operator><name>channels</name></name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control><block type="pseudo"><block_content>
+<for>for <control>(<init><decl><type><name>size_t</name></type> <name>j</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>j</name> <operator>&lt;</operator> <name><name>ng</name><operator>-&gt;</operator><name>frames</name></name></expr>;</condition> <incr><expr><name>j</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<decl_stmt><decl><type><name>float</name></type> <name>s</name> <init>= <expr><name><name>ng</name><operator>-&gt;</operator><name>copy_buffers</name><index>[<expr><name>i</name></expr>]</index><index>[<expr><name>j</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+<if_stmt><if>if <condition>(<expr><name>s</name> <operator>&gt;</operator> <literal type="number">1.0f</literal></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name>s</name> <operator>=</operator> <literal type="number">1.0f</literal></expr>;</expr_stmt></block_content></block></if>
+<if type="elseif">else if <condition>(<expr><name>s</name> <operator>&lt;</operator> <operator>-</operator><literal type="number">1.0f</literal></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name>s</name> <operator>=</operator> <operator>-</operator><literal type="number">1.0f</literal></expr>;</expr_stmt></block_content></block></if></if_stmt>
+<expr_stmt><expr><name><name>ng</name><operator>-&gt;</operator><name>segment_buffers</name><index>[<expr><name>i</name></expr>]</index><index>[<expr><name>j</name></expr>]</index></name> <operator>=</operator>
+<operator>(</operator><name>spx_int16_t</name><operator>)</operator><operator>(</operator><name>s</name> <operator>*</operator> <name>c_32_to_16</name><operator>)</operator></expr>;</expr_stmt>
+</block_content>}</block></for></block_content></block></for>
+
+
+<for>for <control>(<init><decl><type><name>size_t</name></type> <name>i</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name><name>ng</name><operator>-&gt;</operator><name>channels</name></name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>speex_preprocess_run</name><argument_list>(<argument><expr><name><name>ng</name><operator>-&gt;</operator><name>states</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>, <argument><expr><name><name>ng</name><operator>-&gt;</operator><name>segment_buffers</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></for>
+
+
+<for>for <control>(<init><decl><type><name>size_t</name></type> <name>i</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name><name>ng</name><operator>-&gt;</operator><name>channels</name></name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control><block type="pseudo"><block_content>
+<for>for <control>(<init><decl><type><name>size_t</name></type> <name>j</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>j</name> <operator>&lt;</operator> <name><name>ng</name><operator>-&gt;</operator><name>frames</name></name></expr>;</condition> <incr><expr><name>j</name><operator>++</operator></expr></incr>)</control><block type="pseudo"><block_content>
+<expr_stmt><expr><name><name>ng</name><operator>-&gt;</operator><name>copy_buffers</name><index>[<expr><name>i</name></expr>]</index><index>[<expr><name>j</name></expr>]</index></name> <operator>=</operator>
+<operator>(</operator><name>float</name><operator>)</operator><name><name>ng</name><operator>-&gt;</operator><name>segment_buffers</name><index>[<expr><name>i</name></expr>]</index><index>[<expr><name>j</name></expr>]</index></name> <operator>/</operator> <name>c_16_to_32</name></expr>;</expr_stmt></block_content></block></for></block_content></block></for>
+
+
+<for>for <control>(<init><decl><type><name>size_t</name></type> <name>i</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name><name>ng</name><operator>-&gt;</operator><name>channels</name></name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>circlebuf_push_back</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>ng</name><operator>-&gt;</operator><name>output_buffers</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>, <argument><expr><name><name>ng</name><operator>-&gt;</operator><name>copy_buffers</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>,
+<argument><expr><name><name>ng</name><operator>-&gt;</operator><name>frames</name></name> <operator>*</operator> <sizeof>sizeof<argument_list>(<argument><expr><name>float</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></for>
+</block_content>}</block></function>
+
+<struct>struct <name>ng_audio_info</name> <block>{
+<decl_stmt><decl><type><name>uint32_t</name></type> <name>frames</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>uint64_t</name></type> <name>timestamp</name></decl>;</decl_stmt>
+}</block>;</struct>
+
+<function><type><specifier>static</specifier> <specifier>inline</specifier> <name>void</name></type> <name>clear_circlebuf</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>circlebuf</name></name> <modifier>*</modifier></type><name>buf</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<expr_stmt><expr><call><name>circlebuf_pop_front</name><argument_list>(<argument><expr><name>buf</name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>, <argument><expr><name><name>buf</name><operator>-&gt;</operator><name>size</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>reset_data</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>noise_suppress_data</name></name> <modifier>*</modifier></type><name>ng</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<for>for <control>(<init><decl><type><name>size_t</name></type> <name>i</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name><name>ng</name><operator>-&gt;</operator><name>channels</name></name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<expr_stmt><expr><call><name>clear_circlebuf</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>ng</name><operator>-&gt;</operator><name>input_buffers</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>clear_circlebuf</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>ng</name><operator>-&gt;</operator><name>output_buffers</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></for>
+
+<expr_stmt><expr><call><name>clear_circlebuf</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>ng</name><operator>-&gt;</operator><name>info_buffer</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name><name>struct</name> <name>obs_audio_data</name></name> <modifier>*</modifier></type>
+<name>noise_suppress_filter_audio</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>, <parameter><decl><type><name><name>struct</name> <name>obs_audio_data</name></name> <modifier>*</modifier></type><name>audio</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>noise_suppress_data</name></name> <modifier>*</modifier></type><name>ng</name> <init>= <expr><name>data</name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name><name>struct</name> <name>ng_audio_info</name></name></type> <name>info</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>size_t</name></type> <name>segment_size</name> <init>= <expr><name><name>ng</name><operator>-&gt;</operator><name>frames</name></name> <operator>*</operator> <sizeof>sizeof<argument_list>(<argument><expr><name>float</name></expr></argument>)</argument_list></sizeof></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>size_t</name></type> <name>out_size</name></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>ng</name><operator>-&gt;</operator><name>states</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><name>audio</name></expr>;</return></block_content></block></if></if_stmt>
+
+
+
+
+
+<if_stmt><if>if <condition>(<expr><name><name>ng</name><operator>-&gt;</operator><name>last_timestamp</name></name></expr>)</condition> <block>{<block_content>
+<decl_stmt><decl><type><name>int64_t</name></type> <name>diff</name> <init>= <expr><call><name>llabs</name><argument_list>(<argument><expr><operator>(</operator><name>int64_t</name><operator>)</operator><name><name>ng</name><operator>-&gt;</operator><name>last_timestamp</name></name> <operator>-</operator>
+<operator>(</operator><name>int64_t</name><operator>)</operator><name><name>audio</name><operator>-&gt;</operator><name>timestamp</name></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>diff</name> <operator>&gt;</operator> <literal type="number">1000000000LL</literal></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>reset_data</name><argument_list>(<argument><expr><name>ng</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>ng</name><operator>-&gt;</operator><name>last_timestamp</name></name> <operator>=</operator> <name><name>audio</name><operator>-&gt;</operator><name>timestamp</name></name></expr>;</expr_stmt>
+
+
+
+<expr_stmt><expr><name><name>info</name><operator>.</operator><name>frames</name></name> <operator>=</operator> <name><name>audio</name><operator>-&gt;</operator><name>frames</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>info</name><operator>.</operator><name>timestamp</name></name> <operator>=</operator> <name><name>audio</name><operator>-&gt;</operator><name>timestamp</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>circlebuf_push_back</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>ng</name><operator>-&gt;</operator><name>info_buffer</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name>info</name></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr><name>info</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+
+
+<for>for <control>(<init><decl><type><name>size_t</name></type> <name>i</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name><name>ng</name><operator>-&gt;</operator><name>channels</name></name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>circlebuf_push_back</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>ng</name><operator>-&gt;</operator><name>input_buffers</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>, <argument><expr><name><name>audio</name><operator>-&gt;</operator><name>data</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>,
+<argument><expr><name><name>audio</name><operator>-&gt;</operator><name>frames</name></name> <operator>*</operator> <sizeof>sizeof<argument_list>(<argument><expr><name>float</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></for>
+
+
+
+<while>while <condition>(<expr><name><name>ng</name><operator>-&gt;</operator><name>input_buffers</name><index>[<expr><literal type="number">0</literal></expr>]</index></name><operator>.</operator><name>size</name> <operator>&gt;=</operator> <name>segment_size</name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>process</name><argument_list>(<argument><expr><name>ng</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></while>
+
+
+
+
+<expr_stmt><expr><call><name>memset</name><argument_list>(<argument><expr><operator>&amp;</operator><name>info</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr><name>info</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>circlebuf_peek_front</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>ng</name><operator>-&gt;</operator><name>info_buffer</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name>info</name></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr><name>info</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>out_size</name> <operator>=</operator> <name><name>info</name><operator>.</operator><name>frames</name></name> <operator>*</operator> <sizeof>sizeof<argument_list>(<argument><expr><name>float</name></expr></argument>)</argument_list></sizeof></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>ng</name><operator>-&gt;</operator><name>output_buffers</name><index>[<expr><literal type="number">0</literal></expr>]</index></name><operator>.</operator><name>size</name> <operator>&lt;</operator> <name>out_size</name></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><name>NULL</name></expr>;</return></block_content></block></if></if_stmt>
+
+
+
+
+<expr_stmt><expr><call><name>circlebuf_pop_front</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>ng</name><operator>-&gt;</operator><name>info_buffer</name></name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr><name>info</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>da_resize</name><argument_list>(<argument><expr><name><name>ng</name><operator>-&gt;</operator><name>output_data</name></name></expr></argument>, <argument><expr><name>out_size</name> <operator>*</operator> <name><name>ng</name><operator>-&gt;</operator><name>channels</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<for>for <control>(<init><decl><type><name>size_t</name></type> <name>i</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name><name>ng</name><operator>-&gt;</operator><name>channels</name></name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<expr_stmt><expr><name><name>ng</name><operator>-&gt;</operator><name>output_audio</name><operator>.</operator><name>data</name><index>[<expr><name>i</name></expr>]</index></name> <operator>=</operator>
+<operator>(</operator><name>uint8_t</name> <operator>*</operator><operator>)</operator><operator>&amp;</operator><name><name>ng</name><operator>-&gt;</operator><name>output_data</name><operator>.</operator><name>array</name><index>[<expr><name>i</name> <operator>*</operator> <name>out_size</name></expr>]</index></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>circlebuf_pop_front</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>ng</name><operator>-&gt;</operator><name>output_buffers</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>,
+<argument><expr><name><name>ng</name><operator>-&gt;</operator><name>output_audio</name><operator>.</operator><name>data</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>, <argument><expr><name>out_size</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></for>
+
+<expr_stmt><expr><name><name>ng</name><operator>-&gt;</operator><name>output_audio</name><operator>.</operator><name>frames</name></name> <operator>=</operator> <name><name>info</name><operator>.</operator><name>frames</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>ng</name><operator>-&gt;</operator><name>output_audio</name><operator>.</operator><name>timestamp</name></name> <operator>=</operator> <name><name>info</name><operator>.</operator><name>timestamp</name></name></expr>;</expr_stmt>
+<return>return <expr><operator>&amp;</operator><name><name>ng</name><operator>-&gt;</operator><name>output_audio</name></name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>noise_suppress_defaults</name><parameter_list>(<parameter><decl><type><name>obs_data_t</name> <modifier>*</modifier></type><name>s</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<expr_stmt><expr><call><name>obs_data_set_default_int</name><argument_list>(<argument><expr><name>s</name></expr></argument>, <argument><expr><name>S_SUPPRESS_LEVEL</name></expr></argument>, <argument><expr><operator>-</operator><literal type="number">30</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>obs_properties_t</name> <modifier>*</modifier></type><name>noise_suppress_properties</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>obs_properties_t</name> <modifier>*</modifier></type><name>ppts</name> <init>= <expr><call><name>obs_properties_create</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>obs_property_t</name> <modifier>*</modifier></type><name>p</name> <init>= <expr><call><name>obs_properties_add_int_slider</name><argument_list>(<argument><expr><name>ppts</name></expr></argument>,
+<argument><expr><name>S_SUPPRESS_LEVEL</name></expr></argument>,
+<argument><expr><name>TEXT_SUPPRESS_LEVEL</name></expr></argument>,
+<argument><expr><name>SUP_MIN</name></expr></argument>, <argument><expr><name>SUP_MAX</name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><call><name>obs_property_int_set_suffix</name><argument_list>(<argument><expr><name>p</name></expr></argument>, <argument><expr><literal type="string">" dB"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>UNUSED_PARAMETER</name><argument_list>(<argument><expr><name>data</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>ppts</name></expr>;</return>
+</block_content>}</block></function>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>obs_source_info</name></name></type> <name>noise_suppress_filter</name> <init>= <expr><block>{
+<expr><operator>.</operator><name>id</name> <operator>=</operator> <literal type="string">"noise_suppress_filter"</literal></expr>,
+<expr><operator>.</operator><name>type</name> <operator>=</operator> <name>OBS_SOURCE_TYPE_FILTER</name></expr>,
+<expr><operator>.</operator><name>output_flags</name> <operator>=</operator> <name>OBS_SOURCE_AUDIO</name></expr>,
+<expr><operator>.</operator><name>get_name</name> <operator>=</operator> <name>noise_suppress_name</name></expr>,
+<expr><operator>.</operator><name>create</name> <operator>=</operator> <name>noise_suppress_create</name></expr>,
+<expr><operator>.</operator><name>destroy</name> <operator>=</operator> <name>noise_suppress_destroy</name></expr>,
+<expr><operator>.</operator><name>update</name> <operator>=</operator> <name>noise_suppress_update</name></expr>,
+<expr><operator>.</operator><name>filter_audio</name> <operator>=</operator> <name>noise_suppress_filter_audio</name></expr>,
+<expr><operator>.</operator><name>get_defaults</name> <operator>=</operator> <name>noise_suppress_defaults</name></expr>,
+<expr><operator>.</operator><name>get_properties</name> <operator>=</operator> <name>noise_suppress_properties</name></expr>,
+}</block></expr></init></decl>;</decl_stmt>
+</unit>

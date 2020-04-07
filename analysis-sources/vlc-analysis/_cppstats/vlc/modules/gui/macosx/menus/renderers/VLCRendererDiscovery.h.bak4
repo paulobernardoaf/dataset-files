@@ -1,0 +1,124 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#import <Foundation/Foundation.h>
+
+#import "menus/renderers/VLCRendererItem.h"
+
+@protocol VLCRendererDiscoveryDelegate;
+
+
+
+
+
+
+@interface VLCRendererDiscovery : NSObject
+
+
+
+
+@property (assign) id<VLCRendererDiscoveryDelegate> delegate;
+
+
+
+
+@property (readonly) NSString *name;
+
+
+
+
+@property (readonly) NSString *longName;
+
+
+
+
+@property (readonly) NSMutableArray<VLCRendererItem*> *rendererItems;
+
+
+
+
+
+@property (readonly) bool discoveryStarted;
+
+
+
+
+
+
+
+
+
+
+
+
+
+- (instancetype)initWithName:(const char*)name andLongname:(const char*)longname;
+
+
+
+
+
+
+
+
+- (bool)startDiscovery;
+
+
+
+
+
+
+
+
+- (void)stopDiscovery;
+
+@end
+
+#pragma mark Delegate Protocol
+
+
+
+
+@protocol VLCRendererDiscoveryDelegate
+@required
+
+
+
+
+
+
+
+
+
+- (void)addedRendererItem:(VLCRendererItem *)item from:(VLCRendererDiscovery *)sender;
+
+
+
+
+
+
+
+
+
+- (void)removedRendererItem:(VLCRendererItem *)item from:(VLCRendererDiscovery *)sender;
+
+@end

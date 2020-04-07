@@ -1,0 +1,262 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#include "raylib.h"
+#include "raymath.h"
+
+#include <stddef.h>
+#include <stdint.h>
+
+#if defined(PLATFORM_DESKTOP)
+#define GLSL_VERSION 330
+#else 
+#define GLSL_VERSION 100
+#endif
+
+
+#define MAXSPOT 3 
+#define numStars 400
+
+
+
+typedef struct { 
+Vector2 pos;
+Vector2 vel;
+float inner;
+float radius;
+
+
+unsigned int posLoc;
+unsigned int innerLoc;
+unsigned int radiusLoc;
+} Spot;
+
+
+typedef struct Star {
+Vector2 pos;
+Vector2 vel;
+} Star;
+
+void UpdateStar(Star *s);
+void ResetStar(Star *s);
+
+int main(void)
+{
+
+
+const int screenWidth = 800;
+const int screenHeight = 450;
+
+InitWindow(screenWidth, screenHeight, "raylib - shader spotlight");
+HideCursor();
+
+Texture texRay = LoadTexture("resources/raysan.png");
+
+Star stars[numStars] = { 0 };
+
+for (int n = 0; n < numStars; n++) ResetStar(&stars[n]);
+
+
+for (int m = 0; m < screenWidth/2.0; m++) 
+{
+for (int n = 0; n < numStars; n++) UpdateStar(&stars[n]);
+}
+
+int frameCounter = 0;
+
+
+
+
+Shader spotShader = LoadShader(0, FormatText("resources/shaders/glsl%i/spotlight.fs", GLSL_VERSION));
+
+
+Spot spots[MAXSPOT];
+
+
+
+
+
+for (int i = 0; i < MAXSPOT; i++) 
+{
+char posName[32] = "spots[x].pos\0";
+char innerName[32] = "spots[x].inner\0";
+char radiusName[32] = "spots[x].radius\0";
+
+posName[6] = '0' + i;
+innerName[6] = '0' + i;
+radiusName[6] = '0' + i;
+
+spots[i].posLoc = GetShaderLocation(spotShader, posName);
+spots[i].innerLoc = GetShaderLocation(spotShader, innerName);
+spots[i].radiusLoc = GetShaderLocation(spotShader, radiusName);
+
+}
+
+
+
+{
+unsigned int wLoc = GetShaderLocation(spotShader, "screenWidth");
+float sw = (float)GetScreenWidth();
+SetShaderValue(spotShader, wLoc, &sw, UNIFORM_FLOAT);
+}
+
+
+
+for (int i = 0; i < MAXSPOT; i++)
+{
+
+spots[i].pos.x = GetRandomValue(64, screenWidth - 64);
+spots[i].pos.y = GetRandomValue(64, screenHeight - 64);
+spots[i].vel = (Vector2){ 0, 0 };
+
+while ((fabs(spots[i].vel.x) + fabs(spots[i].vel.y)) < 2)
+{
+spots[i].vel.x = GetRandomValue(-40, 40)/10.0;
+spots[i].vel.y = GetRandomValue(-40, 40)/10.0;
+}
+
+spots[i].inner = 28 * (i + 1);
+spots[i].radius = 48 * (i + 1);
+
+SetShaderValue(spotShader, spots[i].posLoc, &spots[i].pos.x, UNIFORM_VEC2);
+SetShaderValue(spotShader, spots[i].innerLoc, &spots[i].inner, UNIFORM_FLOAT);
+SetShaderValue(spotShader, spots[i].radiusLoc, &spots[i].radius, UNIFORM_FLOAT);
+}
+
+SetTargetFPS(60); 
+
+
+
+while (!WindowShouldClose()) 
+{
+
+
+frameCounter++;
+
+
+for (int n = 0; n < numStars; n++) UpdateStar(&stars[n]);
+
+
+for (int i = 0; i < MAXSPOT; i++)
+{
+if ( i == 0 ) {
+Vector2 mp = GetMousePosition();
+spots[i].pos.x = mp.x; 
+spots[i].pos.y = screenHeight - mp.y;
+} else {
+spots[i].pos.x += spots[i].vel.x; 
+spots[i].pos.y += spots[i].vel.y;
+
+if (spots[i].pos.x < 64) spots[i].vel.x = -spots[i].vel.x; 
+if (spots[i].pos.x > screenWidth - 64) spots[i].vel.x = -spots[i].vel.x; 
+if (spots[i].pos.y < 64) spots[i].vel.y = -spots[i].vel.y; 
+if (spots[i].pos.y > screenHeight - 64) spots[i].vel.y = -spots[i].vel.y;
+}
+
+SetShaderValue(spotShader, spots[i].posLoc, &spots[i].pos.x, UNIFORM_VEC2); 
+}
+
+
+
+BeginDrawing();
+
+ClearBackground(DARKBLUE);
+
+
+for (int n = 0; n < numStars; n++)
+{
+
+DrawRectangle(stars[n].pos.x, stars[n].pos.y, 2, 2, WHITE);
+}
+
+for (int i = 0; i < 16; i++)
+{
+DrawTexture(texRay,
+(screenWidth/2.0) + cos((frameCounter + i*8)/51.45f)*(screenWidth/2.2) - 32,
+(screenHeight/2.0) + sin((frameCounter + i*8)/17.87f)*(screenHeight/4.2),
+WHITE);
+}
+
+
+BeginShaderMode(spotShader);
+
+
+
+
+DrawRectangle(0,0,screenWidth,screenHeight,WHITE);
+EndShaderMode();
+
+DrawFPS(10, 10);
+
+DrawText("Move the mouse!", 10, 30, 20, GREEN);
+DrawText("Pitch Black", screenWidth * .2, screenHeight / 2, 20, GREEN);
+DrawText("Dark", screenWidth * .66, screenHeight / 2, 20, GREEN);
+
+
+EndDrawing();
+
+}
+
+
+
+UnloadTexture(texRay);
+
+CloseWindow(); 
+
+
+return 0;
+}
+
+
+void ResetStar(Star *s)
+{
+s->pos = (Vector2){ GetScreenWidth()/2.0f, GetScreenHeight()/2.0f };
+
+do
+{
+s->vel.x = (float)GetRandomValue(-1000, 1000)/100.0f;
+s->vel.y = (float)GetRandomValue(-1000, 1000)/100.0f;
+
+} while (!(fabs(s->vel.x) + fabs(s->vel.y) > 1));
+
+s->pos = Vector2Add(s->pos, Vector2MultiplyV(s->vel, (Vector2){ 8, 8 }));
+}
+
+void UpdateStar(Star *s)
+{
+s->pos = Vector2Add(s->pos, s->vel);
+
+if (s->pos.x < 0 || s->pos.x > GetScreenWidth() ||
+s->pos.y < 0 || s->pos.y > GetScreenHeight())
+{
+ResetStar(s);
+}
+}
+
+

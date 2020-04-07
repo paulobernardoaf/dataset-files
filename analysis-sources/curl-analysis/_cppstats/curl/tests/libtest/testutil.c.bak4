@@ -1,0 +1,130 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#include "curl_setup.h"
+#include <curl/curl.h>
+#include "testutil.h"
+#include "memdebug.h"
+
+#if defined(WIN32) && !defined(MSDOS)
+
+struct timeval tutil_tvnow(void)
+{
+
+
+
+
+
+struct timeval now;
+DWORD milliseconds = GetTickCount();
+now.tv_sec = milliseconds / 1000;
+now.tv_usec = (milliseconds % 1000) * 1000;
+return now;
+}
+
+#elif defined(HAVE_CLOCK_GETTIME_MONOTONIC)
+
+struct timeval tutil_tvnow(void)
+{
+
+
+
+
+
+
+
+struct timeval now;
+struct timespec tsnow;
+if(0 == clock_gettime(CLOCK_MONOTONIC, &tsnow)) {
+now.tv_sec = tsnow.tv_sec;
+now.tv_usec = tsnow.tv_nsec / 1000;
+}
+
+
+
+
+
+#if defined(HAVE_GETTIMEOFDAY)
+else
+(void)gettimeofday(&now, NULL);
+#else
+else {
+now.tv_sec = (long)time(NULL);
+now.tv_usec = 0;
+}
+#endif
+return now;
+}
+
+#elif defined(HAVE_GETTIMEOFDAY)
+
+struct timeval tutil_tvnow(void)
+{
+
+
+
+
+
+struct timeval now;
+(void)gettimeofday(&now, NULL);
+return now;
+}
+
+#else
+
+struct timeval tutil_tvnow(void)
+{
+
+
+
+struct timeval now;
+now.tv_sec = (long)time(NULL);
+now.tv_usec = 0;
+return now;
+}
+
+#endif
+
+
+
+
+
+
+
+long tutil_tvdiff(struct timeval newer, struct timeval older)
+{
+return (long)(newer.tv_sec-older.tv_sec)*1000+
+(long)(newer.tv_usec-older.tv_usec)/1000;
+}
+
+
+
+
+
+
+
+double tutil_tvdiff_secs(struct timeval newer, struct timeval older)
+{
+if(newer.tv_sec != older.tv_sec)
+return (double)(newer.tv_sec-older.tv_sec)+
+(double)(newer.tv_usec-older.tv_usec)/1000000.0;
+return (double)(newer.tv_usec-older.tv_usec)/1000000.0;
+}

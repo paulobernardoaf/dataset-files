@@ -1,0 +1,1614 @@
+
+#if !defined(__al_included_allegro5_aintern_convert_h)
+#define __al_included_allegro5_aintern_convert_h
+
+#include "allegro5/allegro.h"
+#include "allegro5/internal/aintern_pixels.h"
+#define ALLEGRO_CONVERT_ARGB_8888_TO_RGBA_8888(x) ((((x) & 0xff000000) >> 24) | (((x) & 0x00ffffff) << 8) )
+
+
+#define ALLEGRO_CONVERT_ARGB_8888_TO_ARGB_4444(x) ((((x) & 0xf0000000) >> 16) | (((x) & 0x000000f0) >> 4) | (((x) & 0x0000f000) >> 8) | (((x) & 0x00f00000) >> 12) )
+
+
+
+
+#define ALLEGRO_CONVERT_ARGB_8888_TO_RGB_888(x) (((x) & 0x00ffffff) )
+
+#define ALLEGRO_CONVERT_ARGB_8888_TO_RGB_565(x) ((((x) & 0x000000f8) >> 3) | (((x) & 0x0000fc00) >> 5) | (((x) & 0x00f80000) >> 8) )
+
+
+
+#define ALLEGRO_CONVERT_ARGB_8888_TO_RGB_555(x) ((((x) & 0x000000f8) >> 3) | (((x) & 0x0000f800) >> 6) | (((x) & 0x00f80000) >> 9) )
+
+
+
+#define ALLEGRO_CONVERT_ARGB_8888_TO_RGBA_5551(x) ((((x) & 0x80000000) >> 31) | (((x) & 0x000000f8) >> 2) | (((x) & 0x0000f800) >> 5) | (((x) & 0x00f80000) >> 8) )
+
+
+
+
+#define ALLEGRO_CONVERT_ARGB_8888_TO_ARGB_1555(x) ((((x) & 0x80000000) >> 16) | (((x) & 0x000000f8) >> 3) | (((x) & 0x0000f800) >> 6) | (((x) & 0x00f80000) >> 9) )
+
+
+
+
+#define ALLEGRO_CONVERT_ARGB_8888_TO_ABGR_8888(x) ((((x) & 0x000000ff) << 16) | (((x) & 0x00ff0000) >> 16) | ((x) & 0xff00ff00) )
+
+
+
+#define ALLEGRO_CONVERT_ARGB_8888_TO_XBGR_8888(x) ((((x) & 0x000000ff) << 16) | ((x) & 0x0000ff00) | (((x) & 0x00ff0000) >> 16) )
+
+
+
+#define ALLEGRO_CONVERT_ARGB_8888_TO_BGR_888(x) ((((x) & 0x000000ff) << 16) | ((x) & 0x0000ff00) | (((x) & 0x00ff0000) >> 16) )
+
+
+
+#define ALLEGRO_CONVERT_ARGB_8888_TO_BGR_565(x) ((((x) & 0x000000f8) << 8) | (((x) & 0x0000fc00) >> 5) | (((x) & 0x00f80000) >> 19) )
+
+
+
+#define ALLEGRO_CONVERT_ARGB_8888_TO_BGR_555(x) ((((x) & 0x000000f8) << 7) | (((x) & 0x0000f800) >> 6) | (((x) & 0x00f80000) >> 19) )
+
+
+
+#define ALLEGRO_CONVERT_ARGB_8888_TO_RGBX_8888(x) ((((x) & 0x00ffffff) << 8) )
+
+#define ALLEGRO_CONVERT_ARGB_8888_TO_XRGB_8888(x) (((x) & 0x00ffffff) )
+
+#define ALLEGRO_CONVERT_ARGB_8888_TO_ABGR_F32(x) al_map_rgba(((x) >> 16) & 255,((x) >> 8) & 255,((x) >> 0) & 255,((x) >> 24) & 255)
+
+
+
+
+#if defined(ALLEGRO_BIG_ENDIAN)
+#define ALLEGRO_CONVERT_ARGB_8888_TO_ABGR_8888_LE(x) ((((x) & 0xff000000) >> 24) | (((x) & 0x00ffffff) << 8) )
+
+
+#else
+#define ALLEGRO_CONVERT_ARGB_8888_TO_ABGR_8888_LE(x) ((((x) & 0x000000ff) << 16) | (((x) & 0x00ff0000) >> 16) | ((x) & 0xff00ff00) )
+
+
+
+#endif
+#define ALLEGRO_CONVERT_ARGB_8888_TO_RGBA_4444(x) ((((x) & 0xf0000000) >> 28) | ((x) & 0x000000f0) | (((x) & 0x0000f000) >> 4) | (((x) & 0x00f00000) >> 8) )
+
+
+
+
+#define ALLEGRO_CONVERT_ARGB_8888_TO_SINGLE_CHANNEL_8(x) (((x) >> 16) & 0xff)
+
+#define ALLEGRO_CONVERT_RGBA_8888_TO_ARGB_8888(x) ((((x) & 0x000000ff) << 24) | (((x) & 0xffffff00) >> 8) )
+
+
+#define ALLEGRO_CONVERT_RGBA_8888_TO_ARGB_4444(x) ((((x) & 0x000000f0) << 8) | (((x) & 0x0000f000) >> 12) | (((x) & 0x00f00000) >> 16) | (((x) & 0xf0000000) >> 20) )
+
+
+
+
+#define ALLEGRO_CONVERT_RGBA_8888_TO_RGB_888(x) ((((x) & 0xffffff00) >> 8) )
+
+#define ALLEGRO_CONVERT_RGBA_8888_TO_RGB_565(x) ((((x) & 0x0000f800) >> 11) | (((x) & 0x00fc0000) >> 13) | (((x) & 0xf8000000) >> 16) )
+
+
+
+#define ALLEGRO_CONVERT_RGBA_8888_TO_RGB_555(x) ((((x) & 0x0000f800) >> 11) | (((x) & 0x00f80000) >> 14) | (((x) & 0xf8000000) >> 17) )
+
+
+
+#define ALLEGRO_CONVERT_RGBA_8888_TO_RGBA_5551(x) ((((x) & 0x00000080) >> 7) | (((x) & 0x0000f800) >> 10) | (((x) & 0x00f80000) >> 13) | (((x) & 0xf8000000) >> 16) )
+
+
+
+
+#define ALLEGRO_CONVERT_RGBA_8888_TO_ARGB_1555(x) ((((x) & 0x00000080) << 8) | (((x) & 0x0000f800) >> 11) | (((x) & 0x00f80000) >> 14) | (((x) & 0xf8000000) >> 17) )
+
+
+
+
+#define ALLEGRO_CONVERT_RGBA_8888_TO_ABGR_8888(x) ((((x) & 0x000000ff) << 24) | (((x) & 0x0000ff00) << 8) | (((x) & 0x00ff0000) >> 8) | (((x) & 0xff000000) >> 24) )
+
+
+
+
+#define ALLEGRO_CONVERT_RGBA_8888_TO_XBGR_8888(x) ((((x) & 0x0000ff00) << 8) | (((x) & 0x00ff0000) >> 8) | (((x) & 0xff000000) >> 24) )
+
+
+
+#define ALLEGRO_CONVERT_RGBA_8888_TO_BGR_888(x) ((((x) & 0x0000ff00) << 8) | (((x) & 0x00ff0000) >> 8) | (((x) & 0xff000000) >> 24) )
+
+
+
+#define ALLEGRO_CONVERT_RGBA_8888_TO_BGR_565(x) (((x) & 0x0000f800) | (((x) & 0x00fc0000) >> 13) | (((x) & 0xf8000000) >> 27) )
+
+
+
+#define ALLEGRO_CONVERT_RGBA_8888_TO_BGR_555(x) ((((x) & 0x0000f800) >> 1) | (((x) & 0x00f80000) >> 14) | (((x) & 0xf8000000) >> 27) )
+
+
+
+#define ALLEGRO_CONVERT_RGBA_8888_TO_RGBX_8888(x) (((x) & 0xffffff00) )
+
+#define ALLEGRO_CONVERT_RGBA_8888_TO_XRGB_8888(x) ((((x) & 0xffffff00) >> 8) )
+
+#define ALLEGRO_CONVERT_RGBA_8888_TO_ABGR_F32(x) al_map_rgba(((x) >> 24) & 255,((x) >> 16) & 255,((x) >> 8) & 255,((x) >> 0) & 255)
+
+
+
+
+#if defined(ALLEGRO_BIG_ENDIAN)
+#define ALLEGRO_CONVERT_RGBA_8888_TO_ABGR_8888_LE(x) (((x) & 0xffffffff) )
+
+#else
+#define ALLEGRO_CONVERT_RGBA_8888_TO_ABGR_8888_LE(x) ((((x) & 0x000000ff) << 24) | (((x) & 0x0000ff00) << 8) | (((x) & 0x00ff0000) >> 8) | (((x) & 0xff000000) >> 24) )
+
+
+
+
+#endif
+#define ALLEGRO_CONVERT_RGBA_8888_TO_RGBA_4444(x) ((((x) & 0x000000f0) >> 4) | (((x) & 0x0000f000) >> 8) | (((x) & 0x00f00000) >> 12) | (((x) & 0xf0000000) >> 16) )
+
+
+
+
+#define ALLEGRO_CONVERT_RGBA_8888_TO_SINGLE_CHANNEL_8(x) (((x) >> 24) & 0xff)
+
+#define ALLEGRO_CONVERT_ARGB_4444_TO_ARGB_8888(x) ((_al_rgb_scale_4[((x) & 0xf000) >> 12] << 24) | (_al_rgb_scale_4[((x) & 0x000f) >> 0] ) | (_al_rgb_scale_4[((x) & 0x00f0) >> 4] << 8) | (_al_rgb_scale_4[((x) & 0x0f00) >> 8] << 16) )
+
+
+
+
+#define ALLEGRO_CONVERT_ARGB_4444_TO_RGBA_8888(x) ((_al_rgb_scale_4[((x) & 0xf000) >> 12] ) | (_al_rgb_scale_4[((x) & 0x000f) >> 0] << 8) | (_al_rgb_scale_4[((x) & 0x00f0) >> 4] << 16) | (_al_rgb_scale_4[((x) & 0x0f00) >> 8] << 24) )
+
+
+
+
+#define ALLEGRO_CONVERT_ARGB_4444_TO_RGB_888(x) ((_al_rgb_scale_4[((x) & 0x000f) >> 0] ) | (_al_rgb_scale_4[((x) & 0x00f0) >> 4] << 8) | (_al_rgb_scale_4[((x) & 0x0f00) >> 8] << 16) )
+
+
+
+#define ALLEGRO_CONVERT_ARGB_4444_TO_RGB_565(x) ((((x) & 0x000f) << 1) | (((x) & 0x00f0) << 3) | (((x) & 0x0f00) << 4) )
+
+
+
+#define ALLEGRO_CONVERT_ARGB_4444_TO_RGB_555(x) ((((x) & 0x000f) << 1) | (((x) & 0x00f0) << 2) | (((x) & 0x0f00) << 3) )
+
+
+
+#define ALLEGRO_CONVERT_ARGB_4444_TO_RGBA_5551(x) ((((x) & 0x8000) >> 15) | (((x) & 0x000f) << 2) | (((x) & 0x00f0) << 3) | (((x) & 0x0f00) << 4) )
+
+
+
+
+#define ALLEGRO_CONVERT_ARGB_4444_TO_ARGB_1555(x) (((x) & 0x8000) | (((x) & 0x000f) << 1) | (((x) & 0x00f0) << 2) | (((x) & 0x0f00) << 3) )
+
+
+
+
+#define ALLEGRO_CONVERT_ARGB_4444_TO_ABGR_8888(x) ((_al_rgb_scale_4[((x) & 0xf000) >> 12] << 24) | (_al_rgb_scale_4[((x) & 0x000f) >> 0] << 16) | (_al_rgb_scale_4[((x) & 0x00f0) >> 4] << 8) | (_al_rgb_scale_4[((x) & 0x0f00) >> 8] ) )
+
+
+
+
+#define ALLEGRO_CONVERT_ARGB_4444_TO_XBGR_8888(x) ((_al_rgb_scale_4[((x) & 0x000f) >> 0] << 16) | (_al_rgb_scale_4[((x) & 0x00f0) >> 4] << 8) | (_al_rgb_scale_4[((x) & 0x0f00) >> 8] ) )
+
+
+
+#define ALLEGRO_CONVERT_ARGB_4444_TO_BGR_888(x) ((_al_rgb_scale_4[((x) & 0x000f) >> 0] << 16) | (_al_rgb_scale_4[((x) & 0x00f0) >> 4] << 8) | (_al_rgb_scale_4[((x) & 0x0f00) >> 8] ) )
+
+
+
+#define ALLEGRO_CONVERT_ARGB_4444_TO_BGR_565(x) ((((x) & 0x000f) << 12) | (((x) & 0x00f0) << 3) | (((x) & 0x0f00) >> 7) )
+
+
+
+#define ALLEGRO_CONVERT_ARGB_4444_TO_BGR_555(x) ((((x) & 0x000f) << 11) | (((x) & 0x00f0) << 2) | (((x) & 0x0f00) >> 7) )
+
+
+
+#define ALLEGRO_CONVERT_ARGB_4444_TO_RGBX_8888(x) ((_al_rgb_scale_4[((x) & 0x000f) >> 0] << 8) | (_al_rgb_scale_4[((x) & 0x00f0) >> 4] << 16) | (_al_rgb_scale_4[((x) & 0x0f00) >> 8] << 24) )
+
+
+
+#define ALLEGRO_CONVERT_ARGB_4444_TO_XRGB_8888(x) ((_al_rgb_scale_4[((x) & 0x000f) >> 0] ) | (_al_rgb_scale_4[((x) & 0x00f0) >> 4] << 8) | (_al_rgb_scale_4[((x) & 0x0f00) >> 8] << 16) )
+
+
+
+#define ALLEGRO_CONVERT_ARGB_4444_TO_ABGR_F32(x) al_map_rgba(_al_rgb_scale_4[((x) >> 8) & 15],_al_rgb_scale_4[((x) >> 4) & 15],_al_rgb_scale_4[((x) >> 0) & 15],_al_rgb_scale_4[((x) >> 12) & 15])
+
+
+
+
+#if defined(ALLEGRO_BIG_ENDIAN)
+#define ALLEGRO_CONVERT_ARGB_4444_TO_ABGR_8888_LE(x) ((_al_rgb_scale_4[((x) & 0xf000) >> 12] ) | (_al_rgb_scale_4[((x) & 0x000f) >> 0] << 8) | (_al_rgb_scale_4[((x) & 0x00f0) >> 4] << 16) | (_al_rgb_scale_4[((x) & 0x0f00) >> 8] << 24) )
+
+
+
+
+#else
+#define ALLEGRO_CONVERT_ARGB_4444_TO_ABGR_8888_LE(x) ((_al_rgb_scale_4[((x) & 0xf000) >> 12] << 24) | (_al_rgb_scale_4[((x) & 0x000f) >> 0] << 16) | (_al_rgb_scale_4[((x) & 0x00f0) >> 4] << 8) | (_al_rgb_scale_4[((x) & 0x0f00) >> 8] ) )
+
+
+
+
+#endif
+#define ALLEGRO_CONVERT_ARGB_4444_TO_RGBA_4444(x) ((((x) & 0xf000) >> 12) | (((x) & 0x0fff) << 4) )
+
+
+#define ALLEGRO_CONVERT_ARGB_4444_TO_SINGLE_CHANNEL_8(x) (_al_rgb_scale_4[(((x) >> 8) & 0xf)])
+
+#define ALLEGRO_CONVERT_RGB_888_TO_ARGB_8888(x) ((0xff000000) | ((x) & 0xffffff) )
+
+
+#define ALLEGRO_CONVERT_RGB_888_TO_RGBA_8888(x) ((0x000000ff) | (((x) & 0xffffff) << 8) )
+
+
+#define ALLEGRO_CONVERT_RGB_888_TO_ARGB_4444(x) ((0xf000) | (((x) & 0x0000f0) >> 4) | (((x) & 0x00f000) >> 8) | (((x) & 0xf00000) >> 12) )
+
+
+
+
+#define ALLEGRO_CONVERT_RGB_888_TO_RGB_565(x) ((((x) & 0x0000f8) >> 3) | (((x) & 0x00fc00) >> 5) | (((x) & 0xf80000) >> 8) )
+
+
+
+#define ALLEGRO_CONVERT_RGB_888_TO_RGB_555(x) ((((x) & 0x0000f8) >> 3) | (((x) & 0x00f800) >> 6) | (((x) & 0xf80000) >> 9) )
+
+
+
+#define ALLEGRO_CONVERT_RGB_888_TO_RGBA_5551(x) ((0x0001) | (((x) & 0x0000f8) >> 2) | (((x) & 0x00f800) >> 5) | (((x) & 0xf80000) >> 8) )
+
+
+
+
+#define ALLEGRO_CONVERT_RGB_888_TO_ARGB_1555(x) ((0x8000) | (((x) & 0x0000f8) >> 3) | (((x) & 0x00f800) >> 6) | (((x) & 0xf80000) >> 9) )
+
+
+
+
+#define ALLEGRO_CONVERT_RGB_888_TO_ABGR_8888(x) ((0xff000000) | (((x) & 0x0000ff) << 16) | ((x) & 0x00ff00) | (((x) & 0xff0000) >> 16) )
+
+
+
+
+#define ALLEGRO_CONVERT_RGB_888_TO_XBGR_8888(x) ((((x) & 0x0000ff) << 16) | ((x) & 0x00ff00) | (((x) & 0xff0000) >> 16) )
+
+
+
+#define ALLEGRO_CONVERT_RGB_888_TO_BGR_888(x) ((((x) & 0x0000ff) << 16) | ((x) & 0x00ff00) | (((x) & 0xff0000) >> 16) )
+
+
+
+#define ALLEGRO_CONVERT_RGB_888_TO_BGR_565(x) ((((x) & 0x0000f8) << 8) | (((x) & 0x00fc00) >> 5) | (((x) & 0xf80000) >> 19) )
+
+
+
+#define ALLEGRO_CONVERT_RGB_888_TO_BGR_555(x) ((((x) & 0x0000f8) << 7) | (((x) & 0x00f800) >> 6) | (((x) & 0xf80000) >> 19) )
+
+
+
+#define ALLEGRO_CONVERT_RGB_888_TO_RGBX_8888(x) ((((x) & 0xffffff) << 8) )
+
+#define ALLEGRO_CONVERT_RGB_888_TO_XRGB_8888(x) (((x) & 0xffffff) )
+
+#define ALLEGRO_CONVERT_RGB_888_TO_ABGR_F32(x) al_map_rgb(((x) >> 16) & 255,((x) >> 8) & 255,((x) >> 0) & 255)
+
+
+
+#if defined(ALLEGRO_BIG_ENDIAN)
+#define ALLEGRO_CONVERT_RGB_888_TO_ABGR_8888_LE(x) ((0x000000ff) | (((x) & 0xffffff) << 8) )
+
+
+#else
+#define ALLEGRO_CONVERT_RGB_888_TO_ABGR_8888_LE(x) ((0xff000000) | (((x) & 0x0000ff) << 16) | ((x) & 0x00ff00) | (((x) & 0xff0000) >> 16) )
+
+
+
+
+#endif
+#define ALLEGRO_CONVERT_RGB_888_TO_RGBA_4444(x) ((0x000f) | ((x) & 0x0000f0) | (((x) & 0x00f000) >> 4) | (((x) & 0xf00000) >> 8) )
+
+
+
+
+#define ALLEGRO_CONVERT_RGB_888_TO_SINGLE_CHANNEL_8(x) (((x) >> 16) & 0xff)
+
+#define ALLEGRO_CONVERT_RGB_565_TO_ARGB_8888(x) ((0xff000000) | (_al_rgb_scale_5[((x) & 0x001f) >> 0] ) | (_al_rgb_scale_6[((x) & 0x07e0) >> 5] << 8) | (_al_rgb_scale_5[((x) & 0xf800) >> 11] << 16) )
+
+
+
+
+#define ALLEGRO_CONVERT_RGB_565_TO_RGBA_8888(x) ((0x000000ff) | (_al_rgb_scale_5[((x) & 0x001f) >> 0] << 8) | (_al_rgb_scale_6[((x) & 0x07e0) >> 5] << 16) | (_al_rgb_scale_5[((x) & 0xf800) >> 11] << 24) )
+
+
+
+
+#define ALLEGRO_CONVERT_RGB_565_TO_ARGB_4444(x) ((0xf000) | (((x) & 0x001e) >> 1) | (((x) & 0x0780) >> 3) | (((x) & 0xf000) >> 4) )
+
+
+
+
+#define ALLEGRO_CONVERT_RGB_565_TO_RGB_888(x) ((_al_rgb_scale_5[((x) & 0x001f) >> 0] ) | (_al_rgb_scale_6[((x) & 0x07e0) >> 5] << 8) | (_al_rgb_scale_5[((x) & 0xf800) >> 11] << 16) )
+
+
+
+#define ALLEGRO_CONVERT_RGB_565_TO_RGB_555(x) (((x) & 0x001f) | (((x) & 0xffc0) >> 1) )
+
+
+#define ALLEGRO_CONVERT_RGB_565_TO_RGBA_5551(x) ((0x0001) | (((x) & 0x001f) << 1) | ((x) & 0xffc0) )
+
+
+
+#define ALLEGRO_CONVERT_RGB_565_TO_ARGB_1555(x) ((0x8000) | ((x) & 0x001f) | (((x) & 0xffc0) >> 1) )
+
+
+
+#define ALLEGRO_CONVERT_RGB_565_TO_ABGR_8888(x) ((0xff000000) | (_al_rgb_scale_5[((x) & 0x001f) >> 0] << 16) | (_al_rgb_scale_6[((x) & 0x07e0) >> 5] << 8) | (_al_rgb_scale_5[((x) & 0xf800) >> 11] ) )
+
+
+
+
+#define ALLEGRO_CONVERT_RGB_565_TO_XBGR_8888(x) ((_al_rgb_scale_5[((x) & 0x001f) >> 0] << 16) | (_al_rgb_scale_6[((x) & 0x07e0) >> 5] << 8) | (_al_rgb_scale_5[((x) & 0xf800) >> 11] ) )
+
+
+
+#define ALLEGRO_CONVERT_RGB_565_TO_BGR_888(x) ((_al_rgb_scale_5[((x) & 0x001f) >> 0] << 16) | (_al_rgb_scale_6[((x) & 0x07e0) >> 5] << 8) | (_al_rgb_scale_5[((x) & 0xf800) >> 11] ) )
+
+
+
+#define ALLEGRO_CONVERT_RGB_565_TO_BGR_565(x) ((((x) & 0x001f) << 11) | ((x) & 0x07e0) | (((x) & 0xf800) >> 11) )
+
+
+
+#define ALLEGRO_CONVERT_RGB_565_TO_BGR_555(x) ((((x) & 0x001f) << 10) | (((x) & 0x07c0) >> 1) | (((x) & 0xf800) >> 11) )
+
+
+
+#define ALLEGRO_CONVERT_RGB_565_TO_RGBX_8888(x) ((_al_rgb_scale_5[((x) & 0x001f) >> 0] << 8) | (_al_rgb_scale_6[((x) & 0x07e0) >> 5] << 16) | (_al_rgb_scale_5[((x) & 0xf800) >> 11] << 24) )
+
+
+
+#define ALLEGRO_CONVERT_RGB_565_TO_XRGB_8888(x) ((_al_rgb_scale_5[((x) & 0x001f) >> 0] ) | (_al_rgb_scale_6[((x) & 0x07e0) >> 5] << 8) | (_al_rgb_scale_5[((x) & 0xf800) >> 11] << 16) )
+
+
+
+#define ALLEGRO_CONVERT_RGB_565_TO_ABGR_F32(x) al_map_rgb(_al_rgb_scale_5[((x) >> 11) & 31],_al_rgb_scale_6[((x) >> 5) & 63],_al_rgb_scale_5[((x) >> 0) & 31])
+
+
+
+#if defined(ALLEGRO_BIG_ENDIAN)
+#define ALLEGRO_CONVERT_RGB_565_TO_ABGR_8888_LE(x) ((0x000000ff) | (_al_rgb_scale_5[((x) & 0x001f) >> 0] << 8) | (_al_rgb_scale_6[((x) & 0x07e0) >> 5] << 16) | (_al_rgb_scale_5[((x) & 0xf800) >> 11] << 24) )
+
+
+
+
+#else
+#define ALLEGRO_CONVERT_RGB_565_TO_ABGR_8888_LE(x) ((0xff000000) | (_al_rgb_scale_5[((x) & 0x001f) >> 0] << 16) | (_al_rgb_scale_6[((x) & 0x07e0) >> 5] << 8) | (_al_rgb_scale_5[((x) & 0xf800) >> 11] ) )
+
+
+
+
+#endif
+#define ALLEGRO_CONVERT_RGB_565_TO_RGBA_4444(x) ((0x000f) | (((x) & 0x001e) << 3) | (((x) & 0x0780) << 1) | ((x) & 0xf000) )
+
+
+
+
+#define ALLEGRO_CONVERT_RGB_565_TO_SINGLE_CHANNEL_8(x) (_al_rgb_scale_5[(((x) >> 11) & 0x1f)])
+
+#define ALLEGRO_CONVERT_RGB_555_TO_ARGB_8888(x) ((0xff000000) | (_al_rgb_scale_5[((x) & 0x01f) >> 0] ) | (_al_rgb_scale_5[((x) & 0x3e0) >> 5] << 8) | (_al_rgb_scale_5[((x) & 0x7c00) >> 10] << 16) )
+
+
+
+
+#define ALLEGRO_CONVERT_RGB_555_TO_RGBA_8888(x) ((0x000000ff) | (_al_rgb_scale_5[((x) & 0x01f) >> 0] << 8) | (_al_rgb_scale_5[((x) & 0x3e0) >> 5] << 16) | (_al_rgb_scale_5[((x) & 0x7c00) >> 10] << 24) )
+
+
+
+
+#define ALLEGRO_CONVERT_RGB_555_TO_ARGB_4444(x) ((0xf000) | (((x) & 0x01e) >> 1) | (((x) & 0x3c0) >> 2) | (((x) & 0x7800) >> 3) )
+
+
+
+
+#define ALLEGRO_CONVERT_RGB_555_TO_RGB_888(x) ((_al_rgb_scale_5[((x) & 0x01f) >> 0] ) | (_al_rgb_scale_5[((x) & 0x3e0) >> 5] << 8) | (_al_rgb_scale_5[((x) & 0x7c00) >> 10] << 16) )
+
+
+
+#define ALLEGRO_CONVERT_RGB_555_TO_RGB_565(x) (((x) & 0x01f) | (((x) & 0x7fe0) << 1) )
+
+
+#define ALLEGRO_CONVERT_RGB_555_TO_RGBA_5551(x) ((0x0001) | (((x) & 0x7fff) << 1) )
+
+
+#define ALLEGRO_CONVERT_RGB_555_TO_ARGB_1555(x) ((0x8000) | ((x) & 0x7fff) )
+
+
+#define ALLEGRO_CONVERT_RGB_555_TO_ABGR_8888(x) ((0xff000000) | (_al_rgb_scale_5[((x) & 0x01f) >> 0] << 16) | (_al_rgb_scale_5[((x) & 0x3e0) >> 5] << 8) | (_al_rgb_scale_5[((x) & 0x7c00) >> 10] ) )
+
+
+
+
+#define ALLEGRO_CONVERT_RGB_555_TO_XBGR_8888(x) ((_al_rgb_scale_5[((x) & 0x01f) >> 0] << 16) | (_al_rgb_scale_5[((x) & 0x3e0) >> 5] << 8) | (_al_rgb_scale_5[((x) & 0x7c00) >> 10] ) )
+
+
+
+#define ALLEGRO_CONVERT_RGB_555_TO_BGR_888(x) ((_al_rgb_scale_5[((x) & 0x01f) >> 0] << 16) | (_al_rgb_scale_5[((x) & 0x3e0) >> 5] << 8) | (_al_rgb_scale_5[((x) & 0x7c00) >> 10] ) )
+
+
+
+#define ALLEGRO_CONVERT_RGB_555_TO_BGR_565(x) ((((x) & 0x01f) << 11) | (((x) & 0x3e0) << 1) | (((x) & 0x7c00) >> 10) )
+
+
+
+#define ALLEGRO_CONVERT_RGB_555_TO_BGR_555(x) ((((x) & 0x01f) << 10) | ((x) & 0x3e0) | (((x) & 0x7c00) >> 10) )
+
+
+
+#define ALLEGRO_CONVERT_RGB_555_TO_RGBX_8888(x) ((_al_rgb_scale_5[((x) & 0x01f) >> 0] << 8) | (_al_rgb_scale_5[((x) & 0x3e0) >> 5] << 16) | (_al_rgb_scale_5[((x) & 0x7c00) >> 10] << 24) )
+
+
+
+#define ALLEGRO_CONVERT_RGB_555_TO_XRGB_8888(x) ((_al_rgb_scale_5[((x) & 0x01f) >> 0] ) | (_al_rgb_scale_5[((x) & 0x3e0) >> 5] << 8) | (_al_rgb_scale_5[((x) & 0x7c00) >> 10] << 16) )
+
+
+
+#define ALLEGRO_CONVERT_RGB_555_TO_ABGR_F32(x) al_map_rgb(_al_rgb_scale_5[((x) >> 10) & 31],_al_rgb_scale_5[((x) >> 5) & 31],_al_rgb_scale_5[((x) >> 0) & 31])
+
+
+
+#if defined(ALLEGRO_BIG_ENDIAN)
+#define ALLEGRO_CONVERT_RGB_555_TO_ABGR_8888_LE(x) ((0x000000ff) | (_al_rgb_scale_5[((x) & 0x01f) >> 0] << 8) | (_al_rgb_scale_5[((x) & 0x3e0) >> 5] << 16) | (_al_rgb_scale_5[((x) & 0x7c00) >> 10] << 24) )
+
+
+
+
+#else
+#define ALLEGRO_CONVERT_RGB_555_TO_ABGR_8888_LE(x) ((0xff000000) | (_al_rgb_scale_5[((x) & 0x01f) >> 0] << 16) | (_al_rgb_scale_5[((x) & 0x3e0) >> 5] << 8) | (_al_rgb_scale_5[((x) & 0x7c00) >> 10] ) )
+
+
+
+
+#endif
+#define ALLEGRO_CONVERT_RGB_555_TO_RGBA_4444(x) ((0x000f) | (((x) & 0x01e) << 3) | (((x) & 0x3c0) << 2) | (((x) & 0x7800) << 1) )
+
+
+
+
+#define ALLEGRO_CONVERT_RGB_555_TO_SINGLE_CHANNEL_8(x) (_al_rgb_scale_5[(((x) >> 10) & 0x1f)])
+
+#define ALLEGRO_CONVERT_RGBA_5551_TO_ARGB_8888(x) ((_al_rgb_scale_1[((x) & 0x0001) >> 0] << 24) | (_al_rgb_scale_5[((x) & 0x003e) >> 1] ) | (_al_rgb_scale_5[((x) & 0x07c0) >> 6] << 8) | (_al_rgb_scale_5[((x) & 0xf800) >> 11] << 16) )
+
+
+
+
+#define ALLEGRO_CONVERT_RGBA_5551_TO_RGBA_8888(x) ((_al_rgb_scale_1[((x) & 0x0001) >> 0] ) | (_al_rgb_scale_5[((x) & 0x003e) >> 1] << 8) | (_al_rgb_scale_5[((x) & 0x07c0) >> 6] << 16) | (_al_rgb_scale_5[((x) & 0xf800) >> 11] << 24) )
+
+
+
+
+#define ALLEGRO_CONVERT_RGBA_5551_TO_ARGB_4444(x) ((((x) & 0x0001) << 15) | (((x) & 0x003c) >> 2) | (((x) & 0x0780) >> 3) | (((x) & 0xf000) >> 4) )
+
+
+
+
+#define ALLEGRO_CONVERT_RGBA_5551_TO_RGB_888(x) ((_al_rgb_scale_5[((x) & 0x003e) >> 1] ) | (_al_rgb_scale_5[((x) & 0x07c0) >> 6] << 8) | (_al_rgb_scale_5[((x) & 0xf800) >> 11] << 16) )
+
+
+
+#define ALLEGRO_CONVERT_RGBA_5551_TO_RGB_565(x) ((((x) & 0x003e) >> 1) | ((x) & 0xffc0) )
+
+
+#define ALLEGRO_CONVERT_RGBA_5551_TO_RGB_555(x) ((((x) & 0xfffe) >> 1) )
+
+#define ALLEGRO_CONVERT_RGBA_5551_TO_ARGB_1555(x) ((((x) & 0x0001) << 15) | (((x) & 0xfffe) >> 1) )
+
+
+#define ALLEGRO_CONVERT_RGBA_5551_TO_ABGR_8888(x) ((_al_rgb_scale_1[((x) & 0x0001) >> 0] << 24) | (_al_rgb_scale_5[((x) & 0x003e) >> 1] << 16) | (_al_rgb_scale_5[((x) & 0x07c0) >> 6] << 8) | (_al_rgb_scale_5[((x) & 0xf800) >> 11] ) )
+
+
+
+
+#define ALLEGRO_CONVERT_RGBA_5551_TO_XBGR_8888(x) ((_al_rgb_scale_5[((x) & 0x003e) >> 1] << 16) | (_al_rgb_scale_5[((x) & 0x07c0) >> 6] << 8) | (_al_rgb_scale_5[((x) & 0xf800) >> 11] ) )
+
+
+
+#define ALLEGRO_CONVERT_RGBA_5551_TO_BGR_888(x) ((_al_rgb_scale_5[((x) & 0x003e) >> 1] << 16) | (_al_rgb_scale_5[((x) & 0x07c0) >> 6] << 8) | (_al_rgb_scale_5[((x) & 0xf800) >> 11] ) )
+
+
+
+#define ALLEGRO_CONVERT_RGBA_5551_TO_BGR_565(x) ((((x) & 0x003e) << 10) | ((x) & 0x07c0) | (((x) & 0xf800) >> 11) )
+
+
+
+#define ALLEGRO_CONVERT_RGBA_5551_TO_BGR_555(x) ((((x) & 0x003e) << 9) | (((x) & 0x07c0) >> 1) | (((x) & 0xf800) >> 11) )
+
+
+
+#define ALLEGRO_CONVERT_RGBA_5551_TO_RGBX_8888(x) ((_al_rgb_scale_5[((x) & 0x003e) >> 1] << 8) | (_al_rgb_scale_5[((x) & 0x07c0) >> 6] << 16) | (_al_rgb_scale_5[((x) & 0xf800) >> 11] << 24) )
+
+
+
+#define ALLEGRO_CONVERT_RGBA_5551_TO_XRGB_8888(x) ((_al_rgb_scale_5[((x) & 0x003e) >> 1] ) | (_al_rgb_scale_5[((x) & 0x07c0) >> 6] << 8) | (_al_rgb_scale_5[((x) & 0xf800) >> 11] << 16) )
+
+
+
+#define ALLEGRO_CONVERT_RGBA_5551_TO_ABGR_F32(x) al_map_rgba(_al_rgb_scale_5[((x) >> 11) & 31],_al_rgb_scale_5[((x) >> 6) & 31],_al_rgb_scale_5[((x) >> 1) & 31],_al_rgb_scale_1[((x) >> 0) & 1])
+
+
+
+
+#if defined(ALLEGRO_BIG_ENDIAN)
+#define ALLEGRO_CONVERT_RGBA_5551_TO_ABGR_8888_LE(x) ((_al_rgb_scale_1[((x) & 0x0001) >> 0] ) | (_al_rgb_scale_5[((x) & 0x003e) >> 1] << 8) | (_al_rgb_scale_5[((x) & 0x07c0) >> 6] << 16) | (_al_rgb_scale_5[((x) & 0xf800) >> 11] << 24) )
+
+
+
+
+#else
+#define ALLEGRO_CONVERT_RGBA_5551_TO_ABGR_8888_LE(x) ((_al_rgb_scale_1[((x) & 0x0001) >> 0] << 24) | (_al_rgb_scale_5[((x) & 0x003e) >> 1] << 16) | (_al_rgb_scale_5[((x) & 0x07c0) >> 6] << 8) | (_al_rgb_scale_5[((x) & 0xf800) >> 11] ) )
+
+
+
+
+#endif
+#define ALLEGRO_CONVERT_RGBA_5551_TO_RGBA_4444(x) ((((x) & 0x0001) << 3) | (((x) & 0x003c) << 2) | (((x) & 0x0780) << 1) | ((x) & 0xf000) )
+
+
+
+
+#define ALLEGRO_CONVERT_RGBA_5551_TO_SINGLE_CHANNEL_8(x) (_al_rgb_scale_5[(((x) >> 11) & 0x1f)])
+
+#define ALLEGRO_CONVERT_ARGB_1555_TO_ARGB_8888(x) ((_al_rgb_scale_1[((x) & 0x8000) >> 15] << 24) | (_al_rgb_scale_5[((x) & 0x001f) >> 0] ) | (_al_rgb_scale_5[((x) & 0x03e0) >> 5] << 8) | (_al_rgb_scale_5[((x) & 0x7c00) >> 10] << 16) )
+
+
+
+
+#define ALLEGRO_CONVERT_ARGB_1555_TO_RGBA_8888(x) ((_al_rgb_scale_1[((x) & 0x8000) >> 15] ) | (_al_rgb_scale_5[((x) & 0x001f) >> 0] << 8) | (_al_rgb_scale_5[((x) & 0x03e0) >> 5] << 16) | (_al_rgb_scale_5[((x) & 0x7c00) >> 10] << 24) )
+
+
+
+
+#define ALLEGRO_CONVERT_ARGB_1555_TO_ARGB_4444(x) (((x) & 0x8000) | (((x) & 0x001e) >> 1) | (((x) & 0x03c0) >> 2) | (((x) & 0x7800) >> 3) )
+
+
+
+
+#define ALLEGRO_CONVERT_ARGB_1555_TO_RGB_888(x) ((_al_rgb_scale_5[((x) & 0x001f) >> 0] ) | (_al_rgb_scale_5[((x) & 0x03e0) >> 5] << 8) | (_al_rgb_scale_5[((x) & 0x7c00) >> 10] << 16) )
+
+
+
+#define ALLEGRO_CONVERT_ARGB_1555_TO_RGB_565(x) (((x) & 0x001f) | (((x) & 0x7fe0) << 1) )
+
+
+#define ALLEGRO_CONVERT_ARGB_1555_TO_RGB_555(x) (((x) & 0x7fff) )
+
+#define ALLEGRO_CONVERT_ARGB_1555_TO_RGBA_5551(x) ((((x) & 0x8000) >> 15) | (((x) & 0x7fff) << 1) )
+
+
+#define ALLEGRO_CONVERT_ARGB_1555_TO_ABGR_8888(x) ((_al_rgb_scale_1[((x) & 0x8000) >> 15] << 24) | (_al_rgb_scale_5[((x) & 0x001f) >> 0] << 16) | (_al_rgb_scale_5[((x) & 0x03e0) >> 5] << 8) | (_al_rgb_scale_5[((x) & 0x7c00) >> 10] ) )
+
+
+
+
+#define ALLEGRO_CONVERT_ARGB_1555_TO_XBGR_8888(x) ((_al_rgb_scale_5[((x) & 0x001f) >> 0] << 16) | (_al_rgb_scale_5[((x) & 0x03e0) >> 5] << 8) | (_al_rgb_scale_5[((x) & 0x7c00) >> 10] ) )
+
+
+
+#define ALLEGRO_CONVERT_ARGB_1555_TO_BGR_888(x) ((_al_rgb_scale_5[((x) & 0x001f) >> 0] << 16) | (_al_rgb_scale_5[((x) & 0x03e0) >> 5] << 8) | (_al_rgb_scale_5[((x) & 0x7c00) >> 10] ) )
+
+
+
+#define ALLEGRO_CONVERT_ARGB_1555_TO_BGR_565(x) ((((x) & 0x001f) << 11) | (((x) & 0x03e0) << 1) | (((x) & 0x7c00) >> 10) )
+
+
+
+#define ALLEGRO_CONVERT_ARGB_1555_TO_BGR_555(x) ((((x) & 0x001f) << 10) | ((x) & 0x03e0) | (((x) & 0x7c00) >> 10) )
+
+
+
+#define ALLEGRO_CONVERT_ARGB_1555_TO_RGBX_8888(x) ((_al_rgb_scale_5[((x) & 0x001f) >> 0] << 8) | (_al_rgb_scale_5[((x) & 0x03e0) >> 5] << 16) | (_al_rgb_scale_5[((x) & 0x7c00) >> 10] << 24) )
+
+
+
+#define ALLEGRO_CONVERT_ARGB_1555_TO_XRGB_8888(x) ((_al_rgb_scale_5[((x) & 0x001f) >> 0] ) | (_al_rgb_scale_5[((x) & 0x03e0) >> 5] << 8) | (_al_rgb_scale_5[((x) & 0x7c00) >> 10] << 16) )
+
+
+
+#define ALLEGRO_CONVERT_ARGB_1555_TO_ABGR_F32(x) al_map_rgba(_al_rgb_scale_5[((x) >> 10) & 31],_al_rgb_scale_5[((x) >> 5) & 31],_al_rgb_scale_5[((x) >> 0) & 31],_al_rgb_scale_1[((x) >> 15) & 1])
+
+
+
+
+#if defined(ALLEGRO_BIG_ENDIAN)
+#define ALLEGRO_CONVERT_ARGB_1555_TO_ABGR_8888_LE(x) ((_al_rgb_scale_1[((x) & 0x8000) >> 15] ) | (_al_rgb_scale_5[((x) & 0x001f) >> 0] << 8) | (_al_rgb_scale_5[((x) & 0x03e0) >> 5] << 16) | (_al_rgb_scale_5[((x) & 0x7c00) >> 10] << 24) )
+
+
+
+
+#else
+#define ALLEGRO_CONVERT_ARGB_1555_TO_ABGR_8888_LE(x) ((_al_rgb_scale_1[((x) & 0x8000) >> 15] << 24) | (_al_rgb_scale_5[((x) & 0x001f) >> 0] << 16) | (_al_rgb_scale_5[((x) & 0x03e0) >> 5] << 8) | (_al_rgb_scale_5[((x) & 0x7c00) >> 10] ) )
+
+
+
+
+#endif
+#define ALLEGRO_CONVERT_ARGB_1555_TO_RGBA_4444(x) ((((x) & 0x8000) >> 12) | (((x) & 0x001e) << 3) | (((x) & 0x03c0) << 2) | (((x) & 0x7800) << 1) )
+
+
+
+
+#define ALLEGRO_CONVERT_ARGB_1555_TO_SINGLE_CHANNEL_8(x) (_al_rgb_scale_5[(((x) >> 10) & 0x1f)])
+
+#define ALLEGRO_CONVERT_ABGR_8888_TO_ARGB_8888(x) ((((x) & 0x00ff0000) >> 16) | (((x) & 0x000000ff) << 16) | ((x) & 0xff00ff00) )
+
+
+
+#define ALLEGRO_CONVERT_ABGR_8888_TO_RGBA_8888(x) ((((x) & 0xff000000) >> 24) | (((x) & 0x00ff0000) >> 8) | (((x) & 0x0000ff00) << 8) | (((x) & 0x000000ff) << 24) )
+
+
+
+
+#define ALLEGRO_CONVERT_ABGR_8888_TO_ARGB_4444(x) ((((x) & 0xf0000000) >> 16) | (((x) & 0x00f00000) >> 20) | (((x) & 0x0000f000) >> 8) | (((x) & 0x000000f0) << 4) )
+
+
+
+
+#define ALLEGRO_CONVERT_ABGR_8888_TO_RGB_888(x) ((((x) & 0x00ff0000) >> 16) | ((x) & 0x0000ff00) | (((x) & 0x000000ff) << 16) )
+
+
+
+#define ALLEGRO_CONVERT_ABGR_8888_TO_RGB_565(x) ((((x) & 0x00f80000) >> 19) | (((x) & 0x0000fc00) >> 5) | (((x) & 0x000000f8) << 8) )
+
+
+
+#define ALLEGRO_CONVERT_ABGR_8888_TO_RGB_555(x) ((((x) & 0x00f80000) >> 19) | (((x) & 0x0000f800) >> 6) | (((x) & 0x000000f8) << 7) )
+
+
+
+#define ALLEGRO_CONVERT_ABGR_8888_TO_RGBA_5551(x) ((((x) & 0x80000000) >> 31) | (((x) & 0x00f80000) >> 18) | (((x) & 0x0000f800) >> 5) | (((x) & 0x000000f8) << 8) )
+
+
+
+
+#define ALLEGRO_CONVERT_ABGR_8888_TO_ARGB_1555(x) ((((x) & 0x80000000) >> 16) | (((x) & 0x00f80000) >> 19) | (((x) & 0x0000f800) >> 6) | (((x) & 0x000000f8) << 7) )
+
+
+
+
+#define ALLEGRO_CONVERT_ABGR_8888_TO_XBGR_8888(x) (((x) & 0x00ffffff) )
+
+#define ALLEGRO_CONVERT_ABGR_8888_TO_BGR_888(x) (((x) & 0x00ffffff) )
+
+#define ALLEGRO_CONVERT_ABGR_8888_TO_BGR_565(x) ((((x) & 0x00f80000) >> 8) | (((x) & 0x0000fc00) >> 5) | (((x) & 0x000000f8) >> 3) )
+
+
+
+#define ALLEGRO_CONVERT_ABGR_8888_TO_BGR_555(x) ((((x) & 0x00f80000) >> 9) | (((x) & 0x0000f800) >> 6) | (((x) & 0x000000f8) >> 3) )
+
+
+
+#define ALLEGRO_CONVERT_ABGR_8888_TO_RGBX_8888(x) ((((x) & 0x00ff0000) >> 8) | (((x) & 0x0000ff00) << 8) | (((x) & 0x000000ff) << 24) )
+
+
+
+#define ALLEGRO_CONVERT_ABGR_8888_TO_XRGB_8888(x) ((((x) & 0x00ff0000) >> 16) | ((x) & 0x0000ff00) | (((x) & 0x000000ff) << 16) )
+
+
+
+#define ALLEGRO_CONVERT_ABGR_8888_TO_ABGR_F32(x) al_map_rgba(((x) >> 0) & 255,((x) >> 8) & 255,((x) >> 16) & 255,((x) >> 24) & 255)
+
+
+
+
+#if defined(ALLEGRO_BIG_ENDIAN)
+#define ALLEGRO_CONVERT_ABGR_8888_TO_ABGR_8888_LE(x) ((((x) & 0xff000000) >> 24) | (((x) & 0x00ff0000) >> 8) | (((x) & 0x0000ff00) << 8) | (((x) & 0x000000ff) << 24) )
+
+
+
+
+#else
+#define ALLEGRO_CONVERT_ABGR_8888_TO_ABGR_8888_LE(x) (((x) & 0xffffffff) )
+
+#endif
+#define ALLEGRO_CONVERT_ABGR_8888_TO_RGBA_4444(x) ((((x) & 0xf0000000) >> 28) | (((x) & 0x00f00000) >> 16) | (((x) & 0x0000f000) >> 4) | (((x) & 0x000000f0) << 8) )
+
+
+
+
+#define ALLEGRO_CONVERT_ABGR_8888_TO_SINGLE_CHANNEL_8(x) (((x) >> 0) & 0xff)
+
+#define ALLEGRO_CONVERT_XBGR_8888_TO_ARGB_8888(x) ((0xff000000) | (((x) & 0x00ff0000) >> 16) | ((x) & 0x0000ff00) | (((x) & 0x000000ff) << 16) )
+
+
+
+
+#define ALLEGRO_CONVERT_XBGR_8888_TO_RGBA_8888(x) ((0x000000ff) | (((x) & 0x00ff0000) >> 8) | (((x) & 0x0000ff00) << 8) | (((x) & 0x000000ff) << 24) )
+
+
+
+
+#define ALLEGRO_CONVERT_XBGR_8888_TO_ARGB_4444(x) ((0xf000) | (((x) & 0x00f00000) >> 20) | (((x) & 0x0000f000) >> 8) | (((x) & 0x000000f0) << 4) )
+
+
+
+
+#define ALLEGRO_CONVERT_XBGR_8888_TO_RGB_888(x) ((((x) & 0x00ff0000) >> 16) | ((x) & 0x0000ff00) | (((x) & 0x000000ff) << 16) )
+
+
+
+#define ALLEGRO_CONVERT_XBGR_8888_TO_RGB_565(x) ((((x) & 0x00f80000) >> 19) | (((x) & 0x0000fc00) >> 5) | (((x) & 0x000000f8) << 8) )
+
+
+
+#define ALLEGRO_CONVERT_XBGR_8888_TO_RGB_555(x) ((((x) & 0x00f80000) >> 19) | (((x) & 0x0000f800) >> 6) | (((x) & 0x000000f8) << 7) )
+
+
+
+#define ALLEGRO_CONVERT_XBGR_8888_TO_RGBA_5551(x) ((0x0001) | (((x) & 0x00f80000) >> 18) | (((x) & 0x0000f800) >> 5) | (((x) & 0x000000f8) << 8) )
+
+
+
+
+#define ALLEGRO_CONVERT_XBGR_8888_TO_ARGB_1555(x) ((0x8000) | (((x) & 0x00f80000) >> 19) | (((x) & 0x0000f800) >> 6) | (((x) & 0x000000f8) << 7) )
+
+
+
+
+#define ALLEGRO_CONVERT_XBGR_8888_TO_ABGR_8888(x) ((0xff000000) | ((x) & 0x00ffffff) )
+
+
+#define ALLEGRO_CONVERT_XBGR_8888_TO_BGR_888(x) (((x) & 0x00ffffff) )
+
+#define ALLEGRO_CONVERT_XBGR_8888_TO_BGR_565(x) ((((x) & 0x00f80000) >> 8) | (((x) & 0x0000fc00) >> 5) | (((x) & 0x000000f8) >> 3) )
+
+
+
+#define ALLEGRO_CONVERT_XBGR_8888_TO_BGR_555(x) ((((x) & 0x00f80000) >> 9) | (((x) & 0x0000f800) >> 6) | (((x) & 0x000000f8) >> 3) )
+
+
+
+#define ALLEGRO_CONVERT_XBGR_8888_TO_RGBX_8888(x) ((((x) & 0x00ff0000) >> 8) | (((x) & 0x0000ff00) << 8) | (((x) & 0x000000ff) << 24) )
+
+
+
+#define ALLEGRO_CONVERT_XBGR_8888_TO_XRGB_8888(x) ((((x) & 0x00ff0000) >> 16) | ((x) & 0x0000ff00) | (((x) & 0x000000ff) << 16) )
+
+
+
+#define ALLEGRO_CONVERT_XBGR_8888_TO_ABGR_F32(x) al_map_rgb(((x) >> 0) & 255,((x) >> 8) & 255,((x) >> 16) & 255)
+
+
+
+#if defined(ALLEGRO_BIG_ENDIAN)
+#define ALLEGRO_CONVERT_XBGR_8888_TO_ABGR_8888_LE(x) ((0x000000ff) | (((x) & 0x00ff0000) >> 8) | (((x) & 0x0000ff00) << 8) | (((x) & 0x000000ff) << 24) )
+
+
+
+
+#else
+#define ALLEGRO_CONVERT_XBGR_8888_TO_ABGR_8888_LE(x) ((0xff000000) | ((x) & 0x00ffffff) )
+
+
+#endif
+#define ALLEGRO_CONVERT_XBGR_8888_TO_RGBA_4444(x) ((0x000f) | (((x) & 0x00f00000) >> 16) | (((x) & 0x0000f000) >> 4) | (((x) & 0x000000f0) << 8) )
+
+
+
+
+#define ALLEGRO_CONVERT_XBGR_8888_TO_SINGLE_CHANNEL_8(x) (((x) >> 0) & 0xff)
+
+#define ALLEGRO_CONVERT_BGR_888_TO_ARGB_8888(x) ((0xff000000) | (((x) & 0xff0000) >> 16) | ((x) & 0x00ff00) | (((x) & 0x0000ff) << 16) )
+
+
+
+
+#define ALLEGRO_CONVERT_BGR_888_TO_RGBA_8888(x) ((0x000000ff) | (((x) & 0xff0000) >> 8) | (((x) & 0x00ff00) << 8) | (((x) & 0x0000ff) << 24) )
+
+
+
+
+#define ALLEGRO_CONVERT_BGR_888_TO_ARGB_4444(x) ((0xf000) | (((x) & 0xf00000) >> 20) | (((x) & 0x00f000) >> 8) | (((x) & 0x0000f0) << 4) )
+
+
+
+
+#define ALLEGRO_CONVERT_BGR_888_TO_RGB_888(x) ((((x) & 0xff0000) >> 16) | ((x) & 0x00ff00) | (((x) & 0x0000ff) << 16) )
+
+
+
+#define ALLEGRO_CONVERT_BGR_888_TO_RGB_565(x) ((((x) & 0xf80000) >> 19) | (((x) & 0x00fc00) >> 5) | (((x) & 0x0000f8) << 8) )
+
+
+
+#define ALLEGRO_CONVERT_BGR_888_TO_RGB_555(x) ((((x) & 0xf80000) >> 19) | (((x) & 0x00f800) >> 6) | (((x) & 0x0000f8) << 7) )
+
+
+
+#define ALLEGRO_CONVERT_BGR_888_TO_RGBA_5551(x) ((0x0001) | (((x) & 0xf80000) >> 18) | (((x) & 0x00f800) >> 5) | (((x) & 0x0000f8) << 8) )
+
+
+
+
+#define ALLEGRO_CONVERT_BGR_888_TO_ARGB_1555(x) ((0x8000) | (((x) & 0xf80000) >> 19) | (((x) & 0x00f800) >> 6) | (((x) & 0x0000f8) << 7) )
+
+
+
+
+#define ALLEGRO_CONVERT_BGR_888_TO_ABGR_8888(x) ((0xff000000) | ((x) & 0xffffff) )
+
+
+#define ALLEGRO_CONVERT_BGR_888_TO_XBGR_8888(x) (((x) & 0xffffff) )
+
+#define ALLEGRO_CONVERT_BGR_888_TO_BGR_565(x) ((((x) & 0xf80000) >> 8) | (((x) & 0x00fc00) >> 5) | (((x) & 0x0000f8) >> 3) )
+
+
+
+#define ALLEGRO_CONVERT_BGR_888_TO_BGR_555(x) ((((x) & 0xf80000) >> 9) | (((x) & 0x00f800) >> 6) | (((x) & 0x0000f8) >> 3) )
+
+
+
+#define ALLEGRO_CONVERT_BGR_888_TO_RGBX_8888(x) ((((x) & 0xff0000) >> 8) | (((x) & 0x00ff00) << 8) | (((x) & 0x0000ff) << 24) )
+
+
+
+#define ALLEGRO_CONVERT_BGR_888_TO_XRGB_8888(x) ((((x) & 0xff0000) >> 16) | ((x) & 0x00ff00) | (((x) & 0x0000ff) << 16) )
+
+
+
+#define ALLEGRO_CONVERT_BGR_888_TO_ABGR_F32(x) al_map_rgb(((x) >> 0) & 255,((x) >> 8) & 255,((x) >> 16) & 255)
+
+
+
+#if defined(ALLEGRO_BIG_ENDIAN)
+#define ALLEGRO_CONVERT_BGR_888_TO_ABGR_8888_LE(x) ((0x000000ff) | (((x) & 0xff0000) >> 8) | (((x) & 0x00ff00) << 8) | (((x) & 0x0000ff) << 24) )
+
+
+
+
+#else
+#define ALLEGRO_CONVERT_BGR_888_TO_ABGR_8888_LE(x) ((0xff000000) | ((x) & 0xffffff) )
+
+
+#endif
+#define ALLEGRO_CONVERT_BGR_888_TO_RGBA_4444(x) ((0x000f) | (((x) & 0xf00000) >> 16) | (((x) & 0x00f000) >> 4) | (((x) & 0x0000f0) << 8) )
+
+
+
+
+#define ALLEGRO_CONVERT_BGR_888_TO_SINGLE_CHANNEL_8(x) (((x) >> 0) & 0xff)
+
+#define ALLEGRO_CONVERT_BGR_565_TO_ARGB_8888(x) ((0xff000000) | (_al_rgb_scale_5[((x) & 0xf800) >> 11] ) | (_al_rgb_scale_6[((x) & 0x07e0) >> 5] << 8) | (_al_rgb_scale_5[((x) & 0x001f) >> 0] << 16) )
+
+
+
+
+#define ALLEGRO_CONVERT_BGR_565_TO_RGBA_8888(x) ((0x000000ff) | (_al_rgb_scale_5[((x) & 0xf800) >> 11] << 8) | (_al_rgb_scale_6[((x) & 0x07e0) >> 5] << 16) | (_al_rgb_scale_5[((x) & 0x001f) >> 0] << 24) )
+
+
+
+
+#define ALLEGRO_CONVERT_BGR_565_TO_ARGB_4444(x) ((0xf000) | (((x) & 0xf000) >> 12) | (((x) & 0x0780) >> 3) | (((x) & 0x001e) << 7) )
+
+
+
+
+#define ALLEGRO_CONVERT_BGR_565_TO_RGB_888(x) ((_al_rgb_scale_5[((x) & 0xf800) >> 11] ) | (_al_rgb_scale_6[((x) & 0x07e0) >> 5] << 8) | (_al_rgb_scale_5[((x) & 0x001f) >> 0] << 16) )
+
+
+
+#define ALLEGRO_CONVERT_BGR_565_TO_RGB_565(x) ((((x) & 0xf800) >> 11) | ((x) & 0x07e0) | (((x) & 0x001f) << 11) )
+
+
+
+#define ALLEGRO_CONVERT_BGR_565_TO_RGB_555(x) ((((x) & 0xf800) >> 11) | (((x) & 0x07c0) >> 1) | (((x) & 0x001f) << 10) )
+
+
+
+#define ALLEGRO_CONVERT_BGR_565_TO_RGBA_5551(x) ((0x0001) | (((x) & 0xf800) >> 10) | ((x) & 0x07c0) | (((x) & 0x001f) << 11) )
+
+
+
+
+#define ALLEGRO_CONVERT_BGR_565_TO_ARGB_1555(x) ((0x8000) | (((x) & 0xf800) >> 11) | (((x) & 0x07c0) >> 1) | (((x) & 0x001f) << 10) )
+
+
+
+
+#define ALLEGRO_CONVERT_BGR_565_TO_ABGR_8888(x) ((0xff000000) | (_al_rgb_scale_5[((x) & 0xf800) >> 11] << 16) | (_al_rgb_scale_6[((x) & 0x07e0) >> 5] << 8) | (_al_rgb_scale_5[((x) & 0x001f) >> 0] ) )
+
+
+
+
+#define ALLEGRO_CONVERT_BGR_565_TO_XBGR_8888(x) ((_al_rgb_scale_5[((x) & 0xf800) >> 11] << 16) | (_al_rgb_scale_6[((x) & 0x07e0) >> 5] << 8) | (_al_rgb_scale_5[((x) & 0x001f) >> 0] ) )
+
+
+
+#define ALLEGRO_CONVERT_BGR_565_TO_BGR_888(x) ((_al_rgb_scale_5[((x) & 0xf800) >> 11] << 16) | (_al_rgb_scale_6[((x) & 0x07e0) >> 5] << 8) | (_al_rgb_scale_5[((x) & 0x001f) >> 0] ) )
+
+
+
+#define ALLEGRO_CONVERT_BGR_565_TO_BGR_555(x) (((x) & 0x001f) | (((x) & 0xffc0) >> 1) )
+
+
+#define ALLEGRO_CONVERT_BGR_565_TO_RGBX_8888(x) ((_al_rgb_scale_5[((x) & 0xf800) >> 11] << 8) | (_al_rgb_scale_6[((x) & 0x07e0) >> 5] << 16) | (_al_rgb_scale_5[((x) & 0x001f) >> 0] << 24) )
+
+
+
+#define ALLEGRO_CONVERT_BGR_565_TO_XRGB_8888(x) ((_al_rgb_scale_5[((x) & 0xf800) >> 11] ) | (_al_rgb_scale_6[((x) & 0x07e0) >> 5] << 8) | (_al_rgb_scale_5[((x) & 0x001f) >> 0] << 16) )
+
+
+
+#define ALLEGRO_CONVERT_BGR_565_TO_ABGR_F32(x) al_map_rgb(_al_rgb_scale_5[((x) >> 0) & 31],_al_rgb_scale_6[((x) >> 5) & 63],_al_rgb_scale_5[((x) >> 11) & 31])
+
+
+
+#if defined(ALLEGRO_BIG_ENDIAN)
+#define ALLEGRO_CONVERT_BGR_565_TO_ABGR_8888_LE(x) ((0x000000ff) | (_al_rgb_scale_5[((x) & 0xf800) >> 11] << 8) | (_al_rgb_scale_6[((x) & 0x07e0) >> 5] << 16) | (_al_rgb_scale_5[((x) & 0x001f) >> 0] << 24) )
+
+
+
+
+#else
+#define ALLEGRO_CONVERT_BGR_565_TO_ABGR_8888_LE(x) ((0xff000000) | (_al_rgb_scale_5[((x) & 0xf800) >> 11] << 16) | (_al_rgb_scale_6[((x) & 0x07e0) >> 5] << 8) | (_al_rgb_scale_5[((x) & 0x001f) >> 0] ) )
+
+
+
+
+#endif
+#define ALLEGRO_CONVERT_BGR_565_TO_RGBA_4444(x) ((0x000f) | (((x) & 0xf000) >> 8) | (((x) & 0x0780) << 1) | (((x) & 0x001e) << 11) )
+
+
+
+
+#define ALLEGRO_CONVERT_BGR_565_TO_SINGLE_CHANNEL_8(x) (_al_rgb_scale_5[(((x) >> 0) & 0x1f)])
+
+#define ALLEGRO_CONVERT_BGR_555_TO_ARGB_8888(x) ((0xff000000) | (_al_rgb_scale_5[((x) & 0x7c00) >> 10] ) | (_al_rgb_scale_5[((x) & 0x3e0) >> 5] << 8) | (_al_rgb_scale_5[((x) & 0x01f) >> 0] << 16) )
+
+
+
+
+#define ALLEGRO_CONVERT_BGR_555_TO_RGBA_8888(x) ((0x000000ff) | (_al_rgb_scale_5[((x) & 0x7c00) >> 10] << 8) | (_al_rgb_scale_5[((x) & 0x3e0) >> 5] << 16) | (_al_rgb_scale_5[((x) & 0x01f) >> 0] << 24) )
+
+
+
+
+#define ALLEGRO_CONVERT_BGR_555_TO_ARGB_4444(x) ((0xf000) | (((x) & 0x7800) >> 11) | (((x) & 0x3c0) >> 2) | (((x) & 0x01e) << 7) )
+
+
+
+
+#define ALLEGRO_CONVERT_BGR_555_TO_RGB_888(x) ((_al_rgb_scale_5[((x) & 0x7c00) >> 10] ) | (_al_rgb_scale_5[((x) & 0x3e0) >> 5] << 8) | (_al_rgb_scale_5[((x) & 0x01f) >> 0] << 16) )
+
+
+
+#define ALLEGRO_CONVERT_BGR_555_TO_RGB_565(x) ((((x) & 0x7c00) >> 10) | (((x) & 0x3e0) << 1) | (((x) & 0x01f) << 11) )
+
+
+
+#define ALLEGRO_CONVERT_BGR_555_TO_RGB_555(x) ((((x) & 0x7c00) >> 10) | ((x) & 0x3e0) | (((x) & 0x01f) << 10) )
+
+
+
+#define ALLEGRO_CONVERT_BGR_555_TO_RGBA_5551(x) ((0x0001) | (((x) & 0x7c00) >> 9) | (((x) & 0x3e0) << 1) | (((x) & 0x01f) << 11) )
+
+
+
+
+#define ALLEGRO_CONVERT_BGR_555_TO_ARGB_1555(x) ((0x8000) | (((x) & 0x7c00) >> 10) | ((x) & 0x3e0) | (((x) & 0x01f) << 10) )
+
+
+
+
+#define ALLEGRO_CONVERT_BGR_555_TO_ABGR_8888(x) ((0xff000000) | (_al_rgb_scale_5[((x) & 0x7c00) >> 10] << 16) | (_al_rgb_scale_5[((x) & 0x3e0) >> 5] << 8) | (_al_rgb_scale_5[((x) & 0x01f) >> 0] ) )
+
+
+
+
+#define ALLEGRO_CONVERT_BGR_555_TO_XBGR_8888(x) ((_al_rgb_scale_5[((x) & 0x7c00) >> 10] << 16) | (_al_rgb_scale_5[((x) & 0x3e0) >> 5] << 8) | (_al_rgb_scale_5[((x) & 0x01f) >> 0] ) )
+
+
+
+#define ALLEGRO_CONVERT_BGR_555_TO_BGR_888(x) ((_al_rgb_scale_5[((x) & 0x7c00) >> 10] << 16) | (_al_rgb_scale_5[((x) & 0x3e0) >> 5] << 8) | (_al_rgb_scale_5[((x) & 0x01f) >> 0] ) )
+
+
+
+#define ALLEGRO_CONVERT_BGR_555_TO_BGR_565(x) (((x) & 0x01f) | (((x) & 0x7fe0) << 1) )
+
+
+#define ALLEGRO_CONVERT_BGR_555_TO_RGBX_8888(x) ((_al_rgb_scale_5[((x) & 0x7c00) >> 10] << 8) | (_al_rgb_scale_5[((x) & 0x3e0) >> 5] << 16) | (_al_rgb_scale_5[((x) & 0x01f) >> 0] << 24) )
+
+
+
+#define ALLEGRO_CONVERT_BGR_555_TO_XRGB_8888(x) ((_al_rgb_scale_5[((x) & 0x7c00) >> 10] ) | (_al_rgb_scale_5[((x) & 0x3e0) >> 5] << 8) | (_al_rgb_scale_5[((x) & 0x01f) >> 0] << 16) )
+
+
+
+#define ALLEGRO_CONVERT_BGR_555_TO_ABGR_F32(x) al_map_rgb(_al_rgb_scale_5[((x) >> 0) & 31],_al_rgb_scale_5[((x) >> 5) & 31],_al_rgb_scale_5[((x) >> 10) & 31])
+
+
+
+#if defined(ALLEGRO_BIG_ENDIAN)
+#define ALLEGRO_CONVERT_BGR_555_TO_ABGR_8888_LE(x) ((0x000000ff) | (_al_rgb_scale_5[((x) & 0x7c00) >> 10] << 8) | (_al_rgb_scale_5[((x) & 0x3e0) >> 5] << 16) | (_al_rgb_scale_5[((x) & 0x01f) >> 0] << 24) )
+
+
+
+
+#else
+#define ALLEGRO_CONVERT_BGR_555_TO_ABGR_8888_LE(x) ((0xff000000) | (_al_rgb_scale_5[((x) & 0x7c00) >> 10] << 16) | (_al_rgb_scale_5[((x) & 0x3e0) >> 5] << 8) | (_al_rgb_scale_5[((x) & 0x01f) >> 0] ) )
+
+
+
+
+#endif
+#define ALLEGRO_CONVERT_BGR_555_TO_RGBA_4444(x) ((0x000f) | (((x) & 0x7800) >> 7) | (((x) & 0x3c0) << 2) | (((x) & 0x01e) << 11) )
+
+
+
+
+#define ALLEGRO_CONVERT_BGR_555_TO_SINGLE_CHANNEL_8(x) (_al_rgb_scale_5[(((x) >> 0) & 0x1f)])
+
+#define ALLEGRO_CONVERT_RGBX_8888_TO_ARGB_8888(x) ((0xff000000) | (((x) & 0xffffff00) >> 8) )
+
+
+#define ALLEGRO_CONVERT_RGBX_8888_TO_RGBA_8888(x) ((0x000000ff) | ((x) & 0xffffff00) )
+
+
+#define ALLEGRO_CONVERT_RGBX_8888_TO_ARGB_4444(x) ((0xf000) | (((x) & 0x0000f000) >> 12) | (((x) & 0x00f00000) >> 16) | (((x) & 0xf0000000) >> 20) )
+
+
+
+
+#define ALLEGRO_CONVERT_RGBX_8888_TO_RGB_888(x) ((((x) & 0xffffff00) >> 8) )
+
+#define ALLEGRO_CONVERT_RGBX_8888_TO_RGB_565(x) ((((x) & 0x0000f800) >> 11) | (((x) & 0x00fc0000) >> 13) | (((x) & 0xf8000000) >> 16) )
+
+
+
+#define ALLEGRO_CONVERT_RGBX_8888_TO_RGB_555(x) ((((x) & 0x0000f800) >> 11) | (((x) & 0x00f80000) >> 14) | (((x) & 0xf8000000) >> 17) )
+
+
+
+#define ALLEGRO_CONVERT_RGBX_8888_TO_RGBA_5551(x) ((0x0001) | (((x) & 0x0000f800) >> 10) | (((x) & 0x00f80000) >> 13) | (((x) & 0xf8000000) >> 16) )
+
+
+
+
+#define ALLEGRO_CONVERT_RGBX_8888_TO_ARGB_1555(x) ((0x8000) | (((x) & 0x0000f800) >> 11) | (((x) & 0x00f80000) >> 14) | (((x) & 0xf8000000) >> 17) )
+
+
+
+
+#define ALLEGRO_CONVERT_RGBX_8888_TO_ABGR_8888(x) ((0xff000000) | (((x) & 0x0000ff00) << 8) | (((x) & 0x00ff0000) >> 8) | (((x) & 0xff000000) >> 24) )
+
+
+
+
+#define ALLEGRO_CONVERT_RGBX_8888_TO_XBGR_8888(x) ((((x) & 0x0000ff00) << 8) | (((x) & 0x00ff0000) >> 8) | (((x) & 0xff000000) >> 24) )
+
+
+
+#define ALLEGRO_CONVERT_RGBX_8888_TO_BGR_888(x) ((((x) & 0x0000ff00) << 8) | (((x) & 0x00ff0000) >> 8) | (((x) & 0xff000000) >> 24) )
+
+
+
+#define ALLEGRO_CONVERT_RGBX_8888_TO_BGR_565(x) (((x) & 0x0000f800) | (((x) & 0x00fc0000) >> 13) | (((x) & 0xf8000000) >> 27) )
+
+
+
+#define ALLEGRO_CONVERT_RGBX_8888_TO_BGR_555(x) ((((x) & 0x0000f800) >> 1) | (((x) & 0x00f80000) >> 14) | (((x) & 0xf8000000) >> 27) )
+
+
+
+#define ALLEGRO_CONVERT_RGBX_8888_TO_XRGB_8888(x) ((((x) & 0xffffff00) >> 8) )
+
+#define ALLEGRO_CONVERT_RGBX_8888_TO_ABGR_F32(x) al_map_rgb(((x) >> 24) & 255,((x) >> 16) & 255,((x) >> 8) & 255)
+
+
+
+#if defined(ALLEGRO_BIG_ENDIAN)
+#define ALLEGRO_CONVERT_RGBX_8888_TO_ABGR_8888_LE(x) ((0x000000ff) | ((x) & 0xffffff00) )
+
+
+#else
+#define ALLEGRO_CONVERT_RGBX_8888_TO_ABGR_8888_LE(x) ((0xff000000) | (((x) & 0x0000ff00) << 8) | (((x) & 0x00ff0000) >> 8) | (((x) & 0xff000000) >> 24) )
+
+
+
+
+#endif
+#define ALLEGRO_CONVERT_RGBX_8888_TO_RGBA_4444(x) ((0x000f) | (((x) & 0x0000f000) >> 8) | (((x) & 0x00f00000) >> 12) | (((x) & 0xf0000000) >> 16) )
+
+
+
+
+#define ALLEGRO_CONVERT_RGBX_8888_TO_SINGLE_CHANNEL_8(x) (((x) >> 24) & 0xff)
+
+#define ALLEGRO_CONVERT_XRGB_8888_TO_ARGB_8888(x) ((0xff000000) | ((x) & 0x00ffffff) )
+
+
+#define ALLEGRO_CONVERT_XRGB_8888_TO_RGBA_8888(x) ((0x000000ff) | (((x) & 0x00ffffff) << 8) )
+
+
+#define ALLEGRO_CONVERT_XRGB_8888_TO_ARGB_4444(x) ((0xf000) | (((x) & 0x000000f0) >> 4) | (((x) & 0x0000f000) >> 8) | (((x) & 0x00f00000) >> 12) )
+
+
+
+
+#define ALLEGRO_CONVERT_XRGB_8888_TO_RGB_888(x) (((x) & 0x00ffffff) )
+
+#define ALLEGRO_CONVERT_XRGB_8888_TO_RGB_565(x) ((((x) & 0x000000f8) >> 3) | (((x) & 0x0000fc00) >> 5) | (((x) & 0x00f80000) >> 8) )
+
+
+
+#define ALLEGRO_CONVERT_XRGB_8888_TO_RGB_555(x) ((((x) & 0x000000f8) >> 3) | (((x) & 0x0000f800) >> 6) | (((x) & 0x00f80000) >> 9) )
+
+
+
+#define ALLEGRO_CONVERT_XRGB_8888_TO_RGBA_5551(x) ((0x0001) | (((x) & 0x000000f8) >> 2) | (((x) & 0x0000f800) >> 5) | (((x) & 0x00f80000) >> 8) )
+
+
+
+
+#define ALLEGRO_CONVERT_XRGB_8888_TO_ARGB_1555(x) ((0x8000) | (((x) & 0x000000f8) >> 3) | (((x) & 0x0000f800) >> 6) | (((x) & 0x00f80000) >> 9) )
+
+
+
+
+#define ALLEGRO_CONVERT_XRGB_8888_TO_ABGR_8888(x) ((0xff000000) | (((x) & 0x000000ff) << 16) | ((x) & 0x0000ff00) | (((x) & 0x00ff0000) >> 16) )
+
+
+
+
+#define ALLEGRO_CONVERT_XRGB_8888_TO_XBGR_8888(x) ((((x) & 0x000000ff) << 16) | ((x) & 0x0000ff00) | (((x) & 0x00ff0000) >> 16) )
+
+
+
+#define ALLEGRO_CONVERT_XRGB_8888_TO_BGR_888(x) ((((x) & 0x000000ff) << 16) | ((x) & 0x0000ff00) | (((x) & 0x00ff0000) >> 16) )
+
+
+
+#define ALLEGRO_CONVERT_XRGB_8888_TO_BGR_565(x) ((((x) & 0x000000f8) << 8) | (((x) & 0x0000fc00) >> 5) | (((x) & 0x00f80000) >> 19) )
+
+
+
+#define ALLEGRO_CONVERT_XRGB_8888_TO_BGR_555(x) ((((x) & 0x000000f8) << 7) | (((x) & 0x0000f800) >> 6) | (((x) & 0x00f80000) >> 19) )
+
+
+
+#define ALLEGRO_CONVERT_XRGB_8888_TO_RGBX_8888(x) ((((x) & 0x00ffffff) << 8) )
+
+#define ALLEGRO_CONVERT_XRGB_8888_TO_ABGR_F32(x) al_map_rgb(((x) >> 16) & 255,((x) >> 8) & 255,((x) >> 0) & 255)
+
+
+
+#if defined(ALLEGRO_BIG_ENDIAN)
+#define ALLEGRO_CONVERT_XRGB_8888_TO_ABGR_8888_LE(x) ((0x000000ff) | (((x) & 0x00ffffff) << 8) )
+
+
+#else
+#define ALLEGRO_CONVERT_XRGB_8888_TO_ABGR_8888_LE(x) ((0xff000000) | (((x) & 0x000000ff) << 16) | ((x) & 0x0000ff00) | (((x) & 0x00ff0000) >> 16) )
+
+
+
+
+#endif
+#define ALLEGRO_CONVERT_XRGB_8888_TO_RGBA_4444(x) ((0x000f) | ((x) & 0x000000f0) | (((x) & 0x0000f000) >> 4) | (((x) & 0x00f00000) >> 8) )
+
+
+
+
+#define ALLEGRO_CONVERT_XRGB_8888_TO_SINGLE_CHANNEL_8(x) (((x) >> 16) & 0xff)
+
+#define ALLEGRO_CONVERT_ABGR_F32_TO_ARGB_8888(x) (((uint32_t)((x).a * 255) << 24) | ((uint32_t)((x).b * 255) << 0) | ((uint32_t)((x).g * 255) << 8) | ((uint32_t)((x).r * 255) << 16))
+
+
+
+
+#define ALLEGRO_CONVERT_ABGR_F32_TO_RGBA_8888(x) (((uint32_t)((x).a * 255) << 0) | ((uint32_t)((x).b * 255) << 8) | ((uint32_t)((x).g * 255) << 16) | ((uint32_t)((x).r * 255) << 24))
+
+
+
+
+#define ALLEGRO_CONVERT_ABGR_F32_TO_ARGB_4444(x) (((uint32_t)((x).a * 15) << 12) | ((uint32_t)((x).b * 15) << 0) | ((uint32_t)((x).g * 15) << 4) | ((uint32_t)((x).r * 15) << 8))
+
+
+
+
+#define ALLEGRO_CONVERT_ABGR_F32_TO_RGB_888(x) (((uint32_t)((x).b * 255) << 0) | ((uint32_t)((x).g * 255) << 8) | ((uint32_t)((x).r * 255) << 16))
+
+
+
+#define ALLEGRO_CONVERT_ABGR_F32_TO_RGB_565(x) (((uint32_t)((x).b * 31) << 0) | ((uint32_t)((x).g * 63) << 5) | ((uint32_t)((x).r * 31) << 11))
+
+
+
+#define ALLEGRO_CONVERT_ABGR_F32_TO_RGB_555(x) (((uint32_t)((x).b * 31) << 0) | ((uint32_t)((x).g * 31) << 5) | ((uint32_t)((x).r * 31) << 10))
+
+
+
+#define ALLEGRO_CONVERT_ABGR_F32_TO_RGBA_5551(x) (((uint32_t)((x).a * 1) << 0) | ((uint32_t)((x).b * 31) << 1) | ((uint32_t)((x).g * 31) << 6) | ((uint32_t)((x).r * 31) << 11))
+
+
+
+
+#define ALLEGRO_CONVERT_ABGR_F32_TO_ARGB_1555(x) (((uint32_t)((x).a * 1) << 15) | ((uint32_t)((x).b * 31) << 0) | ((uint32_t)((x).g * 31) << 5) | ((uint32_t)((x).r * 31) << 10))
+
+
+
+
+#define ALLEGRO_CONVERT_ABGR_F32_TO_ABGR_8888(x) (((uint32_t)((x).a * 255) << 24) | ((uint32_t)((x).b * 255) << 16) | ((uint32_t)((x).g * 255) << 8) | ((uint32_t)((x).r * 255) << 0))
+
+
+
+
+#define ALLEGRO_CONVERT_ABGR_F32_TO_XBGR_8888(x) (((uint32_t)((x).b * 255) << 16) | ((uint32_t)((x).g * 255) << 8) | ((uint32_t)((x).r * 255) << 0))
+
+
+
+#define ALLEGRO_CONVERT_ABGR_F32_TO_BGR_888(x) (((uint32_t)((x).b * 255) << 16) | ((uint32_t)((x).g * 255) << 8) | ((uint32_t)((x).r * 255) << 0))
+
+
+
+#define ALLEGRO_CONVERT_ABGR_F32_TO_BGR_565(x) (((uint32_t)((x).b * 31) << 11) | ((uint32_t)((x).g * 63) << 5) | ((uint32_t)((x).r * 31) << 0))
+
+
+
+#define ALLEGRO_CONVERT_ABGR_F32_TO_BGR_555(x) (((uint32_t)((x).b * 31) << 10) | ((uint32_t)((x).g * 31) << 5) | ((uint32_t)((x).r * 31) << 0))
+
+
+
+#define ALLEGRO_CONVERT_ABGR_F32_TO_RGBX_8888(x) (((uint32_t)((x).b * 255) << 8) | ((uint32_t)((x).g * 255) << 16) | ((uint32_t)((x).r * 255) << 24))
+
+
+
+#define ALLEGRO_CONVERT_ABGR_F32_TO_XRGB_8888(x) (((uint32_t)((x).b * 255) << 0) | ((uint32_t)((x).g * 255) << 8) | ((uint32_t)((x).r * 255) << 16))
+
+
+
+#if defined(ALLEGRO_BIG_ENDIAN)
+#define ALLEGRO_CONVERT_ABGR_F32_TO_ABGR_8888_LE(x) (((uint32_t)((x).a * 255) << 0) | ((uint32_t)((x).b * 255) << 8) | ((uint32_t)((x).g * 255) << 16) | ((uint32_t)((x).r * 255) << 24))
+
+
+
+
+#else
+#define ALLEGRO_CONVERT_ABGR_F32_TO_ABGR_8888_LE(x) (((uint32_t)((x).a * 255) << 24) | ((uint32_t)((x).b * 255) << 16) | ((uint32_t)((x).g * 255) << 8) | ((uint32_t)((x).r * 255) << 0))
+
+
+
+
+#endif
+#define ALLEGRO_CONVERT_ABGR_F32_TO_RGBA_4444(x) (((uint32_t)((x).a * 15) << 0) | ((uint32_t)((x).b * 15) << 4) | ((uint32_t)((x).g * 15) << 8) | ((uint32_t)((x).r * 15) << 12))
+
+
+
+
+#define ALLEGRO_CONVERT_ABGR_F32_TO_SINGLE_CHANNEL_8(x) (uint32_t)((x).r * 255)
+
+#if defined(ALLEGRO_BIG_ENDIAN)
+#define ALLEGRO_CONVERT_ABGR_8888_LE_TO_ARGB_8888(x) ((((x) & 0x000000ff) << 24) | (((x) & 0xffffff00) >> 8) )
+
+
+#else
+#define ALLEGRO_CONVERT_ABGR_8888_LE_TO_ARGB_8888(x) ((((x) & 0x00ff0000) >> 16) | (((x) & 0x000000ff) << 16) | ((x) & 0xff00ff00) )
+
+
+
+#endif
+#if defined(ALLEGRO_BIG_ENDIAN)
+#define ALLEGRO_CONVERT_ABGR_8888_LE_TO_RGBA_8888(x) (((x) & 0xffffffff) )
+
+#else
+#define ALLEGRO_CONVERT_ABGR_8888_LE_TO_RGBA_8888(x) ((((x) & 0xff000000) >> 24) | (((x) & 0x00ff0000) >> 8) | (((x) & 0x0000ff00) << 8) | (((x) & 0x000000ff) << 24) )
+
+
+
+
+#endif
+#if defined(ALLEGRO_BIG_ENDIAN)
+#define ALLEGRO_CONVERT_ABGR_8888_LE_TO_ARGB_4444(x) ((((x) & 0x000000f0) << 8) | (((x) & 0x0000f000) >> 12) | (((x) & 0x00f00000) >> 16) | (((x) & 0xf0000000) >> 20) )
+
+
+
+
+#else
+#define ALLEGRO_CONVERT_ABGR_8888_LE_TO_ARGB_4444(x) ((((x) & 0xf0000000) >> 16) | (((x) & 0x00f00000) >> 20) | (((x) & 0x0000f000) >> 8) | (((x) & 0x000000f0) << 4) )
+
+
+
+
+#endif
+#if defined(ALLEGRO_BIG_ENDIAN)
+#define ALLEGRO_CONVERT_ABGR_8888_LE_TO_RGB_888(x) ((((x) & 0xffffff00) >> 8) )
+
+#else
+#define ALLEGRO_CONVERT_ABGR_8888_LE_TO_RGB_888(x) ((((x) & 0x00ff0000) >> 16) | ((x) & 0x0000ff00) | (((x) & 0x000000ff) << 16) )
+
+
+
+#endif
+#if defined(ALLEGRO_BIG_ENDIAN)
+#define ALLEGRO_CONVERT_ABGR_8888_LE_TO_RGB_565(x) ((((x) & 0x0000f800) >> 11) | (((x) & 0x00fc0000) >> 13) | (((x) & 0xf8000000) >> 16) )
+
+
+
+#else
+#define ALLEGRO_CONVERT_ABGR_8888_LE_TO_RGB_565(x) ((((x) & 0x00f80000) >> 19) | (((x) & 0x0000fc00) >> 5) | (((x) & 0x000000f8) << 8) )
+
+
+
+#endif
+#if defined(ALLEGRO_BIG_ENDIAN)
+#define ALLEGRO_CONVERT_ABGR_8888_LE_TO_RGB_555(x) ((((x) & 0x0000f800) >> 11) | (((x) & 0x00f80000) >> 14) | (((x) & 0xf8000000) >> 17) )
+
+
+
+#else
+#define ALLEGRO_CONVERT_ABGR_8888_LE_TO_RGB_555(x) ((((x) & 0x00f80000) >> 19) | (((x) & 0x0000f800) >> 6) | (((x) & 0x000000f8) << 7) )
+
+
+
+#endif
+#if defined(ALLEGRO_BIG_ENDIAN)
+#define ALLEGRO_CONVERT_ABGR_8888_LE_TO_RGBA_5551(x) ((((x) & 0x00000080) >> 7) | (((x) & 0x0000f800) >> 10) | (((x) & 0x00f80000) >> 13) | (((x) & 0xf8000000) >> 16) )
+
+
+
+
+#else
+#define ALLEGRO_CONVERT_ABGR_8888_LE_TO_RGBA_5551(x) ((((x) & 0x80000000) >> 31) | (((x) & 0x00f80000) >> 18) | (((x) & 0x0000f800) >> 5) | (((x) & 0x000000f8) << 8) )
+
+
+
+
+#endif
+#if defined(ALLEGRO_BIG_ENDIAN)
+#define ALLEGRO_CONVERT_ABGR_8888_LE_TO_ARGB_1555(x) ((((x) & 0x00000080) << 8) | (((x) & 0x0000f800) >> 11) | (((x) & 0x00f80000) >> 14) | (((x) & 0xf8000000) >> 17) )
+
+
+
+
+#else
+#define ALLEGRO_CONVERT_ABGR_8888_LE_TO_ARGB_1555(x) ((((x) & 0x80000000) >> 16) | (((x) & 0x00f80000) >> 19) | (((x) & 0x0000f800) >> 6) | (((x) & 0x000000f8) << 7) )
+
+
+
+
+#endif
+#if defined(ALLEGRO_BIG_ENDIAN)
+#define ALLEGRO_CONVERT_ABGR_8888_LE_TO_ABGR_8888(x) ((((x) & 0x000000ff) << 24) | (((x) & 0x0000ff00) << 8) | (((x) & 0x00ff0000) >> 8) | (((x) & 0xff000000) >> 24) )
+
+
+
+
+#else
+#define ALLEGRO_CONVERT_ABGR_8888_LE_TO_ABGR_8888(x) (((x) & 0xffffffff) )
+
+#endif
+#if defined(ALLEGRO_BIG_ENDIAN)
+#define ALLEGRO_CONVERT_ABGR_8888_LE_TO_XBGR_8888(x) ((((x) & 0x0000ff00) << 8) | (((x) & 0x00ff0000) >> 8) | (((x) & 0xff000000) >> 24) )
+
+
+
+#else
+#define ALLEGRO_CONVERT_ABGR_8888_LE_TO_XBGR_8888(x) (((x) & 0x00ffffff) )
+
+#endif
+#if defined(ALLEGRO_BIG_ENDIAN)
+#define ALLEGRO_CONVERT_ABGR_8888_LE_TO_BGR_888(x) ((((x) & 0x0000ff00) << 8) | (((x) & 0x00ff0000) >> 8) | (((x) & 0xff000000) >> 24) )
+
+
+
+#else
+#define ALLEGRO_CONVERT_ABGR_8888_LE_TO_BGR_888(x) (((x) & 0x00ffffff) )
+
+#endif
+#if defined(ALLEGRO_BIG_ENDIAN)
+#define ALLEGRO_CONVERT_ABGR_8888_LE_TO_BGR_565(x) (((x) & 0x0000f800) | (((x) & 0x00fc0000) >> 13) | (((x) & 0xf8000000) >> 27) )
+
+
+
+#else
+#define ALLEGRO_CONVERT_ABGR_8888_LE_TO_BGR_565(x) ((((x) & 0x00f80000) >> 8) | (((x) & 0x0000fc00) >> 5) | (((x) & 0x000000f8) >> 3) )
+
+
+
+#endif
+#if defined(ALLEGRO_BIG_ENDIAN)
+#define ALLEGRO_CONVERT_ABGR_8888_LE_TO_BGR_555(x) ((((x) & 0x0000f800) >> 1) | (((x) & 0x00f80000) >> 14) | (((x) & 0xf8000000) >> 27) )
+
+
+
+#else
+#define ALLEGRO_CONVERT_ABGR_8888_LE_TO_BGR_555(x) ((((x) & 0x00f80000) >> 9) | (((x) & 0x0000f800) >> 6) | (((x) & 0x000000f8) >> 3) )
+
+
+
+#endif
+#if defined(ALLEGRO_BIG_ENDIAN)
+#define ALLEGRO_CONVERT_ABGR_8888_LE_TO_RGBX_8888(x) (((x) & 0xffffff00) )
+
+#else
+#define ALLEGRO_CONVERT_ABGR_8888_LE_TO_RGBX_8888(x) ((((x) & 0x00ff0000) >> 8) | (((x) & 0x0000ff00) << 8) | (((x) & 0x000000ff) << 24) )
+
+
+
+#endif
+#if defined(ALLEGRO_BIG_ENDIAN)
+#define ALLEGRO_CONVERT_ABGR_8888_LE_TO_XRGB_8888(x) ((((x) & 0xffffff00) >> 8) )
+
+#else
+#define ALLEGRO_CONVERT_ABGR_8888_LE_TO_XRGB_8888(x) ((((x) & 0x00ff0000) >> 16) | ((x) & 0x0000ff00) | (((x) & 0x000000ff) << 16) )
+
+
+
+#endif
+#if defined(ALLEGRO_BIG_ENDIAN)
+#define ALLEGRO_CONVERT_ABGR_8888_LE_TO_ABGR_F32(x) al_map_rgba(((x) >> 24) & 255,((x) >> 16) & 255,((x) >> 8) & 255,((x) >> 0) & 255)
+
+
+
+
+#else
+#define ALLEGRO_CONVERT_ABGR_8888_LE_TO_ABGR_F32(x) al_map_rgba(((x) >> 0) & 255,((x) >> 8) & 255,((x) >> 16) & 255,((x) >> 24) & 255)
+
+
+
+
+#endif
+#if defined(ALLEGRO_BIG_ENDIAN)
+#define ALLEGRO_CONVERT_ABGR_8888_LE_TO_RGBA_4444(x) ((((x) & 0x000000f0) >> 4) | (((x) & 0x0000f000) >> 8) | (((x) & 0x00f00000) >> 12) | (((x) & 0xf0000000) >> 16) )
+
+
+
+
+#else
+#define ALLEGRO_CONVERT_ABGR_8888_LE_TO_RGBA_4444(x) ((((x) & 0xf0000000) >> 28) | (((x) & 0x00f00000) >> 16) | (((x) & 0x0000f000) >> 4) | (((x) & 0x000000f0) << 8) )
+
+
+
+
+#endif
+#if defined(ALLEGRO_BIG_ENDIAN)
+#define ALLEGRO_CONVERT_ABGR_8888_LE_TO_SINGLE_CHANNEL_8(x) (((x) >> 24) & 0xff)
+
+#else
+#define ALLEGRO_CONVERT_ABGR_8888_LE_TO_SINGLE_CHANNEL_8(x) (((x) >> 0) & 0xff)
+
+#endif
+#define ALLEGRO_CONVERT_RGBA_4444_TO_ARGB_8888(x) ((_al_rgb_scale_4[((x) & 0x000f) >> 0] << 24) | (_al_rgb_scale_4[((x) & 0x00f0) >> 4] ) | (_al_rgb_scale_4[((x) & 0x0f00) >> 8] << 8) | (_al_rgb_scale_4[((x) & 0xf000) >> 12] << 16) )
+
+
+
+
+#define ALLEGRO_CONVERT_RGBA_4444_TO_RGBA_8888(x) ((_al_rgb_scale_4[((x) & 0x000f) >> 0] ) | (_al_rgb_scale_4[((x) & 0x00f0) >> 4] << 8) | (_al_rgb_scale_4[((x) & 0x0f00) >> 8] << 16) | (_al_rgb_scale_4[((x) & 0xf000) >> 12] << 24) )
+
+
+
+
+#define ALLEGRO_CONVERT_RGBA_4444_TO_ARGB_4444(x) ((((x) & 0x000f) << 12) | (((x) & 0xfff0) >> 4) )
+
+
+#define ALLEGRO_CONVERT_RGBA_4444_TO_RGB_888(x) ((_al_rgb_scale_4[((x) & 0x00f0) >> 4] ) | (_al_rgb_scale_4[((x) & 0x0f00) >> 8] << 8) | (_al_rgb_scale_4[((x) & 0xf000) >> 12] << 16) )
+
+
+
+#define ALLEGRO_CONVERT_RGBA_4444_TO_RGB_565(x) ((((x) & 0x00f0) >> 3) | (((x) & 0x0f00) >> 1) | ((x) & 0xf000) )
+
+
+
+#define ALLEGRO_CONVERT_RGBA_4444_TO_RGB_555(x) ((((x) & 0x00f0) >> 3) | (((x) & 0x0f00) >> 2) | (((x) & 0xf000) >> 1) )
+
+
+
+#define ALLEGRO_CONVERT_RGBA_4444_TO_RGBA_5551(x) ((((x) & 0x0008) >> 3) | (((x) & 0x00f0) >> 2) | (((x) & 0x0f00) >> 1) | ((x) & 0xf000) )
+
+
+
+
+#define ALLEGRO_CONVERT_RGBA_4444_TO_ARGB_1555(x) ((((x) & 0x0008) << 12) | (((x) & 0x00f0) >> 3) | (((x) & 0x0f00) >> 2) | (((x) & 0xf000) >> 1) )
+
+
+
+
+#define ALLEGRO_CONVERT_RGBA_4444_TO_ABGR_8888(x) ((_al_rgb_scale_4[((x) & 0x000f) >> 0] << 24) | (_al_rgb_scale_4[((x) & 0x00f0) >> 4] << 16) | (_al_rgb_scale_4[((x) & 0x0f00) >> 8] << 8) | (_al_rgb_scale_4[((x) & 0xf000) >> 12] ) )
+
+
+
+
+#define ALLEGRO_CONVERT_RGBA_4444_TO_XBGR_8888(x) ((_al_rgb_scale_4[((x) & 0x00f0) >> 4] << 16) | (_al_rgb_scale_4[((x) & 0x0f00) >> 8] << 8) | (_al_rgb_scale_4[((x) & 0xf000) >> 12] ) )
+
+
+
+#define ALLEGRO_CONVERT_RGBA_4444_TO_BGR_888(x) ((_al_rgb_scale_4[((x) & 0x00f0) >> 4] << 16) | (_al_rgb_scale_4[((x) & 0x0f00) >> 8] << 8) | (_al_rgb_scale_4[((x) & 0xf000) >> 12] ) )
+
+
+
+#define ALLEGRO_CONVERT_RGBA_4444_TO_BGR_565(x) ((((x) & 0x00f0) << 8) | (((x) & 0x0f00) >> 1) | (((x) & 0xf000) >> 11) )
+
+
+
+#define ALLEGRO_CONVERT_RGBA_4444_TO_BGR_555(x) ((((x) & 0x00f0) << 7) | (((x) & 0x0f00) >> 2) | (((x) & 0xf000) >> 11) )
+
+
+
+#define ALLEGRO_CONVERT_RGBA_4444_TO_RGBX_8888(x) ((_al_rgb_scale_4[((x) & 0x00f0) >> 4] << 8) | (_al_rgb_scale_4[((x) & 0x0f00) >> 8] << 16) | (_al_rgb_scale_4[((x) & 0xf000) >> 12] << 24) )
+
+
+
+#define ALLEGRO_CONVERT_RGBA_4444_TO_XRGB_8888(x) ((_al_rgb_scale_4[((x) & 0x00f0) >> 4] ) | (_al_rgb_scale_4[((x) & 0x0f00) >> 8] << 8) | (_al_rgb_scale_4[((x) & 0xf000) >> 12] << 16) )
+
+
+
+#define ALLEGRO_CONVERT_RGBA_4444_TO_ABGR_F32(x) al_map_rgba(_al_rgb_scale_4[((x) >> 12) & 15],_al_rgb_scale_4[((x) >> 8) & 15],_al_rgb_scale_4[((x) >> 4) & 15],_al_rgb_scale_4[((x) >> 0) & 15])
+
+
+
+
+#if defined(ALLEGRO_BIG_ENDIAN)
+#define ALLEGRO_CONVERT_RGBA_4444_TO_ABGR_8888_LE(x) ((_al_rgb_scale_4[((x) & 0x000f) >> 0] ) | (_al_rgb_scale_4[((x) & 0x00f0) >> 4] << 8) | (_al_rgb_scale_4[((x) & 0x0f00) >> 8] << 16) | (_al_rgb_scale_4[((x) & 0xf000) >> 12] << 24) )
+
+
+
+
+#else
+#define ALLEGRO_CONVERT_RGBA_4444_TO_ABGR_8888_LE(x) ((_al_rgb_scale_4[((x) & 0x000f) >> 0] << 24) | (_al_rgb_scale_4[((x) & 0x00f0) >> 4] << 16) | (_al_rgb_scale_4[((x) & 0x0f00) >> 8] << 8) | (_al_rgb_scale_4[((x) & 0xf000) >> 12] ) )
+
+
+
+
+#endif
+#define ALLEGRO_CONVERT_RGBA_4444_TO_SINGLE_CHANNEL_8(x) (_al_rgb_scale_4[(((x) >> 12) & 0xf)])
+
+#define ALLEGRO_CONVERT_SINGLE_CHANNEL_8_TO_ARGB_8888(x) (0xff000000 | (((x) << 16) & 0xff0000))
+
+
+#define ALLEGRO_CONVERT_SINGLE_CHANNEL_8_TO_RGBA_8888(x) (0xff | (((x) << 24) & 0xff000000))
+
+
+#define ALLEGRO_CONVERT_SINGLE_CHANNEL_8_TO_ARGB_4444(x) (0xf000 | (((x) << 4) & 0xf00))
+
+
+#define ALLEGRO_CONVERT_SINGLE_CHANNEL_8_TO_RGB_888(x) ((((x) << 16) & 0xff0000))
+
+#define ALLEGRO_CONVERT_SINGLE_CHANNEL_8_TO_RGB_565(x) ((((x) << 8) & 0xf800))
+
+#define ALLEGRO_CONVERT_SINGLE_CHANNEL_8_TO_RGB_555(x) ((((x) << 7) & 0x7c00))
+
+#define ALLEGRO_CONVERT_SINGLE_CHANNEL_8_TO_RGBA_5551(x) (0x1 | (((x) << 8) & 0xf800))
+
+
+#define ALLEGRO_CONVERT_SINGLE_CHANNEL_8_TO_ARGB_1555(x) (0x8000 | (((x) << 7) & 0x7c00))
+
+
+#define ALLEGRO_CONVERT_SINGLE_CHANNEL_8_TO_ABGR_8888(x) (0xff000000 | ((x) & 0xff))
+
+
+#define ALLEGRO_CONVERT_SINGLE_CHANNEL_8_TO_XBGR_8888(x) (((x) & 0xff))
+
+#define ALLEGRO_CONVERT_SINGLE_CHANNEL_8_TO_BGR_888(x) (((x) & 0xff))
+
+#define ALLEGRO_CONVERT_SINGLE_CHANNEL_8_TO_BGR_565(x) ((((x) >> 3) & 0x1f))
+
+#define ALLEGRO_CONVERT_SINGLE_CHANNEL_8_TO_BGR_555(x) ((((x) >> 3) & 0x1f))
+
+#define ALLEGRO_CONVERT_SINGLE_CHANNEL_8_TO_RGBX_8888(x) ((((x) << 24) & 0xff000000))
+
+#define ALLEGRO_CONVERT_SINGLE_CHANNEL_8_TO_XRGB_8888(x) ((((x) << 16) & 0xff0000))
+
+#define ALLEGRO_CONVERT_SINGLE_CHANNEL_8_TO_ABGR_F32(x) al_map_rgb(x, 0, 0)
+
+#if defined(ALLEGRO_BIG_ENDIAN)
+#define ALLEGRO_CONVERT_SINGLE_CHANNEL_8_TO_ABGR_8888_LE(x) (0xff | (((x) << 24) & 0xff000000))
+
+
+#else
+#define ALLEGRO_CONVERT_SINGLE_CHANNEL_8_TO_ABGR_8888_LE(x) (0xff000000 | ((x) & 0xff))
+
+
+#endif
+#define ALLEGRO_CONVERT_SINGLE_CHANNEL_8_TO_RGBA_4444(x) (0xf | (((x) << 8) & 0xf000))
+
+
+#endif
+

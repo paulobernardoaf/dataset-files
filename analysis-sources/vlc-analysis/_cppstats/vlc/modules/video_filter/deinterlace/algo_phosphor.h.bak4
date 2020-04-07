@@ -1,0 +1,173 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#if !defined(VLC_DEINTERLACE_ALGO_PHOSPHOR_H)
+#define VLC_DEINTERLACE_ALGO_PHOSPHOR_H 1
+
+
+struct filter_t;
+struct picture_t;
+
+
+
+
+
+
+
+
+
+typedef enum { PC_LATEST = 1, PC_ALTLINE = 2,
+PC_BLEND = 3, PC_UPCONVERT = 4 } phosphor_chroma_t;
+
+static const int phosphor_chroma_list[] = { PC_LATEST, PC_ALTLINE,
+PC_BLEND, PC_UPCONVERT };
+
+static const char *const phosphor_chroma_list_text[] = { N_("Latest"),
+N_("AltLine"),
+N_("Blend"),
+N_("Upconvert") };
+
+
+
+
+static const int phosphor_dimmer_list[] = { 1, 2, 3, 4 };
+
+static const char *const phosphor_dimmer_list_text[] = { N_("Off"),
+N_("Low"),
+N_("Medium"),
+N_("High") };
+
+
+typedef struct
+{
+phosphor_chroma_t i_chroma_for_420;
+int i_dimmer_strength;
+} phosphor_sys_t;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+int RenderPhosphor( filter_t *p_filter,
+picture_t *p_dst, picture_t *p_pic,
+int i_order, int i_field );
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#endif

@@ -1,0 +1,1767 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" revision="1.0.0" language="C" filename="D:\Pesquisa\Projects\ruby-analysis\_cppstats\ruby\ext\strscan\strscan.c"><cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"ruby/ruby.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"ruby/re.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"ruby/encoding.h"</cpp:file></cpp:include>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><call><name>defined</name><argument_list>(<argument><expr><name>RUBY_EXTCONF_H</name></expr></argument>)</argument_list></call></expr></cpp:if>
+<cpp:include>#<cpp:directive>include</cpp:directive> RUBY_EXTCONF_H</cpp:include>
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><call><name>defined</name><argument_list>(<argument><expr><name>HAVE_ONIG_REGION_MEMSIZE</name></expr></argument>)</argument_list></call></expr></cpp:if>
+<function_decl><type><specifier>extern</specifier> <name>size_t</name></type> <name>onig_region_memsize</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name><name>struct</name> <name>re_registers</name></name> <modifier>*</modifier></type><name>regs</name></decl></parameter>)</parameter_list>;</function_decl>
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;stdbool.h&gt;</cpp:file></cpp:include>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>STRSCAN_VERSION</name></cpp:macro> <cpp:value>"1.0.3"</cpp:value></cpp:define>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>VALUE</name></type> <name>StringScanner</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>VALUE</name></type> <name>ScanError</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>ID</name></type> <name>id_byteslice</name></decl>;</decl_stmt>
+
+<struct>struct <name>strscanner</name>
+
+<block>{
+
+<decl_stmt><decl><type><name>unsigned</name> <name>long</name></type> <name>flags</name></decl>;</decl_stmt>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>FLAG_MATCHED</name></cpp:macro> <cpp:value>(1 &lt;&lt; 0)</cpp:value></cpp:define>
+
+<decl_stmt><decl><type><name>VALUE</name></type> <name>str</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>long</name></type> <name>prev</name></decl>;</decl_stmt> 
+
+<decl_stmt><decl><type><name>long</name></type> <name>curr</name></decl>;</decl_stmt> 
+
+<decl_stmt><decl><type><name><name>struct</name> <name>re_registers</name></name></type> <name>regs</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>VALUE</name></type> <name>regex</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>bool</name></type> <name>fixed_anchor_p</name></decl>;</decl_stmt>
+
+}</block>;</struct>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>MATCHED_P</name><parameter_list>(<parameter><type><name>s</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>((s)-&gt;flags &amp; FLAG_MATCHED)</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>MATCHED</name><parameter_list>(<parameter><type><name>s</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>(s)-&gt;flags |= FLAG_MATCHED</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>CLEAR_MATCH_STATUS</name><parameter_list>(<parameter><type><name>s</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>(s)-&gt;flags &amp;= ~FLAG_MATCHED</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>S_PBEG</name><parameter_list>(<parameter><type><name>s</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>(RSTRING_PTR((s)-&gt;str))</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>S_LEN</name><parameter_list>(<parameter><type><name>s</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>(RSTRING_LEN((s)-&gt;str))</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>S_PEND</name><parameter_list>(<parameter><type><name>s</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>(S_PBEG(s) + S_LEN(s))</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>CURPTR</name><parameter_list>(<parameter><type><name>s</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>(S_PBEG(s) + (s)-&gt;curr)</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>S_RESTLEN</name><parameter_list>(<parameter><type><name>s</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>(S_LEN(s) - (s)-&gt;curr)</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>EOS_P</name><parameter_list>(<parameter><type><name>s</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>((s)-&gt;curr &gt;= RSTRING_LEN(p-&gt;str))</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>GET_SCANNER</name><parameter_list>(<parameter><type><name>obj</name></type></parameter>,<parameter><type><name>var</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>do {(var) = check_strscan(obj);if (NIL_P((var)-&gt;str)) rb_raise(rb_eArgError, "uninitialized StringScanner object");} while (0)</cpp:value></cpp:define>
+
+<decl_stmt><decl><type><specifier>static</specifier> <specifier>inline</specifier> <name>long</name> <name>minl</name></type> <name>_</name><argument_list>(<argument><expr><operator>(</operator><specifier>const</specifier> <name>long</name> <name>n</name><operator>,</operator> <specifier>const</specifier> <name>long</name> <name>x</name><operator>)</operator></expr></argument>)</argument_list></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>VALUE</name> <name>extract_range</name></type> <name>_</name><argument_list>(<argument><expr><operator>(</operator>struct <name>strscanner</name> <operator>*</operator><name>p</name><operator>,</operator> <name>long</name> <name>beg_i</name><operator>,</operator> <name>long</name> <name>end_i</name><operator>)</operator></expr></argument>)</argument_list></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>VALUE</name> <name>extract_beg_len</name></type> <name>_</name><argument_list>(<argument><expr><operator>(</operator>struct <name>strscanner</name> <operator>*</operator><name>p</name><operator>,</operator> <name>long</name> <name>beg_i</name><operator>,</operator> <name>long</name> <name>len</name><operator>)</operator></expr></argument>)</argument_list></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name><name>struct</name> <name>strscanner</name></name> <modifier>*</modifier><name>check_strscan</name></type> <name>_</name><argument_list>(<argument><expr><operator>(</operator><name>VALUE</name> <name>obj</name><operator>)</operator></expr></argument>)</argument_list></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>void</name> <name>strscan_mark</name></type> <name>_</name><argument_list>(<argument><expr><operator>(</operator><name>void</name> <operator>*</operator><name>p</name><operator>)</operator></expr></argument>)</argument_list></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>void</name> <name>strscan_free</name></type> <name>_</name><argument_list>(<argument><expr><operator>(</operator><name>void</name> <operator>*</operator><name>p</name><operator>)</operator></expr></argument>)</argument_list></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>size_t</name> <name>strscan_memsize</name></type> <name>_</name><argument_list>(<argument><expr><operator>(</operator><specifier>const</specifier> <name>void</name> <operator>*</operator><name>p</name><operator>)</operator></expr></argument>)</argument_list></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>VALUE</name> <name>strscan_s_allocate</name></type> <name>_</name><argument_list>(<argument><expr><operator>(</operator><name>VALUE</name> <name>klass</name><operator>)</operator></expr></argument>)</argument_list></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>VALUE</name> <name>strscan_initialize</name></type> <name>_</name><argument_list>(<argument><expr><operator>(</operator><name>int</name> <name>argc</name><operator>,</operator> <name>VALUE</name> <operator>*</operator><name>argv</name><operator>,</operator> <name>VALUE</name> <name>self</name><operator>)</operator></expr></argument>)</argument_list></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>VALUE</name> <name>strscan_init_copy</name></type> <name>_</name><argument_list>(<argument><expr><operator>(</operator><name>VALUE</name> <name>vself</name><operator>,</operator> <name>VALUE</name> <name>vorig</name><operator>)</operator></expr></argument>)</argument_list></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>VALUE</name> <name>strscan_s_mustc</name></type> <name>_</name><argument_list>(<argument><expr><operator>(</operator><name>VALUE</name> <name>self</name><operator>)</operator></expr></argument>)</argument_list></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>VALUE</name> <name>strscan_terminate</name></type> <name>_</name><argument_list>(<argument><expr><operator>(</operator><name>VALUE</name> <name>self</name><operator>)</operator></expr></argument>)</argument_list></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>VALUE</name> <name>strscan_clear</name></type> <name>_</name><argument_list>(<argument><expr><operator>(</operator><name>VALUE</name> <name>self</name><operator>)</operator></expr></argument>)</argument_list></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>VALUE</name> <name>strscan_get_string</name></type> <name>_</name><argument_list>(<argument><expr><operator>(</operator><name>VALUE</name> <name>self</name><operator>)</operator></expr></argument>)</argument_list></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>VALUE</name> <name>strscan_set_string</name></type> <name>_</name><argument_list>(<argument><expr><operator>(</operator><name>VALUE</name> <name>self</name><operator>,</operator> <name>VALUE</name> <name>str</name><operator>)</operator></expr></argument>)</argument_list></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>VALUE</name> <name>strscan_concat</name></type> <name>_</name><argument_list>(<argument><expr><operator>(</operator><name>VALUE</name> <name>self</name><operator>,</operator> <name>VALUE</name> <name>str</name><operator>)</operator></expr></argument>)</argument_list></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>VALUE</name> <name>strscan_get_pos</name></type> <name>_</name><argument_list>(<argument><expr><operator>(</operator><name>VALUE</name> <name>self</name><operator>)</operator></expr></argument>)</argument_list></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>VALUE</name> <name>strscan_set_pos</name></type> <name>_</name><argument_list>(<argument><expr><operator>(</operator><name>VALUE</name> <name>self</name><operator>,</operator> <name>VALUE</name> <name>pos</name><operator>)</operator></expr></argument>)</argument_list></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>VALUE</name> <name>strscan_do_scan</name></type> <name>_</name><argument_list>(<argument><expr><operator>(</operator><name>VALUE</name> <name>self</name><operator>,</operator> <name>VALUE</name> <name>regex</name><operator>,</operator>
+
+<name>int</name> <name>succptr</name><operator>,</operator> <name>int</name> <name>getstr</name><operator>,</operator> <name>int</name> <name>headonly</name><operator>)</operator></expr></argument>)</argument_list></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>VALUE</name> <name>strscan_scan</name></type> <name>_</name><argument_list>(<argument><expr><operator>(</operator><name>VALUE</name> <name>self</name><operator>,</operator> <name>VALUE</name> <name>re</name><operator>)</operator></expr></argument>)</argument_list></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>VALUE</name> <name>strscan_match_p</name></type> <name>_</name><argument_list>(<argument><expr><operator>(</operator><name>VALUE</name> <name>self</name><operator>,</operator> <name>VALUE</name> <name>re</name><operator>)</operator></expr></argument>)</argument_list></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>VALUE</name> <name>strscan_skip</name></type> <name>_</name><argument_list>(<argument><expr><operator>(</operator><name>VALUE</name> <name>self</name><operator>,</operator> <name>VALUE</name> <name>re</name><operator>)</operator></expr></argument>)</argument_list></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>VALUE</name> <name>strscan_check</name></type> <name>_</name><argument_list>(<argument><expr><operator>(</operator><name>VALUE</name> <name>self</name><operator>,</operator> <name>VALUE</name> <name>re</name><operator>)</operator></expr></argument>)</argument_list></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>VALUE</name> <name>strscan_scan_full</name></type> <name>_</name><argument_list>(<argument><expr><operator>(</operator><name>VALUE</name> <name>self</name><operator>,</operator> <name>VALUE</name> <name>re</name><operator>,</operator>
+
+<name>VALUE</name> <name>succp</name><operator>,</operator> <name>VALUE</name> <name>getp</name><operator>)</operator></expr></argument>)</argument_list></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>VALUE</name> <name>strscan_scan_until</name></type> <name>_</name><argument_list>(<argument><expr><operator>(</operator><name>VALUE</name> <name>self</name><operator>,</operator> <name>VALUE</name> <name>re</name><operator>)</operator></expr></argument>)</argument_list></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>VALUE</name> <name>strscan_skip_until</name></type> <name>_</name><argument_list>(<argument><expr><operator>(</operator><name>VALUE</name> <name>self</name><operator>,</operator> <name>VALUE</name> <name>re</name><operator>)</operator></expr></argument>)</argument_list></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>VALUE</name> <name>strscan_check_until</name></type> <name>_</name><argument_list>(<argument><expr><operator>(</operator><name>VALUE</name> <name>self</name><operator>,</operator> <name>VALUE</name> <name>re</name><operator>)</operator></expr></argument>)</argument_list></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>VALUE</name> <name>strscan_search_full</name></type> <name>_</name><argument_list>(<argument><expr><operator>(</operator><name>VALUE</name> <name>self</name><operator>,</operator> <name>VALUE</name> <name>re</name><operator>,</operator>
+
+<name>VALUE</name> <name>succp</name><operator>,</operator> <name>VALUE</name> <name>getp</name><operator>)</operator></expr></argument>)</argument_list></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>void</name> <name>adjust_registers_to_matched</name></type> <name>_</name><argument_list>(<argument><expr><operator>(</operator>struct <name>strscanner</name> <operator>*</operator><name>p</name><operator>)</operator></expr></argument>)</argument_list></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>VALUE</name> <name>strscan_getch</name></type> <name>_</name><argument_list>(<argument><expr><operator>(</operator><name>VALUE</name> <name>self</name><operator>)</operator></expr></argument>)</argument_list></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>VALUE</name> <name>strscan_get_byte</name></type> <name>_</name><argument_list>(<argument><expr><operator>(</operator><name>VALUE</name> <name>self</name><operator>)</operator></expr></argument>)</argument_list></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>VALUE</name> <name>strscan_getbyte</name></type> <name>_</name><argument_list>(<argument><expr><operator>(</operator><name>VALUE</name> <name>self</name><operator>)</operator></expr></argument>)</argument_list></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>VALUE</name> <name>strscan_peek</name></type> <name>_</name><argument_list>(<argument><expr><operator>(</operator><name>VALUE</name> <name>self</name><operator>,</operator> <name>VALUE</name> <name>len</name><operator>)</operator></expr></argument>)</argument_list></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>VALUE</name> <name>strscan_peep</name></type> <name>_</name><argument_list>(<argument><expr><operator>(</operator><name>VALUE</name> <name>self</name><operator>,</operator> <name>VALUE</name> <name>len</name><operator>)</operator></expr></argument>)</argument_list></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>VALUE</name> <name>strscan_unscan</name></type> <name>_</name><argument_list>(<argument><expr><operator>(</operator><name>VALUE</name> <name>self</name><operator>)</operator></expr></argument>)</argument_list></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>VALUE</name> <name>strscan_bol_p</name></type> <name>_</name><argument_list>(<argument><expr><operator>(</operator><name>VALUE</name> <name>self</name><operator>)</operator></expr></argument>)</argument_list></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>VALUE</name> <name>strscan_eos_p</name></type> <name>_</name><argument_list>(<argument><expr><operator>(</operator><name>VALUE</name> <name>self</name><operator>)</operator></expr></argument>)</argument_list></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>VALUE</name> <name>strscan_empty_p</name></type> <name>_</name><argument_list>(<argument><expr><operator>(</operator><name>VALUE</name> <name>self</name><operator>)</operator></expr></argument>)</argument_list></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>VALUE</name> <name>strscan_rest_p</name></type> <name>_</name><argument_list>(<argument><expr><operator>(</operator><name>VALUE</name> <name>self</name><operator>)</operator></expr></argument>)</argument_list></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>VALUE</name> <name>strscan_matched_p</name></type> <name>_</name><argument_list>(<argument><expr><operator>(</operator><name>VALUE</name> <name>self</name><operator>)</operator></expr></argument>)</argument_list></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>VALUE</name> <name>strscan_matched</name></type> <name>_</name><argument_list>(<argument><expr><operator>(</operator><name>VALUE</name> <name>self</name><operator>)</operator></expr></argument>)</argument_list></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>VALUE</name> <name>strscan_matched_size</name></type> <name>_</name><argument_list>(<argument><expr><operator>(</operator><name>VALUE</name> <name>self</name><operator>)</operator></expr></argument>)</argument_list></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>VALUE</name> <name>strscan_aref</name></type> <name>_</name><argument_list>(<argument><expr><operator>(</operator><name>VALUE</name> <name>self</name><operator>,</operator> <name>VALUE</name> <name>idx</name><operator>)</operator></expr></argument>)</argument_list></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>VALUE</name> <name>strscan_pre_match</name></type> <name>_</name><argument_list>(<argument><expr><operator>(</operator><name>VALUE</name> <name>self</name><operator>)</operator></expr></argument>)</argument_list></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>VALUE</name> <name>strscan_post_match</name></type> <name>_</name><argument_list>(<argument><expr><operator>(</operator><name>VALUE</name> <name>self</name><operator>)</operator></expr></argument>)</argument_list></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>VALUE</name> <name>strscan_rest</name></type> <name>_</name><argument_list>(<argument><expr><operator>(</operator><name>VALUE</name> <name>self</name><operator>)</operator></expr></argument>)</argument_list></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>VALUE</name> <name>strscan_rest_size</name></type> <name>_</name><argument_list>(<argument><expr><operator>(</operator><name>VALUE</name> <name>self</name><operator>)</operator></expr></argument>)</argument_list></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>VALUE</name> <name>strscan_inspect</name></type> <name>_</name><argument_list>(<argument><expr><operator>(</operator><name>VALUE</name> <name>self</name><operator>)</operator></expr></argument>)</argument_list></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>VALUE</name> <name>inspect1</name></type> <name>_</name><argument_list>(<argument><expr><operator>(</operator>struct <name>strscanner</name> <operator>*</operator><name>p</name><operator>)</operator></expr></argument>)</argument_list></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>VALUE</name> <name>inspect2</name></type> <name>_</name><argument_list>(<argument><expr><operator>(</operator>struct <name>strscanner</name> <operator>*</operator><name>p</name><operator>)</operator></expr></argument>)</argument_list></decl>;</decl_stmt>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>str_new</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>strscanner</name></name> <modifier>*</modifier></type><name>p</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>ptr</name></decl></parameter>, <parameter><decl><type><name>long</name></type> <name>len</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>VALUE</name></type> <name>str</name> <init>= <expr><call><name>rb_str_new</name><argument_list>(<argument><expr><name>ptr</name></expr></argument>, <argument><expr><name>len</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>rb_enc_copy</name><argument_list>(<argument><expr><name>str</name></expr></argument>, <argument><expr><name><name>p</name><operator>-&gt;</operator><name>str</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>str</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <specifier>inline</specifier> <name>long</name></type>
+
+<name>minl</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name>long</name></type> <name>x</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>long</name></type> <name>y</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<return>return <expr><ternary><condition><expr><operator>(</operator><name>x</name> <operator>&lt;</operator> <name>y</name><operator>)</operator></expr> ?</condition><then> <expr><name>x</name></expr> </then><else>: <expr><name>y</name></expr></else></ternary></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>extract_range</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>strscanner</name></name> <modifier>*</modifier></type><name>p</name></decl></parameter>, <parameter><decl><type><name>long</name></type> <name>beg_i</name></decl></parameter>, <parameter><decl><type><name>long</name></type> <name>end_i</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><name>beg_i</name> <operator>&gt;</operator> <call><name>S_LEN</name><argument_list>(<argument><expr><name>p</name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content> <return>return <expr><name>Qnil</name></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>end_i</name> <operator>=</operator> <call><name>minl</name><argument_list>(<argument><expr><name>end_i</name></expr></argument>, <argument><expr><call><name>S_LEN</name><argument_list>(<argument><expr><name>p</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><call><name>str_new</name><argument_list>(<argument><expr><name>p</name></expr></argument>, <argument><expr><call><name>S_PBEG</name><argument_list>(<argument><expr><name>p</name></expr></argument>)</argument_list></call> <operator>+</operator> <name>beg_i</name></expr></argument>, <argument><expr><name>end_i</name> <operator>-</operator> <name>beg_i</name></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>extract_beg_len</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>strscanner</name></name> <modifier>*</modifier></type><name>p</name></decl></parameter>, <parameter><decl><type><name>long</name></type> <name>beg_i</name></decl></parameter>, <parameter><decl><type><name>long</name></type> <name>len</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><name>beg_i</name> <operator>&gt;</operator> <call><name>S_LEN</name><argument_list>(<argument><expr><name>p</name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content> <return>return <expr><name>Qnil</name></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>len</name> <operator>=</operator> <call><name>minl</name><argument_list>(<argument><expr><name>len</name></expr></argument>, <argument><expr><call><name>S_LEN</name><argument_list>(<argument><expr><name>p</name></expr></argument>)</argument_list></call> <operator>-</operator> <name>beg_i</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><call><name>str_new</name><argument_list>(<argument><expr><name>p</name></expr></argument>, <argument><expr><call><name>S_PBEG</name><argument_list>(<argument><expr><name>p</name></expr></argument>)</argument_list></call> <operator>+</operator> <name>beg_i</name></expr></argument>, <argument><expr><name>len</name></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type>
+
+<name>strscan_mark</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>ptr</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>strscanner</name></name> <modifier>*</modifier></type><name>p</name> <init>= <expr><name>ptr</name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>rb_gc_mark</name><argument_list>(<argument><expr><name><name>p</name><operator>-&gt;</operator><name>str</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type>
+
+<name>strscan_free</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>ptr</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>strscanner</name></name> <modifier>*</modifier></type><name>p</name> <init>= <expr><name>ptr</name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>onig_region_free</name><argument_list>(<argument><expr><operator>&amp;</operator><operator>(</operator><name><name>p</name><operator>-&gt;</operator><name>regs</name></name><operator>)</operator></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>ruby_xfree</name><argument_list>(<argument><expr><name>p</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>size_t</name></type>
+
+<name>strscan_memsize</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name>void</name> <modifier>*</modifier></type><name>ptr</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name><name>struct</name> <name>strscanner</name></name> <modifier>*</modifier></type><name>p</name> <init>= <expr><name>ptr</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>size_t</name></type> <name>size</name> <init>= <expr><sizeof>sizeof<argument_list>(<argument><expr><operator>*</operator><name>p</name></expr></argument>)</argument_list></sizeof> <operator>-</operator> <sizeof>sizeof<argument_list>(<argument><expr><name><name>p</name><operator>-&gt;</operator><name>regs</name></name></expr></argument>)</argument_list></sizeof></expr></init></decl>;</decl_stmt>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><call><name>defined</name><argument_list>(<argument><expr><name>HAVE_ONIG_REGION_MEMSIZE</name></expr></argument>)</argument_list></call></expr></cpp:if>
+<expr_stmt><expr><name>size</name> <operator>+=</operator> <call><name>onig_region_memsize</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>p</name><operator>-&gt;</operator><name>regs</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+<return>return <expr><name>size</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<decl_stmt><decl><type><specifier>static</specifier> <specifier>const</specifier> <name>rb_data_type_t</name></type> <name>strscanner_type</name> <init>= <expr><block>{
+
+<expr><literal type="string">"StringScanner"</literal></expr>,
+
+<expr><block>{<expr><name>strscan_mark</name></expr>, <expr><name>strscan_free</name></expr>, <expr><name>strscan_memsize</name></expr>}</block></expr>,
+
+<expr><literal type="number">0</literal></expr>, <expr><literal type="number">0</literal></expr>, <expr><name>RUBY_TYPED_FREE_IMMEDIATELY</name></expr>
+
+}</block></expr></init></decl>;</decl_stmt>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>strscan_s_allocate</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>klass</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>strscanner</name></name> <modifier>*</modifier></type><name>p</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>VALUE</name></type> <name>obj</name> <init>= <expr><call><name>TypedData_Make_Struct</name><argument_list>(<argument><expr><name>klass</name></expr></argument>, <argument><expr>struct <name>strscanner</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>strscanner_type</name></expr></argument>, <argument><expr><name>p</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>CLEAR_MATCH_STATUS</name><argument_list>(<argument><expr><name>p</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>onig_region_init</name><argument_list>(<argument><expr><operator>&amp;</operator><operator>(</operator><name><name>p</name><operator>-&gt;</operator><name>regs</name></name><operator>)</operator></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>p</name><operator>-&gt;</operator><name>str</name></name> <operator>=</operator> <name>Qnil</name></expr>;</expr_stmt>
+
+<return>return <expr><name>obj</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>strscan_initialize</name><parameter_list>(<parameter><decl><type><name>int</name></type> <name>argc</name></decl></parameter>, <parameter><decl><type><name>VALUE</name> <modifier>*</modifier></type><name>argv</name></decl></parameter>, <parameter><decl><type><name>VALUE</name></type> <name>self</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>strscanner</name></name> <modifier>*</modifier></type><name>p</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>VALUE</name></type> <name>str</name></decl>, <decl><type ref="prev"/><name>options</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>p</name> <operator>=</operator> <call><name>check_strscan</name><argument_list>(<argument><expr><name>self</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_scan_args</name><argument_list>(<argument><expr><name>argc</name></expr></argument>, <argument><expr><name>argv</name></expr></argument>, <argument><expr><literal type="string">"11"</literal></expr></argument>, <argument><expr><operator>&amp;</operator><name>str</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>options</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>options</name> <operator>=</operator> <call><name>rb_check_hash_type</name><argument_list>(<argument><expr><name>options</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>NIL_P</name><argument_list>(<argument><expr><name>options</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<decl_stmt><decl><type><name>VALUE</name></type> <name>fixed_anchor</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>ID</name></type> <name><name>keyword_ids</name><index>[<expr><literal type="number">1</literal></expr>]</index></name></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>keyword_ids</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>=</operator> <call><name>rb_intern</name><argument_list>(<argument><expr><literal type="string">"fixed_anchor"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_get_kwargs</name><argument_list>(<argument><expr><name>options</name></expr></argument>, <argument><expr><name>keyword_ids</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>, <argument><expr><operator>&amp;</operator><name>fixed_anchor</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>fixed_anchor</name> <operator>==</operator> <name>Qundef</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name><name>p</name><operator>-&gt;</operator><name>fixed_anchor_p</name></name> <operator>=</operator> <name>false</name></expr>;</expr_stmt>
+
+</block_content>}</block></if>
+
+<else>else <block>{<block_content>
+
+<expr_stmt><expr><name><name>p</name><operator>-&gt;</operator><name>fixed_anchor_p</name></name> <operator>=</operator> <call><name>RTEST</name><argument_list>(<argument><expr><name>fixed_anchor</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+</block_content>}</block></if>
+
+<else>else <block>{<block_content>
+
+<expr_stmt><expr><name><name>p</name><operator>-&gt;</operator><name>fixed_anchor_p</name></name> <operator>=</operator> <name>false</name></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+<expr_stmt><expr><call><name>StringValue</name><argument_list>(<argument><expr><name>str</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>p</name><operator>-&gt;</operator><name>str</name></name> <operator>=</operator> <name>str</name></expr>;</expr_stmt>
+
+<return>return <expr><name>self</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name><name>struct</name> <name>strscanner</name></name> <modifier>*</modifier></type>
+
+<name>check_strscan</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>obj</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<return>return <expr><call><name>rb_check_typeddata</name><argument_list>(<argument><expr><name>obj</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>strscanner_type</name></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>strscan_init_copy</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>vself</name></decl></parameter>, <parameter><decl><type><name>VALUE</name></type> <name>vorig</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>strscanner</name></name> <modifier>*</modifier></type><name>self</name></decl>, <decl><type ref="prev"><modifier>*</modifier></type><name>orig</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>self</name> <operator>=</operator> <call><name>check_strscan</name><argument_list>(<argument><expr><name>vself</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>orig</name> <operator>=</operator> <call><name>check_strscan</name><argument_list>(<argument><expr><name>vorig</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>self</name> <operator>!=</operator> <name>orig</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name><name>self</name><operator>-&gt;</operator><name>flags</name></name> <operator>=</operator> <name><name>orig</name><operator>-&gt;</operator><name>flags</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>self</name><operator>-&gt;</operator><name>str</name></name> <operator>=</operator> <name><name>orig</name><operator>-&gt;</operator><name>str</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>self</name><operator>-&gt;</operator><name>prev</name></name> <operator>=</operator> <name><name>orig</name><operator>-&gt;</operator><name>prev</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>self</name><operator>-&gt;</operator><name>curr</name></name> <operator>=</operator> <name><name>orig</name><operator>-&gt;</operator><name>curr</name></name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>rb_reg_region_copy</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>self</name><operator>-&gt;</operator><name>regs</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>orig</name><operator>-&gt;</operator><name>regs</name></name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>rb_memerror</name><argument_list>()</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>RB_GC_GUARD</name><argument_list>(<argument><expr><name>vorig</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<return>return <expr><name>vself</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>strscan_s_mustc</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>self</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<return>return <expr><name>self</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>strscan_reset</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>self</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>strscanner</name></name> <modifier>*</modifier></type><name>p</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>GET_SCANNER</name><argument_list>(<argument><expr><name>self</name></expr></argument>, <argument><expr><name>p</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>p</name><operator>-&gt;</operator><name>curr</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>CLEAR_MATCH_STATUS</name><argument_list>(<argument><expr><name>p</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>self</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>strscan_terminate</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>self</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>strscanner</name></name> <modifier>*</modifier></type><name>p</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>GET_SCANNER</name><argument_list>(<argument><expr><name>self</name></expr></argument>, <argument><expr><name>p</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>p</name><operator>-&gt;</operator><name>curr</name></name> <operator>=</operator> <call><name>S_LEN</name><argument_list>(<argument><expr><name>p</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>CLEAR_MATCH_STATUS</name><argument_list>(<argument><expr><name>p</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>self</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>strscan_clear</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>self</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>rb_warning</name><argument_list>(<argument><expr><literal type="string">"StringScanner#clear is obsolete; use #terminate instead"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><call><name>strscan_terminate</name><argument_list>(<argument><expr><name>self</name></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>strscan_get_string</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>self</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>strscanner</name></name> <modifier>*</modifier></type><name>p</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>GET_SCANNER</name><argument_list>(<argument><expr><name>self</name></expr></argument>, <argument><expr><name>p</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name><name>p</name><operator>-&gt;</operator><name>str</name></name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>strscan_set_string</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>self</name></decl></parameter>, <parameter><decl><type><name>VALUE</name></type> <name>str</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>strscanner</name></name> <modifier>*</modifier></type><name>p</name> <init>= <expr><call><name>check_strscan</name><argument_list>(<argument><expr><name>self</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>StringValue</name><argument_list>(<argument><expr><name>str</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>p</name><operator>-&gt;</operator><name>str</name></name> <operator>=</operator> <name>str</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>p</name><operator>-&gt;</operator><name>curr</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>CLEAR_MATCH_STATUS</name><argument_list>(<argument><expr><name>p</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>str</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>strscan_concat</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>self</name></decl></parameter>, <parameter><decl><type><name>VALUE</name></type> <name>str</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>strscanner</name></name> <modifier>*</modifier></type><name>p</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>GET_SCANNER</name><argument_list>(<argument><expr><name>self</name></expr></argument>, <argument><expr><name>p</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>StringValue</name><argument_list>(<argument><expr><name>str</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_str_append</name><argument_list>(<argument><expr><name><name>p</name><operator>-&gt;</operator><name>str</name></name></expr></argument>, <argument><expr><name>str</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>self</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>strscan_get_pos</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>self</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>strscanner</name></name> <modifier>*</modifier></type><name>p</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>GET_SCANNER</name><argument_list>(<argument><expr><name>self</name></expr></argument>, <argument><expr><name>p</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><call><name>INT2FIX</name><argument_list>(<argument><expr><name><name>p</name><operator>-&gt;</operator><name>curr</name></name></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>strscan_get_charpos</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>self</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>strscanner</name></name> <modifier>*</modifier></type><name>p</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>VALUE</name></type> <name>substr</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>GET_SCANNER</name><argument_list>(<argument><expr><name>self</name></expr></argument>, <argument><expr><name>p</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>substr</name> <operator>=</operator> <call><name>rb_funcall</name><argument_list>(<argument><expr><name><name>p</name><operator>-&gt;</operator><name>str</name></name></expr></argument>, <argument><expr><name>id_byteslice</name></expr></argument>, <argument><expr><literal type="number">2</literal></expr></argument>, <argument><expr><call><name>INT2FIX</name><argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>INT2NUM</name><argument_list>(<argument><expr><name><name>p</name><operator>-&gt;</operator><name>curr</name></name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><call><name>rb_str_length</name><argument_list>(<argument><expr><name>substr</name></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>strscan_set_pos</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>self</name></decl></parameter>, <parameter><decl><type><name>VALUE</name></type> <name>v</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>strscanner</name></name> <modifier>*</modifier></type><name>p</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>long</name></type> <name>i</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>GET_SCANNER</name><argument_list>(<argument><expr><name>self</name></expr></argument>, <argument><expr><name>p</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>i</name> <operator>=</operator> <call><name>NUM2INT</name><argument_list>(<argument><expr><name>v</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>i</name> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content> <expr_stmt><expr><name>i</name> <operator>+=</operator> <call><name>S_LEN</name><argument_list>(<argument><expr><name>p</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>i</name> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content> <expr_stmt><expr><call><name>rb_raise</name><argument_list>(<argument><expr><name>rb_eRangeError</name></expr></argument>, <argument><expr><literal type="string">"index out of range"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>i</name> <operator>&gt;</operator> <call><name>S_LEN</name><argument_list>(<argument><expr><name>p</name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content> <expr_stmt><expr><call><name>rb_raise</name><argument_list>(<argument><expr><name>rb_eRangeError</name></expr></argument>, <argument><expr><literal type="string">"index out of range"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name><name>p</name><operator>-&gt;</operator><name>curr</name></name> <operator>=</operator> <name>i</name></expr>;</expr_stmt>
+
+<return>return <expr><call><name>INT2NUM</name><argument_list>(<argument><expr><name>i</name></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <specifier>inline</specifier> <name>UChar</name> <modifier>*</modifier></type>
+
+<name>match_target</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>strscanner</name></name> <modifier>*</modifier></type><name>p</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><name><name>p</name><operator>-&gt;</operator><name>fixed_anchor_p</name></name></expr>)</condition> <block>{<block_content>
+
+<return>return <expr><operator>(</operator><name>UChar</name> <operator>*</operator><operator>)</operator><call><name>S_PBEG</name><argument_list>(<argument><expr><name>p</name></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></if>
+
+<else>else
+
+<block>{<block_content>
+
+<return>return <expr><operator>(</operator><name>UChar</name> <operator>*</operator><operator>)</operator><call><name>CURPTR</name><argument_list>(<argument><expr><name>p</name></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></else></if_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <specifier>inline</specifier> <name>void</name></type>
+
+<name>set_registers</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>strscanner</name></name> <modifier>*</modifier></type><name>p</name></decl></parameter>, <parameter><decl><type><name>size_t</name></type> <name>length</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>int</name></type> <name>at</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>OnigRegion</name> <modifier>*</modifier></type><name>regs</name> <init>= <expr><operator>&amp;</operator><operator>(</operator><name><name>p</name><operator>-&gt;</operator><name>regs</name></name><operator>)</operator></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>onig_region_clear</name><argument_list>(<argument><expr><name>regs</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>onig_region_set</name><argument_list>(<argument><expr><name>regs</name></expr></argument>, <argument><expr><name>at</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content> <return>return;</return></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>p</name><operator>-&gt;</operator><name>fixed_anchor_p</name></name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name><name>regs</name><operator>-&gt;</operator><name>beg</name><index>[<expr><name>at</name></expr>]</index></name> <operator>=</operator> <name><name>p</name><operator>-&gt;</operator><name>curr</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>regs</name><operator>-&gt;</operator><name>end</name><index>[<expr><name>at</name></expr>]</index></name> <operator>=</operator> <name><name>p</name><operator>-&gt;</operator><name>curr</name></name> <operator>+</operator> <name>length</name></expr>;</expr_stmt>
+
+</block_content>}</block></if>
+
+<else>else
+
+<block>{<block_content>
+
+<expr_stmt><expr><name><name>regs</name><operator>-&gt;</operator><name>end</name><index>[<expr><name>at</name></expr>]</index></name> <operator>=</operator> <name>length</name></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <specifier>inline</specifier> <name>void</name></type>
+
+<name>succ</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>strscanner</name></name> <modifier>*</modifier></type><name>p</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><name><name>p</name><operator>-&gt;</operator><name>fixed_anchor_p</name></name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name><name>p</name><operator>-&gt;</operator><name>curr</name></name> <operator>=</operator> <name><name>p</name><operator>-&gt;</operator><name>regs</name><operator>.</operator><name>end</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr>;</expr_stmt>
+
+</block_content>}</block></if>
+
+<else>else
+
+<block>{<block_content>
+
+<expr_stmt><expr><name><name>p</name><operator>-&gt;</operator><name>curr</name></name> <operator>+=</operator> <name><name>p</name><operator>-&gt;</operator><name>regs</name><operator>.</operator><name>end</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <specifier>inline</specifier> <name>long</name></type>
+
+<name>last_match_length</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>strscanner</name></name> <modifier>*</modifier></type><name>p</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><name><name>p</name><operator>-&gt;</operator><name>fixed_anchor_p</name></name></expr>)</condition> <block>{<block_content>
+
+<return>return <expr><name><name>p</name><operator>-&gt;</operator><name>regs</name><operator>.</operator><name>end</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>-</operator> <name><name>p</name><operator>-&gt;</operator><name>prev</name></name></expr>;</return>
+
+</block_content>}</block></if>
+
+<else>else
+
+<block>{<block_content>
+
+<return>return <expr><name><name>p</name><operator>-&gt;</operator><name>regs</name><operator>.</operator><name>end</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr>;</return>
+
+</block_content>}</block></else></if_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <specifier>inline</specifier> <name>long</name></type>
+
+<name>adjust_register_position</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>strscanner</name></name> <modifier>*</modifier></type><name>p</name></decl></parameter>, <parameter><decl><type><name>long</name></type> <name>position</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><name><name>p</name><operator>-&gt;</operator><name>fixed_anchor_p</name></name></expr>)</condition> <block>{<block_content>
+
+<return>return <expr><name>position</name></expr>;</return>
+
+</block_content>}</block></if>
+
+<else>else <block>{<block_content>
+
+<return>return <expr><name><name>p</name><operator>-&gt;</operator><name>prev</name></name> <operator>+</operator> <name>position</name></expr>;</return>
+
+</block_content>}</block></else></if_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>strscan_do_scan</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>self</name></decl></parameter>, <parameter><decl><type><name>VALUE</name></type> <name>pattern</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>succptr</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>getstr</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>headonly</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>strscanner</name></name> <modifier>*</modifier></type><name>p</name></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>headonly</name></expr>)</condition> <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>RB_TYPE_P</name><argument_list>(<argument><expr><name>pattern</name></expr></argument>, <argument><expr><name>T_REGEXP</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>StringValue</name><argument_list>(<argument><expr><name>pattern</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></if>
+
+<else>else <block>{<block_content>
+
+<expr_stmt><expr><call><name>Check_Type</name><argument_list>(<argument><expr><name>pattern</name></expr></argument>, <argument><expr><name>T_REGEXP</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+<expr_stmt><expr><call><name>GET_SCANNER</name><argument_list>(<argument><expr><name>self</name></expr></argument>, <argument><expr><name>p</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>CLEAR_MATCH_STATUS</name><argument_list>(<argument><expr><name>p</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>S_RESTLEN</name><argument_list>(<argument><expr><name>p</name></expr></argument>)</argument_list></call> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<return>return <expr><name>Qnil</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>RB_TYPE_P</name><argument_list>(<argument><expr><name>pattern</name></expr></argument>, <argument><expr><name>T_REGEXP</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<decl_stmt><decl><type><name>regex_t</name> <modifier>*</modifier></type><name>rb_reg_prepare_re</name><argument_list>(<argument><expr><name>VALUE</name> <name>re</name></expr></argument>, <argument><expr><name>VALUE</name> <name>str</name></expr></argument>)</argument_list></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>regex_t</name> <modifier>*</modifier></type><name>re</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>long</name></type> <name>ret</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>tmpreg</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>p</name><operator>-&gt;</operator><name>regex</name></name> <operator>=</operator> <name>pattern</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>re</name> <operator>=</operator> <call><name>rb_reg_prepare_re</name><argument_list>(<argument><expr><name>pattern</name></expr></argument>, <argument><expr><name><name>p</name><operator>-&gt;</operator><name>str</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>tmpreg</name> <operator>=</operator> <name>re</name> <operator>!=</operator> <call><name>RREGEXP_PTR</name><argument_list>(<argument><expr><name>pattern</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>tmpreg</name></expr>)</condition><block type="pseudo"><block_content> <expr_stmt><expr><call><name>RREGEXP</name><argument_list>(<argument><expr><name>pattern</name></expr></argument>)</argument_list></call><operator>-&gt;</operator><name>usecnt</name><operator>++</operator></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>headonly</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <call><name>onig_match</name><argument_list>(<argument><expr><name>re</name></expr></argument>,
+
+<argument><expr><call><name>match_target</name><argument_list>(<argument><expr><name>p</name></expr></argument>)</argument_list></call></expr></argument>,
+
+<argument><expr><operator>(</operator><name>UChar</name><operator>*</operator> <operator>)</operator><operator>(</operator><call><name>CURPTR</name><argument_list>(<argument><expr><name>p</name></expr></argument>)</argument_list></call> <operator>+</operator> <call><name>S_RESTLEN</name><argument_list>(<argument><expr><name>p</name></expr></argument>)</argument_list></call><operator>)</operator></expr></argument>,
+
+<argument><expr><operator>(</operator><name>UChar</name><operator>*</operator> <operator>)</operator><call><name>CURPTR</name><argument_list>(<argument><expr><name>p</name></expr></argument>)</argument_list></call></expr></argument>,
+
+<argument><expr><operator>&amp;</operator><operator>(</operator><name><name>p</name><operator>-&gt;</operator><name>regs</name></name><operator>)</operator></expr></argument>,
+
+<argument><expr><name>ONIG_OPTION_NONE</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if>
+
+<else>else <block>{<block_content>
+
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <call><name>onig_search</name><argument_list>(<argument><expr><name>re</name></expr></argument>,
+
+<argument><expr><call><name>match_target</name><argument_list>(<argument><expr><name>p</name></expr></argument>)</argument_list></call></expr></argument>,
+
+<argument><expr><operator>(</operator><name>UChar</name><operator>*</operator> <operator>)</operator><operator>(</operator><call><name>CURPTR</name><argument_list>(<argument><expr><name>p</name></expr></argument>)</argument_list></call> <operator>+</operator> <call><name>S_RESTLEN</name><argument_list>(<argument><expr><name>p</name></expr></argument>)</argument_list></call><operator>)</operator></expr></argument>,
+
+<argument><expr><operator>(</operator><name>UChar</name><operator>*</operator> <operator>)</operator><call><name>CURPTR</name><argument_list>(<argument><expr><name>p</name></expr></argument>)</argument_list></call></expr></argument>,
+
+<argument><expr><operator>(</operator><name>UChar</name><operator>*</operator> <operator>)</operator><operator>(</operator><call><name>CURPTR</name><argument_list>(<argument><expr><name>p</name></expr></argument>)</argument_list></call> <operator>+</operator> <call><name>S_RESTLEN</name><argument_list>(<argument><expr><name>p</name></expr></argument>)</argument_list></call><operator>)</operator></expr></argument>,
+
+<argument><expr><operator>&amp;</operator><operator>(</operator><name><name>p</name><operator>-&gt;</operator><name>regs</name></name><operator>)</operator></expr></argument>,
+
+<argument><expr><name>ONIG_OPTION_NONE</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>tmpreg</name></expr>)</condition><block type="pseudo"><block_content> <expr_stmt><expr><call><name>RREGEXP</name><argument_list>(<argument><expr><name>pattern</name></expr></argument>)</argument_list></call><operator>-&gt;</operator><name>usecnt</name><operator>--</operator></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>tmpreg</name></expr>)</condition> <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><call><name>RREGEXP</name><argument_list>(<argument><expr><name>pattern</name></expr></argument>)</argument_list></call><operator>-&gt;</operator><name>usecnt</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>onig_free</name><argument_list>(<argument><expr><name>re</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if>
+
+<else>else <block>{<block_content>
+
+<expr_stmt><expr><call><name>onig_free</name><argument_list>(<argument><expr><call><name>RREGEXP_PTR</name><argument_list>(<argument><expr><name>pattern</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>RREGEXP_PTR</name><argument_list>(<argument><expr><name>pattern</name></expr></argument>)</argument_list></call> <operator>=</operator> <name>re</name></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>ret</name> <operator>==</operator> <operator>-</operator><literal type="number">2</literal></expr>)</condition><block type="pseudo"><block_content> <expr_stmt><expr><call><name>rb_raise</name><argument_list>(<argument><expr><name>ScanError</name></expr></argument>, <argument><expr><literal type="string">"regexp buffer overflow"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>ret</name> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<return>return <expr><name>Qnil</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></if>
+
+<else>else <block>{<block_content>
+
+<expr_stmt><expr><call><name>rb_enc_check</name><argument_list>(<argument><expr><name><name>p</name><operator>-&gt;</operator><name>str</name></name></expr></argument>, <argument><expr><name>pattern</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>S_RESTLEN</name><argument_list>(<argument><expr><name>p</name></expr></argument>)</argument_list></call> <operator>&lt;</operator> <call><name>RSTRING_LEN</name><argument_list>(<argument><expr><name>pattern</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<return>return <expr><name>Qnil</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>memcmp</name><argument_list>(<argument><expr><call><name>CURPTR</name><argument_list>(<argument><expr><name>p</name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>RSTRING_PTR</name><argument_list>(<argument><expr><name>pattern</name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>RSTRING_LEN</name><argument_list>(<argument><expr><name>pattern</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call> <operator>!=</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<return>return <expr><name>Qnil</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>set_registers</name><argument_list>(<argument><expr><name>p</name></expr></argument>, <argument><expr><call><name>RSTRING_LEN</name><argument_list>(<argument><expr><name>pattern</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+<expr_stmt><expr><call><name>MATCHED</name><argument_list>(<argument><expr><name>p</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>p</name><operator>-&gt;</operator><name>prev</name></name> <operator>=</operator> <name><name>p</name><operator>-&gt;</operator><name>curr</name></name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>succptr</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>succ</name><argument_list>(<argument><expr><name>p</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>long</name></type> <name>length</name> <init>= <expr><call><name>last_match_length</name><argument_list>(<argument><expr><name>p</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>getstr</name></expr>)</condition> <block>{<block_content>
+
+<return>return <expr><call><name>extract_beg_len</name><argument_list>(<argument><expr><name>p</name></expr></argument>, <argument><expr><name><name>p</name><operator>-&gt;</operator><name>prev</name></name></expr></argument>, <argument><expr><name>length</name></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></if>
+
+<else>else <block>{<block_content>
+
+<return>return <expr><call><name>INT2FIX</name><argument_list>(<argument><expr><name>length</name></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></else></if_stmt>
+
+</block_content>}</block>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>strscan_scan</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>self</name></decl></parameter>, <parameter><decl><type><name>VALUE</name></type> <name>re</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<return>return <expr><call><name>strscan_do_scan</name><argument_list>(<argument><expr><name>self</name></expr></argument>, <argument><expr><name>re</name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>strscan_match_p</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>self</name></decl></parameter>, <parameter><decl><type><name>VALUE</name></type> <name>re</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<return>return <expr><call><name>strscan_do_scan</name><argument_list>(<argument><expr><name>self</name></expr></argument>, <argument><expr><name>re</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>strscan_skip</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>self</name></decl></parameter>, <parameter><decl><type><name>VALUE</name></type> <name>re</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<return>return <expr><call><name>strscan_do_scan</name><argument_list>(<argument><expr><name>self</name></expr></argument>, <argument><expr><name>re</name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>strscan_check</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>self</name></decl></parameter>, <parameter><decl><type><name>VALUE</name></type> <name>re</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<return>return <expr><call><name>strscan_do_scan</name><argument_list>(<argument><expr><name>self</name></expr></argument>, <argument><expr><name>re</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>strscan_scan_full</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>self</name></decl></parameter>, <parameter><decl><type><name>VALUE</name></type> <name>re</name></decl></parameter>, <parameter><decl><type><name>VALUE</name></type> <name>s</name></decl></parameter>, <parameter><decl><type><name>VALUE</name></type> <name>f</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<return>return <expr><call><name>strscan_do_scan</name><argument_list>(<argument><expr><name>self</name></expr></argument>, <argument><expr><name>re</name></expr></argument>, <argument><expr><call><name>RTEST</name><argument_list>(<argument><expr><name>s</name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>RTEST</name><argument_list>(<argument><expr><name>f</name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>strscan_scan_until</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>self</name></decl></parameter>, <parameter><decl><type><name>VALUE</name></type> <name>re</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<return>return <expr><call><name>strscan_do_scan</name><argument_list>(<argument><expr><name>self</name></expr></argument>, <argument><expr><name>re</name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>strscan_exist_p</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>self</name></decl></parameter>, <parameter><decl><type><name>VALUE</name></type> <name>re</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<return>return <expr><call><name>strscan_do_scan</name><argument_list>(<argument><expr><name>self</name></expr></argument>, <argument><expr><name>re</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>strscan_skip_until</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>self</name></decl></parameter>, <parameter><decl><type><name>VALUE</name></type> <name>re</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<return>return <expr><call><name>strscan_do_scan</name><argument_list>(<argument><expr><name>self</name></expr></argument>, <argument><expr><name>re</name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>strscan_check_until</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>self</name></decl></parameter>, <parameter><decl><type><name>VALUE</name></type> <name>re</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<return>return <expr><call><name>strscan_do_scan</name><argument_list>(<argument><expr><name>self</name></expr></argument>, <argument><expr><name>re</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>strscan_search_full</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>self</name></decl></parameter>, <parameter><decl><type><name>VALUE</name></type> <name>re</name></decl></parameter>, <parameter><decl><type><name>VALUE</name></type> <name>s</name></decl></parameter>, <parameter><decl><type><name>VALUE</name></type> <name>f</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<return>return <expr><call><name>strscan_do_scan</name><argument_list>(<argument><expr><name>self</name></expr></argument>, <argument><expr><name>re</name></expr></argument>, <argument><expr><call><name>RTEST</name><argument_list>(<argument><expr><name>s</name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>RTEST</name><argument_list>(<argument><expr><name>f</name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type>
+
+<name>adjust_registers_to_matched</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>strscanner</name></name> <modifier>*</modifier></type><name>p</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>onig_region_clear</name><argument_list>(<argument><expr><operator>&amp;</operator><operator>(</operator><name><name>p</name><operator>-&gt;</operator><name>regs</name></name><operator>)</operator></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>p</name><operator>-&gt;</operator><name>fixed_anchor_p</name></name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>onig_region_set</name><argument_list>(<argument><expr><operator>&amp;</operator><operator>(</operator><name><name>p</name><operator>-&gt;</operator><name>regs</name></name><operator>)</operator></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><operator>(</operator><name>int</name><operator>)</operator><name><name>p</name><operator>-&gt;</operator><name>prev</name></name></expr></argument>, <argument><expr><operator>(</operator><name>int</name><operator>)</operator><name><name>p</name><operator>-&gt;</operator><name>curr</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if>
+
+<else>else <block>{<block_content>
+
+<expr_stmt><expr><call><name>onig_region_set</name><argument_list>(<argument><expr><operator>&amp;</operator><operator>(</operator><name><name>p</name><operator>-&gt;</operator><name>regs</name></name><operator>)</operator></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><operator>(</operator><name>int</name><operator>)</operator><operator>(</operator><name><name>p</name><operator>-&gt;</operator><name>curr</name></name> <operator>-</operator> <name><name>p</name><operator>-&gt;</operator><name>prev</name></name><operator>)</operator></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>strscan_getch</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>self</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>strscanner</name></name> <modifier>*</modifier></type><name>p</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>long</name></type> <name>len</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>GET_SCANNER</name><argument_list>(<argument><expr><name>self</name></expr></argument>, <argument><expr><name>p</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>CLEAR_MATCH_STATUS</name><argument_list>(<argument><expr><name>p</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>EOS_P</name><argument_list>(<argument><expr><name>p</name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>Qnil</name></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>len</name> <operator>=</operator> <call><name>rb_enc_mbclen</name><argument_list>(<argument><expr><call><name>CURPTR</name><argument_list>(<argument><expr><name>p</name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>S_PEND</name><argument_list>(<argument><expr><name>p</name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>rb_enc_get</name><argument_list>(<argument><expr><name><name>p</name><operator>-&gt;</operator><name>str</name></name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>len</name> <operator>=</operator> <call><name>minl</name><argument_list>(<argument><expr><name>len</name></expr></argument>, <argument><expr><call><name>S_RESTLEN</name><argument_list>(<argument><expr><name>p</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>p</name><operator>-&gt;</operator><name>prev</name></name> <operator>=</operator> <name><name>p</name><operator>-&gt;</operator><name>curr</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>p</name><operator>-&gt;</operator><name>curr</name></name> <operator>+=</operator> <name>len</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>MATCHED</name><argument_list>(<argument><expr><name>p</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>adjust_registers_to_matched</name><argument_list>(<argument><expr><name>p</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><call><name>extract_range</name><argument_list>(<argument><expr><name>p</name></expr></argument>,
+
+<argument><expr><call><name>adjust_register_position</name><argument_list>(<argument><expr><name>p</name></expr></argument>, <argument><expr><name><name>p</name><operator>-&gt;</operator><name>regs</name><operator>.</operator><name>beg</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>)</argument_list></call></expr></argument>,
+
+<argument><expr><call><name>adjust_register_position</name><argument_list>(<argument><expr><name>p</name></expr></argument>, <argument><expr><name><name>p</name><operator>-&gt;</operator><name>regs</name><operator>.</operator><name>end</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>strscan_get_byte</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>self</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>strscanner</name></name> <modifier>*</modifier></type><name>p</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>GET_SCANNER</name><argument_list>(<argument><expr><name>self</name></expr></argument>, <argument><expr><name>p</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>CLEAR_MATCH_STATUS</name><argument_list>(<argument><expr><name>p</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>EOS_P</name><argument_list>(<argument><expr><name>p</name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>Qnil</name></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name><name>p</name><operator>-&gt;</operator><name>prev</name></name> <operator>=</operator> <name><name>p</name><operator>-&gt;</operator><name>curr</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>p</name><operator>-&gt;</operator><name>curr</name></name><operator>++</operator></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>MATCHED</name><argument_list>(<argument><expr><name>p</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>adjust_registers_to_matched</name><argument_list>(<argument><expr><name>p</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><call><name>extract_range</name><argument_list>(<argument><expr><name>p</name></expr></argument>,
+
+<argument><expr><call><name>adjust_register_position</name><argument_list>(<argument><expr><name>p</name></expr></argument>, <argument><expr><name><name>p</name><operator>-&gt;</operator><name>regs</name><operator>.</operator><name>beg</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>)</argument_list></call></expr></argument>,
+
+<argument><expr><call><name>adjust_register_position</name><argument_list>(<argument><expr><name>p</name></expr></argument>, <argument><expr><name><name>p</name><operator>-&gt;</operator><name>regs</name><operator>.</operator><name>end</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>strscan_getbyte</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>self</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>rb_warning</name><argument_list>(<argument><expr><literal type="string">"StringScanner#getbyte is obsolete; use #get_byte instead"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><call><name>strscan_get_byte</name><argument_list>(<argument><expr><name>self</name></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>strscan_peek</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>self</name></decl></parameter>, <parameter><decl><type><name>VALUE</name></type> <name>vlen</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>strscanner</name></name> <modifier>*</modifier></type><name>p</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>long</name></type> <name>len</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>GET_SCANNER</name><argument_list>(<argument><expr><name>self</name></expr></argument>, <argument><expr><name>p</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>len</name> <operator>=</operator> <call><name>NUM2LONG</name><argument_list>(<argument><expr><name>vlen</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>EOS_P</name><argument_list>(<argument><expr><name>p</name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><call><name>str_new</name><argument_list>(<argument><expr><name>p</name></expr></argument>, <argument><expr><literal type="string">""</literal></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>len</name> <operator>=</operator> <call><name>minl</name><argument_list>(<argument><expr><name>len</name></expr></argument>, <argument><expr><call><name>S_RESTLEN</name><argument_list>(<argument><expr><name>p</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><call><name>extract_beg_len</name><argument_list>(<argument><expr><name>p</name></expr></argument>, <argument><expr><name><name>p</name><operator>-&gt;</operator><name>curr</name></name></expr></argument>, <argument><expr><name>len</name></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>strscan_peep</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>self</name></decl></parameter>, <parameter><decl><type><name>VALUE</name></type> <name>vlen</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>rb_warning</name><argument_list>(<argument><expr><literal type="string">"StringScanner#peep is obsolete; use #peek instead"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><call><name>strscan_peek</name><argument_list>(<argument><expr><name>self</name></expr></argument>, <argument><expr><name>vlen</name></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>strscan_unscan</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>self</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>strscanner</name></name> <modifier>*</modifier></type><name>p</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>GET_SCANNER</name><argument_list>(<argument><expr><name>self</name></expr></argument>, <argument><expr><name>p</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator> <call><name>MATCHED_P</name><argument_list>(<argument><expr><name>p</name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>rb_raise</name><argument_list>(<argument><expr><name>ScanError</name></expr></argument>, <argument><expr><literal type="string">"unscan failed: previous match record not exist"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name><name>p</name><operator>-&gt;</operator><name>curr</name></name> <operator>=</operator> <name><name>p</name><operator>-&gt;</operator><name>prev</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>CLEAR_MATCH_STATUS</name><argument_list>(<argument><expr><name>p</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>self</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>strscan_bol_p</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>self</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>strscanner</name></name> <modifier>*</modifier></type><name>p</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>GET_SCANNER</name><argument_list>(<argument><expr><name>self</name></expr></argument>, <argument><expr><name>p</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>CURPTR</name><argument_list>(<argument><expr><name>p</name></expr></argument>)</argument_list></call> <operator>&gt;</operator> <call><name>S_PEND</name><argument_list>(<argument><expr><name>p</name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content> <return>return <expr><name>Qnil</name></expr>;</return></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>p</name><operator>-&gt;</operator><name>curr</name></name> <operator>==</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content> <return>return <expr><name>Qtrue</name></expr>;</return></block_content></block></if></if_stmt>
+
+<return>return <expr><ternary><condition><expr><operator>(</operator><operator>*</operator><operator>(</operator><call><name>CURPTR</name><argument_list>(<argument><expr><name>p</name></expr></argument>)</argument_list></call> <operator>-</operator> <literal type="number">1</literal><operator>)</operator> <operator>==</operator> <literal type="char">'\n'</literal><operator>)</operator></expr> ?</condition><then> <expr><name>Qtrue</name></expr> </then><else>: <expr><name>Qfalse</name></expr></else></ternary></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>strscan_eos_p</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>self</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>strscanner</name></name> <modifier>*</modifier></type><name>p</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>GET_SCANNER</name><argument_list>(<argument><expr><name>self</name></expr></argument>, <argument><expr><name>p</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><ternary><condition><expr><call><name>EOS_P</name><argument_list>(<argument><expr><name>p</name></expr></argument>)</argument_list></call></expr> ?</condition><then> <expr><name>Qtrue</name></expr> </then><else>: <expr><name>Qfalse</name></expr></else></ternary></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>strscan_empty_p</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>self</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>rb_warning</name><argument_list>(<argument><expr><literal type="string">"StringScanner#empty? is obsolete; use #eos? instead"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><call><name>strscan_eos_p</name><argument_list>(<argument><expr><name>self</name></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>strscan_rest_p</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>self</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>strscanner</name></name> <modifier>*</modifier></type><name>p</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>GET_SCANNER</name><argument_list>(<argument><expr><name>self</name></expr></argument>, <argument><expr><name>p</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><ternary><condition><expr><call><name>EOS_P</name><argument_list>(<argument><expr><name>p</name></expr></argument>)</argument_list></call></expr> ?</condition><then> <expr><name>Qfalse</name></expr> </then><else>: <expr><name>Qtrue</name></expr></else></ternary></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>strscan_matched_p</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>self</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>strscanner</name></name> <modifier>*</modifier></type><name>p</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>GET_SCANNER</name><argument_list>(<argument><expr><name>self</name></expr></argument>, <argument><expr><name>p</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><ternary><condition><expr><call><name>MATCHED_P</name><argument_list>(<argument><expr><name>p</name></expr></argument>)</argument_list></call></expr> ?</condition><then> <expr><name>Qtrue</name></expr> </then><else>: <expr><name>Qfalse</name></expr></else></ternary></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>strscan_matched</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>self</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>strscanner</name></name> <modifier>*</modifier></type><name>p</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>GET_SCANNER</name><argument_list>(<argument><expr><name>self</name></expr></argument>, <argument><expr><name>p</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator> <call><name>MATCHED_P</name><argument_list>(<argument><expr><name>p</name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content> <return>return <expr><name>Qnil</name></expr>;</return></block_content></block></if></if_stmt>
+
+<return>return <expr><call><name>extract_range</name><argument_list>(<argument><expr><name>p</name></expr></argument>,
+
+<argument><expr><call><name>adjust_register_position</name><argument_list>(<argument><expr><name>p</name></expr></argument>, <argument><expr><name><name>p</name><operator>-&gt;</operator><name>regs</name><operator>.</operator><name>beg</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>)</argument_list></call></expr></argument>,
+
+<argument><expr><call><name>adjust_register_position</name><argument_list>(<argument><expr><name>p</name></expr></argument>, <argument><expr><name><name>p</name><operator>-&gt;</operator><name>regs</name><operator>.</operator><name>end</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>strscan_matched_size</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>self</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>strscanner</name></name> <modifier>*</modifier></type><name>p</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>GET_SCANNER</name><argument_list>(<argument><expr><name>self</name></expr></argument>, <argument><expr><name>p</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator> <call><name>MATCHED_P</name><argument_list>(<argument><expr><name>p</name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content> <return>return <expr><name>Qnil</name></expr>;</return></block_content></block></if></if_stmt>
+
+<return>return <expr><call><name>INT2NUM</name><argument_list>(<argument><expr><name><name>p</name><operator>-&gt;</operator><name>regs</name><operator>.</operator><name>end</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>-</operator> <name><name>p</name><operator>-&gt;</operator><name>regs</name><operator>.</operator><name>beg</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type>
+
+<name>name_to_backref_number</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>re_registers</name></name> <modifier>*</modifier></type><name>regs</name></decl></parameter>, <parameter><decl><type><name>VALUE</name></type> <name>regexp</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>char</name><modifier>*</modifier></type> <name>name</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>char</name><modifier>*</modifier></type> <name>name_end</name></decl></parameter>, <parameter><decl><type><name>rb_encoding</name> <modifier>*</modifier></type><name>enc</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>int</name></type> <name>num</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>num</name> <operator>=</operator> <call><name>onig_name_to_backref_number</name><argument_list>(<argument><expr><call><name>RREGEXP_PTR</name><argument_list>(<argument><expr><name>regexp</name></expr></argument>)</argument_list></call></expr></argument>,
+
+<argument><expr><operator>(</operator><specifier>const</specifier> <name>unsigned</name> <name>char</name><operator>*</operator> <operator>)</operator><name>name</name></expr></argument>, <argument><expr><operator>(</operator><specifier>const</specifier> <name>unsigned</name> <name>char</name><operator>*</operator> <operator>)</operator><name>name_end</name></expr></argument>, <argument><expr><name>regs</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>num</name> <operator>&gt;=</operator> <literal type="number">1</literal></expr>)</condition> <block>{<block_content>
+
+<return>return <expr><name>num</name></expr>;</return>
+
+</block_content>}</block></if>
+
+<else>else <block>{<block_content>
+
+<expr_stmt><expr><call><name>rb_enc_raise</name><argument_list>(<argument><expr><name>enc</name></expr></argument>, <argument><expr><name>rb_eIndexError</name></expr></argument>, <argument><expr><literal type="string">"undefined group name reference: %.*s"</literal></expr></argument>,
+
+<argument><expr><call><name>rb_long2int</name><argument_list>(<argument><expr><name>name_end</name> <operator>-</operator> <name>name</name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name>name</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+<expr_stmt><expr><name>UNREACHABLE</name></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>strscan_aref</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>self</name></decl></parameter>, <parameter><decl><type><name>VALUE</name></type> <name>idx</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>name</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>strscanner</name></name> <modifier>*</modifier></type><name>p</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>long</name></type> <name>i</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>GET_SCANNER</name><argument_list>(<argument><expr><name>self</name></expr></argument>, <argument><expr><name>p</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator> <call><name>MATCHED_P</name><argument_list>(<argument><expr><name>p</name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content> <return>return <expr><name>Qnil</name></expr>;</return></block_content></block></if></if_stmt>
+
+<switch>switch <condition>(<expr><call><name>TYPE</name><argument_list>(<argument><expr><name>idx</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<case>case <expr><name>T_SYMBOL</name></expr>:</case>
+
+<expr_stmt><expr><name>idx</name> <operator>=</operator> <call><name>rb_sym2str</name><argument_list>(<argument><expr><name>idx</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<case>case <expr><name>T_STRING</name></expr>:</case>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>p</name><operator>-&gt;</operator><name>regex</name></name></expr>)</condition><block type="pseudo"><block_content> <return>return <expr><name>Qnil</name></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>RSTRING_GETMEM</name><argument_list>(<argument><expr><name>idx</name></expr></argument>, <argument><expr><name>name</name></expr></argument>, <argument><expr><name>i</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>i</name> <operator>=</operator> <call><name>name_to_backref_number</name><argument_list>(<argument><expr><operator>&amp;</operator><operator>(</operator><name><name>p</name><operator>-&gt;</operator><name>regs</name></name><operator>)</operator></expr></argument>, <argument><expr><name><name>p</name><operator>-&gt;</operator><name>regex</name></name></expr></argument>, <argument><expr><name>name</name></expr></argument>, <argument><expr><name>name</name> <operator>+</operator> <name>i</name></expr></argument>, <argument><expr><call><name>rb_enc_get</name><argument_list>(<argument><expr><name>idx</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<break>break;</break>
+
+<default>default:</default>
+
+<expr_stmt><expr><name>i</name> <operator>=</operator> <call><name>NUM2LONG</name><argument_list>(<argument><expr><name>idx</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></switch>
+
+<if_stmt><if>if <condition>(<expr><name>i</name> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name>i</name> <operator>+=</operator> <name><name>p</name><operator>-&gt;</operator><name>regs</name><operator>.</operator><name>num_regs</name></name></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>i</name> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content> <return>return <expr><name>Qnil</name></expr>;</return></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>i</name> <operator>&gt;=</operator> <name><name>p</name><operator>-&gt;</operator><name>regs</name><operator>.</operator><name>num_regs</name></name></expr>)</condition><block type="pseudo"><block_content> <return>return <expr><name>Qnil</name></expr>;</return></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>p</name><operator>-&gt;</operator><name>regs</name><operator>.</operator><name>beg</name><index>[<expr><name>i</name></expr>]</index></name> <operator>==</operator> <operator>-</operator><literal type="number">1</literal></expr>)</condition><block type="pseudo"><block_content> <return>return <expr><name>Qnil</name></expr>;</return></block_content></block></if></if_stmt>
+
+<return>return <expr><call><name>extract_range</name><argument_list>(<argument><expr><name>p</name></expr></argument>,
+
+<argument><expr><call><name>adjust_register_position</name><argument_list>(<argument><expr><name>p</name></expr></argument>, <argument><expr><name><name>p</name><operator>-&gt;</operator><name>regs</name><operator>.</operator><name>beg</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>)</argument_list></call></expr></argument>,
+
+<argument><expr><call><name>adjust_register_position</name><argument_list>(<argument><expr><name>p</name></expr></argument>, <argument><expr><name><name>p</name><operator>-&gt;</operator><name>regs</name><operator>.</operator><name>end</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>strscan_size</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>self</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>strscanner</name></name> <modifier>*</modifier></type><name>p</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>GET_SCANNER</name><argument_list>(<argument><expr><name>self</name></expr></argument>, <argument><expr><name>p</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator> <call><name>MATCHED_P</name><argument_list>(<argument><expr><name>p</name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content> <return>return <expr><name>Qnil</name></expr>;</return></block_content></block></if></if_stmt>
+
+<return>return <expr><call><name>INT2FIX</name><argument_list>(<argument><expr><name><name>p</name><operator>-&gt;</operator><name>regs</name><operator>.</operator><name>num_regs</name></name></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>strscan_captures</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>self</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>strscanner</name></name> <modifier>*</modifier></type><name>p</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>i</name></decl>, <decl><type ref="prev"/><name>num_regs</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>VALUE</name></type> <name>new_ary</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>GET_SCANNER</name><argument_list>(<argument><expr><name>self</name></expr></argument>, <argument><expr><name>p</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator> <call><name>MATCHED_P</name><argument_list>(<argument><expr><name>p</name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content> <return>return <expr><name>Qnil</name></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>num_regs</name> <operator>=</operator> <name><name>p</name><operator>-&gt;</operator><name>regs</name><operator>.</operator><name>num_regs</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>new_ary</name> <operator>=</operator> <call><name>rb_ary_new2</name><argument_list>(<argument><expr><name>num_regs</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">1</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>num_regs</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+
+<decl_stmt><decl><type><name>VALUE</name></type> <name>str</name> <init>= <expr><call><name>extract_range</name><argument_list>(<argument><expr><name>p</name></expr></argument>,
+
+<argument><expr><call><name>adjust_register_position</name><argument_list>(<argument><expr><name>p</name></expr></argument>, <argument><expr><name><name>p</name><operator>-&gt;</operator><name>regs</name><operator>.</operator><name>beg</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>)</argument_list></call></expr></argument>,
+
+<argument><expr><call><name>adjust_register_position</name><argument_list>(<argument><expr><name>p</name></expr></argument>, <argument><expr><name><name>p</name><operator>-&gt;</operator><name>regs</name><operator>.</operator><name>end</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>rb_ary_push</name><argument_list>(<argument><expr><name>new_ary</name></expr></argument>, <argument><expr><name>str</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></for>
+
+<return>return <expr><name>new_ary</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>strscan_values_at</name><parameter_list>(<parameter><decl><type><name>int</name></type> <name>argc</name></decl></parameter>, <parameter><decl><type><name>VALUE</name> <modifier>*</modifier></type><name>argv</name></decl></parameter>, <parameter><decl><type><name>VALUE</name></type> <name>self</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>strscanner</name></name> <modifier>*</modifier></type><name>p</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>long</name></type> <name>i</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>VALUE</name></type> <name>new_ary</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>GET_SCANNER</name><argument_list>(<argument><expr><name>self</name></expr></argument>, <argument><expr><name>p</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator> <call><name>MATCHED_P</name><argument_list>(<argument><expr><name>p</name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content> <return>return <expr><name>Qnil</name></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>new_ary</name> <operator>=</operator> <call><name>rb_ary_new2</name><argument_list>(<argument><expr><name>argc</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name><operator>&lt;</operator><name>argc</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+
+<expr_stmt><expr><call><name>rb_ary_push</name><argument_list>(<argument><expr><name>new_ary</name></expr></argument>, <argument><expr><call><name>strscan_aref</name><argument_list>(<argument><expr><name>self</name></expr></argument>, <argument><expr><name><name>argv</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></for>
+
+<return>return <expr><name>new_ary</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>strscan_pre_match</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>self</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>strscanner</name></name> <modifier>*</modifier></type><name>p</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>GET_SCANNER</name><argument_list>(<argument><expr><name>self</name></expr></argument>, <argument><expr><name>p</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator> <call><name>MATCHED_P</name><argument_list>(<argument><expr><name>p</name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content> <return>return <expr><name>Qnil</name></expr>;</return></block_content></block></if></if_stmt>
+
+<return>return <expr><call><name>extract_range</name><argument_list>(<argument><expr><name>p</name></expr></argument>,
+
+<argument><expr><literal type="number">0</literal></expr></argument>,
+
+<argument><expr><call><name>adjust_register_position</name><argument_list>(<argument><expr><name>p</name></expr></argument>, <argument><expr><name><name>p</name><operator>-&gt;</operator><name>regs</name><operator>.</operator><name>beg</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>strscan_post_match</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>self</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>strscanner</name></name> <modifier>*</modifier></type><name>p</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>GET_SCANNER</name><argument_list>(<argument><expr><name>self</name></expr></argument>, <argument><expr><name>p</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator> <call><name>MATCHED_P</name><argument_list>(<argument><expr><name>p</name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content> <return>return <expr><name>Qnil</name></expr>;</return></block_content></block></if></if_stmt>
+
+<return>return <expr><call><name>extract_range</name><argument_list>(<argument><expr><name>p</name></expr></argument>,
+
+<argument><expr><call><name>adjust_register_position</name><argument_list>(<argument><expr><name>p</name></expr></argument>, <argument><expr><name><name>p</name><operator>-&gt;</operator><name>regs</name><operator>.</operator><name>end</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>)</argument_list></call></expr></argument>,
+
+<argument><expr><call><name>S_LEN</name><argument_list>(<argument><expr><name>p</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>strscan_rest</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>self</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>strscanner</name></name> <modifier>*</modifier></type><name>p</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>GET_SCANNER</name><argument_list>(<argument><expr><name>self</name></expr></argument>, <argument><expr><name>p</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>EOS_P</name><argument_list>(<argument><expr><name>p</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<return>return <expr><call><name>str_new</name><argument_list>(<argument><expr><name>p</name></expr></argument>, <argument><expr><literal type="string">""</literal></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<return>return <expr><call><name>extract_range</name><argument_list>(<argument><expr><name>p</name></expr></argument>, <argument><expr><name><name>p</name><operator>-&gt;</operator><name>curr</name></name></expr></argument>, <argument><expr><call><name>S_LEN</name><argument_list>(<argument><expr><name>p</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>strscan_rest_size</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>self</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>strscanner</name></name> <modifier>*</modifier></type><name>p</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>long</name></type> <name>i</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>GET_SCANNER</name><argument_list>(<argument><expr><name>self</name></expr></argument>, <argument><expr><name>p</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>EOS_P</name><argument_list>(<argument><expr><name>p</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<return>return <expr><call><name>INT2FIX</name><argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name>i</name> <operator>=</operator> <call><name>S_RESTLEN</name><argument_list>(<argument><expr><name>p</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><call><name>INT2FIX</name><argument_list>(<argument><expr><name>i</name></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>strscan_restsize</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>self</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>rb_warning</name><argument_list>(<argument><expr><literal type="string">"StringScanner#restsize is obsolete; use #rest_size instead"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><call><name>strscan_rest_size</name><argument_list>(<argument><expr><name>self</name></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>INSPECT_LENGTH</name></cpp:macro> <cpp:value>5</cpp:value></cpp:define>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>strscan_inspect</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>self</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>strscanner</name></name> <modifier>*</modifier></type><name>p</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>VALUE</name></type> <name>a</name></decl>, <decl><type ref="prev"/><name>b</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>p</name> <operator>=</operator> <call><name>check_strscan</name><argument_list>(<argument><expr><name>self</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>NIL_P</name><argument_list>(<argument><expr><name><name>p</name><operator>-&gt;</operator><name>str</name></name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>a</name> <operator>=</operator> <call><name>rb_sprintf</name><argument_list>(<argument><expr><literal type="string">"#&lt;%"</literal><name>PRIsVALUE</name><literal type="string">" (uninitialized)&gt;"</literal></expr></argument>, <argument><expr><call><name>rb_obj_class</name><argument_list>(<argument><expr><name>self</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>a</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>EOS_P</name><argument_list>(<argument><expr><name>p</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>a</name> <operator>=</operator> <call><name>rb_sprintf</name><argument_list>(<argument><expr><literal type="string">"#&lt;%"</literal><name>PRIsVALUE</name><literal type="string">" fin&gt;"</literal></expr></argument>, <argument><expr><call><name>rb_obj_class</name><argument_list>(<argument><expr><name>self</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>a</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>p</name><operator>-&gt;</operator><name>curr</name></name> <operator>==</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>b</name> <operator>=</operator> <call><name>inspect2</name><argument_list>(<argument><expr><name>p</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>a</name> <operator>=</operator> <call><name>rb_sprintf</name><argument_list>(<argument><expr><literal type="string">"#&lt;%"</literal><name>PRIsVALUE</name><literal type="string">" %ld/%ld @ %"</literal><name>PRIsVALUE</name><literal type="string">"&gt;"</literal></expr></argument>,
+
+<argument><expr><call><name>rb_obj_class</name><argument_list>(<argument><expr><name>self</name></expr></argument>)</argument_list></call></expr></argument>,
+
+<argument><expr><name><name>p</name><operator>-&gt;</operator><name>curr</name></name></expr></argument>, <argument><expr><call><name>S_LEN</name><argument_list>(<argument><expr><name>p</name></expr></argument>)</argument_list></call></expr></argument>,
+
+<argument><expr><name>b</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>a</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name>a</name> <operator>=</operator> <call><name>inspect1</name><argument_list>(<argument><expr><name>p</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>b</name> <operator>=</operator> <call><name>inspect2</name><argument_list>(<argument><expr><name>p</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>a</name> <operator>=</operator> <call><name>rb_sprintf</name><argument_list>(<argument><expr><literal type="string">"#&lt;%"</literal><name>PRIsVALUE</name><literal type="string">" %ld/%ld %"</literal><name>PRIsVALUE</name><literal type="string">" @ %"</literal><name>PRIsVALUE</name><literal type="string">"&gt;"</literal></expr></argument>,
+
+<argument><expr><call><name>rb_obj_class</name><argument_list>(<argument><expr><name>self</name></expr></argument>)</argument_list></call></expr></argument>,
+
+<argument><expr><name><name>p</name><operator>-&gt;</operator><name>curr</name></name></expr></argument>, <argument><expr><call><name>S_LEN</name><argument_list>(<argument><expr><name>p</name></expr></argument>)</argument_list></call></expr></argument>,
+
+<argument><expr><name>a</name></expr></argument>, <argument><expr><name>b</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>a</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>inspect1</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>strscanner</name></name> <modifier>*</modifier></type><name>p</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>VALUE</name></type> <name>str</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>long</name></type> <name>len</name></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>p</name><operator>-&gt;</operator><name>curr</name></name> <operator>==</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content> <return>return <expr><call><name>rb_str_new2</name><argument_list>(<argument><expr><literal type="string">""</literal></expr></argument>)</argument_list></call></expr>;</return></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>p</name><operator>-&gt;</operator><name>curr</name></name> <operator>&gt;</operator> <name>INSPECT_LENGTH</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>str</name> <operator>=</operator> <call><name>rb_str_new_cstr</name><argument_list>(<argument><expr><literal type="string">"..."</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>len</name> <operator>=</operator> <name>INSPECT_LENGTH</name></expr>;</expr_stmt>
+
+</block_content>}</block></if>
+
+<else>else <block>{<block_content>
+
+<expr_stmt><expr><name>str</name> <operator>=</operator> <call><name>rb_str_new</name><argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>len</name> <operator>=</operator> <name><name>p</name><operator>-&gt;</operator><name>curr</name></name></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+<expr_stmt><expr><call><name>rb_str_cat</name><argument_list>(<argument><expr><name>str</name></expr></argument>, <argument><expr><call><name>CURPTR</name><argument_list>(<argument><expr><name>p</name></expr></argument>)</argument_list></call> <operator>-</operator> <name>len</name></expr></argument>, <argument><expr><name>len</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><call><name>rb_str_dump</name><argument_list>(<argument><expr><name>str</name></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>inspect2</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>strscanner</name></name> <modifier>*</modifier></type><name>p</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>VALUE</name></type> <name>str</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>long</name></type> <name>len</name></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>EOS_P</name><argument_list>(<argument><expr><name>p</name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content> <return>return <expr><call><name>rb_str_new2</name><argument_list>(<argument><expr><literal type="string">""</literal></expr></argument>)</argument_list></call></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>len</name> <operator>=</operator> <call><name>S_RESTLEN</name><argument_list>(<argument><expr><name>p</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>len</name> <operator>&gt;</operator> <name>INSPECT_LENGTH</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>str</name> <operator>=</operator> <call><name>rb_str_new</name><argument_list>(<argument><expr><call><name>CURPTR</name><argument_list>(<argument><expr><name>p</name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name>INSPECT_LENGTH</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_str_cat2</name><argument_list>(<argument><expr><name>str</name></expr></argument>, <argument><expr><literal type="string">"..."</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if>
+
+<else>else <block>{<block_content>
+
+<expr_stmt><expr><name>str</name> <operator>=</operator> <call><name>rb_str_new</name><argument_list>(<argument><expr><call><name>CURPTR</name><argument_list>(<argument><expr><name>p</name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name>len</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+<return>return <expr><call><name>rb_str_dump</name><argument_list>(<argument><expr><name>str</name></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>strscan_fixed_anchor_p</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>self</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>strscanner</name></name> <modifier>*</modifier></type><name>p</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>p</name> <operator>=</operator> <call><name>check_strscan</name><argument_list>(<argument><expr><name>self</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><ternary><condition><expr><name><name>p</name><operator>-&gt;</operator><name>fixed_anchor_p</name></name></expr> ?</condition><then> <expr><name>Qtrue</name></expr> </then><else>: <expr><name>Qfalse</name></expr></else></ternary></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><name>void</name></type>
+
+<name>Init_strscan</name><parameter_list>(<parameter><decl><type><name>void</name></type></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<cpp:undef>#<cpp:directive>undef</cpp:directive> <name>rb_intern</name></cpp:undef>
+
+<decl_stmt><decl><type><name>ID</name></type> <name>id_scanerr</name> <init>= <expr><call><name>rb_intern</name><argument_list>(<argument><expr><literal type="string">"ScanError"</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>VALUE</name></type> <name>tmp</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>id_byteslice</name> <operator>=</operator> <call><name>rb_intern</name><argument_list>(<argument><expr><literal type="string">"byteslice"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>StringScanner</name> <operator>=</operator> <call><name>rb_define_class</name><argument_list>(<argument><expr><literal type="string">"StringScanner"</literal></expr></argument>, <argument><expr><name>rb_cObject</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>ScanError</name> <operator>=</operator> <call><name>rb_define_class_under</name><argument_list>(<argument><expr><name>StringScanner</name></expr></argument>, <argument><expr><literal type="string">"Error"</literal></expr></argument>, <argument><expr><name>rb_eStandardError</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>rb_const_defined</name><argument_list>(<argument><expr><name>rb_cObject</name></expr></argument>, <argument><expr><name>id_scanerr</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>rb_const_set</name><argument_list>(<argument><expr><name>rb_cObject</name></expr></argument>, <argument><expr><name>id_scanerr</name></expr></argument>, <argument><expr><name>ScanError</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name>tmp</name> <operator>=</operator> <call><name>rb_str_new2</name><argument_list>(<argument><expr><name>STRSCAN_VERSION</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_obj_freeze</name><argument_list>(<argument><expr><name>tmp</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_const_set</name><argument_list>(<argument><expr><name>StringScanner</name></expr></argument>, <argument><expr><call><name>rb_intern</name><argument_list>(<argument><expr><literal type="string">"Version"</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name>tmp</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>tmp</name> <operator>=</operator> <call><name>rb_str_new2</name><argument_list>(<argument><expr><literal type="string">"$Id$"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_obj_freeze</name><argument_list>(<argument><expr><name>tmp</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_const_set</name><argument_list>(<argument><expr><name>StringScanner</name></expr></argument>, <argument><expr><call><name>rb_intern</name><argument_list>(<argument><expr><literal type="string">"Id"</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name>tmp</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_alloc_func</name><argument_list>(<argument><expr><name>StringScanner</name></expr></argument>, <argument><expr><name>strscan_s_allocate</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_private_method</name><argument_list>(<argument><expr><name>StringScanner</name></expr></argument>, <argument><expr><literal type="string">"initialize"</literal></expr></argument>, <argument><expr><name>strscan_initialize</name></expr></argument>, <argument><expr><operator>-</operator><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_private_method</name><argument_list>(<argument><expr><name>StringScanner</name></expr></argument>, <argument><expr><literal type="string">"initialize_copy"</literal></expr></argument>, <argument><expr><name>strscan_init_copy</name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_singleton_method</name><argument_list>(<argument><expr><name>StringScanner</name></expr></argument>, <argument><expr><literal type="string">"must_C_version"</literal></expr></argument>, <argument><expr><name>strscan_s_mustc</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_method</name><argument_list>(<argument><expr><name>StringScanner</name></expr></argument>, <argument><expr><literal type="string">"reset"</literal></expr></argument>, <argument><expr><name>strscan_reset</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_method</name><argument_list>(<argument><expr><name>StringScanner</name></expr></argument>, <argument><expr><literal type="string">"terminate"</literal></expr></argument>, <argument><expr><name>strscan_terminate</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_method</name><argument_list>(<argument><expr><name>StringScanner</name></expr></argument>, <argument><expr><literal type="string">"clear"</literal></expr></argument>, <argument><expr><name>strscan_clear</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_method</name><argument_list>(<argument><expr><name>StringScanner</name></expr></argument>, <argument><expr><literal type="string">"string"</literal></expr></argument>, <argument><expr><name>strscan_get_string</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_method</name><argument_list>(<argument><expr><name>StringScanner</name></expr></argument>, <argument><expr><literal type="string">"string="</literal></expr></argument>, <argument><expr><name>strscan_set_string</name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_method</name><argument_list>(<argument><expr><name>StringScanner</name></expr></argument>, <argument><expr><literal type="string">"concat"</literal></expr></argument>, <argument><expr><name>strscan_concat</name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_method</name><argument_list>(<argument><expr><name>StringScanner</name></expr></argument>, <argument><expr><literal type="string">"&lt;&lt;"</literal></expr></argument>, <argument><expr><name>strscan_concat</name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_method</name><argument_list>(<argument><expr><name>StringScanner</name></expr></argument>, <argument><expr><literal type="string">"pos"</literal></expr></argument>, <argument><expr><name>strscan_get_pos</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_method</name><argument_list>(<argument><expr><name>StringScanner</name></expr></argument>, <argument><expr><literal type="string">"pos="</literal></expr></argument>, <argument><expr><name>strscan_set_pos</name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_method</name><argument_list>(<argument><expr><name>StringScanner</name></expr></argument>, <argument><expr><literal type="string">"charpos"</literal></expr></argument>, <argument><expr><name>strscan_get_charpos</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_method</name><argument_list>(<argument><expr><name>StringScanner</name></expr></argument>, <argument><expr><literal type="string">"pointer"</literal></expr></argument>, <argument><expr><name>strscan_get_pos</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_method</name><argument_list>(<argument><expr><name>StringScanner</name></expr></argument>, <argument><expr><literal type="string">"pointer="</literal></expr></argument>, <argument><expr><name>strscan_set_pos</name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_method</name><argument_list>(<argument><expr><name>StringScanner</name></expr></argument>, <argument><expr><literal type="string">"scan"</literal></expr></argument>, <argument><expr><name>strscan_scan</name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_method</name><argument_list>(<argument><expr><name>StringScanner</name></expr></argument>, <argument><expr><literal type="string">"skip"</literal></expr></argument>, <argument><expr><name>strscan_skip</name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_method</name><argument_list>(<argument><expr><name>StringScanner</name></expr></argument>, <argument><expr><literal type="string">"match?"</literal></expr></argument>, <argument><expr><name>strscan_match_p</name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_method</name><argument_list>(<argument><expr><name>StringScanner</name></expr></argument>, <argument><expr><literal type="string">"check"</literal></expr></argument>, <argument><expr><name>strscan_check</name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_method</name><argument_list>(<argument><expr><name>StringScanner</name></expr></argument>, <argument><expr><literal type="string">"scan_full"</literal></expr></argument>, <argument><expr><name>strscan_scan_full</name></expr></argument>, <argument><expr><literal type="number">3</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_method</name><argument_list>(<argument><expr><name>StringScanner</name></expr></argument>, <argument><expr><literal type="string">"scan_until"</literal></expr></argument>, <argument><expr><name>strscan_scan_until</name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_method</name><argument_list>(<argument><expr><name>StringScanner</name></expr></argument>, <argument><expr><literal type="string">"skip_until"</literal></expr></argument>, <argument><expr><name>strscan_skip_until</name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_method</name><argument_list>(<argument><expr><name>StringScanner</name></expr></argument>, <argument><expr><literal type="string">"exist?"</literal></expr></argument>, <argument><expr><name>strscan_exist_p</name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_method</name><argument_list>(<argument><expr><name>StringScanner</name></expr></argument>, <argument><expr><literal type="string">"check_until"</literal></expr></argument>, <argument><expr><name>strscan_check_until</name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_method</name><argument_list>(<argument><expr><name>StringScanner</name></expr></argument>, <argument><expr><literal type="string">"search_full"</literal></expr></argument>, <argument><expr><name>strscan_search_full</name></expr></argument>, <argument><expr><literal type="number">3</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_method</name><argument_list>(<argument><expr><name>StringScanner</name></expr></argument>, <argument><expr><literal type="string">"getch"</literal></expr></argument>, <argument><expr><name>strscan_getch</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_method</name><argument_list>(<argument><expr><name>StringScanner</name></expr></argument>, <argument><expr><literal type="string">"get_byte"</literal></expr></argument>, <argument><expr><name>strscan_get_byte</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_method</name><argument_list>(<argument><expr><name>StringScanner</name></expr></argument>, <argument><expr><literal type="string">"getbyte"</literal></expr></argument>, <argument><expr><name>strscan_getbyte</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_method</name><argument_list>(<argument><expr><name>StringScanner</name></expr></argument>, <argument><expr><literal type="string">"peek"</literal></expr></argument>, <argument><expr><name>strscan_peek</name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_method</name><argument_list>(<argument><expr><name>StringScanner</name></expr></argument>, <argument><expr><literal type="string">"peep"</literal></expr></argument>, <argument><expr><name>strscan_peep</name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_method</name><argument_list>(<argument><expr><name>StringScanner</name></expr></argument>, <argument><expr><literal type="string">"unscan"</literal></expr></argument>, <argument><expr><name>strscan_unscan</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_method</name><argument_list>(<argument><expr><name>StringScanner</name></expr></argument>, <argument><expr><literal type="string">"beginning_of_line?"</literal></expr></argument>, <argument><expr><name>strscan_bol_p</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_alias</name><argument_list>(<argument><expr><name>StringScanner</name></expr></argument>, <argument><expr><call><name>rb_intern</name><argument_list>(<argument><expr><literal type="string">"bol?"</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>rb_intern</name><argument_list>(<argument><expr><literal type="string">"beginning_of_line?"</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_method</name><argument_list>(<argument><expr><name>StringScanner</name></expr></argument>, <argument><expr><literal type="string">"eos?"</literal></expr></argument>, <argument><expr><name>strscan_eos_p</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_method</name><argument_list>(<argument><expr><name>StringScanner</name></expr></argument>, <argument><expr><literal type="string">"empty?"</literal></expr></argument>, <argument><expr><name>strscan_empty_p</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_method</name><argument_list>(<argument><expr><name>StringScanner</name></expr></argument>, <argument><expr><literal type="string">"rest?"</literal></expr></argument>, <argument><expr><name>strscan_rest_p</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_method</name><argument_list>(<argument><expr><name>StringScanner</name></expr></argument>, <argument><expr><literal type="string">"matched?"</literal></expr></argument>, <argument><expr><name>strscan_matched_p</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_method</name><argument_list>(<argument><expr><name>StringScanner</name></expr></argument>, <argument><expr><literal type="string">"matched"</literal></expr></argument>, <argument><expr><name>strscan_matched</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_method</name><argument_list>(<argument><expr><name>StringScanner</name></expr></argument>, <argument><expr><literal type="string">"matched_size"</literal></expr></argument>, <argument><expr><name>strscan_matched_size</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_method</name><argument_list>(<argument><expr><name>StringScanner</name></expr></argument>, <argument><expr><literal type="string">"[]"</literal></expr></argument>, <argument><expr><name>strscan_aref</name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_method</name><argument_list>(<argument><expr><name>StringScanner</name></expr></argument>, <argument><expr><literal type="string">"pre_match"</literal></expr></argument>, <argument><expr><name>strscan_pre_match</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_method</name><argument_list>(<argument><expr><name>StringScanner</name></expr></argument>, <argument><expr><literal type="string">"post_match"</literal></expr></argument>, <argument><expr><name>strscan_post_match</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_method</name><argument_list>(<argument><expr><name>StringScanner</name></expr></argument>, <argument><expr><literal type="string">"size"</literal></expr></argument>, <argument><expr><name>strscan_size</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_method</name><argument_list>(<argument><expr><name>StringScanner</name></expr></argument>, <argument><expr><literal type="string">"captures"</literal></expr></argument>, <argument><expr><name>strscan_captures</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_method</name><argument_list>(<argument><expr><name>StringScanner</name></expr></argument>, <argument><expr><literal type="string">"values_at"</literal></expr></argument>, <argument><expr><name>strscan_values_at</name></expr></argument>, <argument><expr><operator>-</operator><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_method</name><argument_list>(<argument><expr><name>StringScanner</name></expr></argument>, <argument><expr><literal type="string">"rest"</literal></expr></argument>, <argument><expr><name>strscan_rest</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_method</name><argument_list>(<argument><expr><name>StringScanner</name></expr></argument>, <argument><expr><literal type="string">"rest_size"</literal></expr></argument>, <argument><expr><name>strscan_rest_size</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_method</name><argument_list>(<argument><expr><name>StringScanner</name></expr></argument>, <argument><expr><literal type="string">"restsize"</literal></expr></argument>, <argument><expr><name>strscan_restsize</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_method</name><argument_list>(<argument><expr><name>StringScanner</name></expr></argument>, <argument><expr><literal type="string">"inspect"</literal></expr></argument>, <argument><expr><name>strscan_inspect</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_method</name><argument_list>(<argument><expr><name>StringScanner</name></expr></argument>, <argument><expr><literal type="string">"fixed_anchor?"</literal></expr></argument>, <argument><expr><name>strscan_fixed_anchor_p</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+</unit>

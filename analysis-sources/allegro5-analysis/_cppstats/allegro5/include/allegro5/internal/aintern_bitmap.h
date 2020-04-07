@@ -1,0 +1,93 @@
+#include "allegro5/bitmap.h"
+#include "allegro5/bitmap_lock.h"
+#include "allegro5/display.h"
+#include "allegro5/render_state.h"
+#include "allegro5/transformations.h"
+#include "allegro5/internal/aintern_display.h"
+#include "allegro5/internal/aintern_list.h"
+#if defined(__cplusplus)
+extern "C" {
+#endif
+typedef struct ALLEGRO_BITMAP_INTERFACE ALLEGRO_BITMAP_INTERFACE;
+struct ALLEGRO_BITMAP
+{
+ALLEGRO_BITMAP_INTERFACE *vt;
+int _format;
+int _flags;
+int _depth;
+int _samples;
+ALLEGRO_DISPLAY *_display;
+int _memory_format;
+int w, h;
+int pitch;
+int cl;
+int cr_excl;
+int ct;
+int cb_excl;
+bool locked;
+int lock_x;
+int lock_y;
+int lock_w;
+int lock_h;
+void* lock_data;
+int lock_flags;
+ALLEGRO_LOCKED_REGION locked_region;
+ALLEGRO_TRANSFORM transform;
+ALLEGRO_TRANSFORM inverse_transform;
+bool inverse_transform_dirty;
+ALLEGRO_TRANSFORM proj_transform;
+bool use_bitmap_blender;
+ALLEGRO_BLENDER blender;
+ALLEGRO_SHADER *shader;
+ALLEGRO_BITMAP *parent;
+int xofs;
+int yofs;
+unsigned char *memory;
+void *extra;
+_AL_LIST_ITEM *dtor_item;
+bool dirty;
+};
+struct ALLEGRO_BITMAP_INTERFACE
+{
+int id;
+void (*draw_bitmap_region)(ALLEGRO_BITMAP *bitmap,
+ALLEGRO_COLOR tint,float sx, float sy,
+float sw, float sh, int flags);
+bool (*upload_bitmap)(ALLEGRO_BITMAP *bitmap);
+void (*update_clipping_rectangle)(ALLEGRO_BITMAP *bitmap);
+void (*destroy_bitmap)(ALLEGRO_BITMAP *bitmap);
+ALLEGRO_LOCKED_REGION * (*lock_region)(ALLEGRO_BITMAP *bitmap,
+int x, int y, int w, int h, int format, int flags);
+void (*unlock_region)(ALLEGRO_BITMAP *bitmap);
+ALLEGRO_LOCKED_REGION * (*lock_compressed_region)(ALLEGRO_BITMAP *bitmap,
+int x, int y, int w, int h, int flags);
+void (*unlock_compressed_region)(ALLEGRO_BITMAP *bitmap);
+void (*bitmap_pointer_changed)(ALLEGRO_BITMAP *bitmap, ALLEGRO_BITMAP *old);
+void (*backup_dirty_bitmap)(ALLEGRO_BITMAP *bitmap);
+};
+ALLEGRO_BITMAP *_al_create_bitmap_params(ALLEGRO_DISPLAY *current_display,
+int w, int h, int format, int flags, int depth, int samples);
+AL_FUNC(ALLEGRO_DISPLAY*, _al_get_bitmap_display, (ALLEGRO_BITMAP *bitmap));
+extern void (*_al_convert_funcs[ALLEGRO_NUM_PIXEL_FORMATS]
+[ALLEGRO_NUM_PIXEL_FORMATS])(const void *, int, void *, int,
+int, int, int, int, int, int);
+void _al_convert_bitmap_data(
+const void *src, int src_format, int src_pitch,
+void *dst, int dst_format, int dst_pitch,
+int sx, int sy, int dx, int dy,
+int width, int height);
+void _al_copy_bitmap_data(
+const void *src, int src_pitch, void *dst, int dst_pitch,
+int sx, int sy, int dx, int dy, int width, int height,
+int format);
+void _al_init_convert_bitmap_list(void);
+void _al_register_convert_bitmap(ALLEGRO_BITMAP *bitmap);
+void _al_unregister_convert_bitmap(ALLEGRO_BITMAP *bitmap);
+void _al_convert_to_display_bitmap(ALLEGRO_BITMAP *bitmap);
+void _al_convert_to_memory_bitmap(ALLEGRO_BITMAP *bitmap);
+void _al_put_pixel(ALLEGRO_BITMAP *bitmap, int x, int y, ALLEGRO_COLOR color);
+void _al_init_iio_table(void);
+int _al_get_bitmap_memory_format(ALLEGRO_BITMAP *bitmap);
+#if defined(__cplusplus)
+}
+#endif

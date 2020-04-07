@@ -1,0 +1,206 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#if !defined(VLC_MP4_MP4_H_)
+#define VLC_MP4_MP4_H_
+
+
+
+
+
+#include <vlc_common.h>
+#include "libmp4.h"
+#include "fragments.h"
+#include "../asf/asfpacket.h"
+
+
+typedef struct
+{
+uint64_t i_offset; 
+uint32_t i_sample_description_index; 
+uint32_t i_sample_count; 
+uint32_t i_sample_first; 
+uint32_t i_sample; 
+uint32_t i_virtual_run_number; 
+
+
+
+
+
+uint64_t i_first_dts; 
+uint64_t i_duration; 
+
+uint32_t i_entries_dts;
+uint32_t *p_sample_count_dts;
+uint32_t *p_sample_delta_dts; 
+
+uint32_t i_entries_pts;
+uint32_t *p_sample_count_pts;
+int32_t *p_sample_offset_pts; 
+
+uint32_t *p_sample_size;
+
+
+
+} mp4_chunk_t;
+
+typedef struct
+{
+uint64_t i_offset;
+stime_t i_first_dts;
+const MP4_Box_t *p_trun;
+} mp4_run_t;
+
+typedef enum RTP_timstamp_synchronization_s
+{
+UNKNOWN_SYNC = 0, UNSYNCHRONIZED = 1, SYNCHRONIZED = 2, RESERVED = 3
+} RTP_timstamp_synchronization_t;
+
+enum
+{
+USEAS_NONE = 0,
+USEAS_CHAPTERS = 1 << 0,
+USEAS_TIMECODE = 1 << 1,
+};
+
+
+typedef struct
+{
+unsigned int i_track_ID;
+
+int b_ok; 
+int b_enable; 
+bool b_selected; 
+int i_use_flags; 
+
+bool b_forced_spu; 
+uint32_t i_switch_group;
+
+bool b_mac_encoding;
+
+es_format_t fmt;
+uint32_t i_block_flags;
+uint32_t i_next_block_flags;
+uint8_t rgi_chans_reordering[AOUT_CHAN_MAX];
+bool b_chans_reorder;
+es_out_id_t *p_es;
+
+
+int i_width;
+int i_height;
+float f_rotation;
+int i_flip;
+
+
+uint32_t i_timescale; 
+
+
+int i_elst; 
+int64_t i_elst_time; 
+const MP4_Box_t *p_elst; 
+
+
+
+uint32_t i_sample; 
+uint32_t i_chunk; 
+
+uint32_t i_chunk_count;
+uint32_t i_sample_count;
+
+mp4_chunk_t *chunk; 
+
+
+
+uint32_t i_sample_size;
+uint32_t *p_sample_size; 
+
+
+uint32_t i_sample_first; 
+
+uint64_t i_first_dts; 
+
+
+const MP4_Box_t *p_track;
+const MP4_Box_t *p_stbl; 
+const MP4_Box_t *p_stsd; 
+const MP4_Box_t *p_sample;
+
+#if 0
+bool b_codec_need_restart;
+#endif
+
+stime_t i_time; 
+
+
+MP4_Box_t *p_sdp; 
+RTP_timstamp_synchronization_t sync_mode; 
+
+
+
+int32_t i_tsro_offset;
+
+struct
+{
+
+bool b_resync_time_offset;
+
+
+uint32_t i_default_sample_size;
+uint32_t i_default_sample_duration;
+
+struct
+{
+mp4_run_t *p_array;
+uint32_t i_current;
+uint32_t i_count;
+} runs;
+uint64_t i_trun_sample;
+uint64_t i_trun_sample_pos;
+
+int i_temp;
+} context;
+
+
+const MP4_Box_t *p_asf;
+vlc_tick_t i_dts_backup;
+vlc_tick_t i_pts_backup;
+asf_track_info_t asfinfo;
+} mp4_track_t;
+
+int SetupVideoES( demux_t *p_demux, mp4_track_t *p_track, MP4_Box_t *p_sample );
+int SetupAudioES( demux_t *p_demux, mp4_track_t *p_track, MP4_Box_t *p_sample );
+int SetupSpuES( demux_t *p_demux, mp4_track_t *p_track, MP4_Box_t *p_sample );
+int SetupCCES( demux_t *p_demux, mp4_track_t *p_track, MP4_Box_t *p_sample );
+void SetupMeta( vlc_meta_t *p_meta, const MP4_Box_t *p_udta );
+
+
+typedef struct
+{
+uint8_t type;
+int8_t trackrefindex;
+uint16_t length;
+uint32_t samplenumber;
+uint32_t sampleoffset; 
+uint16_t bytesperblock;
+uint16_t samplesperblock;
+
+} mp4_rtpsampleconstructor_t;
+
+#endif

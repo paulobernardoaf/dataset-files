@@ -1,0 +1,96 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#if !defined(VLC_HTTP_H)
+#define VLC_HTTP_H 1
+
+
+
+
+
+
+
+#include <vlc_url.h>
+#include <vlc_arrays.h>
+
+
+typedef struct vlc_http_auth_t
+{
+char *psz_realm;
+char *psz_domain;
+char *psz_nonce;
+char *psz_opaque;
+char *psz_stale;
+char *psz_algorithm;
+char *psz_qop;
+int i_nonce;
+char *psz_cnonce;
+char *psz_HA1; 
+} vlc_http_auth_t;
+
+
+VLC_API void vlc_http_auth_Init( vlc_http_auth_t * );
+VLC_API void vlc_http_auth_Deinit( vlc_http_auth_t * );
+VLC_API void vlc_http_auth_ParseWwwAuthenticateHeader
+( vlc_object_t *, vlc_http_auth_t * , const char * );
+VLC_API int vlc_http_auth_ParseAuthenticationInfoHeader
+( vlc_object_t *, vlc_http_auth_t *,
+const char *, const char *,
+const char *, const char *,
+const char * );
+VLC_API char *vlc_http_auth_FormatAuthorizationHeader
+( vlc_object_t *, vlc_http_auth_t *,
+const char *, const char *,
+const char *, const char * ) VLC_USED;
+
+
+
+typedef struct vlc_http_cookie_jar_t vlc_http_cookie_jar_t;
+
+VLC_API vlc_http_cookie_jar_t * vlc_http_cookies_new( void ) VLC_USED;
+VLC_API void vlc_http_cookies_destroy( vlc_http_cookie_jar_t * p_jar );
+
+
+
+
+
+
+
+
+
+VLC_API bool vlc_http_cookies_store( vlc_http_cookie_jar_t *jar,
+const char *cookie, const char *host, const char *path );
+
+
+
+
+
+
+
+
+VLC_API char *vlc_http_cookies_fetch( vlc_http_cookie_jar_t *jar, bool secure,
+const char *host, const char *path );
+
+#endif 

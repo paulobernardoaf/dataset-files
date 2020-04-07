@@ -1,0 +1,785 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" revision="1.0.0" language="C" filename="D:\Pesquisa\Projects\vlc-analysis\_cppstats\vlc\modules\stream_filter\cache_read.c"><cpp:if>#<cpp:directive>if</cpp:directive> <expr><call><name>defined</name><argument_list>(<argument><expr><name>HAVE_CONFIG_H</name></expr></argument>)</argument_list></call></expr></cpp:if>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"config.h"</cpp:file></cpp:include>
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;assert.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;stdlib.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;string.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;vlc_common.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;vlc_plugin.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;vlc_stream.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;vlc_interrupt.h&gt;</cpp:file></cpp:include>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><call><name>defined</name><argument_list>(<argument><expr><name>OPTIMIZE_MEMORY</name></expr></argument>)</argument_list></call></expr></cpp:if>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>STREAM_CACHE_TRACK</name></cpp:macro> <cpp:value>1</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>STREAM_CACHE_SIZE</name></cpp:macro> <cpp:value>(STREAM_CACHE_TRACK*1024*128)</cpp:value></cpp:define>
+
+<cpp:else>#<cpp:directive>else</cpp:directive></cpp:else>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>STREAM_CACHE_TRACK</name></cpp:macro> <cpp:value>3</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>STREAM_CACHE_SIZE</name></cpp:macro> <cpp:value>(4*STREAM_CACHE_TRACK*1024*1024)</cpp:value></cpp:define>
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>STREAM_CACHE_PREBUFFER_SIZE</name></cpp:macro> <cpp:value>(128)</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>STREAM_READ_ATONCE</name></cpp:macro> <cpp:value>1024</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>STREAM_CACHE_TRACK_SIZE</name></cpp:macro> <cpp:value>(STREAM_CACHE_SIZE/STREAM_CACHE_TRACK)</cpp:value></cpp:define>
+
+<typedef>typedef <type><struct>struct
+
+<block>{
+
+<decl_stmt><decl><type><name>vlc_tick_t</name></type> <name>date</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>uint64_t</name></type> <name>i_start</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>uint64_t</name></type> <name>i_end</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>uint8_t</name> <modifier>*</modifier></type><name>p_buffer</name></decl>;</decl_stmt>
+
+}</block></struct></type> <name>stream_track_t</name>;</typedef>
+
+<typedef>typedef <type><struct>struct
+
+<block>{
+
+<decl_stmt><decl><type><name>uint64_t</name></type> <name>i_pos</name></decl>;</decl_stmt> 
+
+<decl_stmt><decl><type><name>unsigned</name></type> <name>i_offset</name></decl>;</decl_stmt> 
+
+<decl_stmt><decl><type><name>int</name></type> <name>i_tk</name></decl>;</decl_stmt> 
+
+<decl_stmt><decl><type><name>stream_track_t</name></type> <name><name>tk</name><index>[<expr><name>STREAM_CACHE_TRACK</name></expr>]</index></name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>uint8_t</name> <modifier>*</modifier></type><name>p_buffer</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>unsigned</name></type> <name>i_used</name></decl>;</decl_stmt> 
+
+<decl_stmt><decl><type><name>unsigned</name></type> <name>i_read_size</name></decl>;</decl_stmt>
+
+<struct>struct
+
+<block>{
+
+<decl_stmt><decl><type><name>uint64_t</name></type> <name>i_read_count</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>uint64_t</name></type> <name>i_bytes</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>vlc_tick_t</name></type> <name>i_read_time</name></decl>;</decl_stmt>
+
+}</block> <decl><name>stat</name></decl>;</struct>
+
+}</block></struct></type> <name>stream_sys_t</name>;</typedef>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>AStreamRefillStream</name><parameter_list>(<parameter><decl><type><name>stream_t</name> <modifier>*</modifier></type><name>s</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>stream_sys_t</name> <modifier>*</modifier></type><name>sys</name> <init>= <expr><name><name>s</name><operator>-&gt;</operator><name>p_sys</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>stream_track_t</name> <modifier>*</modifier></type><name>tk</name> <init>= <expr><operator>&amp;</operator><name><name>sys</name><operator>-&gt;</operator><name>tk</name><index>[<expr><name><name>sys</name><operator>-&gt;</operator><name>i_tk</name></name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>i_toread</name> <init>=
+
+<expr><call><name>__MIN</name><argument_list>(<argument><expr><name><name>sys</name><operator>-&gt;</operator><name>i_used</name></name></expr></argument>, <argument><expr><name>STREAM_CACHE_TRACK_SIZE</name> <operator>-</operator>
+
+<operator>(</operator><name><name>tk</name><operator>-&gt;</operator><name>i_end</name></name> <operator>-</operator> <name><name>tk</name><operator>-&gt;</operator><name>i_start</name></name> <operator>-</operator> <name><name>sys</name><operator>-&gt;</operator><name>i_offset</name></name><operator>)</operator></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>i_toread</name> <operator>&lt;=</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content> <return>return <expr><name>VLC_SUCCESS</name></expr>;</return></block_content></block></if></if_stmt> 
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><call><name>defined</name><argument_list>(<argument><expr><name>STREAM_DEBUG</name></expr></argument>)</argument_list></call></expr></cpp:if>
+<expr_stmt><expr><call><name>msg_Dbg</name><argument_list>(<argument><expr><name>s</name></expr></argument>, <argument><expr><literal type="string">"AStreamRefillStream: used=%d toread=%d"</literal></expr></argument>,
+
+<argument><expr><name><name>sys</name><operator>-&gt;</operator><name>i_used</name></name></expr></argument>, <argument><expr><name>i_toread</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+<decl_stmt><decl><type><name>vlc_tick_t</name></type> <name>start</name> <init>= <expr><call><name>vlc_tick_now</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<while>while <condition>(<expr><name>i_toread</name> <operator>&gt;</operator> <literal type="number">0</literal></expr>)</condition>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>int</name></type> <name>i_off</name> <init>= <expr><name><name>tk</name><operator>-&gt;</operator><name>i_end</name></name> <operator>%</operator> <name>STREAM_CACHE_TRACK_SIZE</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>i_read</name></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>vlc_killed</name><argument_list>()</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>VLC_EGENERIC</name></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>i_read</name> <operator>=</operator> <call><name>__MIN</name><argument_list>(<argument><expr><name>i_toread</name></expr></argument>, <argument><expr><name>STREAM_CACHE_TRACK_SIZE</name> <operator>-</operator> <name>i_off</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>i_read</name> <operator>=</operator> <call><name>vlc_stream_Read</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>s</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>tk</name><operator>-&gt;</operator><name>p_buffer</name><index>[<expr><name>i_off</name></expr>]</index></name></expr></argument>, <argument><expr><name>i_read</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>i_read</name> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition>
+
+<block>{<block_content>
+
+<continue>continue;</continue>
+
+</block_content>}</block></if>
+
+<if type="elseif">else if <condition>(<expr><name>i_read</name> <operator>==</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>VLC_SUCCESS</name></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name><name>tk</name><operator>-&gt;</operator><name>i_end</name></name> <operator>+=</operator> <name>i_read</name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>tk</name><operator>-&gt;</operator><name>i_start</name></name> <operator>+</operator> <name>STREAM_CACHE_TRACK_SIZE</name> <operator>&lt;</operator> <name><name>tk</name><operator>-&gt;</operator><name>i_end</name></name></expr>)</condition>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>unsigned</name></type> <name>i_invalid</name> <init>= <expr><name><name>tk</name><operator>-&gt;</operator><name>i_end</name></name> <operator>-</operator> <name><name>tk</name><operator>-&gt;</operator><name>i_start</name></name> <operator>-</operator> <name>STREAM_CACHE_TRACK_SIZE</name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>tk</name><operator>-&gt;</operator><name>i_start</name></name> <operator>+=</operator> <name>i_invalid</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>sys</name><operator>-&gt;</operator><name>i_offset</name></name> <operator>-=</operator> <name>i_invalid</name></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name>i_toread</name> <operator>-=</operator> <name>i_read</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>sys</name><operator>-&gt;</operator><name>i_used</name></name> <operator>-=</operator> <name>i_read</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>sys</name><operator>-&gt;</operator><name>stat</name><operator>.</operator><name>i_bytes</name></name> <operator>+=</operator> <name>i_read</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>sys</name><operator>-&gt;</operator><name>stat</name><operator>.</operator><name>i_read_count</name></name><operator>++</operator></expr>;</expr_stmt>
+
+</block_content>}</block></while>
+
+<expr_stmt><expr><name><name>sys</name><operator>-&gt;</operator><name>stat</name><operator>.</operator><name>i_read_time</name></name> <operator>+=</operator> <call><name>vlc_tick_now</name><argument_list>()</argument_list></call> <operator>-</operator> <name>start</name></expr>;</expr_stmt>
+
+<return>return <expr><name>VLC_SUCCESS</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>AStreamPrebufferStream</name><parameter_list>(<parameter><decl><type><name>stream_t</name> <modifier>*</modifier></type><name>s</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>stream_sys_t</name> <modifier>*</modifier></type><name>sys</name> <init>= <expr><name><name>s</name><operator>-&gt;</operator><name>p_sys</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>vlc_tick_t</name></type> <name>start</name> <init>= <expr><call><name>vlc_tick_now</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>bool</name></type> <name>first</name> <init>= <expr><name>true</name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>msg_Dbg</name><argument_list>(<argument><expr><name>s</name></expr></argument>, <argument><expr><literal type="string">"starting pre-buffering"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<for>for <control>(<init>;</init><condition>;</condition><incr/>)</control>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>stream_track_t</name> <modifier>*</modifier></type><name>tk</name> <init>= <expr><operator>&amp;</operator><name><name>sys</name><operator>-&gt;</operator><name>tk</name><index>[<expr><name><name>sys</name><operator>-&gt;</operator><name>i_tk</name></name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>vlc_tick_t</name></type> <name>now</name> <init>= <expr><call><name>vlc_tick_now</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>i_read</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>i_buffered</name> <init>= <expr><name><name>tk</name><operator>-&gt;</operator><name>i_end</name></name> <operator>-</operator> <name><name>tk</name><operator>-&gt;</operator><name>i_start</name></name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>vlc_killed</name><argument_list>()</argument_list></call> <operator>||</operator> <name>i_buffered</name> <operator>&gt;=</operator> <name>STREAM_CACHE_PREBUFFER_SIZE</name></expr>)</condition>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>int64_t</name></type> <name>i_byterate</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>sys</name><operator>-&gt;</operator><name>stat</name><operator>.</operator><name>i_bytes</name></name> <operator>=</operator> <name>i_buffered</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>sys</name><operator>-&gt;</operator><name>stat</name><operator>.</operator><name>i_read_time</name></name> <operator>=</operator> <name>now</name> <operator>-</operator> <name>start</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>i_byterate</name> <operator>=</operator> <operator>(</operator><name>CLOCK_FREQ</name> <operator>*</operator> <name><name>sys</name><operator>-&gt;</operator><name>stat</name><operator>.</operator><name>i_bytes</name></name><operator>)</operator> <operator>/</operator>
+
+<operator>(</operator><name><name>sys</name><operator>-&gt;</operator><name>stat</name><operator>.</operator><name>i_read_time</name></name><operator>+</operator><literal type="number">1</literal><operator>)</operator></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>msg_Dbg</name><argument_list>(<argument><expr><name>s</name></expr></argument>, <argument><expr><literal type="string">"pre-buffering done %"</literal><name>PRId64</name><literal type="string">" bytes in %"</literal><name>PRId64</name><literal type="string">"s - "</literal>
+
+<literal type="string">"%"</literal><name>PRId64</name><literal type="string">" KiB/s"</literal></expr></argument>, <argument><expr><name><name>sys</name><operator>-&gt;</operator><name>stat</name><operator>.</operator><name>i_bytes</name></name></expr></argument>,
+
+<argument><expr><call><name>SEC_FROM_VLC_TICK</name><argument_list>(<argument><expr><name><name>sys</name><operator>-&gt;</operator><name>stat</name><operator>.</operator><name>i_read_time</name></name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name>i_byterate</name> <operator>/</operator> <literal type="number">1024</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<break>break;</break>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name>i_read</name> <operator>=</operator> <name>STREAM_CACHE_TRACK_SIZE</name> <operator>-</operator> <name>i_buffered</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>i_read</name> <operator>=</operator> <call><name>__MIN</name><argument_list>(<argument><expr><operator>(</operator><name>int</name><operator>)</operator><name><name>sys</name><operator>-&gt;</operator><name>i_read_size</name></name></expr></argument>, <argument><expr><name>i_read</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>i_read</name> <operator>=</operator> <call><name>vlc_stream_Read</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>s</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>tk</name><operator>-&gt;</operator><name>p_buffer</name><index>[<expr><name>i_buffered</name></expr>]</index></name></expr></argument>, <argument><expr><name>i_read</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>i_read</name> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+
+<continue>continue;</continue></block_content></block></if>
+
+<if type="elseif">else if <condition>(<expr><name>i_read</name> <operator>==</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+
+<break>break;</break></block_content></block></if></if_stmt> 
+
+<if_stmt><if>if <condition>(<expr><name>first</name></expr>)</condition>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>msg_Dbg</name><argument_list>(<argument><expr><name>s</name></expr></argument>, <argument><expr><literal type="string">"received first data after %"</literal><name>PRId64</name><literal type="string">" ms"</literal></expr></argument>,
+
+<argument><expr><call><name>MS_FROM_VLC_TICK</name><argument_list>(<argument><expr><call><name>vlc_tick_now</name><argument_list>()</argument_list></call> <operator>-</operator> <name>start</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>first</name> <operator>=</operator> <name>false</name></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>tk</name><operator>-&gt;</operator><name>i_end</name></name> <operator>+=</operator> <name>i_read</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>sys</name><operator>-&gt;</operator><name>stat</name><operator>.</operator><name>i_read_count</name></name><operator>++</operator></expr>;</expr_stmt>
+
+</block_content>}</block></for>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>AStreamControlReset</name><parameter_list>(<parameter><decl><type><name>stream_t</name> <modifier>*</modifier></type><name>s</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>stream_sys_t</name> <modifier>*</modifier></type><name>sys</name> <init>= <expr><name><name>s</name><operator>-&gt;</operator><name>p_sys</name></name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>sys</name><operator>-&gt;</operator><name>i_pos</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>sys</name><operator>-&gt;</operator><name>i_offset</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>sys</name><operator>-&gt;</operator><name>i_tk</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>sys</name><operator>-&gt;</operator><name>i_used</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<for>for <control>(<init><decl><type><name>unsigned</name></type> <name>i</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>STREAM_CACHE_TRACK</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control>
+
+<block>{<block_content>
+
+<expr_stmt><expr><name><name>sys</name><operator>-&gt;</operator><name>tk</name><index>[<expr><name>i</name></expr>]</index></name><operator>.</operator><name>date</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>sys</name><operator>-&gt;</operator><name>tk</name><index>[<expr><name>i</name></expr>]</index></name><operator>.</operator><name>i_start</name> <operator>=</operator> <name><name>sys</name><operator>-&gt;</operator><name>i_pos</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>sys</name><operator>-&gt;</operator><name>tk</name><index>[<expr><name>i</name></expr>]</index></name><operator>.</operator><name>i_end</name> <operator>=</operator> <name><name>sys</name><operator>-&gt;</operator><name>i_pos</name></name></expr>;</expr_stmt>
+
+</block_content>}</block></for>
+
+<expr_stmt><expr><call><name>AStreamPrebufferStream</name><argument_list>(<argument><expr><name>s</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>ssize_t</name></type> <name>AStreamReadStream</name><parameter_list>(<parameter><decl><type><name>stream_t</name> <modifier>*</modifier></type><name>s</name></decl></parameter>, <parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>buf</name></decl></parameter>, <parameter><decl><type><name>size_t</name></type> <name>len</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>stream_sys_t</name> <modifier>*</modifier></type><name>sys</name> <init>= <expr><name><name>s</name><operator>-&gt;</operator><name>p_sys</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>stream_track_t</name> <modifier>*</modifier></type><name>tk</name> <init>= <expr><operator>&amp;</operator><name><name>sys</name><operator>-&gt;</operator><name>tk</name><index>[<expr><name><name>sys</name><operator>-&gt;</operator><name>i_tk</name></name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>tk</name><operator>-&gt;</operator><name>i_start</name></name> <operator>&gt;=</operator> <name><name>tk</name><operator>-&gt;</operator><name>i_end</name></name></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><literal type="number">0</literal></expr>;</return></block_content></block></if></if_stmt> 
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><call><name>defined</name><argument_list>(<argument><expr><name>STREAM_DEBUG</name></expr></argument>)</argument_list></call></expr></cpp:if>
+<expr_stmt><expr><call><name>msg_Dbg</name><argument_list>(<argument><expr><name>s</name></expr></argument>, <argument><expr><literal type="string">"AStreamReadStream: %zd pos=%"</literal><name>PRId64</name><literal type="string">" tk=%d start=%"</literal><name>PRId64</name>
+
+<literal type="string">" offset=%d end=%"</literal><name>PRId64</name></expr></argument>, <argument><expr><name>len</name></expr></argument>, <argument><expr><name><name>sys</name><operator>-&gt;</operator><name>i_pos</name></name></expr></argument>, <argument><expr><name><name>sys</name><operator>-&gt;</operator><name>i_tk</name></name></expr></argument>,
+
+<argument><expr><name><name>tk</name><operator>-&gt;</operator><name>i_start</name></name></expr></argument>, <argument><expr><name><name>sys</name><operator>-&gt;</operator><name>i_offset</name></name></expr></argument>, <argument><expr><name><name>tk</name><operator>-&gt;</operator><name>i_end</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+<decl_stmt><decl><type><name>unsigned</name></type> <name>i_off</name> <init>= <expr><operator>(</operator><name><name>tk</name><operator>-&gt;</operator><name>i_start</name></name> <operator>+</operator> <name><name>sys</name><operator>-&gt;</operator><name>i_offset</name></name><operator>)</operator> <operator>%</operator> <name>STREAM_CACHE_TRACK_SIZE</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>size_t</name></type> <name>i_current</name> <init>= <expr><call><name>__MIN</name><argument_list>(<argument><expr><name><name>tk</name><operator>-&gt;</operator><name>i_end</name></name> <operator>-</operator> <name><name>tk</name><operator>-&gt;</operator><name>i_start</name></name> <operator>-</operator> <name><name>sys</name><operator>-&gt;</operator><name>i_offset</name></name></expr></argument>,
+
+<argument><expr><name>STREAM_CACHE_TRACK_SIZE</name> <operator>-</operator> <name>i_off</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>ssize_t</name></type> <name>i_copy</name> <init>= <expr><call><name>__MIN</name><argument_list>(<argument><expr><name>i_current</name></expr></argument>, <argument><expr><name>len</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>i_copy</name> <operator>&lt;=</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><literal type="number">0</literal></expr>;</return></block_content></block></if></if_stmt> 
+
+<if_stmt><if>if <condition>(<expr><name>buf</name> <operator>!=</operator> <name>NULL</name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>memcpy</name><argument_list>(<argument><expr><name>buf</name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>tk</name><operator>-&gt;</operator><name>p_buffer</name><index>[<expr><name>i_off</name></expr>]</index></name></expr></argument>, <argument><expr><name>i_copy</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name><name>sys</name><operator>-&gt;</operator><name>i_offset</name></name> <operator>+=</operator> <name>i_copy</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>sys</name><operator>-&gt;</operator><name>i_pos</name></name> <operator>+=</operator> <name>i_copy</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>sys</name><operator>-&gt;</operator><name>i_used</name></name> <operator>+=</operator> <name>i_copy</name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>tk</name><operator>-&gt;</operator><name>i_end</name></name> <operator>+</operator> <name>i_copy</name> <operator>&lt;=</operator> <name><name>tk</name><operator>-&gt;</operator><name>i_start</name></name> <operator>+</operator> <name><name>sys</name><operator>-&gt;</operator><name>i_offset</name></name> <operator>+</operator> <name>len</name></expr>)</condition>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>size_t</name></type> <name>i_read_requested</name> <init>= <expr><call><name>VLC_CLIP</name><argument_list>(<argument><expr><name>len</name> <operator>-</operator> <name>i_copy</name></expr></argument>,
+
+<argument><expr><name>STREAM_READ_ATONCE</name> <operator>/</operator> <literal type="number">2</literal></expr></argument>,
+
+<argument><expr><name>STREAM_READ_ATONCE</name> <operator>*</operator> <literal type="number">10</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>sys</name><operator>-&gt;</operator><name>i_used</name></name> <operator>&lt;</operator> <name>i_read_requested</name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name><name>sys</name><operator>-&gt;</operator><name>i_used</name></name> <operator>=</operator> <name>i_read_requested</name></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>AStreamRefillStream</name><argument_list>(<argument><expr><name>s</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<return>return <expr><name>i_copy</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>AStreamSeekStream</name><parameter_list>(<parameter><decl><type><name>stream_t</name> <modifier>*</modifier></type><name>s</name></decl></parameter>, <parameter><decl><type><name>uint64_t</name></type> <name>i_pos</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>stream_sys_t</name> <modifier>*</modifier></type><name>sys</name> <init>= <expr><name><name>s</name><operator>-&gt;</operator><name>p_sys</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>stream_track_t</name> <modifier>*</modifier></type><name>p_current</name> <init>= <expr><operator>&amp;</operator><name><name>sys</name><operator>-&gt;</operator><name>tk</name><index>[<expr><name><name>sys</name><operator>-&gt;</operator><name>i_tk</name></name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>p_current</name><operator>-&gt;</operator><name>i_start</name></name> <operator>&gt;=</operator> <name><name>p_current</name><operator>-&gt;</operator><name>i_end</name></name> <operator>&amp;&amp;</operator> <name>i_pos</name> <operator>&gt;=</operator> <name><name>p_current</name><operator>-&gt;</operator><name>i_end</name></name></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><literal type="number">0</literal></expr>;</return></block_content></block></if></if_stmt> 
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><call><name>defined</name><argument_list>(<argument><expr><name>STREAM_DEBUG</name></expr></argument>)</argument_list></call></expr></cpp:if>
+<expr_stmt><expr><call><name>msg_Dbg</name><argument_list>(<argument><expr><name>s</name></expr></argument>, <argument><expr><literal type="string">"AStreamSeekStream: to %"</literal><name>PRId64</name><literal type="string">" pos=%"</literal><name>PRId64</name>
+
+<literal type="string">" tk=%d start=%"</literal><name>PRId64</name><literal type="string">" offset=%d end=%"</literal><name>PRId64</name></expr></argument>,
+
+<argument><expr><name>i_pos</name></expr></argument>, <argument><expr><name><name>sys</name><operator>-&gt;</operator><name>i_pos</name></name></expr></argument>, <argument><expr><name><name>sys</name><operator>-&gt;</operator><name>i_tk</name></name></expr></argument>, <argument><expr><name><name>p_current</name><operator>-&gt;</operator><name>i_start</name></name></expr></argument>,
+
+<argument><expr><name><name>sys</name><operator>-&gt;</operator><name>i_offset</name></name></expr></argument>, <argument><expr><name><name>p_current</name><operator>-&gt;</operator><name>i_end</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+<decl_stmt><decl><type><name>bool</name></type> <name>b_aseek</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>vlc_stream_Control</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>s</name></name></expr></argument>, <argument><expr><name>STREAM_CAN_SEEK</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>b_aseek</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>b_aseek</name> <operator>&amp;&amp;</operator> <name>i_pos</name> <operator>&lt;</operator> <name><name>p_current</name><operator>-&gt;</operator><name>i_start</name></name></expr>)</condition>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>msg_Warn</name><argument_list>(<argument><expr><name>s</name></expr></argument>, <argument><expr><literal type="string">"AStreamSeekStream: can't seek"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>VLC_EGENERIC</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<decl_stmt><decl><type><name>bool</name></type> <name>b_afastseek</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>vlc_stream_Control</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>s</name></name></expr></argument>, <argument><expr><name>STREAM_CAN_FASTSEEK</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>b_afastseek</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<decl_stmt><decl><type><name>uint64_t</name></type> <name>i_skip_threshold</name></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>b_aseek</name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name>i_skip_threshold</name> <operator>=</operator> <ternary><condition><expr><name>b_afastseek</name></expr> ?</condition><then> <expr><literal type="number">128</literal></expr> </then><else>: <expr><literal type="number">3</literal> <operator>*</operator> <name><name>sys</name><operator>-&gt;</operator><name>i_read_size</name></name></expr></else></ternary></expr>;</expr_stmt></block_content></block></if>
+
+<else>else<block type="pseudo"><block_content>
+
+<expr_stmt><expr><name>i_skip_threshold</name> <operator>=</operator> <name>INT64_MAX</name></expr>;</expr_stmt></block_content></block></else></if_stmt>
+
+<expr_stmt><expr><name><name>p_current</name><operator>-&gt;</operator><name>date</name></name> <operator>=</operator> <call><name>vlc_tick_now</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<decl_stmt><decl><type><name>stream_track_t</name> <modifier>*</modifier></type><name>tk</name> <init>= <expr><name>NULL</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>i_tk_idx</name> <init>= <expr><operator>-</operator><literal type="number">1</literal></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>p_current</name><operator>-&gt;</operator><name>i_start</name></name> <operator>&lt;=</operator> <name>i_pos</name> <operator>&amp;&amp;</operator> <name>i_pos</name> <operator>&lt;=</operator> <name><name>p_current</name><operator>-&gt;</operator><name>i_end</name></name> <operator>+</operator> <name>i_skip_threshold</name></expr>)</condition>
+
+<block>{<block_content>
+
+<expr_stmt><expr><name>tk</name> <operator>=</operator> <name>p_current</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>i_tk_idx</name> <operator>=</operator> <name><name>sys</name><operator>-&gt;</operator><name>i_tk</name></name></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>tk</name></expr>)</condition>
+
+<block>{<block_content>
+
+<for>for <control>(<init><decl><type><name>int</name></type> <name>i</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>STREAM_CACHE_TRACK</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>stream_track_t</name> <modifier>*</modifier></type><name>t</name> <init>= <expr><operator>&amp;</operator><name><name>sys</name><operator>-&gt;</operator><name>tk</name><index>[<expr><name>i</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>t</name><operator>-&gt;</operator><name>i_start</name></name> <operator>&gt;</operator> <name>i_pos</name> <operator>||</operator> <name>i_pos</name> <operator>&gt;</operator> <name><name>t</name><operator>-&gt;</operator><name>i_end</name></name></expr>)</condition><block type="pseudo"><block_content>
+
+<continue>continue;</continue></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>tk</name> <operator>||</operator> <name><name>tk</name><operator>-&gt;</operator><name>i_end</name></name> <operator>&lt;</operator> <name><name>t</name><operator>-&gt;</operator><name>i_end</name></name></expr>)</condition>
+
+<block>{<block_content>
+
+<expr_stmt><expr><name>tk</name> <operator>=</operator> <name>t</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>i_tk_idx</name> <operator>=</operator> <name>i</name></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></for>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>tk</name></expr>)</condition>
+
+<block>{<block_content>
+
+<for>for <control>(<init><decl><type><name>int</name></type> <name>i</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>STREAM_CACHE_TRACK</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>stream_track_t</name> <modifier>*</modifier></type><name>t</name> <init>= <expr><operator>&amp;</operator><name><name>sys</name><operator>-&gt;</operator><name>tk</name><index>[<expr><name>i</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>tk</name> <operator>||</operator> <name><name>tk</name><operator>-&gt;</operator><name>date</name></name> <operator>&gt;</operator> <name><name>t</name><operator>-&gt;</operator><name>date</name></name></expr>)</condition>
+
+<block>{<block_content>
+
+<expr_stmt><expr><name>tk</name> <operator>=</operator> <name>t</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>i_tk_idx</name> <operator>=</operator> <name>i</name></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></for>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>assert</name><argument_list>(<argument><expr><name>i_tk_idx</name> <operator>&gt;=</operator> <literal type="number">0</literal> <operator>&amp;&amp;</operator> <name>i_tk_idx</name> <operator>&lt;</operator> <name>STREAM_CACHE_TRACK</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>tk</name> <operator>!=</operator> <name>p_current</name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name>i_skip_threshold</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>tk</name><operator>-&gt;</operator><name>i_start</name></name> <operator>&lt;=</operator> <name>i_pos</name> <operator>&amp;&amp;</operator> <name>i_pos</name> <operator>&lt;=</operator> <name><name>tk</name><operator>-&gt;</operator><name>i_end</name></name> <operator>+</operator> <name>i_skip_threshold</name></expr>)</condition>
+
+<block>{<block_content>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><call><name>defined</name><argument_list>(<argument><expr><name>STREAM_DEBUG</name></expr></argument>)</argument_list></call></expr></cpp:if>
+<expr_stmt><expr><call><name>msg_Err</name><argument_list>(<argument><expr><name>s</name></expr></argument>, <argument><expr><literal type="string">"AStreamSeekStream: reusing %d start=%"</literal><name>PRId64</name>
+
+<literal type="string">" end=%"</literal><name>PRId64</name><literal type="string">"(%s)"</literal></expr></argument>,
+
+<argument><expr><name>i_tk_idx</name></expr></argument>, <argument><expr><name><name>tk</name><operator>-&gt;</operator><name>i_start</name></name></expr></argument>, <argument><expr><name><name>tk</name><operator>-&gt;</operator><name>i_end</name></name></expr></argument>,
+
+<argument><expr><ternary><condition><expr><name>tk</name> <operator>!=</operator> <name>p_current</name></expr> ?</condition><then> <expr><literal type="string">"seek"</literal></expr> </then><else>: <expr><ternary><condition><expr><name>i_pos</name> <operator>&gt;</operator> <name><name>tk</name><operator>-&gt;</operator><name>i_end</name></name></expr> ?</condition><then> <expr><literal type="string">"skip"</literal></expr> </then><else>: <expr><literal type="string">"noseek"</literal></expr></else></ternary></expr></else></ternary></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+<if_stmt><if>if <condition>(<expr><name>tk</name> <operator>!=</operator> <name>p_current</name></expr>)</condition>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>assert</name><argument_list>(<argument><expr><name>b_aseek</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>vlc_stream_Seek</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>s</name></name></expr></argument>, <argument><expr><name><name>tk</name><operator>-&gt;</operator><name>i_end</name></name></expr></argument>)</argument_list></call></expr>)</condition>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>msg_Err</name><argument_list>(<argument><expr><name>s</name></expr></argument>, <argument><expr><literal type="string">"AStreamSeekStream: hard seek failed"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>VLC_EGENERIC</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></if>
+
+<if type="elseif">else if <condition>(<expr><name>i_pos</name> <operator>&gt;</operator> <name><name>tk</name><operator>-&gt;</operator><name>i_end</name></name></expr>)</condition>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>uint64_t</name></type> <name>i_skip</name> <init>= <expr><name>i_pos</name> <operator>-</operator> <name><name>tk</name><operator>-&gt;</operator><name>i_end</name></name></expr></init></decl>;</decl_stmt>
+
+<while>while <condition>(<expr><name>i_skip</name> <operator>&gt;</operator> <literal type="number">0</literal></expr>)</condition>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>int</name></type> <name>i_read_max</name> <init>= <expr><call><name>__MIN</name><argument_list>(<argument><expr><literal type="number">10</literal> <operator>*</operator> <name>STREAM_READ_ATONCE</name></expr></argument>, <argument><expr><name>i_skip</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>i_read</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>(</operator><name>i_read</name> <operator>=</operator> <call><name>AStreamReadStream</name><argument_list>(<argument><expr><name>s</name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>, <argument><expr><name>i_read_max</name></expr></argument>)</argument_list></call><operator>)</operator> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>msg_Err</name><argument_list>(<argument><expr><name>s</name></expr></argument>, <argument><expr><literal type="string">"AStreamSeekStream: skip failed"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>VLC_EGENERIC</name></expr>;</return>
+
+</block_content>}</block></if> <if type="elseif">else if <condition>(<expr><name>i_read</name> <operator>==</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>VLC_SUCCESS</name></expr>;</return></block_content></block></if></if_stmt> 
+
+<expr_stmt><expr><name>i_skip</name> <operator>-=</operator> <name>i_read_max</name></expr>;</expr_stmt>
+
+</block_content>}</block></while>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></if>
+
+<else>else
+
+<block>{<block_content>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><call><name>defined</name><argument_list>(<argument><expr><name>STREAM_DEBUG</name></expr></argument>)</argument_list></call></expr></cpp:if>
+<expr_stmt><expr><call><name>msg_Err</name><argument_list>(<argument><expr><name>s</name></expr></argument>, <argument><expr><literal type="string">"AStreamSeekStream: hard seek"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+<if_stmt><if>if <condition>(<expr><call><name>vlc_stream_Seek</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>s</name></name></expr></argument>, <argument><expr><name>i_pos</name></expr></argument>)</argument_list></call></expr>)</condition>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>msg_Err</name><argument_list>(<argument><expr><name>s</name></expr></argument>, <argument><expr><literal type="string">"AStreamSeekStream: hard seek failed"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>VLC_EGENERIC</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>tk</name><operator>-&gt;</operator><name>i_start</name></name> <operator>=</operator> <name>i_pos</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>tk</name><operator>-&gt;</operator><name>i_end</name></name> <operator>=</operator> <name>i_pos</name></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+<expr_stmt><expr><name><name>sys</name><operator>-&gt;</operator><name>i_offset</name></name> <operator>=</operator> <name>i_pos</name> <operator>-</operator> <name><name>tk</name><operator>-&gt;</operator><name>i_start</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>sys</name><operator>-&gt;</operator><name>i_tk</name></name> <operator>=</operator> <name>i_tk_idx</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>sys</name><operator>-&gt;</operator><name>i_pos</name></name> <operator>=</operator> <name>i_pos</name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>tk</name><operator>-&gt;</operator><name>i_end</name></name> <operator>&lt;</operator> <name><name>tk</name><operator>-&gt;</operator><name>i_start</name></name> <operator>+</operator> <name><name>sys</name><operator>-&gt;</operator><name>i_offset</name></name> <operator>+</operator> <name><name>sys</name><operator>-&gt;</operator><name>i_read_size</name></name></expr>)</condition>
+
+<block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><name><name>sys</name><operator>-&gt;</operator><name>i_used</name></name> <operator>&lt;</operator> <name>STREAM_READ_ATONCE</name> <operator>/</operator> <literal type="number">2</literal></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name><name>sys</name><operator>-&gt;</operator><name>i_used</name></name> <operator>=</operator> <name>STREAM_READ_ATONCE</name> <operator>/</operator> <literal type="number">2</literal></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>AStreamRefillStream</name><argument_list>(<argument><expr><name>s</name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>VLC_EGENERIC</name></expr>;</return></block_content></block></if></if_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<return>return <expr><name>VLC_SUCCESS</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>AStreamControl</name><parameter_list>(<parameter><decl><type><name>stream_t</name> <modifier>*</modifier></type><name>s</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>i_query</name></decl></parameter>, <parameter><decl><type><name>va_list</name></type> <name>args</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<switch>switch<condition>(<expr><name>i_query</name></expr>)</condition>
+
+<block>{<block_content>
+
+<case>case <expr><name>STREAM_CAN_SEEK</name></expr>:</case>
+
+<case>case <expr><name>STREAM_CAN_FASTSEEK</name></expr>:</case>
+
+<case>case <expr><name>STREAM_CAN_PAUSE</name></expr>:</case>
+
+<case>case <expr><name>STREAM_CAN_CONTROL_PACE</name></expr>:</case>
+
+<case>case <expr><name>STREAM_GET_SIZE</name></expr>:</case>
+
+<case>case <expr><name>STREAM_GET_PTS_DELAY</name></expr>:</case>
+
+<case>case <expr><name>STREAM_GET_TITLE_INFO</name></expr>:</case>
+
+<case>case <expr><name>STREAM_GET_TITLE</name></expr>:</case>
+
+<case>case <expr><name>STREAM_GET_SEEKPOINT</name></expr>:</case>
+
+<case>case <expr><name>STREAM_GET_META</name></expr>:</case>
+
+<case>case <expr><name>STREAM_GET_CONTENT_TYPE</name></expr>:</case>
+
+<case>case <expr><name>STREAM_GET_SIGNAL</name></expr>:</case>
+
+<case>case <expr><name>STREAM_GET_TAGS</name></expr>:</case>
+
+<case>case <expr><name>STREAM_SET_PAUSE_STATE</name></expr>:</case>
+
+<case>case <expr><name>STREAM_SET_PRIVATE_ID_STATE</name></expr>:</case>
+
+<case>case <expr><name>STREAM_SET_PRIVATE_ID_CA</name></expr>:</case>
+
+<case>case <expr><name>STREAM_GET_PRIVATE_ID_STATE</name></expr>:</case>
+
+<return>return <expr><call><name>vlc_stream_vaControl</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>s</name></name></expr></argument>, <argument><expr><name>i_query</name></expr></argument>, <argument><expr><name>args</name></expr></argument>)</argument_list></call></expr>;</return>
+
+<case>case <expr><name>STREAM_SET_TITLE</name></expr>:</case>
+
+<case>case <expr><name>STREAM_SET_SEEKPOINT</name></expr>:</case>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>int</name></type> <name>ret</name> <init>= <expr><call><name>vlc_stream_vaControl</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>s</name></name></expr></argument>, <argument><expr><name>i_query</name></expr></argument>, <argument><expr><name>args</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>ret</name> <operator>==</operator> <name>VLC_SUCCESS</name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>AStreamControlReset</name><argument_list>(<argument><expr><name>s</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<return>return <expr><name>ret</name></expr>;</return>
+
+</block_content>}</block>
+
+<case>case <expr><name>STREAM_SET_RECORD_STATE</name></expr>:</case>
+
+<default>default:</default>
+
+<expr_stmt><expr><call><name>msg_Err</name><argument_list>(<argument><expr><name>s</name></expr></argument>, <argument><expr><literal type="string">"invalid vlc_stream_vaControl query=0x%x"</literal></expr></argument>, <argument><expr><name>i_query</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>VLC_EGENERIC</name></expr>;</return>
+
+</block_content>}</block></switch>
+
+<return>return <expr><name>VLC_SUCCESS</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>Open</name><parameter_list>(<parameter><decl><type><name>vlc_object_t</name> <modifier>*</modifier></type><name>obj</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>stream_t</name> <modifier>*</modifier></type><name>s</name> <init>= <expr><operator>(</operator><name>stream_t</name> <operator>*</operator><operator>)</operator><name>obj</name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>s</name><operator>-&gt;</operator><name>s</name><operator>-&gt;</operator><name>pf_read</name></name> <operator>==</operator> <name>NULL</name></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>VLC_EGENERIC</name></expr>;</return></block_content></block></if></if_stmt>
+
+<decl_stmt><decl><type><name>stream_sys_t</name> <modifier>*</modifier></type><name>sys</name> <init>= <expr><call><name>malloc</name><argument_list>(<argument><expr><sizeof>sizeof <argument_list>(<argument><expr><operator>*</operator><name>sys</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>unlikely</name><argument_list>(<argument><expr><name>sys</name> <operator>==</operator> <name>NULL</name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>VLC_ENOMEM</name></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name><name>sys</name><operator>-&gt;</operator><name>i_pos</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>sys</name><operator>-&gt;</operator><name>stat</name><operator>.</operator><name>i_bytes</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>sys</name><operator>-&gt;</operator><name>stat</name><operator>.</operator><name>i_read_time</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>sys</name><operator>-&gt;</operator><name>stat</name><operator>.</operator><name>i_read_count</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>msg_Dbg</name><argument_list>(<argument><expr><name>s</name></expr></argument>, <argument><expr><literal type="string">"Using stream method for AStream*"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>sys</name><operator>-&gt;</operator><name>i_offset</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>sys</name><operator>-&gt;</operator><name>i_tk</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>sys</name><operator>-&gt;</operator><name>p_buffer</name></name> <operator>=</operator> <call><name>malloc</name><argument_list>(<argument><expr><name>STREAM_CACHE_SIZE</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>sys</name><operator>-&gt;</operator><name>p_buffer</name></name> <operator>==</operator> <name>NULL</name></expr>)</condition>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>free</name><argument_list>(<argument><expr><name>sys</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>VLC_ENOMEM</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>sys</name><operator>-&gt;</operator><name>i_used</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>sys</name><operator>-&gt;</operator><name>i_read_size</name></name> <operator>=</operator> <name>STREAM_READ_ATONCE</name></expr>;</expr_stmt>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><name>STREAM_READ_ATONCE</name> <operator>&lt;</operator> <literal type="number">256</literal></expr></cpp:if>
+
+<cpp:error>#<cpp:directive>error</cpp:directive> <cpp:literal>"Invalid STREAM_READ_ATONCE value"</cpp:literal></cpp:error>
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+<for>for <control>(<init><decl><type><name>unsigned</name></type> <name>i</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>STREAM_CACHE_TRACK</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control>
+
+<block>{<block_content>
+
+<expr_stmt><expr><name><name>sys</name><operator>-&gt;</operator><name>tk</name><index>[<expr><name>i</name></expr>]</index></name><operator>.</operator><name>date</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>sys</name><operator>-&gt;</operator><name>tk</name><index>[<expr><name>i</name></expr>]</index></name><operator>.</operator><name>i_start</name> <operator>=</operator> <name><name>sys</name><operator>-&gt;</operator><name>i_pos</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>sys</name><operator>-&gt;</operator><name>tk</name><index>[<expr><name>i</name></expr>]</index></name><operator>.</operator><name>i_end</name> <operator>=</operator> <name><name>sys</name><operator>-&gt;</operator><name>i_pos</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>sys</name><operator>-&gt;</operator><name>tk</name><index>[<expr><name>i</name></expr>]</index></name><operator>.</operator><name>p_buffer</name> <operator>=</operator> <operator>&amp;</operator><name><name>sys</name><operator>-&gt;</operator><name>p_buffer</name><index>[<expr><name>i</name> <operator>*</operator> <name>STREAM_CACHE_TRACK_SIZE</name></expr>]</index></name></expr>;</expr_stmt>
+
+</block_content>}</block></for>
+
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>p_sys</name></name> <operator>=</operator> <name>sys</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>AStreamPrebufferStream</name><argument_list>(<argument><expr><name>s</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>sys</name><operator>-&gt;</operator><name>tk</name><index>[<expr><name><name>sys</name><operator>-&gt;</operator><name>i_tk</name></name></expr>]</index></name><operator>.</operator><name>i_end</name> <operator>&lt;=</operator> <literal type="number">0</literal></expr>)</condition>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>msg_Err</name><argument_list>(<argument><expr><name>s</name></expr></argument>, <argument><expr><literal type="string">"cannot pre fill buffer"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>free</name><argument_list>(<argument><expr><name><name>sys</name><operator>-&gt;</operator><name>p_buffer</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>free</name><argument_list>(<argument><expr><name>sys</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>VLC_EGENERIC</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>pf_read</name></name> <operator>=</operator> <name>AStreamReadStream</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>pf_seek</name></name> <operator>=</operator> <name>AStreamSeekStream</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>pf_control</name></name> <operator>=</operator> <name>AStreamControl</name></expr>;</expr_stmt>
+
+<return>return <expr><name>VLC_SUCCESS</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>Close</name><parameter_list>(<parameter><decl><type><name>vlc_object_t</name> <modifier>*</modifier></type><name>obj</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>stream_t</name> <modifier>*</modifier></type><name>s</name> <init>= <expr><operator>(</operator><name>stream_t</name> <operator>*</operator><operator>)</operator><name>obj</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>stream_sys_t</name> <modifier>*</modifier></type><name>sys</name> <init>= <expr><name><name>s</name><operator>-&gt;</operator><name>p_sys</name></name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>free</name><argument_list>(<argument><expr><name><name>sys</name><operator>-&gt;</operator><name>p_buffer</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>free</name><argument_list>(<argument><expr><name>sys</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<macro><name>vlc_module_begin</name><argument_list>()</argument_list></macro>
+
+<macro><name>set_category</name><argument_list>(<argument>CAT_INPUT</argument>)</argument_list></macro>
+
+<macro><name>set_subcategory</name><argument_list>(<argument>SUBCAT_INPUT_STREAM_FILTER</argument>)</argument_list></macro>
+
+<macro><name>set_capability</name><argument_list>(<argument><literal type="string">"stream_filter"</literal></argument>, <argument><literal type="number">0</literal></argument>)</argument_list></macro>
+
+<macro><name>add_shortcut</name><argument_list>(<argument><literal type="string">"cache"</literal></argument>)</argument_list></macro>
+
+<macro><name>set_description</name><argument_list>(<argument>N_(<literal type="string">"Byte stream cache"</literal>)</argument>)</argument_list></macro>
+
+<macro><name>set_callbacks</name><argument_list>(<argument>Open</argument>, <argument>Close</argument>)</argument_list></macro>
+
+<macro><name>vlc_module_end</name><argument_list>()</argument_list></macro>
+
+</unit>

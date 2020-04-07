@@ -1,0 +1,522 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" revision="1.0.0" language="C" filename="D:\Pesquisa\Projects\radare2-analysis\_cppstats\radare2\libr\asm\arch\vax\vax-dis.c"><cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"sysdep.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;setjmp.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;string.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;stdio.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;stdlib.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"vax.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"disas-asm.h"</cpp:file></cpp:include>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>char</name> <modifier>*</modifier></type><name><name>reg_names</name><index>[]</index></name> <init>=
+
+<expr><block>{
+
+<expr><literal type="string">"r0"</literal></expr>, <expr><literal type="string">"r1"</literal></expr>, <expr><literal type="string">"r2"</literal></expr>, <expr><literal type="string">"r3"</literal></expr>, <expr><literal type="string">"r4"</literal></expr>, <expr><literal type="string">"r5"</literal></expr>, <expr><literal type="string">"r6"</literal></expr>, <expr><literal type="string">"r7"</literal></expr>,
+
+<expr><literal type="string">"r8"</literal></expr>, <expr><literal type="string">"r9"</literal></expr>, <expr><literal type="string">"r10"</literal></expr>, <expr><literal type="string">"r11"</literal></expr>, <expr><literal type="string">"ap"</literal></expr>, <expr><literal type="string">"fp"</literal></expr>, <expr><literal type="string">"sp"</literal></expr>, <expr><literal type="string">"pc"</literal></expr>
+
+}</block></expr></init></decl>;</decl_stmt>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><literal type="number">0</literal></expr></cpp:if>
+
+static char *entry_mask_bit[] =
+
+{
+
+"~r0~", "~r1~",
+
+"r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11",
+
+"~ap~", "~fp~",
+
+"IntOvfl", "DecOvfl",
+
+};
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>COERCE_SIGNED_CHAR</name><parameter_list>(<parameter><type><name>ch</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>((signed char)(ch))</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>NEXTBYTE</name><parameter_list>(<parameter><type><name>p</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>((p) += 1, FETCH_DATA (info, p), COERCE_SIGNED_CHAR((p)[-1]))</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>COERCE16</name><parameter_list>(<parameter><type><name>x</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>((int) (((x) ^ 0x8000) - 0x8000))</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>NEXTWORD</name><parameter_list>(<parameter><type><name>p</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>((p) += 2, FETCH_DATA (info, p), COERCE16 (((p)[-1] &lt;&lt; 8) + (p)[-2]))</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>COERCE32</name><parameter_list>(<parameter><type><name>x</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>((int) (((x) ^ 0x80000000) - 0x80000000))</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>NEXTLONG</name><parameter_list>(<parameter><type><name>p</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>((p) += 4, FETCH_DATA (info, p), (COERCE32 (((((((p)[-1] &lt;&lt; 8) + (p)[-2]) &lt;&lt; 8) + (p)[-3]) &lt;&lt; 8) + (p)[-4])))</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>MAXLEN</name></cpp:macro> <cpp:value>25</cpp:value></cpp:define>
+
+<struct>struct <name>private</name>
+
+<block>{
+
+<decl_stmt><decl><type><name>bfd_byte</name> <modifier>*</modifier></type> <name>max_fetched</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>bfd_byte</name></type> <name><name>the_buffer</name><index>[<expr><name>MAXLEN</name></expr>]</index></name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>bfd_vma</name></type> <name>insn_start</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>jmp_buf</name></type> <name>bailout</name></decl>;</decl_stmt>
+
+}</block>;</struct>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>FETCH_DATA</name><parameter_list>(<parameter><type><name>info</name></type></parameter>, <parameter><type><name>addr</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>((addr) &lt;= ((struct private *)((info)-&gt;private_data))-&gt;max_fetched ? 1 : fetch_data ((info), (addr)))</cpp:value></cpp:define>
+
+<function><type><specifier>static</specifier> <name>int</name></type>
+
+<name>fetch_data</name> <parameter_list>(<parameter><decl><type><name><name>struct</name> <name>disassemble_info</name></name> <modifier>*</modifier></type><name>info</name></decl></parameter>, <parameter><decl><type><name>bfd_byte</name> <modifier>*</modifier></type><name>addr</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>int</name></type> <name>status</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>private</name></name> <modifier>*</modifier></type><name>priv</name> <init>= <expr><operator>(</operator>struct <name>private</name> <operator>*</operator><operator>)</operator> <name><name>info</name><operator>-&gt;</operator><name>private_data</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>bfd_vma</name></type> <name>start</name> <init>= <expr><name><name>priv</name><operator>-&gt;</operator><name>insn_start</name></name> <operator>+</operator> <operator>(</operator><name><name>priv</name><operator>-&gt;</operator><name>max_fetched</name></name> <operator>-</operator> <name><name>priv</name><operator>-&gt;</operator><name>the_buffer</name></name><operator>)</operator></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>status</name> <operator>=</operator> <call>(<modifier>*</modifier><name><name>info</name><operator>-&gt;</operator><name>read_memory_func</name></name>) <argument_list>(<argument><expr><name>start</name></expr></argument>,
+
+<argument><expr><name><name>priv</name><operator>-&gt;</operator><name>max_fetched</name></name></expr></argument>,
+
+<argument><expr><name>addr</name> <operator>-</operator> <name><name>priv</name><operator>-&gt;</operator><name>max_fetched</name></name></expr></argument>,
+
+<argument><expr><name>info</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>status</name> <operator>!=</operator> <literal type="number">0</literal></expr>)</condition>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call>(<modifier>*</modifier><name><name>info</name><operator>-&gt;</operator><name>memory_error_func</name></name>) <argument_list>(<argument><expr><name>status</name></expr></argument>, <argument><expr><name>start</name></expr></argument>, <argument><expr><name>info</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>longjmp</name> <argument_list>(<argument><expr><name><name>priv</name><operator>-&gt;</operator><name>bailout</name></name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<expr_stmt><expr><name><name>priv</name><operator>-&gt;</operator><name>max_fetched</name></name> <operator>=</operator> <name>addr</name></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+<return>return <expr><literal type="number">1</literal></expr>;</return>
+
+</block_content>}</block></function>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><literal type="number">0</literal></expr></cpp:if>
+
+static unsigned int entry_addr_occupied_slots = 0;
+
+static unsigned int entry_addr_total_slots = 0;
+
+static bfd_vma * entry_addr = NULL;
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+<function><type><specifier>static</specifier> <name>int</name></type>
+
+<name>print_insn_mode</name> <parameter_list>(<parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>d</name></decl></parameter>,
+
+<parameter><decl><type><name>int</name></type> <name>size</name></decl></parameter>,
+
+<parameter><decl><type><name>unsigned</name> <name>char</name> <modifier>*</modifier></type><name>p0</name></decl></parameter>,
+
+<parameter><decl><type><name>bfd_vma</name></type> <name>addr</name></decl></parameter>, 
+
+<parameter><decl><type><name>disassemble_info</name> <modifier>*</modifier></type><name>info</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>unsigned</name> <name>char</name> <modifier>*</modifier></type><name>p</name> <init>= <expr><name>p0</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>unsigned</name> <name>char</name></type> <name>mode</name></decl>, <decl><type ref="prev"/><name>reg</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>mode</name> <operator>=</operator> <operator>(</operator><name>unsigned</name> <name>char</name><operator>)</operator> <call><name>NEXTBYTE</name> <argument_list>(<argument><expr><name>p</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>reg</name> <operator>=</operator> <name>mode</name> <operator>&amp;</operator> <literal type="number">0xF</literal></expr>;</expr_stmt>
+
+<switch>switch <condition>(<expr><name>mode</name> <operator>&amp;</operator> <literal type="number">0xF0</literal></expr>)</condition>
+
+<block>{<block_content>
+
+<case>case <expr><literal type="number">0x00</literal></expr>:</case>
+
+<case>case <expr><literal type="number">0x10</literal></expr>:</case>
+
+<case>case <expr><literal type="number">0x20</literal></expr>:</case>
+
+<case>case <expr><literal type="number">0x30</literal></expr>:</case> 
+
+<if_stmt><if>if <condition>(<expr><name><name>d</name><index>[<expr><literal type="number">1</literal></expr>]</index></name> <operator>==</operator> <literal type="char">'d'</literal> <operator>||</operator> <name><name>d</name><index>[<expr><literal type="number">1</literal></expr>]</index></name> <operator>==</operator> <literal type="char">'f'</literal> <operator>||</operator> <name><name>d</name><index>[<expr><literal type="number">1</literal></expr>]</index></name> <operator>==</operator> <literal type="char">'g'</literal> <operator>||</operator> <name><name>d</name><index>[<expr><literal type="number">1</literal></expr>]</index></name> <operator>==</operator> <literal type="char">'h'</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call>(<modifier>*</modifier><name><name>info</name><operator>-&gt;</operator><name>fprintf_func</name></name>) <argument_list>(<argument><expr><name><name>info</name><operator>-&gt;</operator><name>stream</name></name></expr></argument>, <argument><expr><literal type="string">"$0x%x [%c-float]"</literal></expr></argument>, <argument><expr><name>mode</name></expr></argument>, <argument><expr><name><name>d</name><index>[<expr><literal type="number">1</literal></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<expr_stmt><expr><call>(<modifier>*</modifier><name><name>info</name><operator>-&gt;</operator><name>fprintf_func</name></name>) <argument_list>(<argument><expr><name><name>info</name><operator>-&gt;</operator><name>stream</name></name></expr></argument>, <argument><expr><literal type="string">"$0x%x"</literal></expr></argument>, <argument><expr><name>mode</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+<break>break;</break>
+
+<case>case <expr><literal type="number">0x40</literal></expr>:</case> 
+
+<expr_stmt><expr><name>p</name> <operator>+=</operator> <call><name>print_insn_mode</name> <argument_list>(<argument><expr><name>d</name></expr></argument>, <argument><expr><name>size</name></expr></argument>, <argument><expr><name>p0</name> <operator>+</operator> <literal type="number">1</literal></expr></argument>, <argument><expr><name>addr</name> <operator>+</operator> <literal type="number">1</literal></expr></argument>, <argument><expr><name>info</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call>(<modifier>*</modifier><name><name>info</name><operator>-&gt;</operator><name>fprintf_func</name></name>) <argument_list>(<argument><expr><name><name>info</name><operator>-&gt;</operator><name>stream</name></name></expr></argument>, <argument><expr><literal type="string">"[%s]"</literal></expr></argument>, <argument><expr><name><name>reg_names</name><index>[<expr><name>reg</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<break>break;</break>
+
+<case>case <expr><literal type="number">0x50</literal></expr>:</case> 
+
+<expr_stmt><expr><call>(<modifier>*</modifier><name><name>info</name><operator>-&gt;</operator><name>fprintf_func</name></name>) <argument_list>(<argument><expr><name><name>info</name><operator>-&gt;</operator><name>stream</name></name></expr></argument>, <argument><expr><literal type="string">"%s"</literal></expr></argument>, <argument><expr><name><name>reg_names</name><index>[<expr><name>reg</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<break>break;</break>
+
+<case>case <expr><literal type="number">0x60</literal></expr>:</case> 
+
+<expr_stmt><expr><call>(<modifier>*</modifier><name><name>info</name><operator>-&gt;</operator><name>fprintf_func</name></name>) <argument_list>(<argument><expr><name><name>info</name><operator>-&gt;</operator><name>stream</name></name></expr></argument>, <argument><expr><literal type="string">"(%s)"</literal></expr></argument>, <argument><expr><name><name>reg_names</name><index>[<expr><name>reg</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<break>break;</break>
+
+<case>case <expr><literal type="number">0x70</literal></expr>:</case> 
+
+<expr_stmt><expr><call>(<modifier>*</modifier><name><name>info</name><operator>-&gt;</operator><name>fprintf_func</name></name>) <argument_list>(<argument><expr><name><name>info</name><operator>-&gt;</operator><name>stream</name></name></expr></argument>, <argument><expr><literal type="string">"-(%s)"</literal></expr></argument>, <argument><expr><name><name>reg_names</name><index>[<expr><name>reg</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<break>break;</break>
+
+<case>case <expr><literal type="number">0x80</literal></expr>:</case> 
+
+<if_stmt><if>if <condition>(<expr><name>reg</name> <operator>==</operator> <literal type="number">0xF</literal></expr>)</condition>
+
+<block>{<block_content> 
+
+<decl_stmt><decl><type><name>int</name></type> <name>i</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>FETCH_DATA</name> <argument_list>(<argument><expr><name>info</name></expr></argument>, <argument><expr><name>p</name> <operator>+</operator> <name>size</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call>(<modifier>*</modifier><name><name>info</name><operator>-&gt;</operator><name>fprintf_func</name></name>) <argument_list>(<argument><expr><name><name>info</name><operator>-&gt;</operator><name>stream</name></name></expr></argument>, <argument><expr><literal type="string">"$0x"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>d</name><index>[<expr><literal type="number">1</literal></expr>]</index></name> <operator>==</operator> <literal type="char">'d'</literal> <operator>||</operator> <name><name>d</name><index>[<expr><literal type="number">1</literal></expr>]</index></name> <operator>==</operator> <literal type="char">'f'</literal> <operator>||</operator> <name><name>d</name><index>[<expr><literal type="number">1</literal></expr>]</index></name> <operator>==</operator> <literal type="char">'g'</literal> <operator>||</operator> <name><name>d</name><index>[<expr><literal type="number">1</literal></expr>]</index></name> <operator>==</operator> <literal type="char">'h'</literal></expr>)</condition>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>int</name></type> <name>float_word</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>float_word</name> <operator>=</operator> <name><name>p</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>|</operator> <operator>(</operator><name><name>p</name><index>[<expr><literal type="number">1</literal></expr>]</index></name> <operator>&lt;&lt;</operator> <literal type="number">8</literal><operator>)</operator></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>(</operator><name><name>d</name><index>[<expr><literal type="number">1</literal></expr>]</index></name> <operator>==</operator> <literal type="char">'d'</literal> <operator>||</operator> <name><name>d</name><index>[<expr><literal type="number">1</literal></expr>]</index></name> <operator>==</operator> <literal type="char">'f'</literal><operator>)</operator>
+
+<operator>&amp;&amp;</operator> <operator>(</operator><name>float_word</name> <operator>&amp;</operator> <literal type="number">0xff80</literal><operator>)</operator> <operator>==</operator> <literal type="number">0x8000</literal></expr>)</condition>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call>(<modifier>*</modifier><name><name>info</name><operator>-&gt;</operator><name>fprintf_func</name></name>) <argument_list>(<argument><expr><name><name>info</name><operator>-&gt;</operator><name>stream</name></name></expr></argument>, <argument><expr><literal type="string">"[invalid %c-float]"</literal></expr></argument>,
+
+<argument><expr><name><name>d</name><index>[<expr><literal type="number">1</literal></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if>
+
+<else>else
+
+<block>{<block_content>
+
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>size</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+
+<expr_stmt><expr><call>(<modifier>*</modifier><name><name>info</name><operator>-&gt;</operator><name>fprintf_func</name></name>) <argument_list>(<argument><expr><name><name>info</name><operator>-&gt;</operator><name>stream</name></name></expr></argument>, <argument><expr><literal type="string">"%02x"</literal></expr></argument>,
+
+<argument><expr><name><name>p</name><index>[<expr><name>size</name> <operator>-</operator> <name>i</name> <operator>-</operator> <literal type="number">1</literal></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></for>
+
+<expr_stmt><expr><call>(<modifier>*</modifier><name><name>info</name><operator>-&gt;</operator><name>fprintf_func</name></name>) <argument_list>(<argument><expr><name><name>info</name><operator>-&gt;</operator><name>stream</name></name></expr></argument>, <argument><expr><literal type="string">" [%c-float]"</literal></expr></argument>, <argument><expr><name><name>d</name><index>[<expr><literal type="number">1</literal></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+</block_content>}</block></if>
+
+<else>else
+
+<block>{<block_content>
+
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>size</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+
+<expr_stmt><expr><call>(<modifier>*</modifier><name><name>info</name><operator>-&gt;</operator><name>fprintf_func</name></name>) <argument_list>(<argument><expr><name><name>info</name><operator>-&gt;</operator><name>stream</name></name></expr></argument>, <argument><expr><literal type="string">"%02x"</literal></expr></argument>, <argument><expr><name><name>p</name><index>[<expr><name>size</name> <operator>-</operator> <name>i</name> <operator>-</operator> <literal type="number">1</literal></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></for>
+
+</block_content>}</block></else></if_stmt>
+
+<expr_stmt><expr><name>p</name> <operator>+=</operator> <name>size</name></expr>;</expr_stmt>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<expr_stmt><expr><call>(<modifier>*</modifier><name><name>info</name><operator>-&gt;</operator><name>fprintf_func</name></name>) <argument_list>(<argument><expr><name><name>info</name><operator>-&gt;</operator><name>stream</name></name></expr></argument>, <argument><expr><literal type="string">"(%s)+"</literal></expr></argument>, <argument><expr><name><name>reg_names</name><index>[<expr><name>reg</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+<break>break;</break>
+
+<case>case <expr><literal type="number">0x90</literal></expr>:</case> 
+
+<if_stmt><if>if <condition>(<expr><name>reg</name> <operator>==</operator> <literal type="number">0xF</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call>(<modifier>*</modifier><name><name>info</name><operator>-&gt;</operator><name>fprintf_func</name></name>) <argument_list>(<argument><expr><name><name>info</name><operator>-&gt;</operator><name>stream</name></name></expr></argument>, <argument><expr><literal type="string">"*0x%x"</literal></expr></argument>, <argument><expr><call><name>NEXTLONG</name> <argument_list>(<argument><expr><name>p</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<expr_stmt><expr><call>(<modifier>*</modifier><name><name>info</name><operator>-&gt;</operator><name>fprintf_func</name></name>) <argument_list>(<argument><expr><name><name>info</name><operator>-&gt;</operator><name>stream</name></name></expr></argument>, <argument><expr><literal type="string">"@(%s)+"</literal></expr></argument>, <argument><expr><name><name>reg_names</name><index>[<expr><name>reg</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+<break>break;</break>
+
+<case>case <expr><literal type="number">0xB0</literal></expr>:</case> 
+
+<expr_stmt><expr><call>(<modifier>*</modifier><name><name>info</name><operator>-&gt;</operator><name>fprintf_func</name></name>) <argument_list>(<argument><expr><name><name>info</name><operator>-&gt;</operator><name>stream</name></name></expr></argument>, <argument><expr><literal type="string">"*"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<case>case <expr><literal type="number">0xA0</literal></expr>:</case> 
+
+<if_stmt><if>if <condition>(<expr><name>reg</name> <operator>==</operator> <literal type="number">0xF</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call>(<modifier>*</modifier><name><name>info</name><operator>-&gt;</operator><name>print_address_func</name></name>) <argument_list>(<argument><expr><name>addr</name> <operator>+</operator> <literal type="number">2</literal> <operator>+</operator> <call><name>NEXTBYTE</name> <argument_list>(<argument><expr><name>p</name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name>info</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<expr_stmt><expr><call>(<modifier>*</modifier><name><name>info</name><operator>-&gt;</operator><name>fprintf_func</name></name>) <argument_list>(<argument><expr><name><name>info</name><operator>-&gt;</operator><name>stream</name></name></expr></argument>, <argument><expr><literal type="string">"0x%x(%s)"</literal></expr></argument>, <argument><expr><call><name>NEXTBYTE</name> <argument_list>(<argument><expr><name>p</name></expr></argument>)</argument_list></call></expr></argument>,
+
+<argument><expr><name><name>reg_names</name><index>[<expr><name>reg</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+<break>break;</break>
+
+<case>case <expr><literal type="number">0xD0</literal></expr>:</case> 
+
+<expr_stmt><expr><call>(<modifier>*</modifier><name><name>info</name><operator>-&gt;</operator><name>fprintf_func</name></name>) <argument_list>(<argument><expr><name><name>info</name><operator>-&gt;</operator><name>stream</name></name></expr></argument>, <argument><expr><literal type="string">"*"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<case>case <expr><literal type="number">0xC0</literal></expr>:</case> 
+
+<if_stmt><if>if <condition>(<expr><name>reg</name> <operator>==</operator> <literal type="number">0xF</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call>(<modifier>*</modifier><name><name>info</name><operator>-&gt;</operator><name>print_address_func</name></name>) <argument_list>(<argument><expr><name>addr</name> <operator>+</operator> <literal type="number">3</literal> <operator>+</operator> <call><name>NEXTWORD</name> <argument_list>(<argument><expr><name>p</name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name>info</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<expr_stmt><expr><call>(<modifier>*</modifier><name><name>info</name><operator>-&gt;</operator><name>fprintf_func</name></name>) <argument_list>(<argument><expr><name><name>info</name><operator>-&gt;</operator><name>stream</name></name></expr></argument>, <argument><expr><literal type="string">"0x%x(%s)"</literal></expr></argument>, <argument><expr><call><name>NEXTWORD</name> <argument_list>(<argument><expr><name>p</name></expr></argument>)</argument_list></call></expr></argument>,
+
+<argument><expr><name><name>reg_names</name><index>[<expr><name>reg</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+<break>break;</break>
+
+<case>case <expr><literal type="number">0xF0</literal></expr>:</case> 
+
+<expr_stmt><expr><call>(<modifier>*</modifier><name><name>info</name><operator>-&gt;</operator><name>fprintf_func</name></name>) <argument_list>(<argument><expr><name><name>info</name><operator>-&gt;</operator><name>stream</name></name></expr></argument>, <argument><expr><literal type="string">"*"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<case>case <expr><literal type="number">0xE0</literal></expr>:</case> 
+
+<if_stmt><if>if <condition>(<expr><name>reg</name> <operator>==</operator> <literal type="number">0xF</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call>(<modifier>*</modifier><name><name>info</name><operator>-&gt;</operator><name>print_address_func</name></name>) <argument_list>(<argument><expr><name>addr</name> <operator>+</operator> <literal type="number">5</literal> <operator>+</operator> <call><name>NEXTLONG</name> <argument_list>(<argument><expr><name>p</name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name>info</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<expr_stmt><expr><call>(<modifier>*</modifier><name><name>info</name><operator>-&gt;</operator><name>fprintf_func</name></name>) <argument_list>(<argument><expr><name><name>info</name><operator>-&gt;</operator><name>stream</name></name></expr></argument>, <argument><expr><literal type="string">"0x%x(%s)"</literal></expr></argument>, <argument><expr><call><name>NEXTLONG</name> <argument_list>(<argument><expr><name>p</name></expr></argument>)</argument_list></call></expr></argument>,
+
+<argument><expr><name><name>reg_names</name><index>[<expr><name>reg</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+<break>break;</break>
+
+</block_content>}</block></switch>
+
+<return>return <expr><name>p</name> <operator>-</operator> <name>p0</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type>
+
+<name>print_insn_arg</name> <parameter_list>(<parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>d</name></decl></parameter>,
+
+<parameter><decl><type><name>unsigned</name> <name>char</name> <modifier>*</modifier></type><name>p0</name></decl></parameter>,
+
+<parameter><decl><type><name>bfd_vma</name></type> <name>addr</name></decl></parameter>, 
+
+<parameter><decl><type><name>disassemble_info</name> <modifier>*</modifier></type><name>info</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>int</name></type> <name>arg_len</name></decl>;</decl_stmt>
+
+<switch>switch <condition>(<expr><name><name>d</name><index>[<expr><literal type="number">1</literal></expr>]</index></name></expr>)</condition>
+
+<block>{<block_content>
+
+<case>case <expr><literal type="char">'b'</literal></expr> :</case> <expr_stmt><expr><name>arg_len</name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt> <break>break;</break>
+
+<case>case <expr><literal type="char">'d'</literal></expr> :</case> <expr_stmt><expr><name>arg_len</name> <operator>=</operator> <literal type="number">8</literal></expr>;</expr_stmt> <break>break;</break>
+
+<case>case <expr><literal type="char">'f'</literal></expr> :</case> <expr_stmt><expr><name>arg_len</name> <operator>=</operator> <literal type="number">4</literal></expr>;</expr_stmt> <break>break;</break>
+
+<case>case <expr><literal type="char">'g'</literal></expr> :</case> <expr_stmt><expr><name>arg_len</name> <operator>=</operator> <literal type="number">8</literal></expr>;</expr_stmt> <break>break;</break>
+
+<case>case <expr><literal type="char">'h'</literal></expr> :</case> <expr_stmt><expr><name>arg_len</name> <operator>=</operator> <literal type="number">16</literal></expr>;</expr_stmt> <break>break;</break>
+
+<case>case <expr><literal type="char">'l'</literal></expr> :</case> <expr_stmt><expr><name>arg_len</name> <operator>=</operator> <literal type="number">4</literal></expr>;</expr_stmt> <break>break;</break>
+
+<case>case <expr><literal type="char">'o'</literal></expr> :</case> <expr_stmt><expr><name>arg_len</name> <operator>=</operator> <literal type="number">16</literal></expr>;</expr_stmt> <break>break;</break>
+
+<case>case <expr><literal type="char">'w'</literal></expr> :</case> <expr_stmt><expr><name>arg_len</name> <operator>=</operator> <literal type="number">2</literal></expr>;</expr_stmt> <break>break;</break>
+
+<case>case <expr><literal type="char">'q'</literal></expr> :</case> <expr_stmt><expr><name>arg_len</name> <operator>=</operator> <literal type="number">8</literal></expr>;</expr_stmt> <break>break;</break>
+
+<default>default :</default> <expr_stmt><expr><call><name>abort</name> <argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></switch>
+
+<if_stmt><if>if <condition>(<expr><name><name>d</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>==</operator> <literal type="char">'b'</literal></expr>)</condition>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>unsigned</name> <name>char</name> <modifier>*</modifier></type><name>p</name> <init>= <expr><name>p0</name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>arg_len</name> <operator>==</operator> <literal type="number">1</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call>(<modifier>*</modifier><name><name>info</name><operator>-&gt;</operator><name>print_address_func</name></name>) <argument_list>(<argument><expr><name>addr</name> <operator>+</operator> <literal type="number">1</literal> <operator>+</operator> <call><name>NEXTBYTE</name> <argument_list>(<argument><expr><name>p</name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name>info</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<expr_stmt><expr><call>(<modifier>*</modifier><name><name>info</name><operator>-&gt;</operator><name>print_address_func</name></name>) <argument_list>(<argument><expr><name>addr</name> <operator>+</operator> <literal type="number">2</literal> <operator>+</operator> <call><name>NEXTWORD</name> <argument_list>(<argument><expr><name>p</name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name>info</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+<return>return <expr><name>p</name> <operator>-</operator> <name>p0</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<return>return <expr><call><name>print_insn_mode</name> <argument_list>(<argument><expr><name>d</name></expr></argument>, <argument><expr><name>arg_len</name></expr></argument>, <argument><expr><name>p0</name></expr></argument>, <argument><expr><name>addr</name></expr></argument>, <argument><expr><name>info</name></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><name>int</name></type>
+
+<name>print_insn_vax</name> <parameter_list>(<parameter><decl><type><name>bfd_vma</name></type> <name>memaddr</name></decl></parameter>, <parameter><decl><type><name>disassemble_info</name> <modifier>*</modifier></type><name>info</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name><name>struct</name> <name>vot</name></name> <modifier>*</modifier></type><name>votp</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>argp</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>unsigned</name> <name>char</name> <modifier>*</modifier></type><name>arg</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>private</name></name></type> <name>priv</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>bfd_byte</name> <modifier>*</modifier></type><name>buffer</name> <init>= <expr><name><name>priv</name><operator>.</operator><name>the_buffer</name></name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>info</name><operator>-&gt;</operator><name>private_data</name></name> <operator>=</operator> <operator>&amp;</operator> <name>priv</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>priv</name><operator>.</operator><name>max_fetched</name></name> <operator>=</operator> <name><name>priv</name><operator>.</operator><name>the_buffer</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>priv</name><operator>.</operator><name>insn_start</name></name> <operator>=</operator> <name>memaddr</name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>setjmp</name> <argument_list>(<argument><expr><name><name>priv</name><operator>.</operator><name>bailout</name></name></expr></argument>)</argument_list></call> <operator>!=</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<return>return <expr><operator>-</operator><literal type="number">1</literal></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name>argp</name> <operator>=</operator> <name>NULL</name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>info</name><operator>-&gt;</operator><name>buffer_length</name></name> <operator>-</operator> <operator>(</operator><name>memaddr</name> <operator>-</operator> <name><name>info</name><operator>-&gt;</operator><name>buffer_vma</name></name><operator>)</operator> <operator>&gt;</operator> <literal type="number">1</literal></expr>)</condition>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>FETCH_DATA</name> <argument_list>(<argument><expr><name>info</name></expr></argument>, <argument><expr><name>buffer</name> <operator>+</operator> <literal type="number">2</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if>
+
+<else>else
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>FETCH_DATA</name> <argument_list>(<argument><expr><name>info</name></expr></argument>, <argument><expr><name>buffer</name> <operator>+</operator> <literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>buffer</name><index>[<expr><literal type="number">1</literal></expr>]</index></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+<for>for <control>(<init><expr><name>votp</name> <operator>=</operator> <operator>&amp;</operator><name><name>votstrs</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr>;</init> <condition><expr><name><name>votp</name><operator>-&gt;</operator><name>name</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr>;</condition> <incr><expr><name>votp</name><operator>++</operator></expr></incr>)</control>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>vax_opcodeT</name></type> <name>opcode</name> <init>= <expr><name><name>votp</name><operator>-&gt;</operator><name>detail</name><operator>.</operator><name>code</name></name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>(</operator><name>bfd_byte</name><operator>)</operator> <name>opcode</name> <operator>==</operator> <name><name>buffer</name><index>[<expr><literal type="number">0</literal></expr>]</index></name>
+
+<operator>&amp;&amp;</operator> <operator>(</operator><name>opcode</name> <operator>&gt;&gt;</operator> <literal type="number">8</literal> <operator>==</operator> <literal type="number">0</literal> <operator>||</operator> <name>opcode</name> <operator>&gt;&gt;</operator> <literal type="number">8</literal> <operator>==</operator> <name><name>buffer</name><index>[<expr><literal type="number">1</literal></expr>]</index></name><operator>)</operator></expr>)</condition>
+
+<block>{<block_content>
+
+<expr_stmt><expr><name>argp</name> <operator>=</operator> <name><name>votp</name><operator>-&gt;</operator><name>detail</name><operator>.</operator><name>args</name></name></expr>;</expr_stmt>
+
+<break>break;</break>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></for>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>argp</name></expr>)</condition>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call>(<modifier>*</modifier><name><name>info</name><operator>-&gt;</operator><name>fprintf_func</name></name>) <argument_list>(<argument><expr><name><name>info</name><operator>-&gt;</operator><name>stream</name></name></expr></argument>, <argument><expr><literal type="string">".word 0x%x"</literal></expr></argument>,
+
+<argument><expr><operator>(</operator><name><name>buffer</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>&lt;&lt;</operator> <literal type="number">8</literal><operator>)</operator> <operator>+</operator> <name><name>buffer</name><index>[<expr><literal type="number">1</literal></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><literal type="number">2</literal></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name>arg</name> <operator>=</operator> <name>buffer</name> <operator>+</operator> <operator>(</operator><ternary><condition><expr><operator>(</operator><name><name>votp</name><operator>-&gt;</operator><name>detail</name><operator>.</operator><name>code</name></name> <operator>&gt;&gt;</operator> <literal type="number">8</literal><operator>)</operator></expr> ?</condition><then> <expr><literal type="number">2</literal></expr> </then><else>: <expr><literal type="number">1</literal></expr></else></ternary><operator>)</operator></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>FETCH_DATA</name> <argument_list>(<argument><expr><name>info</name></expr></argument>, <argument><expr><name>arg</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call>(<modifier>*</modifier><name><name>info</name><operator>-&gt;</operator><name>fprintf_func</name></name>) <argument_list>(<argument><expr><name><name>info</name><operator>-&gt;</operator><name>stream</name></name></expr></argument>, <argument><expr><literal type="string">"%s"</literal></expr></argument>, <argument><expr><name><name>votp</name><operator>-&gt;</operator><name>name</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>*</operator><name>argp</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call>(<modifier>*</modifier><name><name>info</name><operator>-&gt;</operator><name>fprintf_func</name></name>) <argument_list>(<argument><expr><name><name>info</name><operator>-&gt;</operator><name>stream</name></name></expr></argument>, <argument><expr><literal type="string">" "</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<while>while <condition>(<expr><operator>*</operator><name>argp</name></expr>)</condition>
+
+<block>{<block_content>
+
+<expr_stmt><expr><name>arg</name> <operator>+=</operator> <call><name>print_insn_arg</name> <argument_list>(<argument><expr><name>argp</name></expr></argument>, <argument><expr><name>arg</name></expr></argument>, <argument><expr><name>memaddr</name> <operator>+</operator> <name>arg</name> <operator>-</operator> <name>buffer</name></expr></argument>, <argument><expr><name>info</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>argp</name> <operator>+=</operator> <literal type="number">2</literal></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>*</operator><name>argp</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call>(<modifier>*</modifier><name><name>info</name><operator>-&gt;</operator><name>fprintf_func</name></name>) <argument_list>(<argument><expr><name><name>info</name><operator>-&gt;</operator><name>stream</name></name></expr></argument>, <argument><expr><literal type="string">", "</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></while>
+
+<return>return <expr><name>arg</name> <operator>-</operator> <name>buffer</name></expr>;</return>
+
+</block_content>}</block></function>
+
+</unit>

@@ -1,0 +1,17 @@
+#if defined(HAVE_CONFIG_H)
+#include "config.h"
+#endif
+#include <errno.h>
+#include "../vlc.h"
+#include "../libs.h"
+void luaopen_errno( lua_State *L )
+{
+lua_newtable( L );
+#define ADD_ERRNO_VALUE( value ) lua_pushinteger( L, value ); lua_setfield( L, -2, #value );
+ADD_ERRNO_VALUE( ENOENT );
+ADD_ERRNO_VALUE( EEXIST );
+ADD_ERRNO_VALUE( EACCES );
+ADD_ERRNO_VALUE( EINVAL );
+#undef ADD_ERRNO_VALUE
+lua_setfield( L, -2, "errno" );
+}

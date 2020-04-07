@@ -1,0 +1,752 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" revision="1.0.0" language="C" filename="D:\Pesquisa\Projects\obs-analysis\_cppstats\obs-studio\plugins\win-ivcam\seg_service\SegProc.h"><cpp:pragma>#<cpp:directive>pragma</cpp:directive> <name>once</name></cpp:pragma>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"resource.h"</cpp:file></cpp:include> 
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"seg_service.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"pxcsession.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"pxcsensemanager.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"pxc3dseg.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;string&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;mutex&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;thread&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;condition_variable&gt;</cpp:file></cpp:include>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><call><name>defined</name><argument_list>(<argument><expr><name>_WIN32_WCE</name></expr></argument>)</argument_list></call> <operator>&amp;&amp;</operator> <operator>!</operator><call><name>defined</name><argument_list>(<argument><expr><name>_CE_DCOM</name></expr></argument>)</argument_list></call> <operator>&amp;&amp;</operator> <operator>!</operator><call><name>defined</name><argument_list>(<argument><expr><name>_CE_ALLOW_SINGLE_THREADED_OBJECTS_IN_MTA</name></expr></argument>)</argument_list></call></expr></cpp:if>
+
+<cpp:error>#<cpp:directive>error</cpp:directive> <cpp:literal>"Single-threaded COM objects are not properly supported on Windows CE platform, such as the Windows Mobile platforms that do not include full DCOM support. Define _CE_ALLOW_SINGLE_THREADED_OBJECTS_IN_MTA to force ATL to support creating single-thread COM object's and allow use of it's single-threaded COM object implementations. The threading model in your rgs file was set to 'Free' as that is the only threading model supported in non DCOM Windows CE platforms."</cpp:literal></cpp:error>
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+<decl_stmt><decl><type><name>using</name> <name>namespace</name></type> <name>ATL</name></decl>;</decl_stmt>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>START_TIMEOUT</name></cpp:macro> <cpp:value>2000</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>USE_DEFAULT_PROPERTY_VALUE</name></cpp:macro> <cpp:value>-1</cpp:value></cpp:define>
+
+<typedef>typedef <type><struct>struct <name>_frameHeader</name>
+
+<block>{
+
+<decl_stmt><decl><type><name>int</name></type> <name>width</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>height</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>pitch</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>long</name> <name>long</name></type> <name>timestamp</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>frameNumber</name></decl>;</decl_stmt>
+
+}</block></struct></type> <name>FrameHeader</name>;</typedef>
+
+<decl_stmt><decl><type><name>class</name> <name>ATL_NO_VTABLE</name></type> <name>CSegProc</name> <range>:
+
+<expr><name>public</name> <name><name>CComObjectRootEx</name><argument_list type="generic">&lt;<argument><expr><name>CComSingleThreadModel</name></expr></argument>&gt;</argument_list></name></expr></range></decl>,
+
+<decl><type ref="prev"/><name>public</name> <name><name>CComCoClass</name><argument_list type="generic">&lt;<argument><expr><name>CSegProc</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>CLSID_SegProc</name></expr></argument>&gt;</argument_list></name></decl>,
+
+<decl><type ref="prev"/><name>public</name> <name><name>IDispatchImpl</name><argument_list type="generic">&lt;<argument><expr><name>ISegProc</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>IID_ISegProc</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>LIBID_seg_serviceLib</name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>&gt;</argument_list></name></decl>,
+
+<decl><type ref="prev"/><name>public</name> <name>PXCSenseManager</name>::<name>Handler</name>
+
+<block>{<block_content>
+
+<label><name>private</name>:</label>
+
+<enum>enum <block>{
+
+<decl><name>DEPTH_PROPERTY_NORMAL_MODE</name> <init>= <expr><literal type="number">0x03</literal></expr></init></decl>,
+
+<decl><name>DEPTH_PROPERTY_HDR_MODE</name> <init>= <expr><literal type="number">0x200</literal></expr></init></decl>
+
+}</block>;</enum>
+
+<decl_stmt><decl><type><name>HANDLE</name></type> <name>m_loopThreadHandle</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>bool</name></type> <name>m_procRun</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>HANDLE</name></type> <name>m_hStartedEvt</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>std</name><operator>::</operator><name>wstring</name> <name>m_bufferName</name></expr>;</expr_stmt>
+
+<decl_stmt><decl><type><name>HANDLE</name></type> <name>m_sharedBufferHandle</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>LPCTSTR</name></type> <name>m_sharedBuffer</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>bool</name></type> <name>m_bufferRealloc</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>m_currentFrame</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>m_frameToRead</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>size_t</name></type> <name>m_frameSize</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>const</specifier> <specifier>static</specifier> <name>size_t</name></type> <name>headerSize</name> <init>= <expr><sizeof>sizeof<argument_list>(<argument><expr><name>FrameHeader</name></expr></argument>)</argument_list></sizeof></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>CRITICAL_SECTION</name></type> <name><name>m_frameAccess</name><index>[<expr><literal type="number">2</literal></expr>]</index></name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>PXCSenseManager</name><modifier>*</modifier></type> <name>m_senseManager</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>PXC3DSeg</name><modifier>*</modifier></type> <name>m_segModule</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>m_fps</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>m_motionRangeTradeOff</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>bool</name></type> <name>m_processing</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>bool</name></type> <name>m_isPause</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>std</name><operator>::</operator><name>condition_variable</name> <name>m_cvPause</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>std</name><operator>::</operator><name>mutex</name> <name>m_pauseMtx</name></expr>;</expr_stmt>
+
+<function><type><name>pxcStatus</name> <name>PXCAPI</name></type> <name>OnModuleSetProfile</name><parameter_list>(<parameter><decl><type><name>pxcUID</name></type></decl></parameter> , <parameter><decl><type><name>PXCBase</name><modifier>*</modifier></type></decl></parameter> )</parameter_list> override
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>PXCCaptureManager</name><modifier>*</modifier></type> <name>captureMgr</name> <init>= <expr><call><name><name>m_senseManager</name><operator>-&gt;</operator><name>QueryCaptureManager</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>captureMgr</name> <operator>||</operator> <name>m_fps</name> <operator>!=</operator> <literal type="number">60</literal></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>PXC_STATUS_NO_ERROR</name></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>PXCCapture</name><operator>::</operator><name>Device</name><operator>*</operator> <name>device</name> <operator>=</operator> <call><name><name>captureMgr</name><operator>-&gt;</operator><name>QueryDevice</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>PXCCapture</name><operator>::</operator><name>Device</name><operator>::</operator><name>PropertyInfo</name> <name>propInfo</name> <operator>=</operator> <call><name><name>device</name><operator>-&gt;</operator><name>QueryIVCAMMotionRangeTradeOffInfo</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>value</name> <init>= <expr><name>m_motionRangeTradeOff</name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>m_motionRangeTradeOff</name> <operator>==</operator> <name>USE_DEFAULT_PROPERTY_VALUE</name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name>value</name> <operator>=</operator> <operator>(</operator><name>int</name><operator>)</operator><name><name>propInfo</name><operator>.</operator><name>defaultValue</name></name></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name><name>device</name><operator>-&gt;</operator><name>SetIVCAMMotionRangeTradeOff</name></name><argument_list>(<argument><expr><name>value</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>PXC_STATUS_NO_ERROR</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><name>pxcStatus</name></type> <name>senseMgrInit</name><parameter_list>()</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>pxcStatus</name></type> <name>status</name> <init>= <expr><name>PXC_STATUS_NO_ERROR</name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>status</name> <operator>=</operator> <call><name><name>m_senseManager</name><operator>-&gt;</operator><name>Enable3DSeg</name></name><argument_list>(<argument><expr><name>nullptr</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>status</name> <operator>!=</operator> <name>PXC_STATUS_NO_ERROR</name></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>status</name></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>m_segModule</name> <operator>=</operator> <call><name><name>m_senseManager</name><operator>-&gt;</operator><name>Query3DSeg</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>m_segModule</name></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>PXC_STATUS_DATA_UNAVAILABLE</name></expr>;</return></block_content></block></if></if_stmt>
+
+<for>for <control>(<init><decl><type><name>int</name></type> <name>i</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+
+<decl_stmt><decl><type><name>pxcStatus</name></type> <name>status</name> <init>= <expr><name>PXC_STATUS_NO_ERROR</name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>PXCVideoModule</name><operator>::</operator><name>DataDesc</name> <name>currentProfile</name> <operator>=</operator> <block>{}</block></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>status</name> <operator>=</operator> <name><name>m_segModule</name><operator>-&gt;</operator><name>QueryInstance</name></name><operator>&lt;</operator><name>PXCVideoModule</name><operator>&gt;</operator><operator>(</operator><operator>)</operator><operator>-&gt;</operator><call><name>QueryCaptureProfile</name><argument_list>(<argument><expr><name>i</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>currentProfile</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>status</name> <operator>!=</operator> <name>PXC_STATUS_NO_ERROR</name></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>status</name></expr>;</return></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>(</operator><name><name>currentProfile</name><operator>.</operator><name>streams</name><operator>.</operator><name>depth</name><operator>.</operator><name>propertySet</name></name> <operator>!=</operator> <name>DEPTH_PROPERTY_NORMAL_MODE</name><operator>)</operator>
+
+<operator>||</operator> <operator>(</operator><name><name>currentProfile</name><operator>.</operator><name>streams</name><operator>.</operator><name>depth</name><operator>.</operator><name>options</name></name> <operator>&amp;</operator> <name>PXCCapture</name><operator>::</operator><name>Device</name><operator>::</operator><name>STREAM_OPTION_DEPTH_CONFIDENCE</name><operator>)</operator></expr>)</condition> <block>{<block_content>
+
+<continue>continue;</continue>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name><name>m_senseManager</name><operator>-&gt;</operator><name>QueryCaptureManager</name></name><argument_list>()</argument_list></call><operator>-&gt;</operator><call><name>FilterByStreamProfiles</name><argument_list>(<argument><expr><name>nullptr</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name><name>m_senseManager</name><operator>-&gt;</operator><name>QueryCaptureManager</name></name><argument_list>()</argument_list></call><operator>-&gt;</operator><call><name>FilterByStreamProfiles</name><argument_list>(<argument><expr><name>nullptr</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name><name>m_senseManager</name><operator>-&gt;</operator><name>QueryCaptureManager</name></name><argument_list>()</argument_list></call><operator>-&gt;</operator><call><name>FilterByStreamProfiles</name><argument_list>(<argument><expr><name>PXCCapture</name><operator>::</operator><name>StreamType</name><operator>::</operator><name>STREAM_TYPE_COLOR</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><operator>(</operator><name>pxcF32</name><operator>)</operator><name>m_fps</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name><name>m_senseManager</name><operator>-&gt;</operator><name>QueryCaptureManager</name></name><argument_list>()</argument_list></call><operator>-&gt;</operator><call><name>FilterByStreamProfiles</name><argument_list>(<argument><expr><name>PXCCapture</name><operator>::</operator><name>StreamType</name><operator>::</operator><name>STREAM_TYPE_DEPTH</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><operator>(</operator><name>pxcF32</name><operator>)</operator><name>m_fps</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>status</name> <operator>=</operator> <call><name><name>m_senseManager</name><operator>-&gt;</operator><name>EnableStreams</name></name><argument_list>(<argument><expr><operator>&amp;</operator><name>currentProfile</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>status</name> <operator>!=</operator> <name>PXC_STATUS_NO_ERROR</name></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>status</name></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>status</name> <operator>=</operator> <call><name><name>m_senseManager</name><operator>-&gt;</operator><name>Init</name></name><argument_list>(<argument><expr><name>this</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>status</name> <operator>==</operator> <name>PXC_STATUS_NO_ERROR</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>m_isPause</name> <operator>=</operator> <name>false</name></expr>;</expr_stmt>
+
+<break>break;</break>
+
+</block_content>}</block></if>
+
+<else>else <block>{<block_content>
+
+<continue>continue;</continue>
+
+</block_content>}</block></else></if_stmt>
+
+</block_content>}</block></for>
+
+<return>return <expr><name>status</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><name>HRESULT</name></type> <name>reinit</name><parameter_list>()</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><name>m_isPause</name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+
+<while>while <condition>(<expr><name>m_processing</name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name>std</name><operator>::</operator><name>this_thread</name><operator>::</operator><call><name>yield</name><argument_list>()</argument_list></call></expr>;</expr_stmt></block_content></block></while>
+
+<expr_stmt><expr><name>std</name><operator>::</operator><name><name>unique_lock</name><argument_list type="generic">&lt;<argument><expr><name>std</name><operator>::</operator><name>mutex</name></expr></argument>&gt;</argument_list></name> <call><name>lck</name><argument_list>(<argument><expr><name>m_pauseMtx</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name><name>m_senseManager</name><operator>-&gt;</operator><name>Close</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>senseMgrInit</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>m_isPause</name> <operator>=</operator> <name>false</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name><name>m_cvPause</name><operator>.</operator><name>notify_one</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>S_OK</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<typedef>typedef <function_decl><type><name>int</name></type> (<name>WINAPI</name> <modifier>*</modifier><name>PXCSessionCreateProc</name>)<parameter_list>(<parameter><decl><type><name>PXCSession</name> <modifier>*</modifier><modifier>*</modifier></type><name>output</name></decl></parameter>)</parameter_list>;</function_decl></typedef>
+
+<function><type><specifier>static</specifier> <name>HMODULE</name></type> <name>GetLib</name><parameter_list>()</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>HMODULE</name></type> <name>lib</name> <init>= <expr><name>nullptr</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>HKEY</name></type> <name>key</name> <init>= <expr><name>nullptr</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>wchar_t</name></type> <name><name>path</name><index>[<expr><literal type="number">1024</literal></expr>]</index></name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>LONG</name></type> <name>res</name> <init>= <expr><call><name>RegOpenKeyExW</name><argument_list>(<argument><expr><name>HKEY_LOCAL_MACHINE</name></expr></argument>, <argument><expr><literal type="string">L"Software\\Intel\\RSSDK\\Dispatch"</literal></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><name>KEY_QUERY_VALUE</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>key</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>res</name> <operator>!=</operator> <name>ERROR_SUCCESS</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>res</name> <operator>=</operator> <call><name>RegOpenKeyExW</name><argument_list>(<argument><expr><name>HKEY_LOCAL_MACHINE</name></expr></argument>, <argument><expr><literal type="string">L"Software\\Intel\\RSSDK\\v10\\Dispatch"</literal></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><name>KEY_QUERY_VALUE</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>key</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>res</name> <operator>!=</operator> <name>ERROR_SUCCESS</name></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>nullptr</name></expr>;</return></block_content></block></if></if_stmt>
+
+<decl_stmt><decl><type><name>DWORD</name></type> <name>size</name> <init>= <expr><literal type="number">1024</literal></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>res</name> <operator>=</operator> <call><name>RegQueryValueExW</name><argument_list>(<argument><expr><name>key</name></expr></argument>, <argument><expr><literal type="string">L"Core"</literal></expr></argument>, <argument><expr><name>nullptr</name></expr></argument>, <argument><expr><name>nullptr</name></expr></argument>, <argument><expr><operator>(</operator><name>LPBYTE</name><operator>)</operator><name>path</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>size</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>res</name> <operator>==</operator> <name>ERROR_SUCCESS</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>lib</name> <operator>=</operator> <call><name>LoadLibrary</name><argument_list>(<argument><expr><name>path</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>RegCloseKey</name><argument_list>(<argument><expr><name>key</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>lib</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>PXCSenseManager</name><modifier>*</modifier></type> <name>CreateSessionInstance</name><parameter_list>()</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>bool</name></type> <name>initialized</name> <init>= <expr><name>false</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>HMODULE</name></type> <name>lib</name> <init>= <expr><name>nullptr</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>PXCSessionCreateProc</name></type> <name>create</name> <init>= <expr><name>nullptr</name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>initialized</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>lib</name> <operator>=</operator> <call><name>GetLib</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>create</name> <operator>=</operator> <operator>(</operator><name>PXCSessionCreateProc</name><operator>)</operator><call><name>GetProcAddress</name><argument_list>(<argument><expr><name>lib</name></expr></argument>, <argument><expr><literal type="string">"PXCSession_Create"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>initialized</name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>lib</name> <operator>||</operator> <operator>!</operator><name>create</name></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>nullptr</name></expr>;</return></block_content></block></if></if_stmt>
+
+<decl_stmt><decl><type><name>PXCSession</name> <modifier>*</modifier></type><name>session</name> <init>= <expr><name>nullptr</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>test</name> <init>= <expr><call><name>create</name><argument_list>(<argument><expr><operator>&amp;</operator><name>session</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>test</name> <operator>!=</operator> <literal type="number">0</literal> <operator>||</operator> <operator>!</operator><name>session</name></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>nullptr</name></expr>;</return></block_content></block></if></if_stmt>
+
+<decl_stmt><decl><type><name>PXCSenseManager</name> <modifier>*</modifier></type><name>sm</name> <init>= <expr><call><name><name>session</name><operator>-&gt;</operator><name>CreateSenseManager</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name><name>session</name><operator>-&gt;</operator><name>Release</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>sm</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<label><name>public</name>:</label>
+
+<expr_stmt><expr><call><name>CSegProc</name><argument_list>()</argument_list></call>
+
+<operator>:</operator> <call><name>m_isPause</name><argument_list>(<argument><expr><name>true</name></expr></argument>)</argument_list></call></expr>
+
+<operator>,</operator> <expr><call><name>m_fps</name><argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>
+
+<operator>,</operator> <expr><call><name>m_processing</name><argument_list>(<argument><expr><name>false</name></expr></argument>)</argument_list></call></expr>
+
+<operator>,</operator> <macro><name>m_motionRangeTradeOff</name><argument_list>(<argument>USE_DEFAULT_PROPERTY_VALUE</argument>)</argument_list></macro>
+
+<expr><block>{
+
+}</block>
+
+<macro><name>DECLARE_REGISTRY_RESOURCEID</name><argument_list>(<argument>IDR_SEGPROC</argument>)</argument_list></macro>
+
+<macro><name>DECLARE_NOT_AGGREGATABLE</name><argument_list>(<argument>CSegProc</argument>)</argument_list></macro>
+
+<macro><name>BEGIN_COM_MAP</name><argument_list>(<argument>CSegProc</argument>)</argument_list></macro>
+
+<macro><name>COM_INTERFACE_ENTRY</name><argument_list>(<argument>ISegProc</argument>)</argument_list></macro>
+
+<macro><name>COM_INTERFACE_ENTRY</name><argument_list>(<argument>IDispatch</argument>)</argument_list></macro>
+
+<macro><name>END_COM_MAP</name><argument_list>()</argument_list></macro>
+
+<macro><name>DECLARE_PROTECT_FINAL_CONSTRUCT</name><argument_list>()</argument_list></macro>
+
+<name>HRESULT</name> <macro><name>FinalConstruct</name><argument_list>()</argument_list></macro>
+
+<block>{
+
+<return>return <expr><name>S_OK</name></expr>;</return>
+
+}</block></expr></expr_stmt>
+
+<function><type><name>void</name></type> <name>FinalRelease</name><parameter_list>()</parameter_list>
+
+<block>{<block_content>
+
+</block_content>}</block></function>
+
+<function><type><name>HRESULT</name> <name>STDMETHODCALLTYPE</name></type> <name>Init</name><parameter_list>(<parameter><decl><type><name>LPCWSTR</name></type> <name>bufferName</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><name>m_frameSize</name> <operator>=</operator> <literal type="number">16</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>m_frameToRead</name> <operator>=</operator> <operator>-</operator><literal type="number">1</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>m_bufferName</name> <operator>=</operator> <name>bufferName</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>m_sharedBufferHandle</name> <operator>=</operator> <call><name>CreateFileMapping</name><argument_list>(<argument><expr><name>INVALID_HANDLE_VALUE</name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>, <argument><expr><name>PAGE_READWRITE</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><literal type="number">2</literal> <operator>*</operator> <name>m_frameSize</name></expr></argument>, <argument><expr><call><name><name>m_bufferName</name><operator>.</operator><name>c_str</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>m_sharedBufferHandle</name> <operator>==</operator> <name>NULL</name></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>E_FAIL</name></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>m_sharedBuffer</name> <operator>=</operator> <operator>(</operator><name>LPTSTR</name><operator>)</operator><call><name>MapViewOfFile</name><argument_list>(<argument><expr><name>m_sharedBufferHandle</name></expr></argument>, <argument><expr><name>FILE_MAP_ALL_ACCESS</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><literal type="number">32</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>m_sharedBuffer</name> <operator>==</operator> <name>NULL</name></expr>)</condition>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>CloseHandle</name><argument_list>(<argument><expr><name>m_sharedBufferHandle</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>E_FAIL</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name>m_procRun</name> <operator>=</operator> <name>false</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>m_senseManager</name> <operator>=</operator> <call><name>CreateSessionInstance</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>m_senseManager</name></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>E_FAIL</name></expr>;</return></block_content></block></if></if_stmt>
+
+<decl_stmt><decl><type><name>pxcStatus</name></type> <name>status</name> <init>= <expr><call><name>senseMgrInit</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>status</name> <operator>&lt;</operator> <name>PXC_STATUS_NO_ERROR</name></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>E_FAIL</name></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>m_hStartedEvt</name> <operator>=</operator> <call><name>CreateEvent</name><argument_list>(<argument><expr><name>NULL</name></expr></argument>, <argument><expr><name>FALSE</name></expr></argument>, <argument><expr><name>FALSE</name></expr></argument>, <argument><expr><call><name>TEXT</name><argument_list>(<argument><expr><literal type="string">"StartEvent"</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>m_hStartedEvt</name> <operator>==</operator> <name>NULL</name></expr>)</condition>
+
+<block>{<block_content>
+
+<return>return <expr><name>E_FAIL</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>m_procRun</name></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>E_FAIL</name></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>m_loopThreadHandle</name> <operator>=</operator> <call><name>CreateThread</name><argument_list>(<argument><expr><name>NULL</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><operator>&amp;</operator><name>CSegProc</name><operator>::</operator><name>LoopStub</name></expr></argument>, <argument><expr><name>this</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>m_loopThreadHandle</name> <operator>==</operator> <name>NULL</name></expr>)</condition>
+
+<block>{<block_content>
+
+<return>return <expr><name>E_OUTOFMEMORY</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<decl_stmt><decl><type><name>DWORD</name></type> <name>dwWaitResult</name> <init>= <expr><call><name>WaitForSingleObject</name><argument_list>(<argument><expr><name>m_hStartedEvt</name></expr></argument>, <argument><expr><name>INFINITE</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<switch>switch <condition>(<expr><name>dwWaitResult</name></expr>)</condition>
+
+<block>{<block_content>
+
+<case>case <expr><name>WAIT_OBJECT_0</name></expr>:</case>
+
+<return>return <expr><name>S_OK</name></expr>;</return>
+
+</block_content>}</block></switch>
+
+<return>return <expr><name>E_FAIL</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>DWORD</name> <name>WINAPI</name></type> <name>LoopStub</name><parameter_list>(<parameter><decl><type><name>LPVOID</name></type> <name>lpParam</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>lpParam</name></expr>)</condition><block type="pseudo"><block_content> <return>return <expr><operator>(</operator><name>DWORD</name><operator>)</operator><operator>-</operator><literal type="number">1</literal></expr>;</return></block_content></block></if></if_stmt>
+
+<return>return <expr><operator>(</operator><operator>(</operator><name>CSegProc</name><operator>*</operator><operator>)</operator><name>lpParam</name><operator>)</operator><operator>-&gt;</operator><call><name>Loop</name><argument_list>(<argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><name>DWORD</name> <name>WINAPI</name></type> <name>Loop</name><parameter_list>(<parameter><decl><type><name>LPVOID</name></type></decl></parameter> )</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><specifier>static</specifier> <specifier>const</specifier> <name>int</name></type> <name>headerSize</name> <init>= <expr><sizeof>sizeof<argument_list>(<argument><expr><name>FrameHeader</name></expr></argument>)</argument_list></sizeof></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>InitializeCriticalSection</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>m_frameAccess</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>InitializeCriticalSection</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>m_frameAccess</name><index>[<expr><literal type="number">1</literal></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>m_procRun</name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>SetEvent</name><argument_list>(<argument><expr><name>m_hStartedEvt</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>m_currentFrame</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>frameCounter</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+
+<while>while <condition>(<expr><name>m_procRun</name></expr>)</condition>
+
+<block>{<block_content>
+
+<expr_stmt><expr><name>m_processing</name> <operator>=</operator> <name>false</name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>m_isPause</name></expr>)</condition>
+
+<block>{<block_content>
+
+<expr_stmt><expr><name>std</name><operator>::</operator><name><name>unique_lock</name><argument_list type="generic">&lt;<argument><expr><name>std</name><operator>::</operator><name>mutex</name></expr></argument>&gt;</argument_list></name> <call><name>lck</name><argument_list>(<argument><expr><name>m_pauseMtx</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<while>while <condition>(<expr><name>m_isPause</name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name><name>m_cvPause</name><operator>.</operator><name>wait</name></name><argument_list>(<argument><expr><name>lck</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></while>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name>m_processing</name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name><name>m_senseManager</name><operator>-&gt;</operator><name>AcquireFrame</name></name><argument_list>(<argument><expr><name>true</name></expr></argument>)</argument_list></call> <operator>!=</operator> <name>PXC_STATUS_NO_ERROR</name></expr>)</condition>
+
+<block>{<block_content>
+
+<continue>continue;</continue>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>EnterCriticalSection</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>m_frameAccess</name><index>[<expr><name>m_currentFrame</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>PXCImage</name><modifier>*</modifier></type> <name>segImage</name> <init>= <expr><call><name><name>m_segModule</name><operator>-&gt;</operator><name>AcquireSegmentedImage</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>segImage</name></expr>)</condition>
+
+<block>{<block_content>
+
+<expr_stmt><expr><name>PXCImage</name><operator>::</operator><name>ImageData</name> <name>segData</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>ZeroMemory</name><argument_list>(<argument><expr><operator>&amp;</operator><name>segData</name></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr><name>segData</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<decl_stmt><decl><type><name>pxcStatus</name></type> <name>sts</name> <init>= <expr><call><name><name>segImage</name><operator>-&gt;</operator><name>AcquireAccess</name></name><argument_list>(<argument><expr><name>PXCImage</name><operator>::</operator><name>ACCESS_READ</name></expr></argument>, <argument><expr><name>PXCImage</name><operator>::</operator><name>PixelFormat</name><operator>::</operator><name>PIXEL_FORMAT_RGB32</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>segData</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>sts</name> <operator>&gt;=</operator> <name>PXC_STATUS_NO_ERROR</name></expr>)</condition>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>int</name></type> <name>newFrameSize</name> <init>= <expr><name><name>segData</name><operator>.</operator><name>pitches</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>*</operator> <call><name><name>segImage</name><operator>-&gt;</operator><name>QueryInfo</name></name><argument_list>()</argument_list></call><operator>.</operator><name>height</name> <operator>+</operator> <name>headerSize</name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>newFrameSize</name> <operator>!=</operator> <operator>(</operator><name>int</name><operator>)</operator><name>m_frameSize</name></expr>)</condition>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>EnterCriticalSection</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>m_frameAccess</name><index>[<expr><literal type="number">1</literal> <operator>-</operator> <name>m_currentFrame</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>ResizeBuffer</name><argument_list>(<argument><expr><name>newFrameSize</name> <operator>*</operator> <literal type="number">2</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>m_frameSize</name> <operator>=</operator> <name>newFrameSize</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>m_bufferRealloc</name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>LeaveCriticalSection</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>m_frameAccess</name><index>[<expr><literal type="number">1</literal> <operator>-</operator> <name>m_currentFrame</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>offset</name> <init>= <expr><name>m_frameSize</name><operator>*</operator><name>m_currentFrame</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>char</name> <modifier>*</modifier></type><name>ptr</name> <init>= <expr><operator>(</operator><operator>(</operator><name>char</name><operator>*</operator><operator>)</operator><name>m_sharedBuffer</name><operator>)</operator> <operator>+</operator> <name>offset</name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>PXCImage</name><operator>::</operator><name>ImageInfo</name> <name>info</name> <operator>=</operator> <call><name><name>segImage</name><operator>-&gt;</operator><name>QueryInfo</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<decl_stmt><decl><type><name>FrameHeader</name> <modifier>*</modifier></type><name>fhPtr</name> <init>= <expr><operator>(</operator><name>FrameHeader</name><operator>*</operator><operator>)</operator><name>ptr</name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>fhPtr</name><operator>-&gt;</operator><name>width</name></name> <operator>=</operator> <name><name>info</name><operator>.</operator><name>width</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>fhPtr</name><operator>-&gt;</operator><name>height</name></name> <operator>=</operator> <name><name>info</name><operator>.</operator><name>height</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>fhPtr</name><operator>-&gt;</operator><name>pitch</name></name> <operator>=</operator> <name><name>segData</name><operator>.</operator><name>pitches</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>fhPtr</name><operator>-&gt;</operator><name>timestamp</name></name> <operator>=</operator> <call><name><name>segImage</name><operator>-&gt;</operator><name>QueryTimeStamp</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>fhPtr</name><operator>-&gt;</operator><name>frameNumber</name></name> <operator>=</operator> <name>frameCounter</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>memcpy_s</name><argument_list>(<argument><expr><operator>(</operator><name>void</name><operator>*</operator><operator>)</operator><operator>(</operator><operator>(</operator><name>char</name><operator>*</operator><operator>)</operator><name>m_sharedBuffer</name> <operator>+</operator> <name>offset</name> <operator>+</operator> <name>headerSize</name><operator>)</operator></expr></argument>, <argument><expr><name>m_frameSize</name> <operator>-</operator> <name>headerSize</name></expr></argument>, <argument><expr><name><name>segData</name><operator>.</operator><name>planes</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>, <argument><expr><name>m_frameSize</name> <operator>-</operator> <name>headerSize</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name><name>segImage</name><operator>-&gt;</operator><name>ReleaseAccess</name></name><argument_list>(<argument><expr><operator>&amp;</operator><name>segData</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name><name>segImage</name><operator>-&gt;</operator><name>Release</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block>
+
+<expr_stmt><expr><name>m_currentFrame</name> <operator>=</operator> <literal type="number">1</literal> <operator>-</operator> <name>m_currentFrame</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>LeaveCriticalSection</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>m_frameAccess</name><index>[<expr><name>m_currentFrame</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name><name>m_senseManager</name><operator>-&gt;</operator><name>ReleaseFrame</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>frameCounter</name><operator>++</operator></expr>;</expr_stmt>
+
+</block_content>}</block></while>
+
+<expr_stmt><expr><call><name>DeleteCriticalSection</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>m_frameAccess</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>DeleteCriticalSection</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>m_frameAccess</name><index>[<expr><literal type="number">1</literal></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><name>HRESULT</name></type> <name>ResizeBuffer</name><parameter_list>(<parameter><decl><type><name>size_t</name></type> <name>newSize</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>UnmapViewOfFile</name><argument_list>(<argument><expr><name>m_sharedBuffer</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>CloseHandle</name><argument_list>(<argument><expr><name>m_sharedBufferHandle</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>m_sharedBufferHandle</name> <operator>=</operator> <call><name>CreateFileMapping</name><argument_list>(<argument><expr><name>INVALID_HANDLE_VALUE</name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>, <argument><expr><name>PAGE_READWRITE</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><name>newSize</name></expr></argument>, <argument><expr><call><name><name>m_bufferName</name><operator>.</operator><name>c_str</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>m_sharedBufferHandle</name></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>E_ACCESSDENIED</name></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>m_sharedBuffer</name> <operator>=</operator> <operator>(</operator><name>LPTSTR</name><operator>)</operator><call><name>MapViewOfFile</name><argument_list>(<argument><expr><name>m_sharedBufferHandle</name></expr></argument>, <argument><expr><name>FILE_MAP_ALL_ACCESS</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><name>newSize</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>m_sharedBuffer</name></expr>)</condition>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>CloseHandle</name><argument_list>(<argument><expr><name>m_sharedBufferHandle</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>E_OUTOFMEMORY</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>ZeroMemory</name><argument_list>(<argument><expr><operator>(</operator><name>void</name><operator>*</operator><operator>)</operator><name>m_sharedBuffer</name></expr></argument>, <argument><expr><name>newSize</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>S_OK</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><name>HRESULT</name> <name>STDMETHODCALLTYPE</name></type> <name>LockBuffer</name><parameter_list>(<parameter><decl><type><name>int</name><modifier>*</modifier></type> <name>frameId</name></decl></parameter>, <parameter><decl><type><name>int</name><modifier>*</modifier></type> <name>frameSize</name></decl></parameter>, <parameter><decl><type><name>int</name><modifier>*</modifier></type> <name>bufferRealloc</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>m_procRun</name> <operator>||</operator> <name>m_frameToRead</name> <operator>!=</operator> <operator>-</operator><literal type="number">1</literal></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>E_FAIL</name></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>m_frameToRead</name> <operator>=</operator> <literal type="number">1</literal> <operator>-</operator> <name>m_currentFrame</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>EnterCriticalSection</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>m_frameAccess</name><index>[<expr><name>m_frameToRead</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><operator>*</operator><name>frameId</name> <operator>=</operator> <name>m_frameToRead</name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>m_bufferRealloc</name></expr>)</condition>
+
+<block>{<block_content>
+
+<expr_stmt><expr><operator>*</operator><name>bufferRealloc</name> <operator>=</operator> <operator>(</operator><name>int</name><operator>)</operator><name>m_bufferRealloc</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>m_bufferRealloc</name> <operator>=</operator> <name>false</name></expr>;</expr_stmt>
+
+</block_content>}</block></if>
+
+<else>else<block type="pseudo"><block_content>
+
+<expr_stmt><expr><operator>*</operator><name>bufferRealloc</name> <operator>=</operator> <name>false</name></expr>;</expr_stmt></block_content></block></else></if_stmt>
+
+<expr_stmt><expr><operator>*</operator><name>frameSize</name> <operator>=</operator> <name>m_frameSize</name></expr>;</expr_stmt>
+
+<return>return <expr><name>S_OK</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><name>HRESULT</name> <name>STDMETHODCALLTYPE</name></type> <name>UnlockBuffer</name><parameter_list>()</parameter_list>
+
+<block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>m_procRun</name> <operator>||</operator> <name>m_frameToRead</name> <operator>==</operator> <operator>-</operator><literal type="number">1</literal></expr>)</condition>
+
+<block>{<block_content>
+
+<return>return <expr><name>E_FAIL</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>LeaveCriticalSection</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>m_frameAccess</name><index>[<expr><name>m_frameToRead</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>m_frameToRead</name> <operator>=</operator> <operator>-</operator><literal type="number">1</literal></expr>;</expr_stmt>
+
+<return>return <expr><name>S_OK</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><name>HRESULT</name> <name>STDMETHODCALLTYPE</name></type> <name>Stop</name><parameter_list>()</parameter_list>
+
+<block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>m_procRun</name></expr>)</condition>
+
+<block>{<block_content>
+
+<return>return <expr><name>E_FAIL</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name>m_procRun</name> <operator>=</operator> <name>false</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>WaitForSingleObject</name><argument_list>(<argument><expr><name>m_loopThreadHandle</name></expr></argument>, <argument><expr><name>INFINITE</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name><name>m_senseManager</name><operator>-&gt;</operator><name>Close</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>S_OK</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><name>HRESULT</name> <name>STDMETHODCALLTYPE</name></type> <name>SetFps</name><parameter_list>(<parameter><decl><type><name>int</name></type> <name>fps</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><name>m_fps</name> <operator>==</operator> <name>fps</name></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>S_OK</name></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>m_fps</name> <operator>=</operator> <name>fps</name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>m_procRun</name></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><call><name>reinit</name><argument_list>()</argument_list></call></expr>;</return></block_content></block></if></if_stmt>
+
+<return>return <expr><name>S_OK</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><name>HRESULT</name> <name>STDMETHODCALLTYPE</name></type> <name>GetFps</name><parameter_list>(<parameter><decl><type><name>int</name><modifier>*</modifier></type> <name>fps</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><operator>*</operator><name>fps</name> <operator>=</operator> <name>m_fps</name></expr>;</expr_stmt>
+
+<return>return <expr><name>S_OK</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><name>HRESULT</name> <name>STDMETHODCALLTYPE</name></type> <name>SetIVCAMMotionRangeTradeOff</name><parameter_list>(<parameter><decl><type><name>int</name></type> <name>value</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><name>m_motionRangeTradeOff</name> <operator>==</operator> <name>value</name></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>S_OK</name></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>m_motionRangeTradeOff</name> <operator>=</operator> <name>value</name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>m_procRun</name></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><call><name>reinit</name><argument_list>()</argument_list></call></expr>;</return></block_content></block></if></if_stmt>
+
+<return>return <expr><name>S_OK</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><name>HRESULT</name> <name>STDMETHODCALLTYPE</name></type> <name>GetIVCAMMotionRangeTradeOff</name><parameter_list>(<parameter><decl><type><name>int</name><modifier>*</modifier></type> <name>value</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><operator>*</operator><name>value</name> <operator>=</operator> <name>m_motionRangeTradeOff</name></expr>;</expr_stmt>
+
+<return>return <expr><name>S_OK</name></expr>;</return>
+
+</block_content>}</block></function>
+
+</block_content>}</block></decl></decl_stmt><empty_stmt>;</empty_stmt>
+
+<macro><name>OBJECT_ENTRY_AUTO</name><argument_list>(<argument>__uuidof(SegProc)</argument>, <argument>CSegProc</argument>)</argument_list></macro>
+
+</unit>

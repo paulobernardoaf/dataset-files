@@ -1,0 +1,644 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" revision="1.0.0" language="C" filename="D:\Pesquisa\Projects\ffmpeg-analysis\_cppstats\FFmpeg\libavfilter\vf_removelogo.c"><cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"libavutil/imgutils.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"libavutil/opt.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"avfilter.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"formats.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"internal.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"video.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"bbox.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"lavfutils.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"lswsutils.h"</cpp:file></cpp:include>
+
+<typedef>typedef <type><struct>struct <name>RemovelogoContext</name> <block>{
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>AVClass</name> <modifier>*</modifier></type><name>class</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>char</name> <modifier>*</modifier></type><name>filename</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name> <modifier>*</modifier><modifier>*</modifier><modifier>*</modifier></type><name>mask</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>max_mask_size</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>mask_w</name></decl>, <name>mask_h</name>;</decl_stmt>
+
+<decl_stmt><decl><type><name>uint8_t</name> <modifier>*</modifier></type><name>full_mask_data</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>FFBoundingBox</name></type> <name>full_mask_bbox</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>uint8_t</name> <modifier>*</modifier></type><name>half_mask_data</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>FFBoundingBox</name></type> <name>half_mask_bbox</name></decl>;</decl_stmt>
+
+}</block></struct></type> <name>RemovelogoContext</name>;</typedef>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>OFFSET</name><parameter_list>(<parameter><type><name>x</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>offsetof(RemovelogoContext, x)</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>FLAGS</name></cpp:macro> <cpp:value>AV_OPT_FLAG_FILTERING_PARAM|AV_OPT_FLAG_VIDEO_PARAM</cpp:value></cpp:define>
+
+<decl_stmt><decl><type><specifier>static</specifier> <specifier>const</specifier> <name>AVOption</name></type> <name><name>removelogo_options</name><index>[]</index></name> <init>= <expr><block>{
+
+<expr><block>{ <expr><literal type="string">"filename"</literal></expr>, <expr><literal type="string">"set bitmap filename"</literal></expr>, <expr><call><name>OFFSET</name><argument_list>(<argument><expr><name>filename</name></expr></argument>)</argument_list></call></expr>, <expr><name>AV_OPT_TYPE_STRING</name></expr>, <expr><block>{<expr><operator>.</operator><name>str</name><operator>=</operator><name>NULL</name></expr>}</block></expr>, <expr><operator>.</operator><name>flags</name> <operator>=</operator> <name>FLAGS</name></expr> }</block></expr>,
+
+<expr><block>{ <expr><literal type="string">"f"</literal></expr>, <expr><literal type="string">"set bitmap filename"</literal></expr>, <expr><call><name>OFFSET</name><argument_list>(<argument><expr><name>filename</name></expr></argument>)</argument_list></call></expr>, <expr><name>AV_OPT_TYPE_STRING</name></expr>, <expr><block>{<expr><operator>.</operator><name>str</name><operator>=</operator><name>NULL</name></expr>}</block></expr>, <expr><operator>.</operator><name>flags</name> <operator>=</operator> <name>FLAGS</name></expr> }</block></expr>,
+
+<expr><block>{ <expr><name>NULL</name></expr> }</block></expr>
+
+}</block></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>AVFILTER_DEFINE_CLASS</name><argument_list>(<argument><expr><name>removelogo</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>apply_mask_fudge_factor</name><parameter_list>(<parameter><type><name>x</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>(((x) &gt;&gt; 2) + (x))</cpp:value></cpp:define>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>convert_mask_to_strength_mask</name><parameter_list>(<parameter><decl><type><name>uint8_t</name> <modifier>*</modifier></type><name>data</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>linesize</name></decl></parameter>,
+
+<parameter><decl><type><name>int</name></type> <name>w</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>h</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>min_val</name></decl></parameter>,
+
+<parameter><decl><type><name>int</name> <modifier>*</modifier></type><name>max_mask_size</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>int</name></type> <name>x</name></decl>, <decl><type ref="prev"/><name>y</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>current_pass</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+
+<for>for <control>(<init><expr><name>y</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>y</name> <operator>&lt;</operator> <name>h</name></expr>;</condition> <incr><expr><name>y</name><operator>++</operator></expr></incr>)</control><block type="pseudo"><block_content>
+
+<for>for <control>(<init><expr><name>x</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>x</name> <operator>&lt;</operator> <name>w</name></expr>;</condition> <incr><expr><name>x</name><operator>++</operator></expr></incr>)</control><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name><name>data</name><index>[<expr><name>y</name><operator>*</operator><name>linesize</name> <operator>+</operator> <name>x</name></expr>]</index></name> <operator>=</operator> <name><name>data</name><index>[<expr><name>y</name><operator>*</operator><name>linesize</name> <operator>+</operator> <name>x</name></expr>]</index></name> <operator>&gt;</operator> <name>min_val</name></expr>;</expr_stmt></block_content></block></for></block_content></block></for>
+
+<while>while <condition>(<expr><literal type="number">1</literal></expr>)</condition> <block>{<block_content>
+
+<decl_stmt><decl><type><name>int</name></type> <name>has_anything_changed</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>uint8_t</name> <modifier>*</modifier></type><name>current_pixel0</name> <init>= <expr><name>data</name> <operator>+</operator> <literal type="number">1</literal> <operator>+</operator> <name>linesize</name></expr></init></decl>, <decl><type ref="prev"><modifier>*</modifier></type><name>current_pixel</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>current_pass</name><operator>++</operator></expr>;</expr_stmt>
+
+<for>for <control>(<init><expr><name>y</name> <operator>=</operator> <literal type="number">1</literal></expr>;</init> <condition><expr><name>y</name> <operator>&lt;</operator> <name>h</name><operator>-</operator><literal type="number">1</literal></expr>;</condition> <incr><expr><name>y</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+
+<expr_stmt><expr><name>current_pixel</name> <operator>=</operator> <name>current_pixel0</name></expr>;</expr_stmt>
+
+<for>for <control>(<init><expr><name>x</name> <operator>=</operator> <literal type="number">1</literal></expr>;</init> <condition><expr><name>x</name> <operator>&lt;</operator> <name>w</name><operator>-</operator><literal type="number">1</literal></expr>;</condition> <incr><expr><name>x</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+
+<if_stmt><if>if <condition>( <expr><operator>*</operator><name>current_pixel</name> <operator>&gt;=</operator> <name>current_pass</name> <operator>&amp;&amp;</operator>
+
+<operator>*</operator><operator>(</operator><name>current_pixel</name> <operator>+</operator> <literal type="number">1</literal><operator>)</operator> <operator>&gt;=</operator> <name>current_pass</name> <operator>&amp;&amp;</operator>
+
+<operator>*</operator><operator>(</operator><name>current_pixel</name> <operator>-</operator> <literal type="number">1</literal><operator>)</operator> <operator>&gt;=</operator> <name>current_pass</name> <operator>&amp;&amp;</operator>
+
+<operator>*</operator><operator>(</operator><name>current_pixel</name> <operator>+</operator> <name>linesize</name><operator>)</operator> <operator>&gt;=</operator> <name>current_pass</name> <operator>&amp;&amp;</operator>
+
+<operator>*</operator><operator>(</operator><name>current_pixel</name> <operator>-</operator> <name>linesize</name><operator>)</operator> <operator>&gt;=</operator> <name>current_pass</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><operator>(</operator><operator>*</operator><name>current_pixel</name><operator>)</operator><operator>++</operator></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>has_anything_changed</name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name>current_pixel</name><operator>++</operator></expr>;</expr_stmt>
+
+</block_content>}</block></for>
+
+<expr_stmt><expr><name>current_pixel0</name> <operator>+=</operator> <name>linesize</name></expr>;</expr_stmt>
+
+</block_content>}</block></for>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>has_anything_changed</name></expr>)</condition><block type="pseudo"><block_content>
+
+<break>break;</break></block_content></block></if></if_stmt>
+
+</block_content>}</block></while>
+
+<for>for <control>(<init><expr><name>y</name> <operator>=</operator> <literal type="number">1</literal></expr>;</init> <condition><expr><name>y</name> <operator>&lt;</operator> <name>h</name> <operator>-</operator> <literal type="number">1</literal></expr>;</condition> <incr><expr><name>y</name><operator>++</operator></expr></incr>)</control><block type="pseudo"><block_content>
+
+<for>for <control>(<init><expr><name>x</name> <operator>=</operator> <literal type="number">1</literal></expr>;</init> <condition><expr><name>x</name> <operator>&lt;</operator> <name>w</name> <operator>-</operator> <literal type="number">1</literal></expr>;</condition> <incr><expr><name>x</name><operator>++</operator></expr></incr>)</control><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name><name>data</name><index>[<expr><operator>(</operator><name>y</name> <operator>*</operator> <name>linesize</name><operator>)</operator> <operator>+</operator> <name>x</name></expr>]</index></name> <operator>=</operator> <call><name>apply_mask_fudge_factor</name><argument_list>(<argument><expr><name><name>data</name><index>[<expr><operator>(</operator><name>y</name> <operator>*</operator> <name>linesize</name><operator>)</operator> <operator>+</operator> <name>x</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></for></block_content></block></for>
+
+<expr_stmt><expr><operator>*</operator><name>max_mask_size</name> <operator>=</operator> <call><name>apply_mask_fudge_factor</name><argument_list>(<argument><expr><name>current_pass</name> <operator>+</operator> <literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>query_formats</name><parameter_list>(<parameter><decl><type><name>AVFilterContext</name> <modifier>*</modifier></type><name>ctx</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><specifier>static</specifier> <specifier>const</specifier> <name><name>enum</name> <name>AVPixelFormat</name></name></type> <name><name>pix_fmts</name><index>[]</index></name> <init>= <expr><block>{ <expr><name>AV_PIX_FMT_YUV420P</name></expr>, <expr><name>AV_PIX_FMT_NONE</name></expr> }</block></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>AVFilterFormats</name> <modifier>*</modifier></type><name>fmts_list</name> <init>= <expr><call><name>ff_make_format_list</name><argument_list>(<argument><expr><name>pix_fmts</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>fmts_list</name></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><call><name>AVERROR</name><argument_list>(<argument><expr><name>ENOMEM</name></expr></argument>)</argument_list></call></expr>;</return></block_content></block></if></if_stmt>
+
+<return>return <expr><call><name>ff_set_common_formats</name><argument_list>(<argument><expr><name>ctx</name></expr></argument>, <argument><expr><name>fmts_list</name></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>load_mask</name><parameter_list>(<parameter><decl><type><name>uint8_t</name> <modifier>*</modifier><modifier>*</modifier></type><name>mask</name></decl></parameter>, <parameter><decl><type><name>int</name> <modifier>*</modifier></type><name>w</name></decl></parameter>, <parameter><decl><type><name>int</name> <modifier>*</modifier></type><name>h</name></decl></parameter>,
+
+<parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>filename</name></decl></parameter>, <parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>log_ctx</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>int</name></type> <name>ret</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name><name>enum</name> <name>AVPixelFormat</name></name></type> <name>pix_fmt</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>uint8_t</name> <modifier>*</modifier></type><name><name>src_data</name><index>[<expr><literal type="number">4</literal></expr>]</index></name></decl>, <decl><type ref="prev"><modifier>*</modifier></type><name><name>gray_data</name><index>[<expr><literal type="number">4</literal></expr>]</index></name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name><name>src_linesize</name><index>[<expr><literal type="number">4</literal></expr>]</index></name></decl>, <decl><type ref="prev"/><name><name>gray_linesize</name><index>[<expr><literal type="number">4</literal></expr>]</index></name></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>(</operator><name>ret</name> <operator>=</operator> <call><name>ff_load_image</name><argument_list>(<argument><expr><name>src_data</name></expr></argument>, <argument><expr><name>src_linesize</name></expr></argument>, <argument><expr><name>w</name></expr></argument>, <argument><expr><name>h</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>pix_fmt</name></expr></argument>, <argument><expr><name>filename</name></expr></argument>, <argument><expr><name>log_ctx</name></expr></argument>)</argument_list></call><operator>)</operator> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>ret</name></expr>;</return></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>(</operator><name>ret</name> <operator>=</operator> <call><name>ff_scale_image</name><argument_list>(<argument><expr><name>gray_data</name></expr></argument>, <argument><expr><name>gray_linesize</name></expr></argument>, <argument><expr><operator>*</operator><name>w</name></expr></argument>, <argument><expr><operator>*</operator><name>h</name></expr></argument>, <argument><expr><name>AV_PIX_FMT_GRAY8</name></expr></argument>,
+
+<argument><expr><name>src_data</name></expr></argument>, <argument><expr><name>src_linesize</name></expr></argument>, <argument><expr><operator>*</operator><name>w</name></expr></argument>, <argument><expr><operator>*</operator><name>h</name></expr></argument>, <argument><expr><name>pix_fmt</name></expr></argument>,
+
+<argument><expr><name>log_ctx</name></expr></argument>)</argument_list></call><operator>)</operator> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+
+<goto>goto <name>end</name>;</goto></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><operator>*</operator><name>mask</name> <operator>=</operator> <call><name>av_malloc</name><argument_list>(<argument><expr><operator>*</operator><name>w</name> <operator>*</operator> <operator>*</operator><name>h</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><operator>*</operator><name>mask</name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <call><name>AVERROR</name><argument_list>(<argument><expr><name>ENOMEM</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>av_image_copy_plane</name><argument_list>(<argument><expr><operator>*</operator><name>mask</name></expr></argument>, <argument><expr><operator>*</operator><name>w</name></expr></argument>, <argument><expr><name><name>gray_data</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>, <argument><expr><name><name>gray_linesize</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>, <argument><expr><operator>*</operator><name>w</name></expr></argument>, <argument><expr><operator>*</operator><name>h</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<label><name>end</name>:</label>
+
+<expr_stmt><expr><call><name>av_freep</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>src_data</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>av_freep</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>gray_data</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>ret</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>generate_half_size_image</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name>uint8_t</name> <modifier>*</modifier></type><name>src_data</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>src_linesize</name></decl></parameter>,
+
+<parameter><decl><type><name>uint8_t</name> <modifier>*</modifier></type><name>dst_data</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>dst_linesize</name></decl></parameter>,
+
+<parameter><decl><type><name>int</name></type> <name>src_w</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>src_h</name></decl></parameter>,
+
+<parameter><decl><type><name>int</name> <modifier>*</modifier></type><name>max_mask_size</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>int</name></type> <name>x</name></decl>, <decl><type ref="prev"/><name>y</name></decl>;</decl_stmt>
+
+<for>for <control>(<init><expr><name>y</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>y</name> <operator>&lt;</operator> <name>src_h</name><operator>/</operator><literal type="number">2</literal></expr>;</condition> <incr><expr><name>y</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+
+<for>for <control>(<init><expr><name>x</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>x</name> <operator>&lt;</operator> <name>src_w</name><operator>/</operator><literal type="number">2</literal></expr>;</condition> <incr><expr><name>x</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+
+<expr_stmt><expr><name><name>dst_data</name><index>[<expr><operator>(</operator><name>y</name> <operator>*</operator> <name>dst_linesize</name><operator>)</operator> <operator>+</operator> <name>x</name></expr>]</index></name> <operator>=</operator>
+
+<name><name>src_data</name><index>[<expr><operator>(</operator><operator>(</operator><name>y</name> <operator>&lt;&lt;</operator> <literal type="number">1</literal><operator>)</operator> <operator>*</operator> <name>src_linesize</name><operator>)</operator> <operator>+</operator> <operator>(</operator><name>x</name> <operator>&lt;&lt;</operator> <literal type="number">1</literal><operator>)</operator></expr>]</index></name> <operator>||</operator>
+
+<name><name>src_data</name><index>[<expr><operator>(</operator><operator>(</operator><name>y</name> <operator>&lt;&lt;</operator> <literal type="number">1</literal><operator>)</operator> <operator>*</operator> <name>src_linesize</name><operator>)</operator> <operator>+</operator> <operator>(</operator><name>x</name> <operator>&lt;&lt;</operator> <literal type="number">1</literal><operator>)</operator> <operator>+</operator> <literal type="number">1</literal></expr>]</index></name> <operator>||</operator>
+
+<name><name>src_data</name><index>[<expr><operator>(</operator><operator>(</operator><operator>(</operator><name>y</name> <operator>&lt;&lt;</operator> <literal type="number">1</literal><operator>)</operator> <operator>+</operator> <literal type="number">1</literal><operator>)</operator> <operator>*</operator> <name>src_linesize</name><operator>)</operator> <operator>+</operator> <operator>(</operator><name>x</name> <operator>&lt;&lt;</operator> <literal type="number">1</literal><operator>)</operator></expr>]</index></name> <operator>||</operator>
+
+<name><name>src_data</name><index>[<expr><operator>(</operator><operator>(</operator><operator>(</operator><name>y</name> <operator>&lt;&lt;</operator> <literal type="number">1</literal><operator>)</operator> <operator>+</operator> <literal type="number">1</literal><operator>)</operator> <operator>*</operator> <name>src_linesize</name><operator>)</operator> <operator>+</operator> <operator>(</operator><name>x</name> <operator>&lt;&lt;</operator> <literal type="number">1</literal><operator>)</operator> <operator>+</operator> <literal type="number">1</literal></expr>]</index></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>dst_data</name><index>[<expr><operator>(</operator><name>y</name> <operator>*</operator> <name>dst_linesize</name><operator>)</operator> <operator>+</operator> <name>x</name></expr>]</index></name> <operator>=</operator> <call><name>FFMIN</name><argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>, <argument><expr><name><name>dst_data</name><index>[<expr><operator>(</operator><name>y</name> <operator>*</operator> <name>dst_linesize</name><operator>)</operator> <operator>+</operator> <name>x</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></for>
+
+</block_content>}</block></for>
+
+<expr_stmt><expr><call><name>convert_mask_to_strength_mask</name><argument_list>(<argument><expr><name>dst_data</name></expr></argument>, <argument><expr><name>dst_linesize</name></expr></argument>,
+
+<argument><expr><name>src_w</name><operator>/</operator><literal type="number">2</literal></expr></argument>, <argument><expr><name>src_h</name><operator>/</operator><literal type="number">2</literal></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><name>max_mask_size</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>av_cold</name> <name>int</name></type> <name>init</name><parameter_list>(<parameter><decl><type><name>AVFilterContext</name> <modifier>*</modifier></type><name>ctx</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>RemovelogoContext</name> <modifier>*</modifier></type><name>s</name> <init>= <expr><name><name>ctx</name><operator>-&gt;</operator><name>priv</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name> <modifier>*</modifier><modifier>*</modifier><modifier>*</modifier></type><name>mask</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>ret</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>a</name></decl>, <decl><type ref="prev"/><name>b</name></decl>, <decl><type ref="prev"/><name>c</name></decl>, <decl><type ref="prev"/><name>w</name></decl>, <decl><type ref="prev"/><name>h</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>full_max_mask_size</name></decl>, <decl><type ref="prev"/><name>half_max_mask_size</name></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>s</name><operator>-&gt;</operator><name>filename</name></name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>av_log</name><argument_list>(<argument><expr><name>ctx</name></expr></argument>, <argument><expr><name>AV_LOG_ERROR</name></expr></argument>, <argument><expr><literal type="string">"The bitmap file name is mandatory\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><call><name>AVERROR</name><argument_list>(<argument><expr><name>EINVAL</name></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>(</operator><name>ret</name> <operator>=</operator> <call><name>load_mask</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>full_mask_data</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name>w</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>h</name></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>filename</name></name></expr></argument>, <argument><expr><name>ctx</name></expr></argument>)</argument_list></call><operator>)</operator> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>ret</name></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>mask_w</name></name> <operator>=</operator> <name>w</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>mask_h</name></name> <operator>=</operator> <name>h</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>convert_mask_to_strength_mask</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>full_mask_data</name></name></expr></argument>, <argument><expr><name>w</name></expr></argument>, <argument><expr><name>w</name></expr></argument>, <argument><expr><name>h</name></expr></argument>,
+
+<argument><expr><literal type="number">16</literal></expr></argument>, <argument><expr><operator>&amp;</operator><name>full_max_mask_size</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><operator>(</operator><name><name>s</name><operator>-&gt;</operator><name>half_mask_data</name></name> <operator>=</operator> <call><name>av_mallocz</name><argument_list>(<argument><expr><name>w</name><operator>/</operator><literal type="number">2</literal> <operator>*</operator> <name>h</name><operator>/</operator><literal type="number">2</literal></expr></argument>)</argument_list></call><operator>)</operator></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><call><name>AVERROR</name><argument_list>(<argument><expr><name>ENOMEM</name></expr></argument>)</argument_list></call></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>generate_half_size_image</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>full_mask_data</name></name></expr></argument>, <argument><expr><name>w</name></expr></argument>,
+
+<argument><expr><name><name>s</name><operator>-&gt;</operator><name>half_mask_data</name></name></expr></argument>, <argument><expr><name>w</name><operator>/</operator><literal type="number">2</literal></expr></argument>,
+
+<argument><expr><name>w</name></expr></argument>, <argument><expr><name>h</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>half_max_mask_size</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>max_mask_size</name></name> <operator>=</operator> <call><name>FFMAX</name><argument_list>(<argument><expr><name>full_max_mask_size</name></expr></argument>, <argument><expr><name>half_max_mask_size</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>mask</name> <operator>=</operator> <operator>(</operator><name>int</name> <operator>*</operator><operator>*</operator><operator>*</operator><operator>)</operator><call><name>av_malloc_array</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>max_mask_size</name></name> <operator>+</operator> <literal type="number">1</literal></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr><name>int</name> <operator>*</operator><operator>*</operator></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>mask</name></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><call><name>AVERROR</name><argument_list>(<argument><expr><name>ENOMEM</name></expr></argument>)</argument_list></call></expr>;</return></block_content></block></if></if_stmt>
+
+<for>for <control>(<init><expr><name>a</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>a</name> <operator>&lt;=</operator> <name><name>s</name><operator>-&gt;</operator><name>max_mask_size</name></name></expr>;</condition> <incr><expr><name>a</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+
+<expr_stmt><expr><name><name>mask</name><index>[<expr><name>a</name></expr>]</index></name> <operator>=</operator> <operator>(</operator><name>int</name> <operator>*</operator><operator>*</operator><operator>)</operator><call><name>av_malloc_array</name><argument_list>(<argument><expr><operator>(</operator><name>a</name> <operator>*</operator> <literal type="number">2</literal><operator>)</operator> <operator>+</operator> <literal type="number">1</literal></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr><name>int</name> <operator>*</operator></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>mask</name><index>[<expr><name>a</name></expr>]</index></name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>av_free</name><argument_list>(<argument><expr><name>mask</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><call><name>AVERROR</name><argument_list>(<argument><expr><name>ENOMEM</name></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<for>for <control>(<init><expr><name>b</name> <operator>=</operator> <operator>-</operator><name>a</name></expr>;</init> <condition><expr><name>b</name> <operator>&lt;=</operator> <name>a</name></expr>;</condition> <incr><expr><name>b</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+
+<expr_stmt><expr><name><name>mask</name><index>[<expr><name>a</name></expr>]</index><index>[<expr><name>b</name> <operator>+</operator> <name>a</name></expr>]</index></name> <operator>=</operator> <operator>(</operator><name>int</name> <operator>*</operator><operator>)</operator><call><name>av_malloc_array</name><argument_list>(<argument><expr><operator>(</operator><name>a</name> <operator>*</operator> <literal type="number">2</literal><operator>)</operator> <operator>+</operator> <literal type="number">1</literal></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr><name>int</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>mask</name><index>[<expr><name>a</name></expr>]</index><index>[<expr><name>b</name> <operator>+</operator> <name>a</name></expr>]</index></name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>av_free</name><argument_list>(<argument><expr><name>mask</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><call><name>AVERROR</name><argument_list>(<argument><expr><name>ENOMEM</name></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<for>for <control>(<init><expr><name>c</name> <operator>=</operator> <operator>-</operator><name>a</name></expr>;</init> <condition><expr><name>c</name> <operator>&lt;=</operator> <name>a</name></expr>;</condition> <incr><expr><name>c</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><operator>(</operator><name>b</name> <operator>*</operator> <name>b</name><operator>)</operator> <operator>+</operator> <operator>(</operator><name>c</name> <operator>*</operator> <name>c</name><operator>)</operator> <operator>&lt;=</operator> <operator>(</operator><name>a</name> <operator>*</operator> <name>a</name><operator>)</operator></expr>)</condition><block type="pseudo"><block_content> 
+
+<expr_stmt><expr><name><name>mask</name><index>[<expr><name>a</name></expr>]</index><index>[<expr><name>b</name> <operator>+</operator> <name>a</name></expr>]</index><index>[<expr><name>c</name> <operator>+</operator> <name>a</name></expr>]</index></name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt></block_content></block></if>
+
+<else>else<block type="pseudo"><block_content>
+
+<expr_stmt><expr><name><name>mask</name><index>[<expr><name>a</name></expr>]</index><index>[<expr><name>b</name> <operator>+</operator> <name>a</name></expr>]</index><index>[<expr><name>c</name> <operator>+</operator> <name>a</name></expr>]</index></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt></block_content></block></else></if_stmt>
+
+</block_content>}</block></for>
+
+</block_content>}</block></for>
+
+</block_content>}</block></for>
+
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>mask</name></name> <operator>=</operator> <name>mask</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>ff_calculate_bounding_box</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>full_mask_bbox</name></name></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>full_mask_data</name></name></expr></argument>, <argument><expr><name>w</name></expr></argument>, <argument><expr><name>w</name></expr></argument>, <argument><expr><name>h</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>ff_calculate_bounding_box</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>half_mask_bbox</name></name></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>half_mask_data</name></name></expr></argument>, <argument><expr><name>w</name><operator>/</operator><literal type="number">2</literal></expr></argument>, <argument><expr><name>w</name><operator>/</operator><literal type="number">2</literal></expr></argument>, <argument><expr><name>h</name><operator>/</operator><literal type="number">2</literal></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>SHOW_LOGO_INFO</name><parameter_list>(<parameter><type><name>mask_type</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>av_log(ctx, AV_LOG_VERBOSE, #mask_type " x1:%d x2:%d y1:%d y2:%d max_mask_size:%d\n", s-&gt;mask_type##_mask_bbox.x1, s-&gt;mask_type##_mask_bbox.x2, s-&gt;mask_type##_mask_bbox.y1, s-&gt;mask_type##_mask_bbox.y2, mask_type##_max_mask_size);</cpp:value></cpp:define>
+
+<expr_stmt><expr><call><name>SHOW_LOGO_INFO</name><argument_list>(<argument><expr><name>full</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>SHOW_LOGO_INFO</name><argument_list>(<argument><expr><name>half</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>config_props_input</name><parameter_list>(<parameter><decl><type><name>AVFilterLink</name> <modifier>*</modifier></type><name>inlink</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>AVFilterContext</name> <modifier>*</modifier></type><name>ctx</name> <init>= <expr><name><name>inlink</name><operator>-&gt;</operator><name>dst</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>RemovelogoContext</name> <modifier>*</modifier></type><name>s</name> <init>= <expr><name><name>ctx</name><operator>-&gt;</operator><name>priv</name></name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>inlink</name><operator>-&gt;</operator><name>w</name></name> <operator>!=</operator> <name><name>s</name><operator>-&gt;</operator><name>mask_w</name></name> <operator>||</operator> <name><name>inlink</name><operator>-&gt;</operator><name>h</name></name> <operator>!=</operator> <name><name>s</name><operator>-&gt;</operator><name>mask_h</name></name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>av_log</name><argument_list>(<argument><expr><name>ctx</name></expr></argument>, <argument><expr><name>AV_LOG_INFO</name></expr></argument>,
+
+<argument><expr><literal type="string">"Mask image size %dx%d does not match with the input video size %dx%d\n"</literal></expr></argument>,
+
+<argument><expr><name><name>s</name><operator>-&gt;</operator><name>mask_w</name></name></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>mask_h</name></name></expr></argument>, <argument><expr><name><name>inlink</name><operator>-&gt;</operator><name>w</name></name></expr></argument>, <argument><expr><name><name>inlink</name><operator>-&gt;</operator><name>h</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><call><name>AVERROR</name><argument_list>(<argument><expr><name>EINVAL</name></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>unsigned</name> <name>int</name></type> <name>blur_pixel</name><parameter_list>(<parameter><decl><type><name>int</name> <modifier>*</modifier><modifier>*</modifier><modifier>*</modifier></type><name>mask</name></decl></parameter>,
+
+<parameter><decl><type><specifier>const</specifier> <name>uint8_t</name> <modifier>*</modifier></type><name>mask_data</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>mask_linesize</name></decl></parameter>,
+
+<parameter><decl><type><name>uint8_t</name> <modifier>*</modifier></type><name>image_data</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>image_linesize</name></decl></parameter>,
+
+<parameter><decl><type><name>int</name></type> <name>w</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>h</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>x</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>y</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>int</name></type> <name>mask_size</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>start_posx</name></decl>, <decl><type ref="prev"/><name>start_posy</name></decl>, <decl><type ref="prev"/><name>end_posx</name></decl>, <decl><type ref="prev"/><name>end_posy</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>i</name></decl>, <decl><type ref="prev"/><name>j</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>unsigned</name> <name>int</name></type> <name>accumulator</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>, <decl><type ref="prev"/><name>divisor</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>uint8_t</name> <modifier>*</modifier></type><name>image_read_position</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>uint8_t</name> <modifier>*</modifier></type><name>mask_read_position</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>mask_size</name> <operator>=</operator> <name><name>mask_data</name><index>[<expr><name>y</name> <operator>*</operator> <name>mask_linesize</name> <operator>+</operator> <name>x</name></expr>]</index></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>start_posx</name> <operator>=</operator> <call><name>FFMAX</name><argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><name>x</name> <operator>-</operator> <name>mask_size</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>start_posy</name> <operator>=</operator> <call><name>FFMAX</name><argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><name>y</name> <operator>-</operator> <name>mask_size</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>end_posx</name> <operator>=</operator> <call><name>FFMIN</name><argument_list>(<argument><expr><name>w</name> <operator>-</operator> <literal type="number">1</literal></expr></argument>, <argument><expr><name>x</name> <operator>+</operator> <name>mask_size</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>end_posy</name> <operator>=</operator> <call><name>FFMIN</name><argument_list>(<argument><expr><name>h</name> <operator>-</operator> <literal type="number">1</literal></expr></argument>, <argument><expr><name>y</name> <operator>+</operator> <name>mask_size</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>image_read_position</name> <operator>=</operator> <name>image_data</name> <operator>+</operator> <name>image_linesize</name> <operator>*</operator> <name>start_posy</name> <operator>+</operator> <name>start_posx</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>mask_read_position</name> <operator>=</operator> <name>mask_data</name> <operator>+</operator> <name>mask_linesize</name> <operator>*</operator> <name>start_posy</name> <operator>+</operator> <name>start_posx</name></expr>;</expr_stmt>
+
+<for>for <control>(<init><expr><name>j</name> <operator>=</operator> <name>start_posy</name></expr>;</init> <condition><expr><name>j</name> <operator>&lt;=</operator> <name>end_posy</name></expr>;</condition> <incr><expr><name>j</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <name>start_posx</name></expr>;</init> <condition><expr><name>i</name> <operator>&lt;=</operator> <name>end_posx</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><operator>(</operator><operator>*</operator><name>mask_read_position</name><operator>)</operator> <operator>&amp;&amp;</operator> <name><name>mask</name><index>[<expr><name>mask_size</name></expr>]</index><index>[<expr><name>i</name> <operator>-</operator> <name>start_posx</name></expr>]</index><index>[<expr><name>j</name> <operator>-</operator> <name>start_posy</name></expr>]</index></name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>accumulator</name> <operator>+=</operator> <operator>*</operator><name>image_read_position</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>divisor</name><operator>++</operator></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name>image_read_position</name><operator>++</operator></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>mask_read_position</name><operator>++</operator></expr>;</expr_stmt>
+
+</block_content>}</block></for>
+
+<expr_stmt><expr><name>image_read_position</name> <operator>+=</operator> <operator>(</operator><name>image_linesize</name> <operator>-</operator> <operator>(</operator><operator>(</operator><name>end_posx</name> <operator>+</operator> <literal type="number">1</literal><operator>)</operator> <operator>-</operator> <name>start_posx</name><operator>)</operator><operator>)</operator></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>mask_read_position</name> <operator>+=</operator> <operator>(</operator><name>mask_linesize</name> <operator>-</operator> <operator>(</operator><operator>(</operator><name>end_posx</name> <operator>+</operator> <literal type="number">1</literal><operator>)</operator> <operator>-</operator> <name>start_posx</name><operator>)</operator><operator>)</operator></expr>;</expr_stmt>
+
+</block_content>}</block></for>
+
+<return>return <expr><ternary><condition><expr><name>divisor</name> <operator>==</operator> <literal type="number">0</literal></expr> ?</condition><then> <expr><literal type="number">255</literal></expr></then><else>:
+
+<expr><operator>(</operator><name>accumulator</name> <operator>+</operator> <operator>(</operator><name>divisor</name> <operator>/</operator> <literal type="number">2</literal><operator>)</operator><operator>)</operator> <operator>/</operator> <name>divisor</name></expr></else></ternary></expr>;</return> 
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>blur_image</name><parameter_list>(<parameter><decl><type><name>int</name> <modifier>*</modifier><modifier>*</modifier><modifier>*</modifier></type><name>mask</name></decl></parameter>,
+
+<parameter><decl><type><specifier>const</specifier> <name>uint8_t</name> <modifier>*</modifier></type><name>src_data</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>src_linesize</name></decl></parameter>,
+
+<parameter><decl><type><name>uint8_t</name> <modifier>*</modifier></type><name>dst_data</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>dst_linesize</name></decl></parameter>,
+
+<parameter><decl><type><specifier>const</specifier> <name>uint8_t</name> <modifier>*</modifier></type><name>mask_data</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>mask_linesize</name></decl></parameter>,
+
+<parameter><decl><type><name>int</name></type> <name>w</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>h</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>direct</name></decl></parameter>,
+
+<parameter><decl><type><name>FFBoundingBox</name> <modifier>*</modifier></type><name>bbox</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>int</name></type> <name>x</name></decl>, <decl><type ref="prev"/><name>y</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>uint8_t</name> <modifier>*</modifier></type><name>dst_line</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>uint8_t</name> <modifier>*</modifier></type><name>src_line</name></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>direct</name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>av_image_copy_plane</name><argument_list>(<argument><expr><name>dst_data</name></expr></argument>, <argument><expr><name>dst_linesize</name></expr></argument>, <argument><expr><name>src_data</name></expr></argument>, <argument><expr><name>src_linesize</name></expr></argument>, <argument><expr><name>w</name></expr></argument>, <argument><expr><name>h</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<for>for <control>(<init><expr><name>y</name> <operator>=</operator> <name><name>bbox</name><operator>-&gt;</operator><name>y1</name></name></expr>;</init> <condition><expr><name>y</name> <operator>&lt;=</operator> <name><name>bbox</name><operator>-&gt;</operator><name>y2</name></name></expr>;</condition> <incr><expr><name>y</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+
+<expr_stmt><expr><name>src_line</name> <operator>=</operator> <name>src_data</name> <operator>+</operator> <name>src_linesize</name> <operator>*</operator> <name>y</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>dst_line</name> <operator>=</operator> <name>dst_data</name> <operator>+</operator> <name>dst_linesize</name> <operator>*</operator> <name>y</name></expr>;</expr_stmt>
+
+<for>for <control>(<init><expr><name>x</name> <operator>=</operator> <name><name>bbox</name><operator>-&gt;</operator><name>x1</name></name></expr>;</init> <condition><expr><name>x</name> <operator>&lt;=</operator> <name><name>bbox</name><operator>-&gt;</operator><name>x2</name></name></expr>;</condition> <incr><expr><name>x</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><name><name>mask_data</name><index>[<expr><name>y</name> <operator>*</operator> <name>mask_linesize</name> <operator>+</operator> <name>x</name></expr>]</index></name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name><name>dst_line</name><index>[<expr><name>x</name></expr>]</index></name> <operator>=</operator> <call><name>blur_pixel</name><argument_list>(<argument><expr><name>mask</name></expr></argument>,
+
+<argument><expr><name>mask_data</name></expr></argument>, <argument><expr><name>mask_linesize</name></expr></argument>,
+
+<argument><expr><name>dst_data</name></expr></argument>, <argument><expr><name>dst_linesize</name></expr></argument>,
+
+<argument><expr><name>w</name></expr></argument>, <argument><expr><name>h</name></expr></argument>, <argument><expr><name>x</name></expr></argument>, <argument><expr><name>y</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>direct</name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name><name>dst_line</name><index>[<expr><name>x</name></expr>]</index></name> <operator>=</operator> <name><name>src_line</name><index>[<expr><name>x</name></expr>]</index></name></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+</block_content>}</block></for>
+
+</block_content>}</block></for>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>filter_frame</name><parameter_list>(<parameter><decl><type><name>AVFilterLink</name> <modifier>*</modifier></type><name>inlink</name></decl></parameter>, <parameter><decl><type><name>AVFrame</name> <modifier>*</modifier></type><name>inpicref</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>RemovelogoContext</name> <modifier>*</modifier></type><name>s</name> <init>= <expr><name><name>inlink</name><operator>-&gt;</operator><name>dst</name><operator>-&gt;</operator><name>priv</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>AVFilterLink</name> <modifier>*</modifier></type><name>outlink</name> <init>= <expr><name><name>inlink</name><operator>-&gt;</operator><name>dst</name><operator>-&gt;</operator><name>outputs</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>AVFrame</name> <modifier>*</modifier></type><name>outpicref</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>direct</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>av_frame_is_writable</name><argument_list>(<argument><expr><name>inpicref</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>direct</name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>outpicref</name> <operator>=</operator> <name>inpicref</name></expr>;</expr_stmt>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<expr_stmt><expr><name>outpicref</name> <operator>=</operator> <call><name>ff_get_video_buffer</name><argument_list>(<argument><expr><name>outlink</name></expr></argument>, <argument><expr><name><name>outlink</name><operator>-&gt;</operator><name>w</name></name></expr></argument>, <argument><expr><name><name>outlink</name><operator>-&gt;</operator><name>h</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>outpicref</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>av_frame_free</name><argument_list>(<argument><expr><operator>&amp;</operator><name>inpicref</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><call><name>AVERROR</name><argument_list>(<argument><expr><name>ENOMEM</name></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>av_frame_copy_props</name><argument_list>(<argument><expr><name>outpicref</name></expr></argument>, <argument><expr><name>inpicref</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+<expr_stmt><expr><call><name>blur_image</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>mask</name></name></expr></argument>,
+
+<argument><expr><name><name>inpicref</name> <operator>-&gt;</operator><name>data</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>, <argument><expr><name><name>inpicref</name> <operator>-&gt;</operator><name>linesize</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>,
+
+<argument><expr><name><name>outpicref</name><operator>-&gt;</operator><name>data</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>, <argument><expr><name><name>outpicref</name><operator>-&gt;</operator><name>linesize</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>,
+
+<argument><expr><name><name>s</name><operator>-&gt;</operator><name>full_mask_data</name></name></expr></argument>, <argument><expr><name><name>inlink</name><operator>-&gt;</operator><name>w</name></name></expr></argument>,
+
+<argument><expr><name><name>inlink</name><operator>-&gt;</operator><name>w</name></name></expr></argument>, <argument><expr><name><name>inlink</name><operator>-&gt;</operator><name>h</name></name></expr></argument>, <argument><expr><name>direct</name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>full_mask_bbox</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>blur_image</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>mask</name></name></expr></argument>,
+
+<argument><expr><name><name>inpicref</name> <operator>-&gt;</operator><name>data</name><index>[<expr><literal type="number">1</literal></expr>]</index></name></expr></argument>, <argument><expr><name><name>inpicref</name> <operator>-&gt;</operator><name>linesize</name><index>[<expr><literal type="number">1</literal></expr>]</index></name></expr></argument>,
+
+<argument><expr><name><name>outpicref</name><operator>-&gt;</operator><name>data</name><index>[<expr><literal type="number">1</literal></expr>]</index></name></expr></argument>, <argument><expr><name><name>outpicref</name><operator>-&gt;</operator><name>linesize</name><index>[<expr><literal type="number">1</literal></expr>]</index></name></expr></argument>,
+
+<argument><expr><name><name>s</name><operator>-&gt;</operator><name>half_mask_data</name></name></expr></argument>, <argument><expr><name><name>inlink</name><operator>-&gt;</operator><name>w</name></name><operator>/</operator><literal type="number">2</literal></expr></argument>,
+
+<argument><expr><name><name>inlink</name><operator>-&gt;</operator><name>w</name></name><operator>/</operator><literal type="number">2</literal></expr></argument>, <argument><expr><name><name>inlink</name><operator>-&gt;</operator><name>h</name></name><operator>/</operator><literal type="number">2</literal></expr></argument>, <argument><expr><name>direct</name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>half_mask_bbox</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>blur_image</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>mask</name></name></expr></argument>,
+
+<argument><expr><name><name>inpicref</name> <operator>-&gt;</operator><name>data</name><index>[<expr><literal type="number">2</literal></expr>]</index></name></expr></argument>, <argument><expr><name><name>inpicref</name> <operator>-&gt;</operator><name>linesize</name><index>[<expr><literal type="number">2</literal></expr>]</index></name></expr></argument>,
+
+<argument><expr><name><name>outpicref</name><operator>-&gt;</operator><name>data</name><index>[<expr><literal type="number">2</literal></expr>]</index></name></expr></argument>, <argument><expr><name><name>outpicref</name><operator>-&gt;</operator><name>linesize</name><index>[<expr><literal type="number">2</literal></expr>]</index></name></expr></argument>,
+
+<argument><expr><name><name>s</name><operator>-&gt;</operator><name>half_mask_data</name></name></expr></argument>, <argument><expr><name><name>inlink</name><operator>-&gt;</operator><name>w</name></name><operator>/</operator><literal type="number">2</literal></expr></argument>,
+
+<argument><expr><name><name>inlink</name><operator>-&gt;</operator><name>w</name></name><operator>/</operator><literal type="number">2</literal></expr></argument>, <argument><expr><name><name>inlink</name><operator>-&gt;</operator><name>h</name></name><operator>/</operator><literal type="number">2</literal></expr></argument>, <argument><expr><name>direct</name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>half_mask_bbox</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>direct</name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>av_frame_free</name><argument_list>(<argument><expr><operator>&amp;</operator><name>inpicref</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<return>return <expr><call><name>ff_filter_frame</name><argument_list>(<argument><expr><name>outlink</name></expr></argument>, <argument><expr><name>outpicref</name></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>av_cold</name> <name>void</name></type> <name>uninit</name><parameter_list>(<parameter><decl><type><name>AVFilterContext</name> <modifier>*</modifier></type><name>ctx</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>RemovelogoContext</name> <modifier>*</modifier></type><name>s</name> <init>= <expr><name><name>ctx</name><operator>-&gt;</operator><name>priv</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>a</name></decl>, <decl><type ref="prev"/><name>b</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>av_freep</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>full_mask_data</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>av_freep</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>half_mask_data</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>s</name><operator>-&gt;</operator><name>mask</name></name></expr>)</condition> <block>{<block_content>
+
+<for>for <control>(<init><expr><name>a</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>a</name> <operator>&lt;=</operator> <name><name>s</name><operator>-&gt;</operator><name>max_mask_size</name></name></expr>;</condition> <incr><expr><name>a</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+
+<for>for <control>(<init><expr><name>b</name> <operator>=</operator> <operator>-</operator><name>a</name></expr>;</init> <condition><expr><name>b</name> <operator>&lt;=</operator> <name>a</name></expr>;</condition> <incr><expr><name>b</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+
+<expr_stmt><expr><call><name>av_freep</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>mask</name><index>[<expr><name>a</name></expr>]</index><index>[<expr><name>b</name> <operator>+</operator> <name>a</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt> 
+
+</block_content>}</block></for>
+
+<expr_stmt><expr><call><name>av_freep</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>mask</name><index>[<expr><name>a</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></for>
+
+<expr_stmt><expr><call><name>av_freep</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>mask</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></function>
+
+<decl_stmt><decl><type><specifier>static</specifier> <specifier>const</specifier> <name>AVFilterPad</name></type> <name><name>removelogo_inputs</name><index>[]</index></name> <init>= <expr><block>{
+
+<expr><block>{
+
+<expr><operator>.</operator><name>name</name> <operator>=</operator> <literal type="string">"default"</literal></expr>,
+
+<expr><operator>.</operator><name>type</name> <operator>=</operator> <name>AVMEDIA_TYPE_VIDEO</name></expr>,
+
+<expr><operator>.</operator><name>config_props</name> <operator>=</operator> <name>config_props_input</name></expr>,
+
+<expr><operator>.</operator><name>filter_frame</name> <operator>=</operator> <name>filter_frame</name></expr>,
+
+}</block></expr>,
+
+<expr><block>{ <expr><name>NULL</name></expr> }</block></expr>
+
+}</block></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <specifier>const</specifier> <name>AVFilterPad</name></type> <name><name>removelogo_outputs</name><index>[]</index></name> <init>= <expr><block>{
+
+<expr><block>{
+
+<expr><operator>.</operator><name>name</name> <operator>=</operator> <literal type="string">"default"</literal></expr>,
+
+<expr><operator>.</operator><name>type</name> <operator>=</operator> <name>AVMEDIA_TYPE_VIDEO</name></expr>,
+
+}</block></expr>,
+
+<expr><block>{ <expr><name>NULL</name></expr> }</block></expr>
+
+}</block></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>AVFilter</name></type> <name>ff_vf_removelogo</name> <init>= <expr><block>{
+
+<expr><operator>.</operator><name>name</name> <operator>=</operator> <literal type="string">"removelogo"</literal></expr>,
+
+<expr><operator>.</operator><name>description</name> <operator>=</operator> <call><name>NULL_IF_CONFIG_SMALL</name><argument_list>(<argument><expr><literal type="string">"Remove a TV logo based on a mask image."</literal></expr></argument>)</argument_list></call></expr>,
+
+<expr><operator>.</operator><name>priv_size</name> <operator>=</operator> <sizeof>sizeof<argument_list>(<argument><expr><name>RemovelogoContext</name></expr></argument>)</argument_list></sizeof></expr>,
+
+<expr><operator>.</operator><name>init</name> <operator>=</operator> <name>init</name></expr>,
+
+<expr><operator>.</operator><name>uninit</name> <operator>=</operator> <name>uninit</name></expr>,
+
+<expr><operator>.</operator><name>query_formats</name> <operator>=</operator> <name>query_formats</name></expr>,
+
+<expr><operator>.</operator><name>inputs</name> <operator>=</operator> <name>removelogo_inputs</name></expr>,
+
+<expr><operator>.</operator><name>outputs</name> <operator>=</operator> <name>removelogo_outputs</name></expr>,
+
+<expr><operator>.</operator><name>priv_class</name> <operator>=</operator> <operator>&amp;</operator><name>removelogo_class</name></expr>,
+
+<expr><operator>.</operator><name>flags</name> <operator>=</operator> <name>AVFILTER_FLAG_SUPPORT_TIMELINE_GENERIC</name></expr>,
+
+}</block></expr></init></decl>;</decl_stmt>
+
+</unit>

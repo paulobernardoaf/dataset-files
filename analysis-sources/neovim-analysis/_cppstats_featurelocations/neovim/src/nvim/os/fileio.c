@@ -1,0 +1,435 @@
+
+
+
+
+
+
+
+
+
+#include <assert.h>
+#include <stddef.h>
+#include <stdbool.h>
+#include <fcntl.h>
+
+#include "auto/config.h"
+
+#if defined(HAVE_SYS_UIO_H)
+#include <sys/uio.h>
+#endif
+
+#include <uv.h>
+
+#include "nvim/os/fileio.h"
+#include "nvim/memory.h"
+#include "nvim/os/os.h"
+#include "nvim/globals.h"
+#include "nvim/rbuffer.h"
+#include "nvim/macros.h"
+#include "nvim/message.h"
+
+#if defined(INCLUDE_GENERATED_DECLARATIONS)
+#include "os/fileio.c.generated.h"
+#endif
+
+
+
+
+
+
+
+
+
+
+
+
+
+int file_open(FileDescriptor *const ret_fp, const char *const fname,
+const int flags, const int mode)
+FUNC_ATTR_NONNULL_ALL FUNC_ATTR_WARN_UNUSED_RESULT
+{
+int os_open_flags = 0;
+TriState wr = kNone;
+
+#define FLAG(flags, flag, fcntl_flags, wrval, cond) do { if (flags & flag) { os_open_flags |= fcntl_flags; assert(cond); if (wrval != kNone) { wr = wrval; } } } while (0)
+
+
+
+
+
+
+
+
+
+FLAG(flags, kFileWriteOnly, O_WRONLY, kTrue, true);
+FLAG(flags, kFileCreateOnly, O_CREAT|O_EXCL|O_WRONLY, kTrue, true);
+FLAG(flags, kFileCreate, O_CREAT|O_WRONLY, kTrue, !(flags & kFileCreateOnly));
+FLAG(flags, kFileTruncate, O_TRUNC|O_WRONLY, kTrue,
+!(flags & kFileCreateOnly));
+FLAG(flags, kFileAppend, O_APPEND|O_WRONLY, kTrue,
+!(flags & kFileCreateOnly));
+FLAG(flags, kFileReadOnly, O_RDONLY, kFalse, wr != kTrue);
+#if defined(O_NOFOLLOW)
+FLAG(flags, kFileNoSymlink, O_NOFOLLOW, kNone, true);
+#endif
+#undef FLAG
+
+
+
+(void)wr;
+
+const int fd = os_open(fname, os_open_flags, mode);
+
+if (fd < 0) {
+return fd;
+}
+return file_open_fd(ret_fp, fd, flags);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+int file_open_fd(FileDescriptor *const ret_fp, const int fd,
+const int flags)
+FUNC_ATTR_NONNULL_ALL FUNC_ATTR_WARN_UNUSED_RESULT
+{
+ret_fp->wr = !!(flags & (kFileCreate
+|kFileCreateOnly
+|kFileTruncate
+|kFileAppend
+|kFileWriteOnly));
+ret_fp->non_blocking = !!(flags & kFileNonBlocking);
+
+assert(!ret_fp->wr || !ret_fp->non_blocking);
+ret_fp->fd = fd;
+ret_fp->eof = false;
+ret_fp->rv = rbuffer_new(kRWBufferSize);
+ret_fp->_error = 0;
+if (ret_fp->wr) {
+ret_fp->rv->data = ret_fp;
+ret_fp->rv->full_cb = (rbuffer_callback)&file_rb_write_full_cb;
+}
+return 0;
+}
+
+
+
+
+
+
+
+
+
+
+FileDescriptor *file_open_new(int *const error, const char *const fname,
+const int flags, const int mode)
+FUNC_ATTR_NONNULL_ALL FUNC_ATTR_WARN_UNUSED_RESULT
+{
+FileDescriptor *const fp = xmalloc(sizeof(*fp));
+if ((*error = file_open(fp, fname, flags, mode)) != 0) {
+xfree(fp);
+return NULL;
+}
+return fp;
+}
+
+
+
+
+
+
+
+
+
+
+FileDescriptor *file_open_fd_new(int *const error, const int fd,
+const int flags)
+FUNC_ATTR_NONNULL_ALL FUNC_ATTR_MALLOC FUNC_ATTR_WARN_UNUSED_RESULT
+{
+FileDescriptor *const fp = xmalloc(sizeof(*fp));
+if ((*error = file_open_fd(fp, fd, flags)) != 0) {
+xfree(fp);
+return NULL;
+}
+return fp;
+}
+
+
+
+
+
+
+
+int file_close(FileDescriptor *const fp, const bool do_fsync)
+FUNC_ATTR_NONNULL_ALL
+{
+const int flush_error = (do_fsync ? file_fsync(fp) : file_flush(fp));
+const int close_error = os_close(fp->fd);
+rbuffer_free(fp->rv);
+if (close_error != 0) {
+return close_error;
+}
+return flush_error;
+}
+
+
+
+
+
+
+
+int file_free(FileDescriptor *const fp, const bool do_fsync)
+FUNC_ATTR_NONNULL_ALL
+{
+const int ret = file_close(fp, do_fsync);
+xfree(fp);
+return ret;
+}
+
+
+
+
+
+
+int file_flush(FileDescriptor *const fp)
+FUNC_ATTR_NONNULL_ALL
+{
+if (!fp->wr) {
+return 0;
+}
+file_rb_write_full_cb(fp->rv, fp);
+const int error = fp->_error;
+fp->_error = 0;
+return error;
+}
+
+
+
+
+
+
+int file_fsync(FileDescriptor *const fp)
+FUNC_ATTR_NONNULL_ALL
+{
+if (!fp->wr) {
+return 0;
+}
+const int flush_error = file_flush(fp);
+if (flush_error != 0) {
+return flush_error;
+}
+const int fsync_error = os_fsync(fp->fd);
+if (fsync_error != UV_EINVAL
+&& fsync_error != UV_EROFS
+
+&& fsync_error != UV_ENOTSUP) {
+return fsync_error;
+}
+return 0;
+}
+
+
+
+
+static char writebuf[kRWBufferSize];
+
+
+
+
+
+
+
+static void file_rb_write_full_cb(RBuffer *const rv, FileDescriptor *const fp)
+FUNC_ATTR_NONNULL_ALL
+{
+assert(fp->wr);
+assert(rv->data == (void *)fp);
+if (rbuffer_size(rv) == 0) {
+return;
+}
+const size_t read_bytes = rbuffer_read(rv, writebuf, kRWBufferSize);
+const ptrdiff_t wres = os_write(fp->fd, writebuf, read_bytes,
+fp->non_blocking);
+if (wres != (ptrdiff_t)read_bytes) {
+if (wres >= 0) {
+fp->_error = UV_EIO;
+} else {
+fp->_error = (int)wres;
+}
+}
+}
+
+
+
+
+
+
+
+
+
+ptrdiff_t file_read(FileDescriptor *const fp, char *const ret_buf,
+const size_t size)
+FUNC_ATTR_NONNULL_ALL FUNC_ATTR_WARN_UNUSED_RESULT
+{
+assert(!fp->wr);
+char *buf = ret_buf;
+size_t read_remaining = size;
+RBuffer *const rv = fp->rv;
+bool called_read = false;
+while (read_remaining) {
+const size_t rv_size = rbuffer_size(rv);
+if (rv_size > 0) {
+const size_t rsize = rbuffer_read(rv, buf, MIN(rv_size, read_remaining));
+buf += rsize;
+read_remaining -= rsize;
+}
+if (fp->eof
+
+|| (called_read && fp->non_blocking)) {
+break;
+}
+if (read_remaining) {
+assert(rbuffer_size(rv) == 0);
+rbuffer_reset(rv);
+#if defined(HAVE_READV)
+
+
+size_t write_count;
+struct iovec iov[] = {
+{ .iov_base = buf, .iov_len = read_remaining },
+{ .iov_base = rbuffer_write_ptr(rv, &write_count),
+.iov_len = kRWBufferSize },
+};
+assert(write_count == kRWBufferSize);
+const ptrdiff_t r_ret = os_readv(fp->fd, &fp->eof, iov,
+ARRAY_SIZE(iov), fp->non_blocking);
+if (r_ret > 0) {
+if (r_ret > (ptrdiff_t)read_remaining) {
+rbuffer_produced(rv, (size_t)(r_ret - (ptrdiff_t)read_remaining));
+read_remaining = 0;
+} else {
+buf += (size_t)r_ret;
+read_remaining -= (size_t)r_ret;
+}
+} else if (r_ret < 0) {
+return r_ret;
+}
+#else
+if (read_remaining >= kRWBufferSize) {
+
+
+const ptrdiff_t r_ret = os_read(fp->fd, &fp->eof, buf, read_remaining,
+fp->non_blocking);
+if (r_ret >= 0) {
+read_remaining -= (size_t)r_ret;
+return (ptrdiff_t)(size - read_remaining);
+} else if (r_ret < 0) {
+return r_ret;
+}
+} else {
+size_t write_count;
+const ptrdiff_t r_ret = os_read(fp->fd, &fp->eof,
+rbuffer_write_ptr(rv, &write_count),
+kRWBufferSize, fp->non_blocking);
+assert(write_count == kRWBufferSize);
+if (r_ret > 0) {
+rbuffer_produced(rv, (size_t)r_ret);
+} else if (r_ret < 0) {
+return r_ret;
+}
+}
+#endif
+called_read = true;
+}
+}
+return (ptrdiff_t)(size - read_remaining);
+}
+
+
+
+
+
+
+
+
+ptrdiff_t file_write(FileDescriptor *const fp, const char *const buf,
+const size_t size)
+FUNC_ATTR_WARN_UNUSED_RESULT FUNC_ATTR_NONNULL_ARG(1)
+{
+assert(fp->wr);
+const size_t written = rbuffer_write(fp->rv, buf, size);
+if (fp->_error != 0) {
+const int error = fp->_error;
+fp->_error = 0;
+return error;
+} else if (written != size) {
+return UV_EIO;
+}
+return (ptrdiff_t)written;
+}
+
+
+
+static char skipbuf[kRWBufferSize];
+
+
+
+
+
+ptrdiff_t file_skip(FileDescriptor *const fp, const size_t size)
+FUNC_ATTR_NONNULL_ALL
+{
+assert(!fp->wr);
+size_t read_bytes = 0;
+do {
+const ptrdiff_t new_read_bytes = file_read(
+fp, skipbuf, MIN(size - read_bytes, sizeof(skipbuf)));
+if (new_read_bytes < 0) {
+return new_read_bytes;
+} else if (new_read_bytes == 0) {
+break;
+}
+read_bytes += (size_t)new_read_bytes;
+} while (read_bytes < size && !file_eof(fp));
+
+return (ptrdiff_t)read_bytes;
+}
+
+
+
+
+
+
+
+
+int msgpack_file_write(void *data, const char *buf, size_t len)
+FUNC_ATTR_NONNULL_ALL FUNC_ATTR_WARN_UNUSED_RESULT
+{
+assert(len < PTRDIFF_MAX);
+const ptrdiff_t written_bytes = file_write((FileDescriptor *)data, buf, len);
+if (written_bytes < 0) {
+return msgpack_file_write_error((int)written_bytes);
+}
+return 0;
+}
+
+
+
+
+
+
+int msgpack_file_write_error(const int error)
+{
+emsgf(_("E5420: Failed to write to file: %s"), os_strerror(error));
+return -1;
+}

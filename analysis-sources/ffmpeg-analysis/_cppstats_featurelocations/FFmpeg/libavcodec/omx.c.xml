@@ -1,0 +1,990 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" revision="1.0.0" language="C" filename="D:\Pesquisa\Projects\ffmpeg-analysis\_cppstats_featurelocations\FFmpeg\libavcodec\omx.c">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"config.h"</cpp:file></cpp:include>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><name>CONFIG_OMX_RPI</name></expr></cpp:if>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>OMX_SKIP64BIT</name></cpp:macro></cpp:define>
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;dlfcn.h&gt;</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;OMX_Core.h&gt;</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;OMX_Component.h&gt;</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;pthread.h&gt;</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;stdio.h&gt;</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;stdlib.h&gt;</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;sys/time.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"libavutil/avstring.h"</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"libavutil/avutil.h"</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"libavutil/common.h"</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"libavutil/imgutils.h"</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"libavutil/log.h"</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"libavutil/opt.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"avcodec.h"</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"h264.h"</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"internal.h"</cpp:file></cpp:include>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><call><name>defined</name><argument_list>(<argument><expr><name>OMX_SKIP64BIT</name></expr></argument>)</argument_list></call></expr></cpp:if>
+<function><type><specifier>static</specifier> <name>OMX_TICKS</name></type> <name>to_omx_ticks</name><parameter_list>(<parameter><decl><type><name>int64_t</name></type> <name>value</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>OMX_TICKS</name></type> <name>s</name></decl>;</decl_stmt>
+<expr_stmt><expr><name><name>s</name><operator>.</operator><name>nLowPart</name></name> <operator>=</operator> <name>value</name> <operator>&amp;</operator> <literal type="number">0xffffffff</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>s</name><operator>.</operator><name>nHighPart</name></name> <operator>=</operator> <name>value</name> <operator>&gt;&gt;</operator> <literal type="number">32</literal></expr>;</expr_stmt>
+<return>return <expr><name>s</name></expr>;</return>
+</block_content>}</block></function>
+<function><type><specifier>static</specifier> <name>int64_t</name></type> <name>from_omx_ticks</name><parameter_list>(<parameter><decl><type><name>OMX_TICKS</name></type> <name>value</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<return>return <expr><operator>(</operator><operator>(</operator><operator>(</operator><name>int64_t</name><operator>)</operator><name><name>value</name><operator>.</operator><name>nHighPart</name></name><operator>)</operator> <operator>&lt;&lt;</operator> <literal type="number">32</literal><operator>)</operator> <operator>|</operator> <name><name>value</name><operator>.</operator><name>nLowPart</name></name></expr>;</return>
+</block_content>}</block></function>
+<cpp:else>#<cpp:directive>else</cpp:directive></cpp:else>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>to_omx_ticks</name><parameter_list>(<parameter><type><name>x</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>(x)</cpp:value></cpp:define>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>from_omx_ticks</name><parameter_list>(<parameter><type><name>x</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>(x)</cpp:value></cpp:define>
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>INIT_STRUCT</name><parameter_list>(<parameter><type><name>x</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>do { x.nSize = sizeof(x); x.nVersion = s-&gt;version; } while (0)</cpp:value></cpp:define>
+
+
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>CHECK</name><parameter_list>(<parameter><type><name>x</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>do { if (x != OMX_ErrorNone) { av_log(avctx, AV_LOG_ERROR, "err %x (%d) on line %d\n", x, x, __LINE__); return AVERROR_UNKNOWN; } } while (0)</cpp:value></cpp:define>
+
+
+
+
+
+
+
+<typedef>typedef <type><struct>struct <name>OMXContext</name> <block>{
+<decl_stmt><decl><type><name>void</name> <modifier>*</modifier></type><name>lib</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>void</name> <modifier>*</modifier></type><name>lib2</name></decl>;</decl_stmt>
+<function_decl><type><name>OMX_ERRORTYPE</name></type> (<modifier>*</modifier><name>ptr_Init</name>)<parameter_list>(<parameter><decl><type><name>void</name></type></decl></parameter>)</parameter_list>;</function_decl>
+<function_decl><type><name>OMX_ERRORTYPE</name></type> (<modifier>*</modifier><name>ptr_Deinit</name>)<parameter_list>(<parameter><decl><type><name>void</name></type></decl></parameter>)</parameter_list>;</function_decl>
+<function_decl><type><name>OMX_ERRORTYPE</name></type> (<modifier>*</modifier><name>ptr_ComponentNameEnum</name>)<parameter_list>(<parameter><decl><type><name>OMX_STRING</name></type></decl></parameter>, <parameter><decl><type><name>OMX_U32</name></type></decl></parameter>, <parameter><decl><type><name>OMX_U32</name></type></decl></parameter>)</parameter_list>;</function_decl>
+<function_decl><type><name>OMX_ERRORTYPE</name></type> (<modifier>*</modifier><name>ptr_GetHandle</name>)<parameter_list>(<parameter><decl><type><name>OMX_HANDLETYPE</name><modifier>*</modifier></type></decl></parameter>, <parameter><decl><type><name>OMX_STRING</name></type></decl></parameter>, <parameter><decl><type><name>OMX_PTR</name></type></decl></parameter>, <parameter><decl><type><name>OMX_CALLBACKTYPE</name><modifier>*</modifier></type></decl></parameter>)</parameter_list>;</function_decl>
+<function_decl><type><name>OMX_ERRORTYPE</name></type> (<modifier>*</modifier><name>ptr_FreeHandle</name>)<parameter_list>(<parameter><decl><type><name>OMX_HANDLETYPE</name></type></decl></parameter>)</parameter_list>;</function_decl>
+<function_decl><type><name>OMX_ERRORTYPE</name></type> (<modifier>*</modifier><name>ptr_GetComponentsOfRole</name>)<parameter_list>(<parameter><decl><type><name>OMX_STRING</name></type></decl></parameter>, <parameter><decl><type><name>OMX_U32</name><modifier>*</modifier></type></decl></parameter>, <parameter><decl><type><name>OMX_U8</name><modifier>*</modifier><modifier>*</modifier></type></decl></parameter>)</parameter_list>;</function_decl>
+<function_decl><type><name>OMX_ERRORTYPE</name></type> (<modifier>*</modifier><name>ptr_GetRolesOfComponent</name>)<parameter_list>(<parameter><decl><type><name>OMX_STRING</name></type></decl></parameter>, <parameter><decl><type><name>OMX_U32</name><modifier>*</modifier></type></decl></parameter>, <parameter><decl><type><name>OMX_U8</name><modifier>*</modifier><modifier>*</modifier></type></decl></parameter>)</parameter_list>;</function_decl>
+<function_decl><type><name>void</name></type> (<modifier>*</modifier><name>host_init</name>)<parameter_list>(<parameter><decl><type><name>void</name></type></decl></parameter>)</parameter_list>;</function_decl>
+}</block></struct></type> <name>OMXContext</name>;</typedef>
+
+<function><type><specifier>static</specifier> <name>av_cold</name> <name>void</name> <modifier>*</modifier></type><name>dlsym_prefixed</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>handle</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>symbol</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>prefix</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>char</name></type> <name><name>buf</name><index>[<expr><literal type="number">50</literal></expr>]</index></name></decl>;</decl_stmt>
+<expr_stmt><expr><call><name>snprintf</name><argument_list>(<argument><expr><name>buf</name></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr><name>buf</name></expr></argument>)</argument_list></sizeof></expr></argument>, <argument><expr><literal type="string">"%s%s"</literal></expr></argument>, <argument><expr><ternary><condition><expr><name>prefix</name></expr> ?</condition><then> <expr><name>prefix</name></expr> </then><else>: <expr><literal type="string">""</literal></expr></else></ternary></expr></argument>, <argument><expr><name>symbol</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><call><name>dlsym</name><argument_list>(<argument><expr><name>handle</name></expr></argument>, <argument><expr><name>buf</name></expr></argument>)</argument_list></call></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>av_cold</name> <name>int</name></type> <name>omx_try_load</name><parameter_list>(<parameter><decl><type><name>OMXContext</name> <modifier>*</modifier></type><name>s</name></decl></parameter>, <parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>logctx</name></decl></parameter>,
+<parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>libname</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>prefix</name></decl></parameter>,
+<parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>libname2</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name>libname2</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>lib2</name></name> <operator>=</operator> <call><name>dlopen</name><argument_list>(<argument><expr><name>libname2</name></expr></argument>, <argument><expr><name>RTLD_NOW</name> <operator>|</operator> <name>RTLD_GLOBAL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>s</name><operator>-&gt;</operator><name>lib2</name></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>av_log</name><argument_list>(<argument><expr><name>logctx</name></expr></argument>, <argument><expr><name>AV_LOG_WARNING</name></expr></argument>, <argument><expr><literal type="string">"%s not found\n"</literal></expr></argument>, <argument><expr><name>libname2</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>AVERROR_ENCODER_NOT_FOUND</name></expr>;</return>
+</block_content>}</block></if></if_stmt>
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>host_init</name></name> <operator>=</operator> <call><name>dlsym</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>lib2</name></name></expr></argument>, <argument><expr><literal type="string">"bcm_host_init"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>s</name><operator>-&gt;</operator><name>host_init</name></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>av_log</name><argument_list>(<argument><expr><name>logctx</name></expr></argument>, <argument><expr><name>AV_LOG_WARNING</name></expr></argument>, <argument><expr><literal type="string">"bcm_host_init not found\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>dlclose</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>lib2</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>lib2</name></name> <operator>=</operator> <name>NULL</name></expr>;</expr_stmt>
+<return>return <expr><name>AVERROR_ENCODER_NOT_FOUND</name></expr>;</return>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block></if></if_stmt>
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>lib</name></name> <operator>=</operator> <call><name>dlopen</name><argument_list>(<argument><expr><name>libname</name></expr></argument>, <argument><expr><name>RTLD_NOW</name> <operator>|</operator> <name>RTLD_GLOBAL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>s</name><operator>-&gt;</operator><name>lib</name></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>av_log</name><argument_list>(<argument><expr><name>logctx</name></expr></argument>, <argument><expr><name>AV_LOG_WARNING</name></expr></argument>, <argument><expr><literal type="string">"%s not found\n"</literal></expr></argument>, <argument><expr><name>libname</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>AVERROR_ENCODER_NOT_FOUND</name></expr>;</return>
+</block_content>}</block></if></if_stmt>
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>ptr_Init</name></name> <operator>=</operator> <call><name>dlsym_prefixed</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>lib</name></name></expr></argument>, <argument><expr><literal type="string">"OMX_Init"</literal></expr></argument>, <argument><expr><name>prefix</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>ptr_Deinit</name></name> <operator>=</operator> <call><name>dlsym_prefixed</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>lib</name></name></expr></argument>, <argument><expr><literal type="string">"OMX_Deinit"</literal></expr></argument>, <argument><expr><name>prefix</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>ptr_ComponentNameEnum</name></name> <operator>=</operator> <call><name>dlsym_prefixed</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>lib</name></name></expr></argument>, <argument><expr><literal type="string">"OMX_ComponentNameEnum"</literal></expr></argument>, <argument><expr><name>prefix</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>ptr_GetHandle</name></name> <operator>=</operator> <call><name>dlsym_prefixed</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>lib</name></name></expr></argument>, <argument><expr><literal type="string">"OMX_GetHandle"</literal></expr></argument>, <argument><expr><name>prefix</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>ptr_FreeHandle</name></name> <operator>=</operator> <call><name>dlsym_prefixed</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>lib</name></name></expr></argument>, <argument><expr><literal type="string">"OMX_FreeHandle"</literal></expr></argument>, <argument><expr><name>prefix</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>ptr_GetComponentsOfRole</name></name> <operator>=</operator> <call><name>dlsym_prefixed</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>lib</name></name></expr></argument>, <argument><expr><literal type="string">"OMX_GetComponentsOfRole"</literal></expr></argument>, <argument><expr><name>prefix</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>ptr_GetRolesOfComponent</name></name> <operator>=</operator> <call><name>dlsym_prefixed</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>lib</name></name></expr></argument>, <argument><expr><literal type="string">"OMX_GetRolesOfComponent"</literal></expr></argument>, <argument><expr><name>prefix</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>s</name><operator>-&gt;</operator><name>ptr_Init</name></name> <operator>||</operator> <operator>!</operator><name><name>s</name><operator>-&gt;</operator><name>ptr_Deinit</name></name> <operator>||</operator> <operator>!</operator><name><name>s</name><operator>-&gt;</operator><name>ptr_ComponentNameEnum</name></name> <operator>||</operator>
+<operator>!</operator><name><name>s</name><operator>-&gt;</operator><name>ptr_GetHandle</name></name> <operator>||</operator> <operator>!</operator><name><name>s</name><operator>-&gt;</operator><name>ptr_FreeHandle</name></name> <operator>||</operator>
+<operator>!</operator><name><name>s</name><operator>-&gt;</operator><name>ptr_GetComponentsOfRole</name></name> <operator>||</operator> <operator>!</operator><name><name>s</name><operator>-&gt;</operator><name>ptr_GetRolesOfComponent</name></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>av_log</name><argument_list>(<argument><expr><name>logctx</name></expr></argument>, <argument><expr><name>AV_LOG_WARNING</name></expr></argument>, <argument><expr><literal type="string">"Not all functions found in %s\n"</literal></expr></argument>, <argument><expr><name>libname</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>dlclose</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>lib</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>lib</name></name> <operator>=</operator> <name>NULL</name></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>s</name><operator>-&gt;</operator><name>lib2</name></name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>dlclose</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>lib2</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>lib2</name></name> <operator>=</operator> <name>NULL</name></expr>;</expr_stmt>
+<return>return <expr><name>AVERROR_ENCODER_NOT_FOUND</name></expr>;</return>
+</block_content>}</block></if></if_stmt>
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>av_cold</name> <name>OMXContext</name> <modifier>*</modifier></type><name>omx_init</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>logctx</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>libname</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>prefix</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><specifier>static</specifier> <specifier>const</specifier> <name>char</name> <modifier>*</modifier> <specifier>const</specifier></type> <name><name>libnames</name><index>[]</index></name> <init>= <expr><block>{
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><name>CONFIG_OMX_RPI</name></expr></cpp:if>
+<expr><literal type="string">"/opt/vc/lib/libopenmaxil.so"</literal></expr>, <expr><literal type="string">"/opt/vc/lib/libbcm_host.so"</literal></expr>,
+<cpp:else>#<cpp:directive>else</cpp:directive></cpp:else>
+<expr><literal type="string">"libOMX_Core.so"</literal></expr>, <expr><name>NULL</name></expr>,
+<expr><literal type="string">"libOmxCore.so"</literal></expr>, <expr><name>NULL</name></expr>,
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+<expr><name>NULL</name></expr>
+}</block></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><specifier>const</specifier> <name>char</name><modifier>*</modifier> <specifier>const</specifier><modifier>*</modifier></type> <name>nameptr</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>ret</name> <init>= <expr><name>AVERROR_ENCODER_NOT_FOUND</name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>OMXContext</name> <modifier>*</modifier></type><name>omx_context</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>omx_context</name> <operator>=</operator> <call><name>av_mallocz</name><argument_list>(<argument><expr><sizeof>sizeof<argument_list>(<argument><expr><operator>*</operator><name>omx_context</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>omx_context</name></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><name>NULL</name></expr>;</return></block_content></block></if></if_stmt>
+<if_stmt><if>if <condition>(<expr><name>libname</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <call><name>omx_try_load</name><argument_list>(<argument><expr><name>omx_context</name></expr></argument>, <argument><expr><name>logctx</name></expr></argument>, <argument><expr><name>libname</name></expr></argument>, <argument><expr><name>prefix</name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name>ret</name> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>av_free</name><argument_list>(<argument><expr><name>omx_context</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>NULL</name></expr>;</return>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<for>for <control>(<init><expr><name>nameptr</name> <operator>=</operator> <name>libnames</name></expr>;</init> <condition><expr><operator>*</operator><name>nameptr</name></expr>;</condition> <incr><expr><name>nameptr</name> <operator>+=</operator> <literal type="number">2</literal></expr></incr>)</control><block type="pseudo"><block_content>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><operator>(</operator><name>ret</name> <operator>=</operator> <call><name>omx_try_load</name><argument_list>(<argument><expr><name>omx_context</name></expr></argument>, <argument><expr><name>logctx</name></expr></argument>, <argument><expr><name><name>nameptr</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>, <argument><expr><name>prefix</name></expr></argument>, <argument><expr><name><name>nameptr</name><index>[<expr><literal type="number">1</literal></expr>]</index></name></expr></argument>)</argument_list></call><operator>)</operator></expr>)</condition><block type="pseudo"><block_content>
+<break>break;</break></block_content></block></if></if_stmt></block_content></block></for>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><operator>*</operator><name>nameptr</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>av_free</name><argument_list>(<argument><expr><name>omx_context</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>NULL</name></expr>;</return>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block></else></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>omx_context</name><operator>-&gt;</operator><name>host_init</name></name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name><name>omx_context</name><operator>-&gt;</operator><name>host_init</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+<expr_stmt><expr><call><name><name>omx_context</name><operator>-&gt;</operator><name>ptr_Init</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>omx_context</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>av_cold</name> <name>void</name></type> <name>omx_deinit</name><parameter_list>(<parameter><decl><type><name>OMXContext</name> <modifier>*</modifier></type><name>omx_context</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>omx_context</name></expr>)</condition><block type="pseudo"><block_content>
+<return>return;</return></block_content></block></if></if_stmt>
+<expr_stmt><expr><call><name><name>omx_context</name><operator>-&gt;</operator><name>ptr_Deinit</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>dlclose</name><argument_list>(<argument><expr><name><name>omx_context</name><operator>-&gt;</operator><name>lib</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>av_free</name><argument_list>(<argument><expr><name>omx_context</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<typedef>typedef <type><struct>struct <name>OMXCodecContext</name> <block>{
+<decl_stmt><decl><type><specifier>const</specifier> <name>AVClass</name> <modifier>*</modifier></type><name>class</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>char</name> <modifier>*</modifier></type><name>libname</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>char</name> <modifier>*</modifier></type><name>libprefix</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>OMXContext</name> <modifier>*</modifier></type><name>omx_context</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>AVCodecContext</name> <modifier>*</modifier></type><name>avctx</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>char</name></type> <name><name>component_name</name><index>[<expr><name>OMX_MAX_STRINGNAME_SIZE</name></expr>]</index></name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>OMX_VERSIONTYPE</name></type> <name>version</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>OMX_HANDLETYPE</name></type> <name>handle</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>in_port</name></decl>, <name>out_port</name>;</decl_stmt>
+<decl_stmt><decl><type><name>OMX_COLOR_FORMATTYPE</name></type> <name>color_format</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>stride</name></decl>, <name>plane_size</name>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>num_in_buffers</name></decl>, <name>num_out_buffers</name>;</decl_stmt>
+<decl_stmt><decl><type><name>OMX_BUFFERHEADERTYPE</name> <modifier>*</modifier><modifier>*</modifier></type><name>in_buffer_headers</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>OMX_BUFFERHEADERTYPE</name> <modifier>*</modifier><modifier>*</modifier></type><name>out_buffer_headers</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>num_free_in_buffers</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>OMX_BUFFERHEADERTYPE</name> <modifier>*</modifier><modifier>*</modifier></type><name>free_in_buffers</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>num_done_out_buffers</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>OMX_BUFFERHEADERTYPE</name> <modifier>*</modifier><modifier>*</modifier></type><name>done_out_buffers</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>pthread_mutex_t</name></type> <name>input_mutex</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>pthread_cond_t</name></type> <name>input_cond</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>pthread_mutex_t</name></type> <name>output_mutex</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>pthread_cond_t</name></type> <name>output_cond</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>pthread_mutex_t</name></type> <name>state_mutex</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>pthread_cond_t</name></type> <name>state_cond</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>OMX_STATETYPE</name></type> <name>state</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>OMX_ERRORTYPE</name></type> <name>error</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>mutex_cond_inited</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>eos_sent</name></decl>, <name>got_eos</name>;</decl_stmt>
+
+<decl_stmt><decl><type><name>uint8_t</name> <modifier>*</modifier></type><name>output_buf</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>output_buf_size</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>input_zerocopy</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>profile</name></decl>;</decl_stmt>
+}</block></struct></type> <name>OMXCodecContext</name>;</typedef>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>append_buffer</name><parameter_list>(<parameter><decl><type><name>pthread_mutex_t</name> <modifier>*</modifier></type><name>mutex</name></decl></parameter>, <parameter><decl><type><name>pthread_cond_t</name> <modifier>*</modifier></type><name>cond</name></decl></parameter>,
+<parameter><decl><type><name>int</name><modifier>*</modifier></type> <name>array_size</name></decl></parameter>, <parameter><decl><type><name>OMX_BUFFERHEADERTYPE</name> <modifier>*</modifier><modifier>*</modifier></type><name>array</name></decl></parameter>,
+<parameter><decl><type><name>OMX_BUFFERHEADERTYPE</name> <modifier>*</modifier></type><name>buffer</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<expr_stmt><expr><call><name>pthread_mutex_lock</name><argument_list>(<argument><expr><name>mutex</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>array</name><index>[<expr><operator>(</operator><operator>*</operator><name>array_size</name><operator>)</operator><operator>++</operator></expr>]</index></name> <operator>=</operator> <name>buffer</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>pthread_cond_broadcast</name><argument_list>(<argument><expr><name>cond</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>pthread_mutex_unlock</name><argument_list>(<argument><expr><name>mutex</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>OMX_BUFFERHEADERTYPE</name> <modifier>*</modifier></type><name>get_buffer</name><parameter_list>(<parameter><decl><type><name>pthread_mutex_t</name> <modifier>*</modifier></type><name>mutex</name></decl></parameter>, <parameter><decl><type><name>pthread_cond_t</name> <modifier>*</modifier></type><name>cond</name></decl></parameter>,
+<parameter><decl><type><name>int</name><modifier>*</modifier></type> <name>array_size</name></decl></parameter>, <parameter><decl><type><name>OMX_BUFFERHEADERTYPE</name> <modifier>*</modifier><modifier>*</modifier></type><name>array</name></decl></parameter>,
+<parameter><decl><type><name>int</name></type> <name>wait</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>OMX_BUFFERHEADERTYPE</name> <modifier>*</modifier></type><name>buffer</name></decl>;</decl_stmt>
+<expr_stmt><expr><call><name>pthread_mutex_lock</name><argument_list>(<argument><expr><name>mutex</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name>wait</name></expr>)</condition> <block>{<block_content>
+<while>while <condition>(<expr><operator>!</operator><operator>*</operator><name>array_size</name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>pthread_cond_wait</name><argument_list>(<argument><expr><name>cond</name></expr></argument>, <argument><expr><name>mutex</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></while>
+</block_content>}</block></if></if_stmt>
+<if_stmt><if>if <condition>(<expr><operator>*</operator><name>array_size</name> <operator>&gt;</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name>buffer</name> <operator>=</operator> <name><name>array</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr>;</expr_stmt>
+<expr_stmt><expr><operator>(</operator><operator>*</operator><name>array_size</name><operator>)</operator><operator>--</operator></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>memmove</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>array</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>array</name><index>[<expr><literal type="number">1</literal></expr>]</index></name></expr></argument>, <argument><expr><operator>(</operator><operator>*</operator><name>array_size</name><operator>)</operator> <operator>*</operator> <sizeof>sizeof<argument_list>(<argument><expr><name>OMX_BUFFERHEADERTYPE</name><operator>*</operator></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<expr_stmt><expr><name>buffer</name> <operator>=</operator> <name>NULL</name></expr>;</expr_stmt>
+</block_content>}</block></else></if_stmt>
+<expr_stmt><expr><call><name>pthread_mutex_unlock</name><argument_list>(<argument><expr><name>mutex</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>buffer</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>OMX_ERRORTYPE</name></type> <name>event_handler</name><parameter_list>(<parameter><decl><type><name>OMX_HANDLETYPE</name></type> <name>component</name></decl></parameter>, <parameter><decl><type><name>OMX_PTR</name></type> <name>app_data</name></decl></parameter>, <parameter><decl><type><name>OMX_EVENTTYPE</name></type> <name>event</name></decl></parameter>,
+<parameter><decl><type><name>OMX_U32</name></type> <name>data1</name></decl></parameter>, <parameter><decl><type><name>OMX_U32</name></type> <name>data2</name></decl></parameter>, <parameter><decl><type><name>OMX_PTR</name></type> <name>event_data</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>OMXCodecContext</name> <modifier>*</modifier></type><name>s</name> <init>= <expr><name>app_data</name></expr></init></decl>;</decl_stmt>
+
+
+
+<switch>switch <condition>(<expr><name>event</name></expr>)</condition> <block>{<block_content>
+<case>case <expr><name>OMX_EventError</name></expr>:</case>
+<expr_stmt><expr><call><name>pthread_mutex_lock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>state_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>av_log</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>avctx</name></name></expr></argument>, <argument><expr><name>AV_LOG_ERROR</name></expr></argument>, <argument><expr><literal type="string">"OMX error %"</literal><name>PRIx32</name><literal type="string">"\n"</literal></expr></argument>, <argument><expr><operator>(</operator><name>uint32_t</name><operator>)</operator> <name>data1</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>error</name></name> <operator>=</operator> <name>data1</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>pthread_cond_broadcast</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>state_cond</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>pthread_mutex_unlock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>state_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>OMX_EventCmdComplete</name></expr>:</case>
+<if_stmt><if>if <condition>(<expr><name>data1</name> <operator>==</operator> <name>OMX_CommandStateSet</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>pthread_mutex_lock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>state_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>state</name></name> <operator>=</operator> <name>data2</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>av_log</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>avctx</name></name></expr></argument>, <argument><expr><name>AV_LOG_VERBOSE</name></expr></argument>, <argument><expr><literal type="string">"OMX state changed to %"</literal><name>PRIu32</name><literal type="string">"\n"</literal></expr></argument>, <argument><expr><operator>(</operator><name>uint32_t</name><operator>)</operator> <name>data2</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>pthread_cond_broadcast</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>state_cond</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>pthread_mutex_unlock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>state_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if> <if type="elseif">else if <condition>(<expr><name>data1</name> <operator>==</operator> <name>OMX_CommandPortDisable</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>av_log</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>avctx</name></name></expr></argument>, <argument><expr><name>AV_LOG_VERBOSE</name></expr></argument>, <argument><expr><literal type="string">"OMX port %"</literal><name>PRIu32</name><literal type="string">" disabled\n"</literal></expr></argument>, <argument><expr><operator>(</operator><name>uint32_t</name><operator>)</operator> <name>data2</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if> <if type="elseif">else if <condition>(<expr><name>data1</name> <operator>==</operator> <name>OMX_CommandPortEnable</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>av_log</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>avctx</name></name></expr></argument>, <argument><expr><name>AV_LOG_VERBOSE</name></expr></argument>, <argument><expr><literal type="string">"OMX port %"</literal><name>PRIu32</name><literal type="string">" enabled\n"</literal></expr></argument>, <argument><expr><operator>(</operator><name>uint32_t</name><operator>)</operator> <name>data2</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<expr_stmt><expr><call><name>av_log</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>avctx</name></name></expr></argument>, <argument><expr><name>AV_LOG_VERBOSE</name></expr></argument>, <argument><expr><literal type="string">"OMX command complete, command %"</literal><name>PRIu32</name><literal type="string">", value %"</literal><name>PRIu32</name><literal type="string">"\n"</literal></expr></argument>,
+<argument><expr><operator>(</operator><name>uint32_t</name><operator>)</operator> <name>data1</name></expr></argument>, <argument><expr><operator>(</operator><name>uint32_t</name><operator>)</operator> <name>data2</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></else></if_stmt>
+<break>break;</break>
+<case>case <expr><name>OMX_EventPortSettingsChanged</name></expr>:</case>
+<expr_stmt><expr><call><name>av_log</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>avctx</name></name></expr></argument>, <argument><expr><name>AV_LOG_VERBOSE</name></expr></argument>, <argument><expr><literal type="string">"OMX port %"</literal><name>PRIu32</name><literal type="string">" settings changed\n"</literal></expr></argument>, <argument><expr><operator>(</operator><name>uint32_t</name><operator>)</operator> <name>data1</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+<default>default:</default>
+<expr_stmt><expr><call><name>av_log</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>avctx</name></name></expr></argument>, <argument><expr><name>AV_LOG_VERBOSE</name></expr></argument>, <argument><expr><literal type="string">"OMX event %d %"</literal><name>PRIx32</name><literal type="string">" %"</literal><name>PRIx32</name><literal type="string">"\n"</literal></expr></argument>,
+<argument><expr><name>event</name></expr></argument>, <argument><expr><operator>(</operator><name>uint32_t</name><operator>)</operator> <name>data1</name></expr></argument>, <argument><expr><operator>(</operator><name>uint32_t</name><operator>)</operator> <name>data2</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+</block_content>}</block></switch>
+<return>return <expr><name>OMX_ErrorNone</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>OMX_ERRORTYPE</name></type> <name>empty_buffer_done</name><parameter_list>(<parameter><decl><type><name>OMX_HANDLETYPE</name></type> <name>component</name></decl></parameter>, <parameter><decl><type><name>OMX_PTR</name></type> <name>app_data</name></decl></parameter>,
+<parameter><decl><type><name>OMX_BUFFERHEADERTYPE</name> <modifier>*</modifier></type><name>buffer</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>OMXCodecContext</name> <modifier>*</modifier></type><name>s</name> <init>= <expr><name>app_data</name></expr></init></decl>;</decl_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>s</name><operator>-&gt;</operator><name>input_zerocopy</name></name></expr>)</condition> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name><name>buffer</name><operator>-&gt;</operator><name>pAppPrivate</name></name></expr>)</condition> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name><name>buffer</name><operator>-&gt;</operator><name>pOutputPortPrivate</name></name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>av_free</name><argument_list>(<argument><expr><name><name>buffer</name><operator>-&gt;</operator><name>pAppPrivate</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if>
+<else>else<block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>av_frame_free</name><argument_list>(<argument><expr><operator>(</operator><name>AVFrame</name><operator>*</operator><operator>*</operator><operator>)</operator><operator>&amp;</operator><name><name>buffer</name><operator>-&gt;</operator><name>pAppPrivate</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></else></if_stmt>
+<expr_stmt><expr><name><name>buffer</name><operator>-&gt;</operator><name>pAppPrivate</name></name> <operator>=</operator> <name>NULL</name></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block></if></if_stmt>
+<expr_stmt><expr><call><name>append_buffer</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>input_mutex</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>input_cond</name></name></expr></argument>,
+<argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>num_free_in_buffers</name></name></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>free_in_buffers</name></name></expr></argument>, <argument><expr><name>buffer</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>OMX_ErrorNone</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>OMX_ERRORTYPE</name></type> <name>fill_buffer_done</name><parameter_list>(<parameter><decl><type><name>OMX_HANDLETYPE</name></type> <name>component</name></decl></parameter>, <parameter><decl><type><name>OMX_PTR</name></type> <name>app_data</name></decl></parameter>,
+<parameter><decl><type><name>OMX_BUFFERHEADERTYPE</name> <modifier>*</modifier></type><name>buffer</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>OMXCodecContext</name> <modifier>*</modifier></type><name>s</name> <init>= <expr><name>app_data</name></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><call><name>append_buffer</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>output_mutex</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>output_cond</name></name></expr></argument>,
+<argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>num_done_out_buffers</name></name></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>done_out_buffers</name></name></expr></argument>, <argument><expr><name>buffer</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>OMX_ErrorNone</name></expr>;</return>
+</block_content>}</block></function>
+
+<decl_stmt><decl><type><specifier>static</specifier> <specifier>const</specifier> <name>OMX_CALLBACKTYPE</name></type> <name>callbacks</name> <init>= <expr><block>{
+<expr><name>event_handler</name></expr>,
+<expr><name>empty_buffer_done</name></expr>,
+<expr><name>fill_buffer_done</name></expr>
+}</block></expr></init></decl>;</decl_stmt>
+
+<function><type><specifier>static</specifier> <name>av_cold</name> <name>int</name></type> <name>find_component</name><parameter_list>(<parameter><decl><type><name>OMXContext</name> <modifier>*</modifier></type><name>omx_context</name></decl></parameter>, <parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>logctx</name></decl></parameter>,
+<parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>role</name></decl></parameter>, <parameter><decl><type><name>char</name> <modifier>*</modifier></type><name>str</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>str_size</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>OMX_U32</name></type> <name>i</name></decl>, <decl><type ref="prev"/><name>num</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>char</name> <modifier>*</modifier><modifier>*</modifier></type><name>components</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>ret</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><name>CONFIG_OMX_RPI</name></expr></cpp:if>
+<if_stmt><if>if <condition>(<expr><call><name>av_strstart</name><argument_list>(<argument><expr><name>role</name></expr></argument>, <argument><expr><literal type="string">"video_encoder."</literal></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>av_strlcpy</name><argument_list>(<argument><expr><name>str</name></expr></argument>, <argument><expr><literal type="string">"OMX.broadcom.video_encode"</literal></expr></argument>, <argument><expr><name>str_size</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+</block_content>}</block></if></if_stmt>
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+<expr_stmt><expr><call><name><name>omx_context</name><operator>-&gt;</operator><name>ptr_GetComponentsOfRole</name></name><argument_list>(<argument><expr><operator>(</operator><name>OMX_STRING</name><operator>)</operator> <name>role</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>num</name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>num</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>av_log</name><argument_list>(<argument><expr><name>logctx</name></expr></argument>, <argument><expr><name>AV_LOG_WARNING</name></expr></argument>, <argument><expr><literal type="string">"No component for role %s found\n"</literal></expr></argument>, <argument><expr><name>role</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>AVERROR_ENCODER_NOT_FOUND</name></expr>;</return>
+</block_content>}</block></if></if_stmt>
+<expr_stmt><expr><name>components</name> <operator>=</operator> <call><name>av_mallocz_array</name><argument_list>(<argument><expr><name>num</name></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr><operator>*</operator><name>components</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>components</name></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><call><name>AVERROR</name><argument_list>(<argument><expr><name>ENOMEM</name></expr></argument>)</argument_list></call></expr>;</return></block_content></block></if></if_stmt>
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>num</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<expr_stmt><expr><name><name>components</name><index>[<expr><name>i</name></expr>]</index></name> <operator>=</operator> <call><name>av_mallocz</name><argument_list>(<argument><expr><name>OMX_MAX_STRINGNAME_SIZE</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>components</name><index>[<expr><name>i</name></expr>]</index></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <call><name>AVERROR</name><argument_list>(<argument><expr><name>ENOMEM</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<goto>goto <name>end</name>;</goto>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block></for>
+<expr_stmt><expr><call><name><name>omx_context</name><operator>-&gt;</operator><name>ptr_GetComponentsOfRole</name></name><argument_list>(<argument><expr><operator>(</operator><name>OMX_STRING</name><operator>)</operator> <name>role</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>num</name></expr></argument>, <argument><expr><operator>(</operator><name>OMX_U8</name><operator>*</operator><operator>*</operator><operator>)</operator> <name>components</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>av_strlcpy</name><argument_list>(<argument><expr><name>str</name></expr></argument>, <argument><expr><name><name>components</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>, <argument><expr><name>str_size</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<label><name>end</name>:</label>
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>num</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>av_free</name><argument_list>(<argument><expr><name><name>components</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></for>
+<expr_stmt><expr><call><name>av_free</name><argument_list>(<argument><expr><name>components</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>ret</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>av_cold</name> <name>int</name></type> <name>wait_for_state</name><parameter_list>(<parameter><decl><type><name>OMXCodecContext</name> <modifier>*</modifier></type><name>s</name></decl></parameter>, <parameter><decl><type><name>OMX_STATETYPE</name></type> <name>state</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>int</name></type> <name>ret</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><call><name>pthread_mutex_lock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>state_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<while>while <condition>(<expr><name><name>s</name><operator>-&gt;</operator><name>state</name></name> <operator>!=</operator> <name>state</name> <operator>&amp;&amp;</operator> <name><name>s</name><operator>-&gt;</operator><name>error</name></name> <operator>==</operator> <name>OMX_ErrorNone</name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>pthread_cond_wait</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>state_cond</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>state_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></while>
+<if_stmt><if>if <condition>(<expr><name><name>s</name><operator>-&gt;</operator><name>error</name></name> <operator>!=</operator> <name>OMX_ErrorNone</name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <name>AVERROR_ENCODER_NOT_FOUND</name></expr>;</expr_stmt></block_content></block></if></if_stmt>
+<expr_stmt><expr><call><name>pthread_mutex_unlock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>state_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>ret</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>av_cold</name> <name>int</name></type> <name>omx_component_init</name><parameter_list>(<parameter><decl><type><name>AVCodecContext</name> <modifier>*</modifier></type><name>avctx</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>role</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>OMXCodecContext</name> <modifier>*</modifier></type><name>s</name> <init>= <expr><name><name>avctx</name><operator>-&gt;</operator><name>priv_data</name></name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>OMX_PARAM_COMPONENTROLETYPE</name></type> <name>role_params</name> <init>= <expr><block>{ <expr><literal type="number">0</literal></expr> }</block></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>OMX_PORT_PARAM_TYPE</name></type> <name>video_port_params</name> <init>= <expr><block>{ <expr><literal type="number">0</literal></expr> }</block></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>OMX_PARAM_PORTDEFINITIONTYPE</name></type> <name>in_port_params</name> <init>= <expr><block>{ <expr><literal type="number">0</literal></expr> }</block></expr></init></decl>, <decl><type ref="prev"/><name>out_port_params</name> <init>= <expr><block>{ <expr><literal type="number">0</literal></expr> }</block></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>OMX_VIDEO_PARAM_PORTFORMATTYPE</name></type> <name>video_port_format</name> <init>= <expr><block>{ <expr><literal type="number">0</literal></expr> }</block></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>OMX_VIDEO_PARAM_BITRATETYPE</name></type> <name>vid_param_bitrate</name> <init>= <expr><block>{ <expr><literal type="number">0</literal></expr> }</block></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>OMX_ERRORTYPE</name></type> <name>err</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>i</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>version</name><operator>.</operator><name>s</name><operator>.</operator><name>nVersionMajor</name></name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>version</name><operator>.</operator><name>s</name><operator>.</operator><name>nVersionMinor</name></name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>version</name><operator>.</operator><name>s</name><operator>.</operator><name>nRevision</name></name> <operator>=</operator> <literal type="number">2</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>err</name> <operator>=</operator> <call><name><name>s</name><operator>-&gt;</operator><name>omx_context</name><operator>-&gt;</operator><name>ptr_GetHandle</name></name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>handle</name></name></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>component_name</name></name></expr></argument>, <argument><expr><name>s</name></expr></argument>, <argument><expr><operator>(</operator><name>OMX_CALLBACKTYPE</name><operator>*</operator><operator>)</operator> <operator>&amp;</operator><name>callbacks</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name>err</name> <operator>!=</operator> <name>OMX_ErrorNone</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>av_log</name><argument_list>(<argument><expr><name>avctx</name></expr></argument>, <argument><expr><name>AV_LOG_ERROR</name></expr></argument>, <argument><expr><literal type="string">"OMX_GetHandle(%s) failed: %x\n"</literal></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>component_name</name></name></expr></argument>, <argument><expr><name>err</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>AVERROR_UNKNOWN</name></expr>;</return>
+</block_content>}</block></if></if_stmt>
+
+
+<expr_stmt><expr><call><name>INIT_STRUCT</name><argument_list>(<argument><expr><name>role_params</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>av_strlcpy</name><argument_list>(<argument><expr><name><name>role_params</name><operator>.</operator><name>cRole</name></name></expr></argument>, <argument><expr><name>role</name></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr><name><name>role_params</name><operator>.</operator><name>cRole</name></name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>OMX_SetParameter</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>handle</name></name></expr></argument>, <argument><expr><name>OMX_IndexParamStandardComponentRole</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>role_params</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>INIT_STRUCT</name><argument_list>(<argument><expr><name>video_port_params</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>err</name> <operator>=</operator> <call><name>OMX_GetParameter</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>handle</name></name></expr></argument>, <argument><expr><name>OMX_IndexParamVideoInit</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>video_port_params</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>CHECK</name><argument_list>(<argument><expr><name>err</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>in_port</name></name> <operator>=</operator> <name><name>s</name><operator>-&gt;</operator><name>out_port</name></name> <operator>=</operator> <operator>-</operator><literal type="number">1</literal></expr>;</expr_stmt>
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name><name>video_port_params</name><operator>.</operator><name>nPorts</name></name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<decl_stmt><decl><type><name>int</name></type> <name>port</name> <init>= <expr><name><name>video_port_params</name><operator>.</operator><name>nStartPortNumber</name></name> <operator>+</operator> <name>i</name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>OMX_PARAM_PORTDEFINITIONTYPE</name></type> <name>port_params</name> <init>= <expr><block>{ <expr><literal type="number">0</literal></expr> }</block></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><call><name>INIT_STRUCT</name><argument_list>(<argument><expr><name>port_params</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>port_params</name><operator>.</operator><name>nPortIndex</name></name> <operator>=</operator> <name>port</name></expr>;</expr_stmt>
+<expr_stmt><expr><name>err</name> <operator>=</operator> <call><name>OMX_GetParameter</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>handle</name></name></expr></argument>, <argument><expr><name>OMX_IndexParamPortDefinition</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>port_params</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name>err</name> <operator>!=</operator> <name>OMX_ErrorNone</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>av_log</name><argument_list>(<argument><expr><name>avctx</name></expr></argument>, <argument><expr><name>AV_LOG_WARNING</name></expr></argument>, <argument><expr><literal type="string">"port %d error %x\n"</literal></expr></argument>, <argument><expr><name>port</name></expr></argument>, <argument><expr><name>err</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+</block_content>}</block></if></if_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>port_params</name><operator>.</operator><name>eDir</name></name> <operator>==</operator> <name>OMX_DirInput</name> <operator>&amp;&amp;</operator> <name><name>s</name><operator>-&gt;</operator><name>in_port</name></name> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name>in_port_params</name> <operator>=</operator> <name>port_params</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>in_port</name></name> <operator>=</operator> <name>port</name></expr>;</expr_stmt>
+</block_content>}</block></if> <if type="elseif">else if <condition>(<expr><name><name>port_params</name><operator>.</operator><name>eDir</name></name> <operator>==</operator> <name>OMX_DirOutput</name> <operator>&amp;&amp;</operator> <name><name>s</name><operator>-&gt;</operator><name>out_port</name></name> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name>out_port_params</name> <operator>=</operator> <name>port_params</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>out_port</name></name> <operator>=</operator> <name>port</name></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block></for>
+<if_stmt><if>if <condition>(<expr><name><name>s</name><operator>-&gt;</operator><name>in_port</name></name> <operator>&lt;</operator> <literal type="number">0</literal> <operator>||</operator> <name><name>s</name><operator>-&gt;</operator><name>out_port</name></name> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>av_log</name><argument_list>(<argument><expr><name>avctx</name></expr></argument>, <argument><expr><name>AV_LOG_ERROR</name></expr></argument>, <argument><expr><literal type="string">"No in or out port found (in %d out %d)\n"</literal></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>in_port</name></name></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>out_port</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>AVERROR_UNKNOWN</name></expr>;</return>
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>color_format</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<expr_stmt><expr><call><name>INIT_STRUCT</name><argument_list>(<argument><expr><name>video_port_format</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>video_port_format</name><operator>.</operator><name>nIndex</name></name> <operator>=</operator> <name>i</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>video_port_format</name><operator>.</operator><name>nPortIndex</name></name> <operator>=</operator> <name><name>s</name><operator>-&gt;</operator><name>in_port</name></name></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><call><name>OMX_GetParameter</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>handle</name></name></expr></argument>, <argument><expr><name>OMX_IndexParamVideoPortFormat</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>video_port_format</name></expr></argument>)</argument_list></call> <operator>!=</operator> <name>OMX_ErrorNone</name></expr>)</condition><block type="pseudo"><block_content>
+<break>break;</break></block_content></block></if></if_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>video_port_format</name><operator>.</operator><name>eColorFormat</name></name> <operator>==</operator> <name>OMX_COLOR_FormatYUV420Planar</name> <operator>||</operator>
+<name><name>video_port_format</name><operator>.</operator><name>eColorFormat</name></name> <operator>==</operator> <name>OMX_COLOR_FormatYUV420PackedPlanar</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>color_format</name></name> <operator>=</operator> <name><name>video_port_format</name><operator>.</operator><name>eColorFormat</name></name></expr>;</expr_stmt>
+<break>break;</break>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block></for>
+<if_stmt><if>if <condition>(<expr><name><name>s</name><operator>-&gt;</operator><name>color_format</name></name> <operator>==</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>av_log</name><argument_list>(<argument><expr><name>avctx</name></expr></argument>, <argument><expr><name>AV_LOG_ERROR</name></expr></argument>, <argument><expr><literal type="string">"No supported pixel formats (%d formats available)\n"</literal></expr></argument>, <argument><expr><name>i</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>AVERROR_UNKNOWN</name></expr>;</return>
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>in_port_params</name><operator>.</operator><name>bEnabled</name></name> <operator>=</operator> <name>OMX_TRUE</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>in_port_params</name><operator>.</operator><name>bPopulated</name></name> <operator>=</operator> <name>OMX_FALSE</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>in_port_params</name><operator>.</operator><name>eDomain</name></name> <operator>=</operator> <name>OMX_PortDomainVideo</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>in_port_params</name><operator>.</operator><name>format</name><operator>.</operator><name>video</name><operator>.</operator><name>pNativeRender</name></name> <operator>=</operator> <name>NULL</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>in_port_params</name><operator>.</operator><name>format</name><operator>.</operator><name>video</name><operator>.</operator><name>bFlagErrorConcealment</name></name> <operator>=</operator> <name>OMX_FALSE</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>in_port_params</name><operator>.</operator><name>format</name><operator>.</operator><name>video</name><operator>.</operator><name>eColorFormat</name></name> <operator>=</operator> <name><name>s</name><operator>-&gt;</operator><name>color_format</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>stride</name></name> <operator>=</operator> <name><name>avctx</name><operator>-&gt;</operator><name>width</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>plane_size</name></name> <operator>=</operator> <name><name>avctx</name><operator>-&gt;</operator><name>height</name></name></expr>;</expr_stmt>
+
+
+<expr_stmt><expr><name><name>in_port_params</name><operator>.</operator><name>format</name><operator>.</operator><name>video</name><operator>.</operator><name>nStride</name></name> <operator>=</operator> <name><name>s</name><operator>-&gt;</operator><name>stride</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>in_port_params</name><operator>.</operator><name>format</name><operator>.</operator><name>video</name><operator>.</operator><name>nSliceHeight</name></name> <operator>=</operator> <name><name>s</name><operator>-&gt;</operator><name>plane_size</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>in_port_params</name><operator>.</operator><name>format</name><operator>.</operator><name>video</name><operator>.</operator><name>nFrameWidth</name></name> <operator>=</operator> <name><name>avctx</name><operator>-&gt;</operator><name>width</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>in_port_params</name><operator>.</operator><name>format</name><operator>.</operator><name>video</name><operator>.</operator><name>nFrameHeight</name></name> <operator>=</operator> <name><name>avctx</name><operator>-&gt;</operator><name>height</name></name></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>avctx</name><operator>-&gt;</operator><name>framerate</name><operator>.</operator><name>den</name></name> <operator>&gt;</operator> <literal type="number">0</literal> <operator>&amp;&amp;</operator> <name><name>avctx</name><operator>-&gt;</operator><name>framerate</name><operator>.</operator><name>num</name></name> <operator>&gt;</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name><name>in_port_params</name><operator>.</operator><name>format</name><operator>.</operator><name>video</name><operator>.</operator><name>xFramerate</name></name> <operator>=</operator> <operator>(</operator><literal type="number">1LL</literal> <operator>&lt;&lt;</operator> <literal type="number">16</literal><operator>)</operator> <operator>*</operator> <name><name>avctx</name><operator>-&gt;</operator><name>framerate</name><operator>.</operator><name>num</name></name> <operator>/</operator> <name><name>avctx</name><operator>-&gt;</operator><name>framerate</name><operator>.</operator><name>den</name></name></expr>;</expr_stmt></block_content></block></if>
+<else>else<block type="pseudo"><block_content>
+<expr_stmt><expr><name><name>in_port_params</name><operator>.</operator><name>format</name><operator>.</operator><name>video</name><operator>.</operator><name>xFramerate</name></name> <operator>=</operator> <operator>(</operator><literal type="number">1LL</literal> <operator>&lt;&lt;</operator> <literal type="number">16</literal><operator>)</operator> <operator>*</operator> <name><name>avctx</name><operator>-&gt;</operator><name>time_base</name><operator>.</operator><name>den</name></name> <operator>/</operator> <name><name>avctx</name><operator>-&gt;</operator><name>time_base</name><operator>.</operator><name>num</name></name></expr>;</expr_stmt></block_content></block></else></if_stmt>
+
+<expr_stmt><expr><name>err</name> <operator>=</operator> <call><name>OMX_SetParameter</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>handle</name></name></expr></argument>, <argument><expr><name>OMX_IndexParamPortDefinition</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>in_port_params</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>CHECK</name><argument_list>(<argument><expr><name>err</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>err</name> <operator>=</operator> <call><name>OMX_GetParameter</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>handle</name></name></expr></argument>, <argument><expr><name>OMX_IndexParamPortDefinition</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>in_port_params</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>CHECK</name><argument_list>(<argument><expr><name>err</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>stride</name></name> <operator>=</operator> <name><name>in_port_params</name><operator>.</operator><name>format</name><operator>.</operator><name>video</name><operator>.</operator><name>nStride</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>plane_size</name></name> <operator>=</operator> <name><name>in_port_params</name><operator>.</operator><name>format</name><operator>.</operator><name>video</name><operator>.</operator><name>nSliceHeight</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>num_in_buffers</name></name> <operator>=</operator> <name><name>in_port_params</name><operator>.</operator><name>nBufferCountActual</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>err</name> <operator>=</operator> <call><name>OMX_GetParameter</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>handle</name></name></expr></argument>, <argument><expr><name>OMX_IndexParamPortDefinition</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>out_port_params</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>out_port_params</name><operator>.</operator><name>bEnabled</name></name> <operator>=</operator> <name>OMX_TRUE</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>out_port_params</name><operator>.</operator><name>bPopulated</name></name> <operator>=</operator> <name>OMX_FALSE</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>out_port_params</name><operator>.</operator><name>eDomain</name></name> <operator>=</operator> <name>OMX_PortDomainVideo</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>out_port_params</name><operator>.</operator><name>format</name><operator>.</operator><name>video</name><operator>.</operator><name>pNativeRender</name></name> <operator>=</operator> <name>NULL</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>out_port_params</name><operator>.</operator><name>format</name><operator>.</operator><name>video</name><operator>.</operator><name>nFrameWidth</name></name> <operator>=</operator> <name><name>avctx</name><operator>-&gt;</operator><name>width</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>out_port_params</name><operator>.</operator><name>format</name><operator>.</operator><name>video</name><operator>.</operator><name>nFrameHeight</name></name> <operator>=</operator> <name><name>avctx</name><operator>-&gt;</operator><name>height</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>out_port_params</name><operator>.</operator><name>format</name><operator>.</operator><name>video</name><operator>.</operator><name>nStride</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>out_port_params</name><operator>.</operator><name>format</name><operator>.</operator><name>video</name><operator>.</operator><name>nSliceHeight</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>out_port_params</name><operator>.</operator><name>format</name><operator>.</operator><name>video</name><operator>.</operator><name>nBitrate</name></name> <operator>=</operator> <name><name>avctx</name><operator>-&gt;</operator><name>bit_rate</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>out_port_params</name><operator>.</operator><name>format</name><operator>.</operator><name>video</name><operator>.</operator><name>xFramerate</name></name> <operator>=</operator> <name><name>in_port_params</name><operator>.</operator><name>format</name><operator>.</operator><name>video</name><operator>.</operator><name>xFramerate</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>out_port_params</name><operator>.</operator><name>format</name><operator>.</operator><name>video</name><operator>.</operator><name>bFlagErrorConcealment</name></name> <operator>=</operator> <name>OMX_FALSE</name></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>avctx</name><operator>-&gt;</operator><name>codec</name><operator>-&gt;</operator><name>id</name></name> <operator>==</operator> <name>AV_CODEC_ID_MPEG4</name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name><name>out_port_params</name><operator>.</operator><name>format</name><operator>.</operator><name>video</name><operator>.</operator><name>eCompressionFormat</name></name> <operator>=</operator> <name>OMX_VIDEO_CodingMPEG4</name></expr>;</expr_stmt></block_content></block></if>
+<if type="elseif">else if <condition>(<expr><name><name>avctx</name><operator>-&gt;</operator><name>codec</name><operator>-&gt;</operator><name>id</name></name> <operator>==</operator> <name>AV_CODEC_ID_H264</name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name><name>out_port_params</name><operator>.</operator><name>format</name><operator>.</operator><name>video</name><operator>.</operator><name>eCompressionFormat</name></name> <operator>=</operator> <name>OMX_VIDEO_CodingAVC</name></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>err</name> <operator>=</operator> <call><name>OMX_SetParameter</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>handle</name></name></expr></argument>, <argument><expr><name>OMX_IndexParamPortDefinition</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>out_port_params</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>CHECK</name><argument_list>(<argument><expr><name>err</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>err</name> <operator>=</operator> <call><name>OMX_GetParameter</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>handle</name></name></expr></argument>, <argument><expr><name>OMX_IndexParamPortDefinition</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>out_port_params</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>CHECK</name><argument_list>(<argument><expr><name>err</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>num_out_buffers</name></name> <operator>=</operator> <name><name>out_port_params</name><operator>.</operator><name>nBufferCountActual</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>INIT_STRUCT</name><argument_list>(<argument><expr><name>vid_param_bitrate</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>vid_param_bitrate</name><operator>.</operator><name>nPortIndex</name></name> <operator>=</operator> <name><name>s</name><operator>-&gt;</operator><name>out_port</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>vid_param_bitrate</name><operator>.</operator><name>eControlRate</name></name> <operator>=</operator> <name>OMX_Video_ControlRateVariable</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>vid_param_bitrate</name><operator>.</operator><name>nTargetBitrate</name></name> <operator>=</operator> <name><name>avctx</name><operator>-&gt;</operator><name>bit_rate</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name>err</name> <operator>=</operator> <call><name>OMX_SetParameter</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>handle</name></name></expr></argument>, <argument><expr><name>OMX_IndexParamVideoBitrate</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>vid_param_bitrate</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name>err</name> <operator>!=</operator> <name>OMX_ErrorNone</name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>av_log</name><argument_list>(<argument><expr><name>avctx</name></expr></argument>, <argument><expr><name>AV_LOG_WARNING</name></expr></argument>, <argument><expr><literal type="string">"Unable to set video bitrate parameter\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>avctx</name><operator>-&gt;</operator><name>codec</name><operator>-&gt;</operator><name>id</name></name> <operator>==</operator> <name>AV_CODEC_ID_H264</name></expr>)</condition> <block>{<block_content>
+<decl_stmt><decl><type><name>OMX_VIDEO_PARAM_AVCTYPE</name></type> <name>avc</name> <init>= <expr><block>{ <expr><literal type="number">0</literal></expr> }</block></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><call><name>INIT_STRUCT</name><argument_list>(<argument><expr><name>avc</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>avc</name><operator>.</operator><name>nPortIndex</name></name> <operator>=</operator> <name><name>s</name><operator>-&gt;</operator><name>out_port</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name>err</name> <operator>=</operator> <call><name>OMX_GetParameter</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>handle</name></name></expr></argument>, <argument><expr><name>OMX_IndexParamVideoAvc</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>avc</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>CHECK</name><argument_list>(<argument><expr><name>err</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>avc</name><operator>.</operator><name>nBFrames</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>avc</name><operator>.</operator><name>nPFrames</name></name> <operator>=</operator> <name><name>avctx</name><operator>-&gt;</operator><name>gop_size</name></name> <operator>-</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+<switch>switch <condition>(<expr><ternary><condition><expr><name><name>s</name><operator>-&gt;</operator><name>profile</name></name> <operator>==</operator> <name>FF_PROFILE_UNKNOWN</name></expr> ?</condition><then> <expr><name><name>avctx</name><operator>-&gt;</operator><name>profile</name></name></expr> </then><else>: <expr><name><name>s</name><operator>-&gt;</operator><name>profile</name></name></expr></else></ternary></expr>)</condition> <block>{<block_content>
+<case>case <expr><name>FF_PROFILE_H264_BASELINE</name></expr>:</case>
+<expr_stmt><expr><name><name>avc</name><operator>.</operator><name>eProfile</name></name> <operator>=</operator> <name>OMX_VIDEO_AVCProfileBaseline</name></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>FF_PROFILE_H264_MAIN</name></expr>:</case>
+<expr_stmt><expr><name><name>avc</name><operator>.</operator><name>eProfile</name></name> <operator>=</operator> <name>OMX_VIDEO_AVCProfileMain</name></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>FF_PROFILE_H264_HIGH</name></expr>:</case>
+<expr_stmt><expr><name><name>avc</name><operator>.</operator><name>eProfile</name></name> <operator>=</operator> <name>OMX_VIDEO_AVCProfileHigh</name></expr>;</expr_stmt>
+<break>break;</break>
+<default>default:</default>
+<break>break;</break>
+</block_content>}</block></switch>
+<expr_stmt><expr><name>err</name> <operator>=</operator> <call><name>OMX_SetParameter</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>handle</name></name></expr></argument>, <argument><expr><name>OMX_IndexParamVideoAvc</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>avc</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>CHECK</name><argument_list>(<argument><expr><name>err</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name>err</name> <operator>=</operator> <call><name>OMX_SendCommand</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>handle</name></name></expr></argument>, <argument><expr><name>OMX_CommandStateSet</name></expr></argument>, <argument><expr><name>OMX_StateIdle</name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>CHECK</name><argument_list>(<argument><expr><name>err</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>in_buffer_headers</name></name> <operator>=</operator> <call><name>av_mallocz</name><argument_list>(<argument><expr><sizeof>sizeof<argument_list>(<argument><expr><name>OMX_BUFFERHEADERTYPE</name><operator>*</operator></expr></argument>)</argument_list></sizeof> <operator>*</operator> <name><name>s</name><operator>-&gt;</operator><name>num_in_buffers</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>free_in_buffers</name></name> <operator>=</operator> <call><name>av_mallocz</name><argument_list>(<argument><expr><sizeof>sizeof<argument_list>(<argument><expr><name>OMX_BUFFERHEADERTYPE</name><operator>*</operator></expr></argument>)</argument_list></sizeof> <operator>*</operator> <name><name>s</name><operator>-&gt;</operator><name>num_in_buffers</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>out_buffer_headers</name></name> <operator>=</operator> <call><name>av_mallocz</name><argument_list>(<argument><expr><sizeof>sizeof<argument_list>(<argument><expr><name>OMX_BUFFERHEADERTYPE</name><operator>*</operator></expr></argument>)</argument_list></sizeof> <operator>*</operator> <name><name>s</name><operator>-&gt;</operator><name>num_out_buffers</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>done_out_buffers</name></name> <operator>=</operator> <call><name>av_mallocz</name><argument_list>(<argument><expr><sizeof>sizeof<argument_list>(<argument><expr><name>OMX_BUFFERHEADERTYPE</name><operator>*</operator></expr></argument>)</argument_list></sizeof> <operator>*</operator> <name><name>s</name><operator>-&gt;</operator><name>num_out_buffers</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>s</name><operator>-&gt;</operator><name>in_buffer_headers</name></name> <operator>||</operator> <operator>!</operator><name><name>s</name><operator>-&gt;</operator><name>free_in_buffers</name></name> <operator>||</operator> <operator>!</operator><name><name>s</name><operator>-&gt;</operator><name>out_buffer_headers</name></name> <operator>||</operator> <operator>!</operator><name><name>s</name><operator>-&gt;</operator><name>done_out_buffers</name></name></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><call><name>AVERROR</name><argument_list>(<argument><expr><name>ENOMEM</name></expr></argument>)</argument_list></call></expr>;</return></block_content></block></if></if_stmt>
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name><name>s</name><operator>-&gt;</operator><name>num_in_buffers</name></name> <operator>&amp;&amp;</operator> <name>err</name> <operator>==</operator> <name>OMX_ErrorNone</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name><name>s</name><operator>-&gt;</operator><name>input_zerocopy</name></name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name>err</name> <operator>=</operator> <call><name>OMX_UseBuffer</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>handle</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>in_buffer_headers</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>in_port</name></name></expr></argument>, <argument><expr><name>s</name></expr></argument>, <argument><expr><name><name>in_port_params</name><operator>.</operator><name>nBufferSize</name></name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if>
+<else>else<block type="pseudo"><block_content>
+<expr_stmt><expr><name>err</name> <operator>=</operator> <call><name>OMX_AllocateBuffer</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>handle</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>in_buffer_headers</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>in_port</name></name></expr></argument>, <argument><expr><name>s</name></expr></argument>, <argument><expr><name><name>in_port_params</name><operator>.</operator><name>nBufferSize</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></else></if_stmt>
+<if_stmt><if>if <condition>(<expr><name>err</name> <operator>==</operator> <name>OMX_ErrorNone</name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>in_buffer_headers</name><index>[<expr><name>i</name></expr>]</index></name><operator>-&gt;</operator><name>pAppPrivate</name> <operator>=</operator> <name><name>s</name><operator>-&gt;</operator><name>in_buffer_headers</name><index>[<expr><name>i</name></expr>]</index></name><operator>-&gt;</operator><name>pOutputPortPrivate</name> <operator>=</operator> <name>NULL</name></expr>;</expr_stmt></block_content></block></if></if_stmt>
+</block_content>}</block></for>
+<expr_stmt><expr><call><name>CHECK</name><argument_list>(<argument><expr><name>err</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>num_in_buffers</name></name> <operator>=</operator> <name>i</name></expr>;</expr_stmt>
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name><name>s</name><operator>-&gt;</operator><name>num_out_buffers</name></name> <operator>&amp;&amp;</operator> <name>err</name> <operator>==</operator> <name>OMX_ErrorNone</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control><block type="pseudo"><block_content>
+<expr_stmt><expr><name>err</name> <operator>=</operator> <call><name>OMX_AllocateBuffer</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>handle</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>out_buffer_headers</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>out_port</name></name></expr></argument>, <argument><expr><name>s</name></expr></argument>, <argument><expr><name><name>out_port_params</name><operator>.</operator><name>nBufferSize</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></for>
+<expr_stmt><expr><call><name>CHECK</name><argument_list>(<argument><expr><name>err</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>num_out_buffers</name></name> <operator>=</operator> <name>i</name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>wait_for_state</name><argument_list>(<argument><expr><name>s</name></expr></argument>, <argument><expr><name>OMX_StateIdle</name></expr></argument>)</argument_list></call> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>av_log</name><argument_list>(<argument><expr><name>avctx</name></expr></argument>, <argument><expr><name>AV_LOG_ERROR</name></expr></argument>, <argument><expr><literal type="string">"Didn't get OMX_StateIdle\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>AVERROR_UNKNOWN</name></expr>;</return>
+</block_content>}</block></if></if_stmt>
+<expr_stmt><expr><name>err</name> <operator>=</operator> <call><name>OMX_SendCommand</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>handle</name></name></expr></argument>, <argument><expr><name>OMX_CommandStateSet</name></expr></argument>, <argument><expr><name>OMX_StateExecuting</name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>CHECK</name><argument_list>(<argument><expr><name>err</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><call><name>wait_for_state</name><argument_list>(<argument><expr><name>s</name></expr></argument>, <argument><expr><name>OMX_StateExecuting</name></expr></argument>)</argument_list></call> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>av_log</name><argument_list>(<argument><expr><name>avctx</name></expr></argument>, <argument><expr><name>AV_LOG_ERROR</name></expr></argument>, <argument><expr><literal type="string">"Didn't get OMX_StateExecuting\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>AVERROR_UNKNOWN</name></expr>;</return>
+</block_content>}</block></if></if_stmt>
+
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name><name>s</name><operator>-&gt;</operator><name>num_out_buffers</name></name> <operator>&amp;&amp;</operator> <name>err</name> <operator>==</operator> <name>OMX_ErrorNone</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control><block type="pseudo"><block_content>
+<expr_stmt><expr><name>err</name> <operator>=</operator> <call><name>OMX_FillThisBuffer</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>handle</name></name></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>out_buffer_headers</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></for>
+<if_stmt><if>if <condition>(<expr><name>err</name> <operator>!=</operator> <name>OMX_ErrorNone</name></expr>)</condition> <block>{<block_content>
+<for>for <control>(<init>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name><name>s</name><operator>-&gt;</operator><name>num_out_buffers</name></name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control><block type="pseudo"><block_content>
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>done_out_buffers</name><index>[<expr><name><name>s</name><operator>-&gt;</operator><name>num_done_out_buffers</name></name><operator>++</operator></expr>]</index></name> <operator>=</operator> <name><name>s</name><operator>-&gt;</operator><name>out_buffer_headers</name><index>[<expr><name>i</name></expr>]</index></name></expr>;</expr_stmt></block_content></block></for>
+</block_content>}</block></if></if_stmt>
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name><name>s</name><operator>-&gt;</operator><name>num_in_buffers</name></name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control><block type="pseudo"><block_content>
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>free_in_buffers</name><index>[<expr><name><name>s</name><operator>-&gt;</operator><name>num_free_in_buffers</name></name><operator>++</operator></expr>]</index></name> <operator>=</operator> <name><name>s</name><operator>-&gt;</operator><name>in_buffer_headers</name><index>[<expr><name>i</name></expr>]</index></name></expr>;</expr_stmt></block_content></block></for>
+<return>return <expr><ternary><condition><expr><name>err</name> <operator>!=</operator> <name>OMX_ErrorNone</name></expr> ?</condition><then> <expr><name>AVERROR_UNKNOWN</name></expr> </then><else>: <expr><literal type="number">0</literal></expr></else></ternary></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>av_cold</name> <name>void</name></type> <name>cleanup</name><parameter_list>(<parameter><decl><type><name>OMXCodecContext</name> <modifier>*</modifier></type><name>s</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>int</name></type> <name>i</name></decl>, <decl><type ref="prev"/><name>executing</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_lock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>state_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>executing</name> <operator>=</operator> <name><name>s</name><operator>-&gt;</operator><name>state</name></name> <operator>==</operator> <name>OMX_StateExecuting</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>pthread_mutex_unlock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>state_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>executing</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>OMX_SendCommand</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>handle</name></name></expr></argument>, <argument><expr><name>OMX_CommandStateSet</name></expr></argument>, <argument><expr><name>OMX_StateIdle</name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>wait_for_state</name><argument_list>(<argument><expr><name>s</name></expr></argument>, <argument><expr><name>OMX_StateIdle</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>OMX_SendCommand</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>handle</name></name></expr></argument>, <argument><expr><name>OMX_CommandStateSet</name></expr></argument>, <argument><expr><name>OMX_StateLoaded</name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name><name>s</name><operator>-&gt;</operator><name>num_in_buffers</name></name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<decl_stmt><decl><type><name>OMX_BUFFERHEADERTYPE</name> <modifier>*</modifier></type><name>buffer</name> <init>= <expr><call><name>get_buffer</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>input_mutex</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>input_cond</name></name></expr></argument>,
+<argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>num_free_in_buffers</name></name></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>free_in_buffers</name></name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>s</name><operator>-&gt;</operator><name>input_zerocopy</name></name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name><name>buffer</name><operator>-&gt;</operator><name>pBuffer</name></name> <operator>=</operator> <name>NULL</name></expr>;</expr_stmt></block_content></block></if></if_stmt>
+<expr_stmt><expr><call><name>OMX_FreeBuffer</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>handle</name></name></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>in_port</name></name></expr></argument>, <argument><expr><name>buffer</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></for>
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name><name>s</name><operator>-&gt;</operator><name>num_out_buffers</name></name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<decl_stmt><decl><type><name>OMX_BUFFERHEADERTYPE</name> <modifier>*</modifier></type><name>buffer</name> <init>= <expr><call><name>get_buffer</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>output_mutex</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>output_cond</name></name></expr></argument>,
+<argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>num_done_out_buffers</name></name></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>done_out_buffers</name></name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><call><name>OMX_FreeBuffer</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>handle</name></name></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>out_port</name></name></expr></argument>, <argument><expr><name>buffer</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></for>
+<expr_stmt><expr><call><name>wait_for_state</name><argument_list>(<argument><expr><name>s</name></expr></argument>, <argument><expr><name>OMX_StateLoaded</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>s</name><operator>-&gt;</operator><name>handle</name></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name><name>s</name><operator>-&gt;</operator><name>omx_context</name><operator>-&gt;</operator><name>ptr_FreeHandle</name></name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>handle</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>handle</name></name> <operator>=</operator> <name>NULL</name></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>omx_deinit</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>omx_context</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>omx_context</name></name> <operator>=</operator> <name>NULL</name></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>s</name><operator>-&gt;</operator><name>mutex_cond_inited</name></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>pthread_cond_destroy</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>state_cond</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>pthread_mutex_destroy</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>state_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>pthread_cond_destroy</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>input_cond</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>pthread_mutex_destroy</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>input_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>pthread_cond_destroy</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>output_cond</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>pthread_mutex_destroy</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>output_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>mutex_cond_inited</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+<expr_stmt><expr><call><name>av_freep</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>in_buffer_headers</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>av_freep</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>out_buffer_headers</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>av_freep</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>free_in_buffers</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>av_freep</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>done_out_buffers</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>av_freep</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>output_buf</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>av_cold</name> <name>int</name></type> <name>omx_encode_init</name><parameter_list>(<parameter><decl><type><name>AVCodecContext</name> <modifier>*</modifier></type><name>avctx</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>OMXCodecContext</name> <modifier>*</modifier></type><name>s</name> <init>= <expr><name><name>avctx</name><operator>-&gt;</operator><name>priv_data</name></name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>ret</name> <init>= <expr><name>AVERROR_ENCODER_NOT_FOUND</name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>role</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>OMX_BUFFERHEADERTYPE</name> <modifier>*</modifier></type><name>buffer</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>OMX_ERRORTYPE</name></type> <name>err</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>omx_context</name></name> <operator>=</operator> <call><name>omx_init</name><argument_list>(<argument><expr><name>avctx</name></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>libname</name></name></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>libprefix</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>s</name><operator>-&gt;</operator><name>omx_context</name></name></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><name>AVERROR_ENCODER_NOT_FOUND</name></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_init</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>state_mutex</name></name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>pthread_cond_init</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>state_cond</name></name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>pthread_mutex_init</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>input_mutex</name></name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>pthread_cond_init</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>input_cond</name></name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>pthread_mutex_init</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>output_mutex</name></name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>pthread_cond_init</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>output_cond</name></name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>mutex_cond_inited</name></name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>avctx</name></name> <operator>=</operator> <name>avctx</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>state</name></name> <operator>=</operator> <name>OMX_StateLoaded</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>error</name></name> <operator>=</operator> <name>OMX_ErrorNone</name></expr>;</expr_stmt>
+
+<switch>switch <condition>(<expr><name><name>avctx</name><operator>-&gt;</operator><name>codec</name><operator>-&gt;</operator><name>id</name></name></expr>)</condition> <block>{<block_content>
+<case>case <expr><name>AV_CODEC_ID_MPEG4</name></expr>:</case>
+<expr_stmt><expr><name>role</name> <operator>=</operator> <literal type="string">"video_encoder.mpeg4"</literal></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>AV_CODEC_ID_H264</name></expr>:</case>
+<expr_stmt><expr><name>role</name> <operator>=</operator> <literal type="string">"video_encoder.avc"</literal></expr>;</expr_stmt>
+<break>break;</break>
+<default>default:</default>
+<return>return <expr><call><name>AVERROR</name><argument_list>(<argument><expr><name>ENOSYS</name></expr></argument>)</argument_list></call></expr>;</return>
+</block_content>}</block></switch>
+
+<if_stmt><if>if <condition>(<expr><operator>(</operator><name>ret</name> <operator>=</operator> <call><name>find_component</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>omx_context</name></name></expr></argument>, <argument><expr><name>avctx</name></expr></argument>, <argument><expr><name>role</name></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>component_name</name></name></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>component_name</name></name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call><operator>)</operator> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+<goto>goto <name>fail</name>;</goto></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>av_log</name><argument_list>(<argument><expr><name>avctx</name></expr></argument>, <argument><expr><name>AV_LOG_INFO</name></expr></argument>, <argument><expr><literal type="string">"Using %s\n"</literal></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>component_name</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>(</operator><name>ret</name> <operator>=</operator> <call><name>omx_component_init</name><argument_list>(<argument><expr><name>avctx</name></expr></argument>, <argument><expr><name>role</name></expr></argument>)</argument_list></call><operator>)</operator> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+<goto>goto <name>fail</name>;</goto></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>avctx</name><operator>-&gt;</operator><name>flags</name></name> <operator>&amp;</operator> <name>AV_CODEC_FLAG_GLOBAL_HEADER</name></expr>)</condition> <block>{<block_content>
+<while>while <condition>(<expr><literal type="number">1</literal></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name>buffer</name> <operator>=</operator> <call><name>get_buffer</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>output_mutex</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>output_cond</name></name></expr></argument>,
+<argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>num_done_out_buffers</name></name></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>done_out_buffers</name></name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>buffer</name><operator>-&gt;</operator><name>nFlags</name></name> <operator>&amp;</operator> <name>OMX_BUFFERFLAG_CODECCONFIG</name></expr>)</condition> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><operator>(</operator><name>ret</name> <operator>=</operator> <call><name>av_reallocp</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>avctx</name><operator>-&gt;</operator><name>extradata</name></name></expr></argument>, <argument><expr><name><name>avctx</name><operator>-&gt;</operator><name>extradata_size</name></name> <operator>+</operator> <name><name>buffer</name><operator>-&gt;</operator><name>nFilledLen</name></name> <operator>+</operator> <name>AV_INPUT_BUFFER_PADDING_SIZE</name></expr></argument>)</argument_list></call><operator>)</operator> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name><name>avctx</name><operator>-&gt;</operator><name>extradata_size</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+<goto>goto <name>fail</name>;</goto>
+</block_content>}</block></if></if_stmt>
+<expr_stmt><expr><call><name>memcpy</name><argument_list>(<argument><expr><name><name>avctx</name><operator>-&gt;</operator><name>extradata</name></name> <operator>+</operator> <name><name>avctx</name><operator>-&gt;</operator><name>extradata_size</name></name></expr></argument>, <argument><expr><name><name>buffer</name><operator>-&gt;</operator><name>pBuffer</name></name> <operator>+</operator> <name><name>buffer</name><operator>-&gt;</operator><name>nOffset</name></name></expr></argument>, <argument><expr><name><name>buffer</name><operator>-&gt;</operator><name>nFilledLen</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>avctx</name><operator>-&gt;</operator><name>extradata_size</name></name> <operator>+=</operator> <name><name>buffer</name><operator>-&gt;</operator><name>nFilledLen</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>memset</name><argument_list>(<argument><expr><name><name>avctx</name><operator>-&gt;</operator><name>extradata</name></name> <operator>+</operator> <name><name>avctx</name><operator>-&gt;</operator><name>extradata_size</name></name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><name>AV_INPUT_BUFFER_PADDING_SIZE</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+<expr_stmt><expr><name>err</name> <operator>=</operator> <call><name>OMX_FillThisBuffer</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>handle</name></name></expr></argument>, <argument><expr><name>buffer</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name>err</name> <operator>!=</operator> <name>OMX_ErrorNone</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>append_buffer</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>output_mutex</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>output_cond</name></name></expr></argument>,
+<argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>num_done_out_buffers</name></name></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>done_out_buffers</name></name></expr></argument>, <argument><expr><name>buffer</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>av_log</name><argument_list>(<argument><expr><name>avctx</name></expr></argument>, <argument><expr><name>AV_LOG_ERROR</name></expr></argument>, <argument><expr><literal type="string">"OMX_FillThisBuffer failed: %x\n"</literal></expr></argument>, <argument><expr><name>err</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <name>AVERROR_UNKNOWN</name></expr>;</expr_stmt>
+<goto>goto <name>fail</name>;</goto>
+</block_content>}</block></if></if_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>avctx</name><operator>-&gt;</operator><name>codec</name><operator>-&gt;</operator><name>id</name></name> <operator>==</operator> <name>AV_CODEC_ID_H264</name></expr>)</condition> <block>{<block_content>
+
+
+
+<decl_stmt><decl><type><name>int</name></type> <name><name>nals</name><index>[<expr><literal type="number">32</literal></expr>]</index></name> <init>= <expr><block>{ <expr><literal type="number">0</literal></expr> }</block></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>i</name></decl>;</decl_stmt>
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>+</operator> <literal type="number">4</literal> <operator>&lt;</operator> <name><name>avctx</name><operator>-&gt;</operator><name>extradata_size</name></name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>avctx</name><operator>-&gt;</operator><name>extradata</name><index>[<expr><name>i</name> <operator>+</operator> <literal type="number">0</literal></expr>]</index></name> <operator>&amp;&amp;</operator>
+<operator>!</operator><name><name>avctx</name><operator>-&gt;</operator><name>extradata</name><index>[<expr><name>i</name> <operator>+</operator> <literal type="number">1</literal></expr>]</index></name> <operator>&amp;&amp;</operator>
+<operator>!</operator><name><name>avctx</name><operator>-&gt;</operator><name>extradata</name><index>[<expr><name>i</name> <operator>+</operator> <literal type="number">2</literal></expr>]</index></name> <operator>&amp;&amp;</operator>
+<name><name>avctx</name><operator>-&gt;</operator><name>extradata</name><index>[<expr><name>i</name> <operator>+</operator> <literal type="number">3</literal></expr>]</index></name> <operator>==</operator> <literal type="number">1</literal></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name><name>nals</name><index>[<expr><name><name>avctx</name><operator>-&gt;</operator><name>extradata</name><index>[<expr><name>i</name> <operator>+</operator> <literal type="number">4</literal></expr>]</index></name> <operator>&amp;</operator> <literal type="number">0x1f</literal></expr>]</index></name><operator>++</operator></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block></for>
+<if_stmt><if>if <condition>(<expr><name><name>nals</name><index>[<expr><name>H264_NAL_SPS</name></expr>]</index></name> <operator>&amp;&amp;</operator> <name><name>nals</name><index>[<expr><name>H264_NAL_PPS</name></expr>]</index></name></expr>)</condition><block type="pseudo"><block_content>
+<break>break;</break></block_content></block></if></if_stmt>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name><name>avctx</name><operator>-&gt;</operator><name>extradata_size</name></name> <operator>&gt;</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+<break>break;</break></block_content></block></if></if_stmt>
+</block_content>}</block></else></if_stmt>
+</block_content>}</block></while>
+</block_content>}</block></if></if_stmt>
+
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+<label><name>fail</name>:</label>
+<return>return <expr><name>ret</name></expr>;</return>
+</block_content>}</block></function>
+
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>omx_encode_frame</name><parameter_list>(<parameter><decl><type><name>AVCodecContext</name> <modifier>*</modifier></type><name>avctx</name></decl></parameter>, <parameter><decl><type><name>AVPacket</name> <modifier>*</modifier></type><name>pkt</name></decl></parameter>,
+<parameter><decl><type><specifier>const</specifier> <name>AVFrame</name> <modifier>*</modifier></type><name>frame</name></decl></parameter>, <parameter><decl><type><name>int</name> <modifier>*</modifier></type><name>got_packet</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>OMXCodecContext</name> <modifier>*</modifier></type><name>s</name> <init>= <expr><name><name>avctx</name><operator>-&gt;</operator><name>priv_data</name></name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>ret</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>OMX_BUFFERHEADERTYPE</name><modifier>*</modifier></type> <name>buffer</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>OMX_ERRORTYPE</name></type> <name>err</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>had_partial</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>frame</name></expr>)</condition> <block>{<block_content>
+<decl_stmt><decl><type><name>uint8_t</name> <modifier>*</modifier></type><name><name>dst</name><index>[<expr><literal type="number">4</literal></expr>]</index></name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name><name>linesize</name><index>[<expr><literal type="number">4</literal></expr>]</index></name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>need_copy</name></decl>;</decl_stmt>
+<expr_stmt><expr><name>buffer</name> <operator>=</operator> <call><name>get_buffer</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>input_mutex</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>input_cond</name></name></expr></argument>,
+<argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>num_free_in_buffers</name></name></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>free_in_buffers</name></name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>buffer</name><operator>-&gt;</operator><name>nFilledLen</name></name> <operator>=</operator> <call><name>av_image_fill_arrays</name><argument_list>(<argument><expr><name>dst</name></expr></argument>, <argument><expr><name>linesize</name></expr></argument>, <argument><expr><name><name>buffer</name><operator>-&gt;</operator><name>pBuffer</name></name></expr></argument>, <argument><expr><name><name>avctx</name><operator>-&gt;</operator><name>pix_fmt</name></name></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>stride</name></name></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>plane_size</name></name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>s</name><operator>-&gt;</operator><name>input_zerocopy</name></name></expr>)</condition> <block>{<block_content>
+<decl_stmt><decl><type><name>uint8_t</name> <modifier>*</modifier></type><name><name>src</name><index>[<expr><literal type="number">4</literal></expr>]</index></name> <init>= <expr><block>{ <expr><name>NULL</name></expr> }</block></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name><name>src_linesize</name><index>[<expr><literal type="number">4</literal></expr>]</index></name></decl>;</decl_stmt>
+<expr_stmt><expr><call><name>av_image_fill_arrays</name><argument_list>(<argument><expr><name>src</name></expr></argument>, <argument><expr><name>src_linesize</name></expr></argument>, <argument><expr><name><name>frame</name><operator>-&gt;</operator><name>data</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>, <argument><expr><name><name>avctx</name><operator>-&gt;</operator><name>pix_fmt</name></name></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>stride</name></name></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>plane_size</name></name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>frame</name><operator>-&gt;</operator><name>linesize</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>==</operator> <name><name>src_linesize</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>&amp;&amp;</operator>
+<name><name>frame</name><operator>-&gt;</operator><name>linesize</name><index>[<expr><literal type="number">1</literal></expr>]</index></name> <operator>==</operator> <name><name>src_linesize</name><index>[<expr><literal type="number">1</literal></expr>]</index></name> <operator>&amp;&amp;</operator>
+<name><name>frame</name><operator>-&gt;</operator><name>linesize</name><index>[<expr><literal type="number">2</literal></expr>]</index></name> <operator>==</operator> <name><name>src_linesize</name><index>[<expr><literal type="number">2</literal></expr>]</index></name> <operator>&amp;&amp;</operator>
+<name><name>frame</name><operator>-&gt;</operator><name>data</name><index>[<expr><literal type="number">1</literal></expr>]</index></name> <operator>==</operator> <name><name>src</name><index>[<expr><literal type="number">1</literal></expr>]</index></name> <operator>&amp;&amp;</operator>
+<name><name>frame</name><operator>-&gt;</operator><name>data</name><index>[<expr><literal type="number">2</literal></expr>]</index></name> <operator>==</operator> <name><name>src</name><index>[<expr><literal type="number">2</literal></expr>]</index></name></expr>)</condition> <block>{<block_content>
+
+
+
+<decl_stmt><decl><type><name>AVFrame</name> <modifier>*</modifier></type><name>local</name> <init>= <expr><call><name>av_frame_clone</name><argument_list>(<argument><expr><name>frame</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>local</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>append_buffer</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>input_mutex</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>input_cond</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>num_free_in_buffers</name></name></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>free_in_buffers</name></name></expr></argument>, <argument><expr><name>buffer</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><call><name>AVERROR</name><argument_list>(<argument><expr><name>ENOMEM</name></expr></argument>)</argument_list></call></expr>;</return>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<expr_stmt><expr><name><name>buffer</name><operator>-&gt;</operator><name>pAppPrivate</name></name> <operator>=</operator> <name>local</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>buffer</name><operator>-&gt;</operator><name>pOutputPortPrivate</name></name> <operator>=</operator> <name>NULL</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>buffer</name><operator>-&gt;</operator><name>pBuffer</name></name> <operator>=</operator> <name><name>local</name><operator>-&gt;</operator><name>data</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr>;</expr_stmt>
+<expr_stmt><expr><name>need_copy</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+</block_content>}</block></else></if_stmt>
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+
+<decl_stmt><decl><type><name>uint8_t</name> <modifier>*</modifier></type><name>buf</name> <init>= <expr><name>NULL</name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>image_buffer_size</name> <init>= <expr><call><name>av_image_get_buffer_size</name><argument_list>(<argument><expr><name><name>avctx</name><operator>-&gt;</operator><name>pix_fmt</name></name></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>stride</name></name></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>plane_size</name></name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<if_stmt><if>if <condition>(<expr><name>image_buffer_size</name> <operator>&gt;=</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name>buf</name> <operator>=</operator> <call><name>av_malloc</name><argument_list>(<argument><expr><name>image_buffer_size</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>buf</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>append_buffer</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>input_mutex</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>input_cond</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>num_free_in_buffers</name></name></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>free_in_buffers</name></name></expr></argument>, <argument><expr><name>buffer</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><call><name>AVERROR</name><argument_list>(<argument><expr><name>ENOMEM</name></expr></argument>)</argument_list></call></expr>;</return>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<expr_stmt><expr><name><name>buffer</name><operator>-&gt;</operator><name>pAppPrivate</name></name> <operator>=</operator> <name>buf</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>buffer</name><operator>-&gt;</operator><name>pOutputPortPrivate</name></name> <operator>=</operator> <operator>(</operator><name>void</name><operator>*</operator><operator>)</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>buffer</name><operator>-&gt;</operator><name>pBuffer</name></name> <operator>=</operator> <name>buf</name></expr>;</expr_stmt>
+<expr_stmt><expr><name>need_copy</name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>buffer</name><operator>-&gt;</operator><name>nFilledLen</name></name> <operator>=</operator> <call><name>av_image_fill_arrays</name><argument_list>(<argument><expr><name>dst</name></expr></argument>, <argument><expr><name>linesize</name></expr></argument>, <argument><expr><name><name>buffer</name><operator>-&gt;</operator><name>pBuffer</name></name></expr></argument>, <argument><expr><name><name>avctx</name><operator>-&gt;</operator><name>pix_fmt</name></name></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>stride</name></name></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>plane_size</name></name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></else></if_stmt>
+</block_content>}</block></else></if_stmt>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<expr_stmt><expr><name>need_copy</name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+</block_content>}</block></else></if_stmt>
+<if_stmt><if>if <condition>(<expr><name>need_copy</name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>av_image_copy</name><argument_list>(<argument><expr><name>dst</name></expr></argument>, <argument><expr><name>linesize</name></expr></argument>, <argument><expr><operator>(</operator><specifier>const</specifier> <name>uint8_t</name><operator>*</operator><operator>*</operator><operator>)</operator> <name><name>frame</name><operator>-&gt;</operator><name>data</name></name></expr></argument>, <argument><expr><name><name>frame</name><operator>-&gt;</operator><name>linesize</name></name></expr></argument>, <argument><expr><name><name>avctx</name><operator>-&gt;</operator><name>pix_fmt</name></name></expr></argument>, <argument><expr><name><name>avctx</name><operator>-&gt;</operator><name>width</name></name></expr></argument>, <argument><expr><name><name>avctx</name><operator>-&gt;</operator><name>height</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+<expr_stmt><expr><name><name>buffer</name><operator>-&gt;</operator><name>nFlags</name></name> <operator>=</operator> <name>OMX_BUFFERFLAG_ENDOFFRAME</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>buffer</name><operator>-&gt;</operator><name>nOffset</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+
+<expr_stmt><expr><name><name>buffer</name><operator>-&gt;</operator><name>nTimeStamp</name></name> <operator>=</operator> <call><name>to_omx_ticks</name><argument_list>(<argument><expr><call><name>av_rescale_q</name><argument_list>(<argument><expr><name><name>frame</name><operator>-&gt;</operator><name>pts</name></name></expr></argument>, <argument><expr><name><name>avctx</name><operator>-&gt;</operator><name>time_base</name></name></expr></argument>, <argument><expr><name>AV_TIME_BASE_Q</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>frame</name><operator>-&gt;</operator><name>pict_type</name></name> <operator>==</operator> <name>AV_PICTURE_TYPE_I</name></expr>)</condition> <block>{<block_content>
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><name>CONFIG_OMX_RPI</name></expr></cpp:if>
+<decl_stmt><decl><type><name>OMX_CONFIG_BOOLEANTYPE</name></type> <name>config</name> <init>= <expr><block>{<expr><literal type="number">0</literal></expr>, }</block></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><call><name>INIT_STRUCT</name><argument_list>(<argument><expr><name>config</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>config</name><operator>.</operator><name>bEnabled</name></name> <operator>=</operator> <name>OMX_TRUE</name></expr>;</expr_stmt>
+<expr_stmt><expr><name>err</name> <operator>=</operator> <call><name>OMX_SetConfig</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>handle</name></name></expr></argument>, <argument><expr><name>OMX_IndexConfigBrcmVideoRequestIFrame</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>config</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name>err</name> <operator>!=</operator> <name>OMX_ErrorNone</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>av_log</name><argument_list>(<argument><expr><name>avctx</name></expr></argument>, <argument><expr><name>AV_LOG_ERROR</name></expr></argument>, <argument><expr><literal type="string">"OMX_SetConfig(RequestIFrame) failed: %x\n"</literal></expr></argument>, <argument><expr><name>err</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+<cpp:else>#<cpp:directive>else</cpp:directive></cpp:else>
+<decl_stmt><decl><type><name>OMX_CONFIG_INTRAREFRESHVOPTYPE</name></type> <name>config</name> <init>= <expr><block>{<expr><literal type="number">0</literal></expr>, }</block></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><call><name>INIT_STRUCT</name><argument_list>(<argument><expr><name>config</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>config</name><operator>.</operator><name>nPortIndex</name></name> <operator>=</operator> <name><name>s</name><operator>-&gt;</operator><name>out_port</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>config</name><operator>.</operator><name>IntraRefreshVOP</name></name> <operator>=</operator> <name>OMX_TRUE</name></expr>;</expr_stmt>
+<expr_stmt><expr><name>err</name> <operator>=</operator> <call><name>OMX_SetConfig</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>handle</name></name></expr></argument>, <argument><expr><name>OMX_IndexConfigVideoIntraVOPRefresh</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>config</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name>err</name> <operator>!=</operator> <name>OMX_ErrorNone</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>av_log</name><argument_list>(<argument><expr><name>avctx</name></expr></argument>, <argument><expr><name>AV_LOG_ERROR</name></expr></argument>, <argument><expr><literal type="string">"OMX_SetConfig(IntraVOPRefresh) failed: %x\n"</literal></expr></argument>, <argument><expr><name>err</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+</block_content>}</block></if></if_stmt>
+<expr_stmt><expr><name>err</name> <operator>=</operator> <call><name>OMX_EmptyThisBuffer</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>handle</name></name></expr></argument>, <argument><expr><name>buffer</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name>err</name> <operator>!=</operator> <name>OMX_ErrorNone</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>append_buffer</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>input_mutex</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>input_cond</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>num_free_in_buffers</name></name></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>free_in_buffers</name></name></expr></argument>, <argument><expr><name>buffer</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>av_log</name><argument_list>(<argument><expr><name>avctx</name></expr></argument>, <argument><expr><name>AV_LOG_ERROR</name></expr></argument>, <argument><expr><literal type="string">"OMX_EmptyThisBuffer failed: %x\n"</literal></expr></argument>, <argument><expr><name>err</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>AVERROR_UNKNOWN</name></expr>;</return>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block></if> <if type="elseif">else if <condition>(<expr><operator>!</operator><name><name>s</name><operator>-&gt;</operator><name>eos_sent</name></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name>buffer</name> <operator>=</operator> <call><name>get_buffer</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>input_mutex</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>input_cond</name></name></expr></argument>,
+<argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>num_free_in_buffers</name></name></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>free_in_buffers</name></name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>buffer</name><operator>-&gt;</operator><name>nFilledLen</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>buffer</name><operator>-&gt;</operator><name>nFlags</name></name> <operator>=</operator> <name>OMX_BUFFERFLAG_EOS</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>buffer</name><operator>-&gt;</operator><name>pAppPrivate</name></name> <operator>=</operator> <name><name>buffer</name><operator>-&gt;</operator><name>pOutputPortPrivate</name></name> <operator>=</operator> <name>NULL</name></expr>;</expr_stmt>
+<expr_stmt><expr><name>err</name> <operator>=</operator> <call><name>OMX_EmptyThisBuffer</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>handle</name></name></expr></argument>, <argument><expr><name>buffer</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name>err</name> <operator>!=</operator> <name>OMX_ErrorNone</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>append_buffer</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>input_mutex</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>input_cond</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>num_free_in_buffers</name></name></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>free_in_buffers</name></name></expr></argument>, <argument><expr><name>buffer</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>av_log</name><argument_list>(<argument><expr><name>avctx</name></expr></argument>, <argument><expr><name>AV_LOG_ERROR</name></expr></argument>, <argument><expr><literal type="string">"OMX_EmptyThisBuffer failed: %x\n"</literal></expr></argument>, <argument><expr><name>err</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>AVERROR_UNKNOWN</name></expr>;</return>
+</block_content>}</block></if></if_stmt>
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>eos_sent</name></name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+
+<while>while <condition>(<expr><operator>!</operator><operator>*</operator><name>got_packet</name> <operator>&amp;&amp;</operator> <name>ret</name> <operator>==</operator> <literal type="number">0</literal> <operator>&amp;&amp;</operator> <operator>!</operator><name><name>s</name><operator>-&gt;</operator><name>got_eos</name></name></expr>)</condition> <block>{<block_content>
+
+
+
+<expr_stmt><expr><name>buffer</name> <operator>=</operator> <call><name>get_buffer</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>output_mutex</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>output_cond</name></name></expr></argument>,
+<argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>num_done_out_buffers</name></name></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>done_out_buffers</name></name></expr></argument>,
+<argument><expr><operator>!</operator><name>frame</name> <operator>||</operator> <name>had_partial</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>buffer</name></expr>)</condition><block type="pseudo"><block_content>
+<break>break;</break></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>buffer</name><operator>-&gt;</operator><name>nFlags</name></name> <operator>&amp;</operator> <name>OMX_BUFFERFLAG_EOS</name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>got_eos</name></name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>buffer</name><operator>-&gt;</operator><name>nFlags</name></name> <operator>&amp;</operator> <name>OMX_BUFFERFLAG_CODECCONFIG</name> <operator>&amp;&amp;</operator> <name><name>avctx</name><operator>-&gt;</operator><name>flags</name></name> <operator>&amp;</operator> <name>AV_CODEC_FLAG_GLOBAL_HEADER</name></expr>)</condition> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><operator>(</operator><name>ret</name> <operator>=</operator> <call><name>av_reallocp</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>avctx</name><operator>-&gt;</operator><name>extradata</name></name></expr></argument>, <argument><expr><name><name>avctx</name><operator>-&gt;</operator><name>extradata_size</name></name> <operator>+</operator> <name><name>buffer</name><operator>-&gt;</operator><name>nFilledLen</name></name> <operator>+</operator> <name>AV_INPUT_BUFFER_PADDING_SIZE</name></expr></argument>)</argument_list></call><operator>)</operator> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name><name>avctx</name><operator>-&gt;</operator><name>extradata_size</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+<goto>goto <name>end</name>;</goto>
+</block_content>}</block></if></if_stmt>
+<expr_stmt><expr><call><name>memcpy</name><argument_list>(<argument><expr><name><name>avctx</name><operator>-&gt;</operator><name>extradata</name></name> <operator>+</operator> <name><name>avctx</name><operator>-&gt;</operator><name>extradata_size</name></name></expr></argument>, <argument><expr><name><name>buffer</name><operator>-&gt;</operator><name>pBuffer</name></name> <operator>+</operator> <name><name>buffer</name><operator>-&gt;</operator><name>nOffset</name></name></expr></argument>, <argument><expr><name><name>buffer</name><operator>-&gt;</operator><name>nFilledLen</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>avctx</name><operator>-&gt;</operator><name>extradata_size</name></name> <operator>+=</operator> <name><name>buffer</name><operator>-&gt;</operator><name>nFilledLen</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>memset</name><argument_list>(<argument><expr><name><name>avctx</name><operator>-&gt;</operator><name>extradata</name></name> <operator>+</operator> <name><name>avctx</name><operator>-&gt;</operator><name>extradata_size</name></name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><name>AV_INPUT_BUFFER_PADDING_SIZE</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><operator>(</operator><name><name>buffer</name><operator>-&gt;</operator><name>nFlags</name></name> <operator>&amp;</operator> <name>OMX_BUFFERFLAG_ENDOFFRAME</name><operator>)</operator> <operator>||</operator> <operator>!</operator><name><name>pkt</name><operator>-&gt;</operator><name>data</name></name></expr>)</condition> <block>{<block_content>
+
+
+<decl_stmt><decl><type><name>int</name></type> <name>newsize</name> <init>= <expr><name><name>s</name><operator>-&gt;</operator><name>output_buf_size</name></name> <operator>+</operator> <name><name>buffer</name><operator>-&gt;</operator><name>nFilledLen</name></name> <operator>+</operator> <name>AV_INPUT_BUFFER_PADDING_SIZE</name></expr></init></decl>;</decl_stmt>
+<if_stmt><if>if <condition>(<expr><operator>(</operator><name>ret</name> <operator>=</operator> <call><name>av_reallocp</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>output_buf</name></name></expr></argument>, <argument><expr><name>newsize</name></expr></argument>)</argument_list></call><operator>)</operator> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>output_buf_size</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+<goto>goto <name>end</name>;</goto>
+</block_content>}</block></if></if_stmt>
+<expr_stmt><expr><call><name>memcpy</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>output_buf</name></name> <operator>+</operator> <name><name>s</name><operator>-&gt;</operator><name>output_buf_size</name></name></expr></argument>, <argument><expr><name><name>buffer</name><operator>-&gt;</operator><name>pBuffer</name></name> <operator>+</operator> <name><name>buffer</name><operator>-&gt;</operator><name>nOffset</name></name></expr></argument>, <argument><expr><name><name>buffer</name><operator>-&gt;</operator><name>nFilledLen</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>output_buf_size</name></name> <operator>+=</operator> <name><name>buffer</name><operator>-&gt;</operator><name>nFilledLen</name></name></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>buffer</name><operator>-&gt;</operator><name>nFlags</name></name> <operator>&amp;</operator> <name>OMX_BUFFERFLAG_ENDOFFRAME</name></expr>)</condition> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><operator>(</operator><name>ret</name> <operator>=</operator> <call><name>av_packet_from_data</name><argument_list>(<argument><expr><name>pkt</name></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>output_buf</name></name></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>output_buf_size</name></name></expr></argument>)</argument_list></call><operator>)</operator> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>av_freep</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>output_buf</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>output_buf_size</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+<goto>goto <name>end</name>;</goto>
+</block_content>}</block></if></if_stmt>
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>output_buf</name></name> <operator>=</operator> <name>NULL</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>output_buf_size</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><name>CONFIG_OMX_RPI</name></expr></cpp:if>
+<expr_stmt><expr><name>had_partial</name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><operator>(</operator><name>ret</name> <operator>=</operator> <call><name>ff_alloc_packet2</name><argument_list>(<argument><expr><name>avctx</name></expr></argument>, <argument><expr><name>pkt</name></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>output_buf_size</name></name> <operator>+</operator> <name><name>buffer</name><operator>-&gt;</operator><name>nFilledLen</name></name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call><operator>)</operator> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>av_log</name><argument_list>(<argument><expr><name>avctx</name></expr></argument>, <argument><expr><name>AV_LOG_ERROR</name></expr></argument>, <argument><expr><literal type="string">"Error getting output packet of size %d.\n"</literal></expr></argument>,
+<argument><expr><operator>(</operator><name>int</name><operator>)</operator><operator>(</operator><name><name>s</name><operator>-&gt;</operator><name>output_buf_size</name></name> <operator>+</operator> <name><name>buffer</name><operator>-&gt;</operator><name>nFilledLen</name></name><operator>)</operator></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<goto>goto <name>end</name>;</goto>
+</block_content>}</block></if></if_stmt>
+<expr_stmt><expr><call><name>memcpy</name><argument_list>(<argument><expr><name><name>pkt</name><operator>-&gt;</operator><name>data</name></name></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>output_buf</name></name></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>output_buf_size</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>memcpy</name><argument_list>(<argument><expr><name><name>pkt</name><operator>-&gt;</operator><name>data</name></name> <operator>+</operator> <name><name>s</name><operator>-&gt;</operator><name>output_buf_size</name></name></expr></argument>, <argument><expr><name><name>buffer</name><operator>-&gt;</operator><name>pBuffer</name></name> <operator>+</operator> <name><name>buffer</name><operator>-&gt;</operator><name>nOffset</name></name></expr></argument>, <argument><expr><name><name>buffer</name><operator>-&gt;</operator><name>nFilledLen</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>av_freep</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>output_buf</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>output_buf_size</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+</block_content>}</block></else></if_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>buffer</name><operator>-&gt;</operator><name>nFlags</name></name> <operator>&amp;</operator> <name>OMX_BUFFERFLAG_ENDOFFRAME</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name><name>pkt</name><operator>-&gt;</operator><name>pts</name></name> <operator>=</operator> <call><name>av_rescale_q</name><argument_list>(<argument><expr><call><name>from_omx_ticks</name><argument_list>(<argument><expr><name><name>buffer</name><operator>-&gt;</operator><name>nTimeStamp</name></name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name>AV_TIME_BASE_Q</name></expr></argument>, <argument><expr><name><name>avctx</name><operator>-&gt;</operator><name>time_base</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+
+
+<expr_stmt><expr><name><name>pkt</name><operator>-&gt;</operator><name>dts</name></name> <operator>=</operator> <name><name>pkt</name><operator>-&gt;</operator><name>pts</name></name></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>buffer</name><operator>-&gt;</operator><name>nFlags</name></name> <operator>&amp;</operator> <name>OMX_BUFFERFLAG_SYNCFRAME</name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name><name>pkt</name><operator>-&gt;</operator><name>flags</name></name> <operator>|=</operator> <name>AV_PKT_FLAG_KEY</name></expr>;</expr_stmt></block_content></block></if></if_stmt>
+<expr_stmt><expr><operator>*</operator><name>got_packet</name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block></else></if_stmt>
+<label><name>end</name>:</label>
+<expr_stmt><expr><name>err</name> <operator>=</operator> <call><name>OMX_FillThisBuffer</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>handle</name></name></expr></argument>, <argument><expr><name>buffer</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name>err</name> <operator>!=</operator> <name>OMX_ErrorNone</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>append_buffer</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>output_mutex</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>output_cond</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>num_done_out_buffers</name></name></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>done_out_buffers</name></name></expr></argument>, <argument><expr><name>buffer</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>av_log</name><argument_list>(<argument><expr><name>avctx</name></expr></argument>, <argument><expr><name>AV_LOG_ERROR</name></expr></argument>, <argument><expr><literal type="string">"OMX_FillThisBuffer failed: %x\n"</literal></expr></argument>, <argument><expr><name>err</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <name>AVERROR_UNKNOWN</name></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block></while>
+<return>return <expr><name>ret</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>av_cold</name> <name>int</name></type> <name>omx_encode_end</name><parameter_list>(<parameter><decl><type><name>AVCodecContext</name> <modifier>*</modifier></type><name>avctx</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>OMXCodecContext</name> <modifier>*</modifier></type><name>s</name> <init>= <expr><name><name>avctx</name><operator>-&gt;</operator><name>priv_data</name></name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>cleanup</name><argument_list>(<argument><expr><name>s</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+</block_content>}</block></function>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>OFFSET</name><parameter_list>(<parameter><type><name>x</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>offsetof(OMXCodecContext, x)</cpp:value></cpp:define>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>VDE</name></cpp:macro> <cpp:value>AV_OPT_FLAG_VIDEO_PARAM | AV_OPT_FLAG_DECODING_PARAM | AV_OPT_FLAG_ENCODING_PARAM</cpp:value></cpp:define>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>VE</name></cpp:macro> <cpp:value>AV_OPT_FLAG_VIDEO_PARAM | AV_OPT_FLAG_ENCODING_PARAM</cpp:value></cpp:define>
+<decl_stmt><decl><type><specifier>static</specifier> <specifier>const</specifier> <name>AVOption</name></type> <name><name>options</name><index>[]</index></name> <init>= <expr><block>{
+<expr><block>{ <expr><literal type="string">"omx_libname"</literal></expr>, <expr><literal type="string">"OpenMAX library name"</literal></expr>, <expr><call><name>OFFSET</name><argument_list>(<argument><expr><name>libname</name></expr></argument>)</argument_list></call></expr>, <expr><name>AV_OPT_TYPE_STRING</name></expr>, <expr><block>{ <expr><literal type="number">0</literal></expr> }</block></expr>, <expr><literal type="number">0</literal></expr>, <expr><literal type="number">0</literal></expr>, <expr><name>VDE</name></expr> }</block></expr>,
+<expr><block>{ <expr><literal type="string">"omx_libprefix"</literal></expr>, <expr><literal type="string">"OpenMAX library prefix"</literal></expr>, <expr><call><name>OFFSET</name><argument_list>(<argument><expr><name>libprefix</name></expr></argument>)</argument_list></call></expr>, <expr><name>AV_OPT_TYPE_STRING</name></expr>, <expr><block>{ <expr><literal type="number">0</literal></expr> }</block></expr>, <expr><literal type="number">0</literal></expr>, <expr><literal type="number">0</literal></expr>, <expr><name>VDE</name></expr> }</block></expr>,
+<expr><block>{ <expr><literal type="string">"zerocopy"</literal></expr>, <expr><literal type="string">"Try to avoid copying input frames if possible"</literal></expr>, <expr><call><name>OFFSET</name><argument_list>(<argument><expr><name>input_zerocopy</name></expr></argument>)</argument_list></call></expr>, <expr><name>AV_OPT_TYPE_INT</name></expr>, <expr><block>{ <expr><operator>.</operator><name>i64</name> <operator>=</operator> <name>CONFIG_OMX_RPI</name></expr> }</block></expr>, <expr><literal type="number">0</literal></expr>, <expr><literal type="number">1</literal></expr>, <expr><name>VE</name></expr> }</block></expr>,
+<expr><block>{ <expr><literal type="string">"profile"</literal></expr>, <expr><literal type="string">"Set the encoding profile"</literal></expr>, <expr><call><name>OFFSET</name><argument_list>(<argument><expr><name>profile</name></expr></argument>)</argument_list></call></expr>, <expr><name>AV_OPT_TYPE_INT</name></expr>, <expr><block>{ <expr><operator>.</operator><name>i64</name> <operator>=</operator> <name>FF_PROFILE_UNKNOWN</name></expr> }</block></expr>, <expr><name>FF_PROFILE_UNKNOWN</name></expr>, <expr><name>FF_PROFILE_H264_HIGH</name></expr>, <expr><name>VE</name></expr>, <expr><literal type="string">"profile"</literal></expr> }</block></expr>,
+<expr><block>{ <expr><literal type="string">"baseline"</literal></expr>, <expr><literal type="string">""</literal></expr>, <expr><literal type="number">0</literal></expr>, <expr><name>AV_OPT_TYPE_CONST</name></expr>, <expr><block>{ <expr><operator>.</operator><name>i64</name> <operator>=</operator> <name>FF_PROFILE_H264_BASELINE</name></expr> }</block></expr>, <expr><literal type="number">0</literal></expr>, <expr><literal type="number">0</literal></expr>, <expr><name>VE</name></expr>, <expr><literal type="string">"profile"</literal></expr> }</block></expr>,
+<expr><block>{ <expr><literal type="string">"main"</literal></expr>, <expr><literal type="string">""</literal></expr>, <expr><literal type="number">0</literal></expr>, <expr><name>AV_OPT_TYPE_CONST</name></expr>, <expr><block>{ <expr><operator>.</operator><name>i64</name> <operator>=</operator> <name>FF_PROFILE_H264_MAIN</name></expr> }</block></expr>, <expr><literal type="number">0</literal></expr>, <expr><literal type="number">0</literal></expr>, <expr><name>VE</name></expr>, <expr><literal type="string">"profile"</literal></expr> }</block></expr>,
+<expr><block>{ <expr><literal type="string">"high"</literal></expr>, <expr><literal type="string">""</literal></expr>, <expr><literal type="number">0</literal></expr>, <expr><name>AV_OPT_TYPE_CONST</name></expr>, <expr><block>{ <expr><operator>.</operator><name>i64</name> <operator>=</operator> <name>FF_PROFILE_H264_HIGH</name></expr> }</block></expr>, <expr><literal type="number">0</literal></expr>, <expr><literal type="number">0</literal></expr>, <expr><name>VE</name></expr>, <expr><literal type="string">"profile"</literal></expr> }</block></expr>,
+<expr><block>{ <expr><name>NULL</name></expr> }</block></expr>
+}</block></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <specifier>const</specifier> <name><name>enum</name> <name>AVPixelFormat</name></name></type> <name><name>omx_encoder_pix_fmts</name><index>[]</index></name> <init>= <expr><block>{
+<expr><name>AV_PIX_FMT_YUV420P</name></expr>, <expr><name>AV_PIX_FMT_NONE</name></expr>
+}</block></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <specifier>const</specifier> <name>AVClass</name></type> <name>omx_mpeg4enc_class</name> <init>= <expr><block>{
+<expr><operator>.</operator><name>class_name</name> <operator>=</operator> <literal type="string">"mpeg4_omx"</literal></expr>,
+<expr><operator>.</operator><name>item_name</name> <operator>=</operator> <name>av_default_item_name</name></expr>,
+<expr><operator>.</operator><name>option</name> <operator>=</operator> <name>options</name></expr>,
+<expr><operator>.</operator><name>version</name> <operator>=</operator> <name>LIBAVUTIL_VERSION_INT</name></expr>,
+}</block></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>AVCodec</name></type> <name>ff_mpeg4_omx_encoder</name> <init>= <expr><block>{
+<expr><operator>.</operator><name>name</name> <operator>=</operator> <literal type="string">"mpeg4_omx"</literal></expr>,
+<expr><operator>.</operator><name>long_name</name> <operator>=</operator> <call><name>NULL_IF_CONFIG_SMALL</name><argument_list>(<argument><expr><literal type="string">"OpenMAX IL MPEG-4 video encoder"</literal></expr></argument>)</argument_list></call></expr>,
+<expr><operator>.</operator><name>type</name> <operator>=</operator> <name>AVMEDIA_TYPE_VIDEO</name></expr>,
+<expr><operator>.</operator><name>id</name> <operator>=</operator> <name>AV_CODEC_ID_MPEG4</name></expr>,
+<expr><operator>.</operator><name>priv_data_size</name> <operator>=</operator> <sizeof>sizeof<argument_list>(<argument><expr><name>OMXCodecContext</name></expr></argument>)</argument_list></sizeof></expr>,
+<expr><operator>.</operator><name>init</name> <operator>=</operator> <name>omx_encode_init</name></expr>,
+<expr><operator>.</operator><name>encode2</name> <operator>=</operator> <name>omx_encode_frame</name></expr>,
+<expr><operator>.</operator><name>close</name> <operator>=</operator> <name>omx_encode_end</name></expr>,
+<expr><operator>.</operator><name>pix_fmts</name> <operator>=</operator> <name>omx_encoder_pix_fmts</name></expr>,
+<expr><operator>.</operator><name>capabilities</name> <operator>=</operator> <name>AV_CODEC_CAP_DELAY</name></expr>,
+<expr><operator>.</operator><name>caps_internal</name> <operator>=</operator> <name>FF_CODEC_CAP_INIT_THREADSAFE</name> <operator>|</operator> <name>FF_CODEC_CAP_INIT_CLEANUP</name></expr>,
+<expr><operator>.</operator><name>priv_class</name> <operator>=</operator> <operator>&amp;</operator><name>omx_mpeg4enc_class</name></expr>,
+}</block></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <specifier>const</specifier> <name>AVClass</name></type> <name>omx_h264enc_class</name> <init>= <expr><block>{
+<expr><operator>.</operator><name>class_name</name> <operator>=</operator> <literal type="string">"h264_omx"</literal></expr>,
+<expr><operator>.</operator><name>item_name</name> <operator>=</operator> <name>av_default_item_name</name></expr>,
+<expr><operator>.</operator><name>option</name> <operator>=</operator> <name>options</name></expr>,
+<expr><operator>.</operator><name>version</name> <operator>=</operator> <name>LIBAVUTIL_VERSION_INT</name></expr>,
+}</block></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>AVCodec</name></type> <name>ff_h264_omx_encoder</name> <init>= <expr><block>{
+<expr><operator>.</operator><name>name</name> <operator>=</operator> <literal type="string">"h264_omx"</literal></expr>,
+<expr><operator>.</operator><name>long_name</name> <operator>=</operator> <call><name>NULL_IF_CONFIG_SMALL</name><argument_list>(<argument><expr><literal type="string">"OpenMAX IL H.264 video encoder"</literal></expr></argument>)</argument_list></call></expr>,
+<expr><operator>.</operator><name>type</name> <operator>=</operator> <name>AVMEDIA_TYPE_VIDEO</name></expr>,
+<expr><operator>.</operator><name>id</name> <operator>=</operator> <name>AV_CODEC_ID_H264</name></expr>,
+<expr><operator>.</operator><name>priv_data_size</name> <operator>=</operator> <sizeof>sizeof<argument_list>(<argument><expr><name>OMXCodecContext</name></expr></argument>)</argument_list></sizeof></expr>,
+<expr><operator>.</operator><name>init</name> <operator>=</operator> <name>omx_encode_init</name></expr>,
+<expr><operator>.</operator><name>encode2</name> <operator>=</operator> <name>omx_encode_frame</name></expr>,
+<expr><operator>.</operator><name>close</name> <operator>=</operator> <name>omx_encode_end</name></expr>,
+<expr><operator>.</operator><name>pix_fmts</name> <operator>=</operator> <name>omx_encoder_pix_fmts</name></expr>,
+<expr><operator>.</operator><name>capabilities</name> <operator>=</operator> <name>AV_CODEC_CAP_DELAY</name></expr>,
+<expr><operator>.</operator><name>caps_internal</name> <operator>=</operator> <name>FF_CODEC_CAP_INIT_THREADSAFE</name> <operator>|</operator> <name>FF_CODEC_CAP_INIT_CLEANUP</name></expr>,
+<expr><operator>.</operator><name>priv_class</name> <operator>=</operator> <operator>&amp;</operator><name>omx_h264enc_class</name></expr>,
+}</block></expr></init></decl>;</decl_stmt>
+</unit>

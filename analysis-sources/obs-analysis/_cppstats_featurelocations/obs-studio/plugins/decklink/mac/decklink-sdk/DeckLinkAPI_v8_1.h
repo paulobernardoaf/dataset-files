@@ -1,0 +1,111 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#if !defined(BMD_DECKLINKAPI_v8_1_H)
+#define BMD_DECKLINKAPI_v8_1_H
+
+#include "DeckLinkAPI.h"
+
+
+
+
+#define IID_IDeckLinkDeckControlStatusCallback_v8_1 (REFIID){0xE5,0xF6,0x93,0xC1,0x42,0x83,0x47,0x16,0xB1,0x8F,0xC1,0x43,0x15,0x21,0x95,0x5B}
+#define IID_IDeckLinkDeckControl_v8_1 (REFIID){0x52,0x2A,0x9E,0x39,0x0F,0x3C,0x47,0x42,0x94,0xEE,0xD8,0x0D,0xE3,0x35,0xDA,0x1D}
+
+
+
+
+typedef uint32_t BMDDeckControlVTRControlState_v8_1;
+enum _BMDDeckControlVTRControlState_v8_1 {
+bmdDeckControlNotInVTRControlMode_v8_1 = 'nvcm',
+bmdDeckControlVTRControlPlaying_v8_1 = 'vtrp',
+bmdDeckControlVTRControlRecording_v8_1 = 'vtrr',
+bmdDeckControlVTRControlStill_v8_1 = 'vtra',
+bmdDeckControlVTRControlSeeking_v8_1 = 'vtrs',
+bmdDeckControlVTRControlStopped_v8_1 = 'vtro'
+};
+
+
+
+
+class IDeckLinkDeckControlStatusCallback_v8_1 : public IUnknown
+{
+public:
+virtual HRESULT TimecodeUpdate ( BMDTimecodeBCD currentTimecode) = 0;
+virtual HRESULT VTRControlStateChanged ( BMDDeckControlVTRControlState_v8_1 newState, BMDDeckControlError error) = 0;
+virtual HRESULT DeckControlEventReceived ( BMDDeckControlEvent event, BMDDeckControlError error) = 0;
+virtual HRESULT DeckControlStatusChanged ( BMDDeckControlStatusFlags flags, uint32_t mask) = 0;
+
+protected:
+virtual ~IDeckLinkDeckControlStatusCallback_v8_1 () {}; 
+};
+
+
+
+class IDeckLinkDeckControl_v8_1 : public IUnknown
+{
+public:
+virtual HRESULT Open ( BMDTimeScale timeScale, BMDTimeValue timeValue, bool timecodeIsDropFrame, BMDDeckControlError *error) = 0;
+virtual HRESULT Close ( bool standbyOn) = 0;
+virtual HRESULT GetCurrentState ( BMDDeckControlMode *mode, BMDDeckControlVTRControlState_v8_1 *vtrControlState, BMDDeckControlStatusFlags *flags) = 0;
+virtual HRESULT SetStandby ( bool standbyOn) = 0;
+virtual HRESULT SendCommand ( uint8_t *inBuffer, uint32_t inBufferSize, uint8_t *outBuffer, uint32_t *outDataSize, uint32_t outBufferSize, BMDDeckControlError *error) = 0;
+virtual HRESULT Play ( BMDDeckControlError *error) = 0;
+virtual HRESULT Stop ( BMDDeckControlError *error) = 0;
+virtual HRESULT TogglePlayStop ( BMDDeckControlError *error) = 0;
+virtual HRESULT Eject ( BMDDeckControlError *error) = 0;
+virtual HRESULT GoToTimecode ( BMDTimecodeBCD timecode, BMDDeckControlError *error) = 0;
+virtual HRESULT FastForward ( bool viewTape, BMDDeckControlError *error) = 0;
+virtual HRESULT Rewind ( bool viewTape, BMDDeckControlError *error) = 0;
+virtual HRESULT StepForward ( BMDDeckControlError *error) = 0;
+virtual HRESULT StepBack ( BMDDeckControlError *error) = 0;
+virtual HRESULT Jog ( double rate, BMDDeckControlError *error) = 0;
+virtual HRESULT Shuttle ( double rate, BMDDeckControlError *error) = 0;
+virtual HRESULT GetTimecodeString ( CFStringRef *currentTimeCode, BMDDeckControlError *error) = 0;
+virtual HRESULT GetTimecode ( IDeckLinkTimecode **currentTimecode, BMDDeckControlError *error) = 0;
+virtual HRESULT GetTimecodeBCD ( BMDTimecodeBCD *currentTimecode, BMDDeckControlError *error) = 0;
+virtual HRESULT SetPreroll ( uint32_t prerollSeconds) = 0;
+virtual HRESULT GetPreroll ( uint32_t *prerollSeconds) = 0;
+virtual HRESULT SetExportOffset ( int32_t exportOffsetFields) = 0;
+virtual HRESULT GetExportOffset ( int32_t *exportOffsetFields) = 0;
+virtual HRESULT GetManualExportOffset ( int32_t *deckManualExportOffsetFields) = 0;
+virtual HRESULT SetCaptureOffset ( int32_t captureOffsetFields) = 0;
+virtual HRESULT GetCaptureOffset ( int32_t *captureOffsetFields) = 0;
+virtual HRESULT StartExport ( BMDTimecodeBCD inTimecode, BMDTimecodeBCD outTimecode, BMDDeckControlExportModeOpsFlags exportModeOps, BMDDeckControlError *error) = 0;
+virtual HRESULT StartCapture ( bool useVITC, BMDTimecodeBCD inTimecode, BMDTimecodeBCD outTimecode, BMDDeckControlError *error) = 0;
+virtual HRESULT GetDeviceID ( uint16_t *deviceId, BMDDeckControlError *error) = 0;
+virtual HRESULT Abort (void) = 0;
+virtual HRESULT CrashRecordStart ( BMDDeckControlError *error) = 0;
+virtual HRESULT CrashRecordStop ( BMDDeckControlError *error) = 0;
+virtual HRESULT SetCallback ( IDeckLinkDeckControlStatusCallback_v8_1 *callback) = 0;
+
+protected:
+virtual ~IDeckLinkDeckControl_v8_1 () {}; 
+};
+
+
+#endif 

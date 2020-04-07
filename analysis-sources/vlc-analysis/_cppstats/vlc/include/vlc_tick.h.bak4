@@ -1,0 +1,302 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#if !defined(__VLC_MTIME_H)
+#define __VLC_MTIME_H 1
+
+
+
+
+
+
+
+
+
+
+
+typedef int64_t vlc_tick_t;
+typedef vlc_tick_t mtime_t; 
+
+
+
+
+
+#define VLC_TICK_FROM_SEC(sec) (CLOCK_FREQ * (sec))
+#define SEC_FROM_VLC_TICK(vtk) ((vtk) / CLOCK_FREQ)
+
+#if defined(__cplusplus)
+#include <type_traits>
+
+template <typename T>
+static inline auto vlc_tick_from_sec(T sec)
+-> typename std::enable_if<std::is_integral<T>::value, vlc_tick_t>::type
+{
+return CLOCK_FREQ * sec;
+}
+
+
+static inline vlc_tick_t vlc_tick_from_sec(double secf)
+{
+return (vlc_tick_t)(CLOCK_FREQ * secf); 
+}
+#else 
+static inline vlc_tick_t vlc_tick_from_seci(int64_t sec)
+{
+return CLOCK_FREQ * sec;
+}
+
+static inline vlc_tick_t vlc_tick_from_secf(double secf)
+{
+return (vlc_tick_t)(CLOCK_FREQ * secf); 
+}
+
+#define vlc_tick_from_sec(sec) _Generic((sec), double: vlc_tick_from_secf(sec), float: vlc_tick_from_secf(sec), default: vlc_tick_from_seci(sec) )
+
+
+
+#endif 
+
+
+static inline double secf_from_vlc_tick(vlc_tick_t vtk)
+{
+return (double)vtk / (double)CLOCK_FREQ;
+}
+
+static inline vlc_tick_t vlc_tick_rate_duration(float frame_rate)
+{
+return CLOCK_FREQ / frame_rate;
+}
+
+
+
+
+static inline vlc_tick_t vlc_tick_from_samples(int64_t samples, int samp_rate)
+{
+return CLOCK_FREQ * samples / samp_rate;
+}
+static inline int64_t samples_from_vlc_tick(vlc_tick_t t, int samp_rate)
+{
+return t * samp_rate / CLOCK_FREQ;
+}
+
+
+static inline vlc_tick_t vlc_tick_from_frac(uint64_t num, uint64_t den)
+{
+lldiv_t d = lldiv (num, den);
+return vlc_tick_from_sec( d.quot ) + vlc_tick_from_samples(d.rem, den);
+}
+
+
+
+
+
+#if (CLOCK_FREQ % 1000) == 0
+#define VLC_TICK_FROM_MS(ms) ((CLOCK_FREQ / INT64_C(1000)) * (ms))
+#define MS_FROM_VLC_TICK(vtk) ((vtk) / (CLOCK_FREQ / INT64_C(1000)))
+#elif (1000 % CLOCK_FREQ) == 0
+#define VLC_TICK_FROM_MS(ms) ((ms) / (INT64_C(1000) / CLOCK_FREQ))
+#define MS_FROM_VLC_TICK(vtk) ((vtk) * (INT64_C(1000) / CLOCK_FREQ))
+#else 
+#define VLC_TICK_FROM_MS(ms) (CLOCK_FREQ * (ms) / 1000)
+#define MS_FROM_VLC_TICK(vtk) ((vtk) * 1000 / CLOCK_FREQ)
+#endif 
+
+
+
+
+
+#if (CLOCK_FREQ % 1000000) == 0
+#define VLC_TICK_FROM_US(us) ((CLOCK_FREQ / INT64_C(1000000)) * (us))
+#define US_FROM_VLC_TICK(vtk) ((vtk) / (CLOCK_FREQ / INT64_C(1000000)))
+#elif (1000000 % CLOCK_FREQ) == 0
+#define VLC_TICK_FROM_US(us) ((us) / (INT64_C(1000000) / CLOCK_FREQ))
+#define US_FROM_VLC_TICK(vtk) ((vtk) * (INT64_C(1000000) / CLOCK_FREQ))
+#else 
+#define VLC_TICK_FROM_US(us) (CLOCK_FREQ * (us) / INT64_C(1000000))
+#define US_FROM_VLC_TICK(vtk) ((vtk) * INT64_C(1000000) / CLOCK_FREQ)
+#endif 
+
+
+
+
+
+#if (CLOCK_FREQ % 1000000000) == 0
+#define VLC_TICK_FROM_NS(ns) ((ns) * (CLOCK_FREQ / (INT64_C(1000000000))))
+#define NS_FROM_VLC_TICK(vtk) ((vtk) / (CLOCK_FREQ / (INT64_C(1000000000))))
+#elif (1000000000 % CLOCK_FREQ) == 0
+#define VLC_TICK_FROM_NS(ns) ((ns) / (INT64_C(1000000000) / CLOCK_FREQ))
+#define NS_FROM_VLC_TICK(vtk) ((vtk) * (INT64_C(1000000000) / CLOCK_FREQ))
+#else 
+#define VLC_TICK_FROM_NS(ns) (CLOCK_FREQ * (ns) / INT64_C(1000000000))
+#define NS_FROM_VLC_TICK(vtk) ((vtk) * INT64_C(1000000000) / CLOCK_FREQ)
+#endif 
+
+
+
+
+
+typedef int64_t msftime_t;
+
+#define MSFTIME_FROM_SEC(sec) (INT64_C(10000000) * (sec)) 
+#define MSFTIME_FROM_MS(sec) (INT64_C(10000) * (sec)) 
+
+#if (CLOCK_FREQ % 10000000) == 0
+#define VLC_TICK_FROM_MSFTIME(msft) ((msft) * (CLOCK_FREQ / INT64_C(10000000))
+#define MSFTIME_FROM_VLC_TICK(vtk) ((vtk) / (CLOCK_FREQ / INT64_C(10000000))
+#elif (10000000 % CLOCK_FREQ) == 0
+#define VLC_TICK_FROM_MSFTIME(msft) ((msft) / (INT64_C(10000000) / CLOCK_FREQ))
+#define MSFTIME_FROM_VLC_TICK(vtk) ((vtk) * (INT64_C(10000000) / CLOCK_FREQ))
+#else 
+#define VLC_TICK_FROM_MSFTIME(msft) (CLOCK_FREQ * (msft) / INT64_C(10000000))
+#define MSFTIME_FROM_VLC_TICK(vtk) ((vtk) * INT64_C(10000000) / CLOCK_FREQ)
+#endif 
+
+#define vlc_tick_from_timeval(tv) (vlc_tick_from_sec( (tv)->tv_sec ) + VLC_TICK_FROM_US( (tv)->tv_usec ))
+
+
+#define vlc_tick_from_timespec(tv) (vlc_tick_from_sec( (tv)->tv_sec ) + VLC_TICK_FROM_NS( (tv)->tv_nsec ))
+
+
+struct timespec timespec_from_vlc_tick(vlc_tick_t date);
+
+
+
+
+
+
+
+
+
+#define MSTRTIME_MAX_SIZE 22
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+VLC_API char * secstotimestr( char *psz_buffer, int32_t secs );
+
+
+
+
+
+
+
+
+
+
+
+struct date_t
+{
+vlc_tick_t date;
+uint32_t i_divider_num;
+uint32_t i_divider_den;
+uint32_t i_remainder;
+};
+
+
+
+
+
+
+
+
+VLC_API void date_Init(date_t *restrict date, uint32_t num, uint32_t den);
+
+
+
+
+
+
+
+
+VLC_API void date_Change(date_t *restrict date, uint32_t num, uint32_t den);
+
+
+
+
+
+
+
+static inline void date_Set(date_t *restrict date, vlc_tick_t value)
+{
+date->date = value;
+date->i_remainder = 0;
+}
+
+
+
+
+
+
+
+VLC_USED static inline vlc_tick_t date_Get(const date_t *restrict date)
+{
+return date->date;
+}
+
+
+
+
+
+
+
+
+
+
+VLC_API vlc_tick_t date_Increment(date_t *restrict date, uint32_t count);
+
+
+
+
+
+
+
+
+
+
+VLC_API vlc_tick_t date_Decrement(date_t *restrict date, uint32_t count);
+
+
+
+
+
+
+VLC_API uint64_t NTPtime64( void );
+#endif 

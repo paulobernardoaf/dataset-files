@@ -1,0 +1,40 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#if !defined(AVFILTER_ANLMDNDSP_H)
+#define AVFILTER_ANLMDNDSP_H
+
+#include "libavutil/common.h"
+
+#include "audio.h"
+#include "avfilter.h"
+#include "formats.h"
+#include "internal.h"
+
+typedef struct AudioNLMDNDSPContext {
+float (*compute_distance_ssd)(const float *f1, const float *f2, ptrdiff_t K);
+void (*compute_cache)(float *cache, const float *f, ptrdiff_t S, ptrdiff_t K,
+ptrdiff_t i, ptrdiff_t jj);
+} AudioNLMDNDSPContext;
+
+void ff_anlmdn_init(AudioNLMDNDSPContext *s);
+void ff_anlmdn_init_x86(AudioNLMDNDSPContext *s);
+
+#endif 

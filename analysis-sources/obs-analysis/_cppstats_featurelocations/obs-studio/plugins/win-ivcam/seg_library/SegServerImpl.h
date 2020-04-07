@@ -1,0 +1,77 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#if !defined(SEG_SERVER_IMPL_H_)
+#define SEG_SERVER_IMPL_H_
+
+#include "Dependencies.h"
+#include "SegImage.h"
+#include "SegServer.h"
+
+#include "seg_service.h"
+
+typedef struct
+{
+int width;
+int height;
+int pitch;
+long long timestamp;
+int frameNumber;
+} FrameHeader;
+
+class SegServerImpl : public SegServer
+{
+private:
+static SegServerImpl* instance;
+ISegProc* m_server;
+
+bool m_comInit;
+bool m_serviceConnected;
+
+LPWSTR m_bufferName;
+LPCTSTR m_sharedBuffer;
+
+SegServerImpl();
+SegServerImpl(SegServerImpl const& src) = delete;
+SegServerImpl& operator=(const SegServerImpl & src) = delete;
+
+public:
+virtual ~SegServerImpl();
+static SegServer* CreateServer();
+static SegServer* GetServerInstance();
+
+ServiceStatus Init();
+ServiceStatus Stop();
+void SetFps(int fps) override;
+int GetFps() override;
+void SetIVCAMMotionRangeTradeOff(int value) override;
+int GetIVCAMMotionRangeTradeOff() override;
+
+ServiceStatus GetFrame(SegImage** image);
+};
+
+#endif 

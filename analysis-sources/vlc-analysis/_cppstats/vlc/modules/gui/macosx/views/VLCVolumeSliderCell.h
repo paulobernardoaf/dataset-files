@@ -1,0 +1,21 @@
+#import <Cocoa/Cocoa.h>
+#import "views/VLCDefaultValueSliderCell.h"
+@interface VLCVolumeSliderCell : VLCDefaultValueSliderCell
+@property NSColor *gradientColor;
+@property NSColor *gradientColor2;
+@property NSColor *trackStrokeColor;
+@property NSColor *filledTrackColor;
+@property NSColor *knobFillColor;
+@property NSColor *activeKnobFillColor;
+@property NSColor *shadowColor;
+@property NSColor *knobStrokeColor;
+@property NSColor *highlightBackground;
+@property NSGradient *trackGradient;
+@property NSGradient *highlightGradient;
+@property NSGradient *knobGradient;
+@property CGFloat knobGradientAngle;
+@property CGFloat knobGradientAngleHighlighted;
+@property NSShadow *knobShadow;
+- (void)setSliderStyleLight;
+- (void)setSliderStyleDark;
+@end

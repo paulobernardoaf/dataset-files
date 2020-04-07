@@ -1,0 +1,1472 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" revision="1.0.0" language="C" filename="D:\Pesquisa\Projects\obs-analysis\_cppstats\obs-studio\plugins\win-capture\graphics-hook\graphics-hook.c"><cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;windows.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;psapi.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;inttypes.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"graphics-hook.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"../graphics-hook-ver.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"../obfuscate.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"../funchook.h"</cpp:file></cpp:include>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>DEBUG_OUTPUT</name></cpp:macro></cpp:define>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><call><name>defined</name><argument_list>(<argument><expr><name>DEBUG_OUTPUT</name></expr></argument>)</argument_list></call></expr></cpp:if>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>DbgOut</name><parameter_list>(<parameter><type><name>x</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>OutputDebugStringA(x)</cpp:value></cpp:define>
+
+<cpp:else>#<cpp:directive>else</cpp:directive></cpp:else>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>DbgOut</name><parameter_list>(<parameter><type><name>x</name></type></parameter>)</parameter_list></cpp:macro></cpp:define>
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+<struct>struct <name>thread_data</name> <block>{
+
+<decl_stmt><decl><type><name>CRITICAL_SECTION</name></type> <name><name>mutexes</name><index>[<expr><name>NUM_BUFFERS</name></expr>]</index></name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>CRITICAL_SECTION</name></type> <name>data_mutex</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>void</name> <modifier>*</modifier><specifier>volatile</specifier></type> <name>cur_data</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>uint8_t</name> <modifier>*</modifier></type><name><name>shmem_textures</name><index>[<expr><literal type="number">2</literal></expr>]</index></name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>HANDLE</name></type> <name>copy_thread</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>HANDLE</name></type> <name>copy_event</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>HANDLE</name></type> <name>stop_event</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>volatile</specifier> <name>int</name></type> <name>cur_tex</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>unsigned</name> <name>int</name></type> <name>pitch</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>unsigned</name> <name>int</name></type> <name>cy</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>volatile</specifier> <name>bool</name></type> <name><name>locked_textures</name><index>[<expr><name>NUM_BUFFERS</name></expr>]</index></name></decl>;</decl_stmt>
+
+}</block>;</struct>
+
+<decl_stmt><decl><type><name>ipc_pipe_client_t</name></type> <name>pipe</name> <init>= <expr><block>{<expr><literal type="number">0</literal></expr>}</block></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>HANDLE</name></type> <name>signal_restart</name> <init>= <expr><name>NULL</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>HANDLE</name></type> <name>signal_stop</name> <init>= <expr><name>NULL</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>HANDLE</name></type> <name>signal_ready</name> <init>= <expr><name>NULL</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>HANDLE</name></type> <name>signal_exit</name> <init>= <expr><name>NULL</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>HANDLE</name></type> <name>signal_init</name> <init>= <expr><name>NULL</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>HANDLE</name></type> <name><name>tex_mutexes</name><index>[<expr><literal type="number">2</literal></expr>]</index></name> <init>= <expr><block>{<expr><name>NULL</name></expr>, <expr><name>NULL</name></expr>}</block></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>HANDLE</name></type> <name>filemap_hook_info</name> <init>= <expr><name>NULL</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>HINSTANCE</name></type> <name>dll_inst</name> <init>= <expr><name>NULL</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <specifier>volatile</specifier> <name>bool</name></type> <name>stop_loop</name> <init>= <expr><name>false</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>HANDLE</name></type> <name>dup_hook_mutex</name> <init>= <expr><name>NULL</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>HANDLE</name></type> <name>capture_thread</name> <init>= <expr><name>NULL</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>char</name></type> <name><name>system_path</name><index>[<expr><name>MAX_PATH</name></expr>]</index></name> <init>= <expr><block>{<expr><literal type="number">0</literal></expr>}</block></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>char</name></type> <name><name>process_name</name><index>[<expr><name>MAX_PATH</name></expr>]</index></name> <init>= <expr><block>{<expr><literal type="number">0</literal></expr>}</block></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>wchar_t</name></type> <name><name>keepalive_name</name><index>[<expr><literal type="number">64</literal></expr>]</index></name> <init>= <expr><block>{<expr><literal type="number">0</literal></expr>}</block></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>HWND</name></type> <name>dummy_window</name> <init>= <expr><name>NULL</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>unsigned</name> <name>int</name></type> <name>shmem_id_counter</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>void</name> <modifier>*</modifier></type><name>shmem_info</name> <init>= <expr><name>NULL</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>HANDLE</name></type> <name>shmem_file_handle</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name><name>struct</name> <name>thread_data</name></name></type> <name>thread_data</name> <init>= <expr><block>{<expr><literal type="number">0</literal></expr>}</block></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>volatile</specifier> <name>bool</name></type> <name>active</name> <init>= <expr><name>false</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>hook_info</name></name> <modifier>*</modifier></type><name>global_hook_info</name> <init>= <expr><name>NULL</name></expr></init></decl>;</decl_stmt>
+
+<function><type><specifier>static</specifier> <specifier>inline</specifier> <name>void</name></type> <name>wait_for_dll_main_finish</name><parameter_list>(<parameter><decl><type><name>HANDLE</name></type> <name>thread_handle</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><name>thread_handle</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>WaitForSingleObject</name><argument_list>(<argument><expr><name>thread_handle</name></expr></argument>, <argument><expr><literal type="number">100</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>CloseHandle</name><argument_list>(<argument><expr><name>thread_handle</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></function>
+
+<function><type><name>bool</name></type> <name>init_pipe</name><parameter_list>(<parameter><decl><type><name>void</name></type></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>char</name></type> <name><name>new_name</name><index>[<expr><literal type="number">64</literal></expr>]</index></name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>sprintf</name><argument_list>(<argument><expr><name>new_name</name></expr></argument>, <argument><expr><literal type="string">"%s%lu"</literal></expr></argument>, <argument><expr><name>PIPE_NAME</name></expr></argument>, <argument><expr><call><name>GetCurrentProcessId</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>ipc_pipe_client_open</name><argument_list>(<argument><expr><operator>&amp;</operator><name>pipe</name></expr></argument>, <argument><expr><name>new_name</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>DbgOut</name><argument_list>(<argument><expr><literal type="string">"Failed to open pipe\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>false</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<return>return <expr><name>true</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>HANDLE</name></type> <name>init_event</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name>wchar_t</name> <modifier>*</modifier></type><name>name</name></decl></parameter>, <parameter><decl><type><name>DWORD</name></type> <name>pid</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>HANDLE</name></type> <name>handle</name> <init>= <expr><call><name>create_event_plus_id</name><argument_list>(<argument><expr><name>name</name></expr></argument>, <argument><expr><name>pid</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>handle</name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>hlog</name><argument_list>(<argument><expr><literal type="string">"Failed to get event '%s': %lu"</literal></expr></argument>, <argument><expr><name>name</name></expr></argument>, <argument><expr><call><name>GetLastError</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<return>return <expr><name>handle</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>HANDLE</name></type> <name>init_mutex</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name>wchar_t</name> <modifier>*</modifier></type><name>name</name></decl></parameter>, <parameter><decl><type><name>DWORD</name></type> <name>pid</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>HANDLE</name></type> <name>handle</name> <init>= <expr><call><name>create_mutex_plus_id</name><argument_list>(<argument><expr><name>name</name></expr></argument>, <argument><expr><name>pid</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>handle</name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>hlog</name><argument_list>(<argument><expr><literal type="string">"Failed to open mutex '%s': %lu"</literal></expr></argument>, <argument><expr><name>name</name></expr></argument>, <argument><expr><call><name>GetLastError</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<return>return <expr><name>handle</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <specifier>inline</specifier> <name>bool</name></type> <name>init_signals</name><parameter_list>(<parameter><decl><type><name>void</name></type></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>DWORD</name></type> <name>pid</name> <init>= <expr><call><name>GetCurrentProcessId</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>signal_restart</name> <operator>=</operator> <call><name>init_event</name><argument_list>(<argument><expr><name>EVENT_CAPTURE_RESTART</name></expr></argument>, <argument><expr><name>pid</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>signal_restart</name></expr>)</condition> <block>{<block_content>
+
+<return>return <expr><name>false</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name>signal_stop</name> <operator>=</operator> <call><name>init_event</name><argument_list>(<argument><expr><name>EVENT_CAPTURE_STOP</name></expr></argument>, <argument><expr><name>pid</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>signal_stop</name></expr>)</condition> <block>{<block_content>
+
+<return>return <expr><name>false</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name>signal_ready</name> <operator>=</operator> <call><name>init_event</name><argument_list>(<argument><expr><name>EVENT_HOOK_READY</name></expr></argument>, <argument><expr><name>pid</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>signal_ready</name></expr>)</condition> <block>{<block_content>
+
+<return>return <expr><name>false</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name>signal_exit</name> <operator>=</operator> <call><name>init_event</name><argument_list>(<argument><expr><name>EVENT_HOOK_EXIT</name></expr></argument>, <argument><expr><name>pid</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>signal_exit</name></expr>)</condition> <block>{<block_content>
+
+<return>return <expr><name>false</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name>signal_init</name> <operator>=</operator> <call><name>init_event</name><argument_list>(<argument><expr><name>EVENT_HOOK_INIT</name></expr></argument>, <argument><expr><name>pid</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>signal_init</name></expr>)</condition> <block>{<block_content>
+
+<return>return <expr><name>false</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<return>return <expr><name>true</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <specifier>inline</specifier> <name>bool</name></type> <name>init_mutexes</name><parameter_list>(<parameter><decl><type><name>void</name></type></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>DWORD</name></type> <name>pid</name> <init>= <expr><call><name>GetCurrentProcessId</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>tex_mutexes</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>=</operator> <call><name>init_mutex</name><argument_list>(<argument><expr><name>MUTEX_TEXTURE1</name></expr></argument>, <argument><expr><name>pid</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>tex_mutexes</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr>)</condition> <block>{<block_content>
+
+<return>return <expr><name>false</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>tex_mutexes</name><index>[<expr><literal type="number">1</literal></expr>]</index></name> <operator>=</operator> <call><name>init_mutex</name><argument_list>(<argument><expr><name>MUTEX_TEXTURE2</name></expr></argument>, <argument><expr><name>pid</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>tex_mutexes</name><index>[<expr><literal type="number">1</literal></expr>]</index></name></expr>)</condition> <block>{<block_content>
+
+<return>return <expr><name>false</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<return>return <expr><name>true</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <specifier>inline</specifier> <name>bool</name></type> <name>init_system_path</name><parameter_list>(<parameter><decl><type><name>void</name></type></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>UINT</name></type> <name>ret</name> <init>= <expr><call><name>GetSystemDirectoryA</name><argument_list>(<argument><expr><name>system_path</name></expr></argument>, <argument><expr><name>MAX_PATH</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>ret</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>hlog</name><argument_list>(<argument><expr><literal type="string">"Failed to get windows system path: %lu"</literal></expr></argument>, <argument><expr><call><name>GetLastError</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>false</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<return>return <expr><name>true</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <specifier>inline</specifier> <name>void</name></type> <name>log_current_process</name><parameter_list>(<parameter><decl><type><name>void</name></type></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>DWORD</name></type> <name>len</name> <init>= <expr><call><name>GetModuleBaseNameA</name><argument_list>(<argument><expr><call><name>GetCurrentProcess</name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><name>NULL</name></expr></argument>, <argument><expr><name>process_name</name></expr></argument>,
+
+<argument><expr><name>MAX_PATH</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>len</name> <operator>&gt;</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name><name>process_name</name><index>[<expr><name>len</name></expr>]</index></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>hlog</name><argument_list>(<argument><expr><literal type="string">"Hooked to process: %s"</literal></expr></argument>, <argument><expr><name>process_name</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>hlog</name><argument_list>(<argument><expr><literal type="string">"(half life scientist) everything.. seems to be in order"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <specifier>inline</specifier> <name>bool</name></type> <name>init_hook_info</name><parameter_list>(<parameter><decl><type><name>void</name></type></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><name>filemap_hook_info</name> <operator>=</operator> <call><name>create_hook_info</name><argument_list>(<argument><expr><call><name>GetCurrentProcessId</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>filemap_hook_info</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>hlog</name><argument_list>(<argument><expr><literal type="string">"Failed to create hook info file mapping: %lu"</literal></expr></argument>,
+
+<argument><expr><call><name>GetLastError</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>false</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name>global_hook_info</name> <operator>=</operator> <call><name>MapViewOfFile</name><argument_list>(<argument><expr><name>filemap_hook_info</name></expr></argument>, <argument><expr><name>FILE_MAP_ALL_ACCESS</name></expr></argument>,
+
+<argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr>struct <name>hook_info</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>global_hook_info</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>hlog</name><argument_list>(<argument><expr><literal type="string">"Failed to map the hook info file mapping: %lu"</literal></expr></argument>,
+
+<argument><expr><call><name>GetLastError</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>false</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<return>return <expr><name>true</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>DEF_FLAGS</name></cpp:macro> <cpp:value>(WS_POPUP | WS_CLIPCHILDREN | WS_CLIPSIBLINGS)</cpp:value></cpp:define>
+
+<function><type><specifier>static</specifier> <name>DWORD</name> <name>WINAPI</name></type> <name>dummy_window_thread</name><parameter_list>(<parameter><decl><type><name>LPVOID</name> <modifier>*</modifier></type><name>unused</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><specifier>static</specifier> <specifier>const</specifier> <name>wchar_t</name></type> <name><name>dummy_window_class</name><index>[]</index></name> <init>= <expr><literal type="string">L"temp_d3d_window_4039785"</literal></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>WNDCLASSW</name></type> <name>wc</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>MSG</name></type> <name>msg</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>memset</name><argument_list>(<argument><expr><operator>&amp;</operator><name>wc</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr><name>wc</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>wc</name><operator>.</operator><name>style</name></name> <operator>=</operator> <name>CS_OWNDC</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>wc</name><operator>.</operator><name>hInstance</name></name> <operator>=</operator> <name>dll_inst</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>wc</name><operator>.</operator><name>lpfnWndProc</name></name> <operator>=</operator> <operator>(</operator><name>WNDPROC</name><operator>)</operator><name>DefWindowProc</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>wc</name><operator>.</operator><name>lpszClassName</name></name> <operator>=</operator> <name>dummy_window_class</name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>RegisterClass</name><argument_list>(<argument><expr><operator>&amp;</operator><name>wc</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>hlog</name><argument_list>(<argument><expr><literal type="string">"Failed to create temp D3D window class: %lu"</literal></expr></argument>,
+
+<argument><expr><call><name>GetLastError</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name>dummy_window</name> <operator>=</operator> <call><name>CreateWindowExW</name><argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><name>dummy_window_class</name></expr></argument>, <argument><expr><literal type="string">L"Temp Window"</literal></expr></argument>,
+
+<argument><expr><name>DEF_FLAGS</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>, <argument><expr><name>NULL</name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>,
+
+<argument><expr><name>dll_inst</name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>dummy_window</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>hlog</name><argument_list>(<argument><expr><literal type="string">"Failed to create temp D3D window: %lu"</literal></expr></argument>, <argument><expr><call><name>GetLastError</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<while>while <condition>(<expr><call><name>GetMessage</name><argument_list>(<argument><expr><operator>&amp;</operator><name>msg</name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>TranslateMessage</name><argument_list>(<argument><expr><operator>&amp;</operator><name>msg</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>DispatchMessage</name><argument_list>(<argument><expr><operator>&amp;</operator><name>msg</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></while>
+
+<expr_stmt><expr><operator>(</operator><name>void</name><operator>)</operator><name>unused</name></expr>;</expr_stmt>
+
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <specifier>inline</specifier> <name>void</name></type> <name>init_dummy_window_thread</name><parameter_list>(<parameter><decl><type><name>void</name></type></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>HANDLE</name></type> <name>thread</name> <init>=
+
+<expr><call><name>CreateThread</name><argument_list>(<argument><expr><name>NULL</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><name>dummy_window_thread</name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>thread</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>hlog</name><argument_list>(<argument><expr><literal type="string">"Failed to create temp D3D window thread: %lu"</literal></expr></argument>,
+
+<argument><expr><call><name>GetLastError</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>CloseHandle</name><argument_list>(<argument><expr><name>thread</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <specifier>inline</specifier> <name>bool</name></type> <name>init_hook</name><parameter_list>(<parameter><decl><type><name>HANDLE</name></type> <name>thread_handle</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>wait_for_dll_main_finish</name><argument_list>(<argument><expr><name>thread_handle</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>_snwprintf</name><argument_list>(<argument><expr><name>keepalive_name</name></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr><name>keepalive_name</name></expr></argument>)</argument_list></sizeof> <operator>/</operator> <sizeof>sizeof<argument_list>(<argument><expr><name>wchar_t</name></expr></argument>)</argument_list></sizeof></expr></argument>,
+
+<argument><expr><literal type="string">L"%s%lu"</literal></expr></argument>, <argument><expr><name>WINDOW_HOOK_KEEPALIVE</name></expr></argument>, <argument><expr><call><name>GetCurrentProcessId</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>init_pipe</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>init_dummy_window_thread</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>log_current_process</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>SetEvent</name><argument_list>(<argument><expr><name>signal_restart</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>true</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <specifier>inline</specifier> <name>void</name></type> <name>close_handle</name><parameter_list>(<parameter><decl><type><name>HANDLE</name> <modifier>*</modifier></type><name>handle</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><operator>*</operator><name>handle</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>CloseHandle</name><argument_list>(<argument><expr><operator>*</operator><name>handle</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><operator>*</operator><name>handle</name> <operator>=</operator> <name>NULL</name></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>free_hook</name><parameter_list>(<parameter><decl><type><name>void</name></type></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><name>filemap_hook_info</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>CloseHandle</name><argument_list>(<argument><expr><name>filemap_hook_info</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>filemap_hook_info</name> <operator>=</operator> <name>NULL</name></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>global_hook_info</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>UnmapViewOfFile</name><argument_list>(<argument><expr><name>global_hook_info</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>global_hook_info</name> <operator>=</operator> <name>NULL</name></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>close_handle</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>tex_mutexes</name><index>[<expr><literal type="number">1</literal></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>close_handle</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>tex_mutexes</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>close_handle</name><argument_list>(<argument><expr><operator>&amp;</operator><name>signal_exit</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>close_handle</name><argument_list>(<argument><expr><operator>&amp;</operator><name>signal_ready</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>close_handle</name><argument_list>(<argument><expr><operator>&amp;</operator><name>signal_stop</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>close_handle</name><argument_list>(<argument><expr><operator>&amp;</operator><name>signal_restart</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>close_handle</name><argument_list>(<argument><expr><operator>&amp;</operator><name>dup_hook_mutex</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>ipc_pipe_client_free</name><argument_list>(<argument><expr><operator>&amp;</operator><name>pipe</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <specifier>inline</specifier> <name>bool</name></type> <name>d3d8_hookable</name><parameter_list>(<parameter><decl><type><name>void</name></type></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<return>return <expr><operator>!</operator><operator>!</operator><name><name>global_hook_info</name><operator>-&gt;</operator><name>offsets</name><operator>.</operator><name>d3d8</name><operator>.</operator><name>present</name></name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <specifier>inline</specifier> <name>bool</name></type> <name>ddraw_hookable</name><parameter_list>(<parameter><decl><type><name>void</name></type></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<return>return <expr><operator>!</operator><operator>!</operator><name><name>global_hook_info</name><operator>-&gt;</operator><name>offsets</name><operator>.</operator><name>ddraw</name><operator>.</operator><name>surface_create</name></name> <operator>&amp;&amp;</operator>
+
+<operator>!</operator><operator>!</operator><name><name>global_hook_info</name><operator>-&gt;</operator><name>offsets</name><operator>.</operator><name>ddraw</name><operator>.</operator><name>surface_restore</name></name> <operator>&amp;&amp;</operator>
+
+<operator>!</operator><operator>!</operator><name><name>global_hook_info</name><operator>-&gt;</operator><name>offsets</name><operator>.</operator><name>ddraw</name><operator>.</operator><name>surface_release</name></name> <operator>&amp;&amp;</operator>
+
+<operator>!</operator><operator>!</operator><name><name>global_hook_info</name><operator>-&gt;</operator><name>offsets</name><operator>.</operator><name>ddraw</name><operator>.</operator><name>surface_unlock</name></name> <operator>&amp;&amp;</operator>
+
+<operator>!</operator><operator>!</operator><name><name>global_hook_info</name><operator>-&gt;</operator><name>offsets</name><operator>.</operator><name>ddraw</name><operator>.</operator><name>surface_blt</name></name> <operator>&amp;&amp;</operator>
+
+<operator>!</operator><operator>!</operator><name><name>global_hook_info</name><operator>-&gt;</operator><name>offsets</name><operator>.</operator><name>ddraw</name><operator>.</operator><name>surface_flip</name></name> <operator>&amp;&amp;</operator>
+
+<operator>!</operator><operator>!</operator><name><name>global_hook_info</name><operator>-&gt;</operator><name>offsets</name><operator>.</operator><name>ddraw</name><operator>.</operator><name>surface_set_palette</name></name> <operator>&amp;&amp;</operator>
+
+<operator>!</operator><operator>!</operator><name><name>global_hook_info</name><operator>-&gt;</operator><name>offsets</name><operator>.</operator><name>ddraw</name><operator>.</operator><name>palette_set_entries</name></name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <specifier>inline</specifier> <name>bool</name></type> <name>d3d9_hookable</name><parameter_list>(<parameter><decl><type><name>void</name></type></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<return>return <expr><operator>!</operator><operator>!</operator><name><name>global_hook_info</name><operator>-&gt;</operator><name>offsets</name><operator>.</operator><name>d3d9</name><operator>.</operator><name>present</name></name> <operator>&amp;&amp;</operator>
+
+<operator>!</operator><operator>!</operator><name><name>global_hook_info</name><operator>-&gt;</operator><name>offsets</name><operator>.</operator><name>d3d9</name><operator>.</operator><name>present_ex</name></name> <operator>&amp;&amp;</operator>
+
+<operator>!</operator><operator>!</operator><name><name>global_hook_info</name><operator>-&gt;</operator><name>offsets</name><operator>.</operator><name>d3d9</name><operator>.</operator><name>present_swap</name></name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <specifier>inline</specifier> <name>bool</name></type> <name>dxgi_hookable</name><parameter_list>(<parameter><decl><type><name>void</name></type></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<return>return <expr><operator>!</operator><operator>!</operator><name><name>global_hook_info</name><operator>-&gt;</operator><name>offsets</name><operator>.</operator><name>dxgi</name><operator>.</operator><name>present</name></name> <operator>&amp;&amp;</operator>
+
+<operator>!</operator><operator>!</operator><name><name>global_hook_info</name><operator>-&gt;</operator><name>offsets</name><operator>.</operator><name>dxgi</name><operator>.</operator><name>resize</name></name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <specifier>inline</specifier> <name>bool</name></type> <name>attempt_hook</name><parameter_list>(<parameter><decl><type><name>void</name></type></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>bool</name></type> <name>d3d8_hooked</name> <init>= <expr><name>false</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>bool</name></type> <name>d3d9_hooked</name> <init>= <expr><name>false</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>bool</name></type> <name>dxgi_hooked</name> <init>= <expr><name>false</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>bool</name></type> <name>gl_hooked</name> <init>= <expr><name>false</name></expr></init></decl>;</decl_stmt>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><name>COMPILE_VULKAN_HOOK</name></expr></cpp:if>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>bool</name></type> <name>vulkan_hooked</name> <init>= <expr><name>false</name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>vulkan_hooked</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>vulkan_hooked</name> <operator>=</operator> <call><name>hook_vulkan</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>vulkan_hooked</name></expr>)</condition> <block>{<block_content>
+
+<return>return <expr><name>true</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif> 
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>d3d9_hooked</name></expr>)</condition> <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>d3d9_hookable</name><argument_list>()</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>DbgOut</name><argument_list>(<argument><expr><literal type="string">"no D3D9 hook address found!\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>d3d9_hooked</name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<expr_stmt><expr><name>d3d9_hooked</name> <operator>=</operator> <call><name>hook_d3d9</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>d3d9_hooked</name></expr>)</condition> <block>{<block_content>
+
+<return>return <expr><name>true</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>dxgi_hooked</name></expr>)</condition> <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>dxgi_hookable</name><argument_list>()</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>DbgOut</name><argument_list>(<argument><expr><literal type="string">"no DXGI hook address found!\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>dxgi_hooked</name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<expr_stmt><expr><name>dxgi_hooked</name> <operator>=</operator> <call><name>hook_dxgi</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>dxgi_hooked</name></expr>)</condition> <block>{<block_content>
+
+<return>return <expr><name>true</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>gl_hooked</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>gl_hooked</name> <operator>=</operator> <call><name>hook_gl</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>gl_hooked</name></expr>)</condition> <block>{<block_content>
+
+<return>return <expr><name>true</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>d3d8_hooked</name></expr>)</condition> <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>d3d8_hookable</name><argument_list>()</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>d3d8_hooked</name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<expr_stmt><expr><name>d3d8_hooked</name> <operator>=</operator> <call><name>hook_d3d8</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>d3d8_hooked</name></expr>)</condition> <block>{<block_content>
+
+<return>return <expr><name>true</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<return>return <expr><name>false</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <specifier>inline</specifier> <name>void</name></type> <name>capture_loop</name><parameter_list>(<parameter><decl><type><name>void</name></type></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>WaitForSingleObject</name><argument_list>(<argument><expr><name>signal_init</name></expr></argument>, <argument><expr><name>INFINITE</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<while>while <condition>(<expr><operator>!</operator><call><name>attempt_hook</name><argument_list>()</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>Sleep</name><argument_list>(<argument><expr><literal type="number">40</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></while>
+
+<for>for <control>(<init><decl><type><name>size_t</name></type> <name>n</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><operator>!</operator><name>stop_loop</name></expr>;</condition> <incr><expr><name>n</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><name>n</name> <operator>%</operator> <literal type="number">100</literal> <operator>==</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>attempt_hook</name><argument_list>()</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>Sleep</name><argument_list>(<argument><expr><literal type="number">40</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></for>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>DWORD</name> <name>WINAPI</name></type> <name>main_capture_thread</name><parameter_list>(<parameter><decl><type><name>HANDLE</name></type> <name>thread_handle</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>init_hook</name><argument_list>(<argument><expr><name>thread_handle</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>DbgOut</name><argument_list>(<argument><expr><literal type="string">"Failed to init hook\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>free_hook</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>capture_loop</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <specifier>inline</specifier> <name>void</name></type> <name>hlogv</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>format</name></decl></parameter>, <parameter><decl><type><name>va_list</name></type> <name>args</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>char</name></type> <name><name>message</name><index>[<expr><literal type="number">1024</literal></expr>]</index></name> <init>= <expr><literal type="string">""</literal></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>num</name> <init>= <expr><call><name>_vsprintf_p</name><argument_list>(<argument><expr><name>message</name></expr></argument>, <argument><expr><literal type="number">1024</literal></expr></argument>, <argument><expr><name>format</name></expr></argument>, <argument><expr><name>args</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>num</name></expr>)</condition> <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>ipc_pipe_client_write</name><argument_list>(<argument><expr><operator>&amp;</operator><name>pipe</name></expr></argument>, <argument><expr><name>message</name></expr></argument>, <argument><expr><operator>(</operator><name>size_t</name><operator>)</operator><name>num</name> <operator>+</operator> <literal type="number">1</literal></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>ipc_pipe_client_free</name><argument_list>(<argument><expr><operator>&amp;</operator><name>pipe</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>DbgOut</name><argument_list>(<argument><expr><name>message</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>DbgOut</name><argument_list>(<argument><expr><literal type="string">"\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></function>
+
+<function><type><name>void</name></type> <name>hlog</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>format</name></decl></parameter>, <parameter><decl><type><modifier>...</modifier></type></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>va_list</name></type> <name>args</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>va_start</name><argument_list>(<argument><expr><name>args</name></expr></argument>, <argument><expr><name>format</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>hlogv</name><argument_list>(<argument><expr><name>format</name></expr></argument>, <argument><expr><name>args</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>va_end</name><argument_list>(<argument><expr><name>args</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><name>void</name></type> <name>hlog_hr</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>text</name></decl></parameter>, <parameter><decl><type><name>HRESULT</name></type> <name>hr</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>LPSTR</name></type> <name>buffer</name> <init>= <expr><name>NULL</name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>FormatMessageA</name><argument_list>(<argument><expr><name>FORMAT_MESSAGE_FROM_SYSTEM</name> <operator>|</operator>
+
+<name>FORMAT_MESSAGE_ALLOCATE_BUFFER</name> <operator>|</operator>
+
+<name>FORMAT_MESSAGE_IGNORE_INSERTS</name></expr></argument>,
+
+<argument><expr><name>NULL</name></expr></argument>, <argument><expr><name>hr</name></expr></argument>, <argument><expr><call><name>MAKELANGID</name><argument_list>(<argument><expr><name>LANG_ENGLISH</name></expr></argument>, <argument><expr><name>SUBLANG_ENGLISH_US</name></expr></argument>)</argument_list></call></expr></argument>,
+
+<argument><expr><operator>(</operator><name>LPSTR</name><operator>)</operator><operator>&amp;</operator><name>buffer</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>buffer</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>hlog</name><argument_list>(<argument><expr><literal type="string">"%s (0x%08lX): %s"</literal></expr></argument>, <argument><expr><name>text</name></expr></argument>, <argument><expr><name>hr</name></expr></argument>, <argument><expr><name>buffer</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>LocalFree</name><argument_list>(<argument><expr><name>buffer</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<expr_stmt><expr><call><name>hlog</name><argument_list>(<argument><expr><literal type="string">"%s (0x%08lX)"</literal></expr></argument>, <argument><expr><name>text</name></expr></argument>, <argument><expr><name>hr</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <specifier>inline</specifier> <name>uint64_t</name></type> <name>get_clockfreq</name><parameter_list>(<parameter><decl><type><name>void</name></type></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>bool</name></type> <name>have_clockfreq</name> <init>= <expr><name>false</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>LARGE_INTEGER</name></type> <name>clock_freq</name></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>have_clockfreq</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>QueryPerformanceFrequency</name><argument_list>(<argument><expr><operator>&amp;</operator><name>clock_freq</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>have_clockfreq</name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<return>return <expr><name><name>clock_freq</name><operator>.</operator><name>QuadPart</name></name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><name>uint64_t</name></type> <name>os_gettime_ns</name><parameter_list>(<parameter><decl><type><name>void</name></type></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>LARGE_INTEGER</name></type> <name>current_time</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>double</name></type> <name>time_val</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>QueryPerformanceCounter</name><argument_list>(<argument><expr><operator>&amp;</operator><name>current_time</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>time_val</name> <operator>=</operator> <operator>(</operator><name>double</name><operator>)</operator><name><name>current_time</name><operator>.</operator><name>QuadPart</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>time_val</name> <operator>*=</operator> <literal type="number">1000000000.0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>time_val</name> <operator>/=</operator> <operator>(</operator><name>double</name><operator>)</operator><call><name>get_clockfreq</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><operator>(</operator><name>uint64_t</name><operator>)</operator><name>time_val</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <specifier>inline</specifier> <name>int</name></type> <name>try_lock_shmem_tex</name><parameter_list>(<parameter><decl><type><name>int</name></type> <name>id</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>int</name></type> <name>next</name> <init>= <expr><ternary><condition><expr><name>id</name> <operator>==</operator> <literal type="number">0</literal></expr> ?</condition><then> <expr><literal type="number">1</literal></expr> </then><else>: <expr><literal type="number">0</literal></expr></else></ternary></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>DWORD</name></type> <name>wait_result</name> <init>= <expr><name>WAIT_FAILED</name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>wait_result</name> <operator>=</operator> <call><name>WaitForSingleObject</name><argument_list>(<argument><expr><name><name>tex_mutexes</name><index>[<expr><name>id</name></expr>]</index></name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>wait_result</name> <operator>==</operator> <name>WAIT_OBJECT_0</name> <operator>||</operator> <name>wait_result</name> <operator>==</operator> <name>WAIT_ABANDONED</name></expr>)</condition> <block>{<block_content>
+
+<return>return <expr><name>id</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name>wait_result</name> <operator>=</operator> <call><name>WaitForSingleObject</name><argument_list>(<argument><expr><name><name>tex_mutexes</name><index>[<expr><name>next</name></expr>]</index></name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>wait_result</name> <operator>==</operator> <name>WAIT_OBJECT_0</name> <operator>||</operator> <name>wait_result</name> <operator>==</operator> <name>WAIT_ABANDONED</name></expr>)</condition> <block>{<block_content>
+
+<return>return <expr><name>next</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<return>return <expr><operator>-</operator><literal type="number">1</literal></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <specifier>inline</specifier> <name>void</name></type> <name>unlock_shmem_tex</name><parameter_list>(<parameter><decl><type><name>int</name></type> <name>id</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><name>id</name> <operator>!=</operator> <operator>-</operator><literal type="number">1</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>ReleaseMutex</name><argument_list>(<argument><expr><name><name>tex_mutexes</name><index>[<expr><name>id</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <specifier>inline</specifier> <name>bool</name></type> <name>init_shared_info</name><parameter_list>(<parameter><decl><type><name>size_t</name></type> <name>size</name></decl></parameter>, <parameter><decl><type><name>HWND</name></type> <name>window</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>wchar_t</name></type> <name><name>name</name><index>[<expr><literal type="number">64</literal></expr>]</index></name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>HWND</name></type> <name>top</name> <init>= <expr><call><name>GetAncestor</name><argument_list>(<argument><expr><name>window</name></expr></argument>, <argument><expr><name>GA_ROOT</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>swprintf</name><argument_list>(<argument><expr><name>name</name></expr></argument>, <argument><expr><literal type="number">64</literal></expr></argument>, <argument><expr><name>SHMEM_TEXTURE</name> <literal type="string">"_%"</literal> <name>PRIu64</name> <literal type="string">"_%u"</literal></expr></argument>,
+
+<argument><expr><operator>(</operator><name>uint64_t</name><operator>)</operator><operator>(</operator><name>uintptr_t</name><operator>)</operator><name>top</name></expr></argument>, <argument><expr><operator>++</operator><name>shmem_id_counter</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>shmem_file_handle</name> <operator>=</operator> <call><name>CreateFileMappingW</name><argument_list>(<argument><expr><name>INVALID_HANDLE_VALUE</name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>,
+
+<argument><expr><name>PAGE_READWRITE</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><operator>(</operator><name>DWORD</name><operator>)</operator><name>size</name></expr></argument>,
+
+<argument><expr><name>name</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>shmem_file_handle</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>hlog</name><argument_list>(<argument><expr><literal type="string">"init_shared_info: Failed to create shared memory: %d"</literal></expr></argument>,
+
+<argument><expr><call><name>GetLastError</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>false</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name>shmem_info</name> <operator>=</operator> <call><name>MapViewOfFile</name><argument_list>(<argument><expr><name>shmem_file_handle</name></expr></argument>, <argument><expr><name>FILE_MAP_ALL_ACCESS</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>,
+
+<argument><expr><name>size</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>shmem_info</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>hlog</name><argument_list>(<argument><expr><literal type="string">"init_shared_info: Failed to map shared memory: %d"</literal></expr></argument>,
+
+<argument><expr><call><name>GetLastError</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>false</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<return>return <expr><name>true</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><name>bool</name></type> <name>capture_init_shtex</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>shtex_data</name></name> <modifier>*</modifier><modifier>*</modifier></type><name>data</name></decl></parameter>, <parameter><decl><type><name>HWND</name></type> <name>window</name></decl></parameter>, <parameter><decl><type><name>uint32_t</name></type> <name>base_cx</name></decl></parameter>,
+
+<parameter><decl><type><name>uint32_t</name></type> <name>base_cy</name></decl></parameter>, <parameter><decl><type><name>uint32_t</name></type> <name>cx</name></decl></parameter>, <parameter><decl><type><name>uint32_t</name></type> <name>cy</name></decl></parameter>,
+
+<parameter><decl><type><name>uint32_t</name></type> <name>format</name></decl></parameter>, <parameter><decl><type><name>bool</name></type> <name>flip</name></decl></parameter>, <parameter><decl><type><name>uintptr_t</name></type> <name>handle</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>init_shared_info</name><argument_list>(<argument><expr><sizeof>sizeof<argument_list>(<argument><expr>struct <name>shtex_data</name></expr></argument>)</argument_list></sizeof></expr></argument>, <argument><expr><name>window</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>hlog</name><argument_list>(<argument><expr><literal type="string">"capture_init_shtex: Failed to initialize memory"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>false</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><operator>*</operator><name>data</name> <operator>=</operator> <name>shmem_info</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><operator>(</operator><operator>*</operator><name>data</name><operator>)</operator><operator>-&gt;</operator><name>tex_handle</name></name> <operator>=</operator> <operator>(</operator><name>uint32_t</name><operator>)</operator><name>handle</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>global_hook_info</name><operator>-&gt;</operator><name>hook_ver_major</name></name> <operator>=</operator> <name>HOOK_VER_MAJOR</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>global_hook_info</name><operator>-&gt;</operator><name>hook_ver_minor</name></name> <operator>=</operator> <name>HOOK_VER_MINOR</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>global_hook_info</name><operator>-&gt;</operator><name>window</name></name> <operator>=</operator> <operator>(</operator><name>uint32_t</name><operator>)</operator><operator>(</operator><name>uintptr_t</name><operator>)</operator><name>window</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>global_hook_info</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>CAPTURE_TYPE_TEXTURE</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>global_hook_info</name><operator>-&gt;</operator><name>format</name></name> <operator>=</operator> <name>format</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>global_hook_info</name><operator>-&gt;</operator><name>flip</name></name> <operator>=</operator> <name>flip</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>global_hook_info</name><operator>-&gt;</operator><name>map_id</name></name> <operator>=</operator> <name>shmem_id_counter</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>global_hook_info</name><operator>-&gt;</operator><name>map_size</name></name> <operator>=</operator> <sizeof>sizeof<argument_list>(<argument><expr>struct <name>shtex_data</name></expr></argument>)</argument_list></sizeof></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>global_hook_info</name><operator>-&gt;</operator><name>cx</name></name> <operator>=</operator> <name>cx</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>global_hook_info</name><operator>-&gt;</operator><name>cy</name></name> <operator>=</operator> <name>cy</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>global_hook_info</name><operator>-&gt;</operator><name>base_cx</name></name> <operator>=</operator> <name>base_cx</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>global_hook_info</name><operator>-&gt;</operator><name>base_cy</name></name> <operator>=</operator> <name>base_cy</name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>SetEvent</name><argument_list>(<argument><expr><name>signal_ready</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>hlog</name><argument_list>(<argument><expr><literal type="string">"capture_init_shtex: Failed to signal ready: %d"</literal></expr></argument>,
+
+<argument><expr><call><name>GetLastError</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>false</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name>active</name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+
+<return>return <expr><name>true</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>DWORD</name> <name>CALLBACK</name></type> <name>copy_thread</name><parameter_list>(<parameter><decl><type><name>LPVOID</name></type> <name>unused</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>uint32_t</name></type> <name>pitch</name> <init>= <expr><name><name>thread_data</name><operator>.</operator><name>pitch</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>uint32_t</name></type> <name>cy</name> <init>= <expr><name><name>thread_data</name><operator>.</operator><name>cy</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>HANDLE</name></type> <name><name>events</name><index>[<expr><literal type="number">2</literal></expr>]</index></name> <init>= <expr><block>{<expr><name>NULL</name></expr>, <expr><name>NULL</name></expr>}</block></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>shmem_id</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>duplicate_handle</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>events</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>, <argument><expr><name><name>thread_data</name><operator>.</operator><name>copy_event</name></name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>hlog_hr</name><argument_list>(<argument><expr><literal type="string">"copy_thread: Failed to duplicate copy event: %d"</literal></expr></argument>,
+
+<argument><expr><call><name>GetLastError</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>duplicate_handle</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>events</name><index>[<expr><literal type="number">1</literal></expr>]</index></name></expr></argument>, <argument><expr><name><name>thread_data</name><operator>.</operator><name>stop_event</name></name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>hlog_hr</name><argument_list>(<argument><expr><literal type="string">"copy_thread: Failed to duplicate stop event: %d"</literal></expr></argument>,
+
+<argument><expr><call><name>GetLastError</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<goto>goto <name>finish</name>;</goto>
+
+</block_content>}</block></if></if_stmt>
+
+<for>for <control>(<init>;</init><condition>;</condition><incr/>)</control> <block>{<block_content>
+
+<decl_stmt><decl><type><name>int</name></type> <name>copy_tex</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>void</name> <modifier>*</modifier></type><name>cur_data</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>DWORD</name></type> <name>ret</name> <init>= <expr><call><name>WaitForMultipleObjects</name><argument_list>(<argument><expr><literal type="number">2</literal></expr></argument>, <argument><expr><name>events</name></expr></argument>, <argument><expr><name>false</name></expr></argument>, <argument><expr><name>INFINITE</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>ret</name> <operator>!=</operator> <name>WAIT_OBJECT_0</name></expr>)</condition> <block>{<block_content>
+
+<break>break;</break>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>EnterCriticalSection</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>thread_data</name><operator>.</operator><name>data_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>copy_tex</name> <operator>=</operator> <name><name>thread_data</name><operator>.</operator><name>cur_tex</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>cur_data</name> <operator>=</operator> <name><name>thread_data</name><operator>.</operator><name>cur_data</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>LeaveCriticalSection</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>thread_data</name><operator>.</operator><name>data_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>copy_tex</name> <operator>&lt;</operator> <name>NUM_BUFFERS</name> <operator>&amp;&amp;</operator> <operator>!</operator><operator>!</operator><name>cur_data</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>EnterCriticalSection</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>thread_data</name><operator>.</operator><name>mutexes</name><index>[<expr><name>copy_tex</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>lock_id</name> <init>= <expr><call><name>try_lock_shmem_tex</name><argument_list>(<argument><expr><name>shmem_id</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>lock_id</name> <operator>!=</operator> <operator>-</operator><literal type="number">1</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>memcpy</name><argument_list>(<argument><expr><name><name>thread_data</name><operator>.</operator><name>shmem_textures</name><index>[<expr><name>lock_id</name></expr>]</index></name></expr></argument>,
+
+<argument><expr><name>cur_data</name></expr></argument>, <argument><expr><operator>(</operator><name>size_t</name><operator>)</operator><name>pitch</name> <operator>*</operator> <operator>(</operator><name>size_t</name><operator>)</operator><name>cy</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>unlock_shmem_tex</name><argument_list>(<argument><expr><name>lock_id</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><operator>(</operator><operator>(</operator>struct <name>shmem_data</name> <operator>*</operator><operator>)</operator><name>shmem_info</name><operator>)</operator><operator>-&gt;</operator><name>last_tex</name> <operator>=</operator>
+
+<name>lock_id</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>shmem_id</name> <operator>=</operator> <ternary><condition><expr><name>lock_id</name> <operator>==</operator> <literal type="number">0</literal></expr> ?</condition><then> <expr><literal type="number">1</literal></expr> </then><else>: <expr><literal type="number">0</literal></expr></else></ternary></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>LeaveCriticalSection</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>thread_data</name><operator>.</operator><name>mutexes</name><index>[<expr><name>copy_tex</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></for>
+
+<label><name>finish</name>:</label>
+
+<for>for <control>(<init><decl><type><name>size_t</name></type> <name>i</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <literal type="number">2</literal></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><name><name>events</name><index>[<expr><name>i</name></expr>]</index></name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>CloseHandle</name><argument_list>(<argument><expr><name><name>events</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></for>
+
+<expr_stmt><expr><operator>(</operator><name>void</name><operator>)</operator><name>unused</name></expr>;</expr_stmt>
+
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><name>void</name></type> <name>shmem_copy_data</name><parameter_list>(<parameter><decl><type><name>size_t</name></type> <name>idx</name></decl></parameter>, <parameter><decl><type><name>void</name> <modifier>*</modifier><specifier>volatile</specifier></type> <name>data</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>EnterCriticalSection</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>thread_data</name><operator>.</operator><name>data_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>thread_data</name><operator>.</operator><name>cur_tex</name></name> <operator>=</operator> <operator>(</operator><name>int</name><operator>)</operator><name>idx</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>thread_data</name><operator>.</operator><name>cur_data</name></name> <operator>=</operator> <name>data</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>thread_data</name><operator>.</operator><name>locked_textures</name><index>[<expr><name>idx</name></expr>]</index></name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>LeaveCriticalSection</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>thread_data</name><operator>.</operator><name>data_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>SetEvent</name><argument_list>(<argument><expr><name><name>thread_data</name><operator>.</operator><name>copy_event</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><name>bool</name></type> <name>shmem_texture_data_lock</name><parameter_list>(<parameter><decl><type><name>int</name></type> <name>idx</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>bool</name></type> <name>locked</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>EnterCriticalSection</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>thread_data</name><operator>.</operator><name>data_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>locked</name> <operator>=</operator> <name><name>thread_data</name><operator>.</operator><name>locked_textures</name><index>[<expr><name>idx</name></expr>]</index></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>LeaveCriticalSection</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>thread_data</name><operator>.</operator><name>data_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>locked</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>EnterCriticalSection</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>thread_data</name><operator>.</operator><name>mutexes</name><index>[<expr><name>idx</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>true</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<return>return <expr><name>false</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><name>void</name></type> <name>shmem_texture_data_unlock</name><parameter_list>(<parameter><decl><type><name>int</name></type> <name>idx</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>EnterCriticalSection</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>thread_data</name><operator>.</operator><name>data_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>thread_data</name><operator>.</operator><name>locked_textures</name><index>[<expr><name>idx</name></expr>]</index></name> <operator>=</operator> <name>false</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>LeaveCriticalSection</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>thread_data</name><operator>.</operator><name>data_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>LeaveCriticalSection</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>thread_data</name><operator>.</operator><name>mutexes</name><index>[<expr><name>idx</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <specifier>inline</specifier> <name>bool</name></type> <name>init_shmem_thread</name><parameter_list>(<parameter><decl><type><name>uint32_t</name></type> <name>pitch</name></decl></parameter>, <parameter><decl><type><name>uint32_t</name></type> <name>cy</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>shmem_data</name></name> <modifier>*</modifier></type><name>data</name> <init>= <expr><name>shmem_info</name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>thread_data</name><operator>.</operator><name>pitch</name></name> <operator>=</operator> <name>pitch</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>thread_data</name><operator>.</operator><name>cy</name></name> <operator>=</operator> <name>cy</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>thread_data</name><operator>.</operator><name>shmem_textures</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>=</operator> <operator>(</operator><name>uint8_t</name> <operator>*</operator><operator>)</operator><name>data</name> <operator>+</operator> <name><name>data</name><operator>-&gt;</operator><name>tex1_offset</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>thread_data</name><operator>.</operator><name>shmem_textures</name><index>[<expr><literal type="number">1</literal></expr>]</index></name> <operator>=</operator> <operator>(</operator><name>uint8_t</name> <operator>*</operator><operator>)</operator><name>data</name> <operator>+</operator> <name><name>data</name><operator>-&gt;</operator><name>tex2_offset</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>thread_data</name><operator>.</operator><name>copy_event</name></name> <operator>=</operator> <call><name>CreateEvent</name><argument_list>(<argument><expr><name>NULL</name></expr></argument>, <argument><expr><name>false</name></expr></argument>, <argument><expr><name>false</name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>thread_data</name><operator>.</operator><name>copy_event</name></name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>hlog</name><argument_list>(<argument><expr><literal type="string">"init_shmem_thread: Failed to create copy event: %d"</literal></expr></argument>,
+
+<argument><expr><call><name>GetLastError</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>false</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>thread_data</name><operator>.</operator><name>stop_event</name></name> <operator>=</operator> <call><name>CreateEvent</name><argument_list>(<argument><expr><name>NULL</name></expr></argument>, <argument><expr><name>true</name></expr></argument>, <argument><expr><name>false</name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>thread_data</name><operator>.</operator><name>stop_event</name></name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>hlog</name><argument_list>(<argument><expr><literal type="string">"init_shmem_thread: Failed to create stop event: %d"</literal></expr></argument>,
+
+<argument><expr><call><name>GetLastError</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>false</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<for>for <control>(<init><decl><type><name>size_t</name></type> <name>i</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>NUM_BUFFERS</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+
+<expr_stmt><expr><call><name>InitializeCriticalSection</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>thread_data</name><operator>.</operator><name>mutexes</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></for>
+
+<expr_stmt><expr><call><name>InitializeCriticalSection</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>thread_data</name><operator>.</operator><name>data_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>thread_data</name><operator>.</operator><name>copy_thread</name></name> <operator>=</operator>
+
+<call><name>CreateThread</name><argument_list>(<argument><expr><name>NULL</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><name>copy_thread</name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>thread_data</name><operator>.</operator><name>copy_thread</name></name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>hlog</name><argument_list>(<argument><expr><literal type="string">"init_shmem_thread: Failed to create thread: %d"</literal></expr></argument>,
+
+<argument><expr><call><name>GetLastError</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>false</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<return>return <expr><name>true</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><operator>!</operator><call><name>defined</name><argument_list>(<argument><expr><name>ALIGN</name></expr></argument>)</argument_list></call></expr></cpp:if>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>ALIGN</name><parameter_list>(<parameter><type><name>bytes</name></type></parameter>, <parameter><type><name>align</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>(((bytes) + ((align)-1)) &amp; ~((align)-1))</cpp:value></cpp:define>
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+<function><type><name>bool</name></type> <name>capture_init_shmem</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>shmem_data</name></name> <modifier>*</modifier><modifier>*</modifier></type><name>data</name></decl></parameter>, <parameter><decl><type><name>HWND</name></type> <name>window</name></decl></parameter>, <parameter><decl><type><name>uint32_t</name></type> <name>base_cx</name></decl></parameter>,
+
+<parameter><decl><type><name>uint32_t</name></type> <name>base_cy</name></decl></parameter>, <parameter><decl><type><name>uint32_t</name></type> <name>cx</name></decl></parameter>, <parameter><decl><type><name>uint32_t</name></type> <name>cy</name></decl></parameter>,
+
+<parameter><decl><type><name>uint32_t</name></type> <name>pitch</name></decl></parameter>, <parameter><decl><type><name>uint32_t</name></type> <name>format</name></decl></parameter>, <parameter><decl><type><name>bool</name></type> <name>flip</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>uint32_t</name></type> <name>tex_size</name> <init>= <expr><name>cy</name> <operator>*</operator> <name>pitch</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>uint32_t</name></type> <name>aligned_header</name> <init>= <expr><call><name>ALIGN</name><argument_list>(<argument><expr><sizeof>sizeof<argument_list>(<argument><expr>struct <name>shmem_data</name></expr></argument>)</argument_list></sizeof></expr></argument>, <argument><expr><literal type="number">32</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>uint32_t</name></type> <name>aligned_tex</name> <init>= <expr><call><name>ALIGN</name><argument_list>(<argument><expr><name>tex_size</name></expr></argument>, <argument><expr><literal type="number">32</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>uint32_t</name></type> <name>total_size</name> <init>= <expr><name>aligned_header</name> <operator>+</operator> <name>aligned_tex</name> <operator>*</operator> <literal type="number">2</literal> <operator>+</operator> <literal type="number">32</literal></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>uintptr_t</name></type> <name>align_pos</name></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>init_shared_info</name><argument_list>(<argument><expr><name>total_size</name></expr></argument>, <argument><expr><name>window</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>hlog</name><argument_list>(<argument><expr><literal type="string">"capture_init_shmem: Failed to initialize memory"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>false</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><operator>*</operator><name>data</name> <operator>=</operator> <name>shmem_info</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>align_pos</name> <operator>=</operator> <operator>(</operator><name>uintptr_t</name><operator>)</operator><name>shmem_info</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>align_pos</name> <operator>+=</operator> <name>aligned_header</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>align_pos</name> <operator>&amp;=</operator> <operator>~</operator><operator>(</operator><literal type="number">32</literal> <operator>-</operator> <literal type="number">1</literal><operator>)</operator></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>align_pos</name> <operator>-=</operator> <operator>(</operator><name>uintptr_t</name><operator>)</operator><name>shmem_info</name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>align_pos</name> <operator>&lt;</operator> <sizeof>sizeof<argument_list>(<argument><expr>struct <name>shmem_data</name></expr></argument>)</argument_list></sizeof></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name>align_pos</name> <operator>+=</operator> <literal type="number">32</literal></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name><operator>(</operator><operator>*</operator><name>data</name><operator>)</operator><operator>-&gt;</operator><name>last_tex</name></name> <operator>=</operator> <operator>-</operator><literal type="number">1</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><operator>(</operator><operator>*</operator><name>data</name><operator>)</operator><operator>-&gt;</operator><name>tex1_offset</name></name> <operator>=</operator> <operator>(</operator><name>uint32_t</name><operator>)</operator><name>align_pos</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><operator>(</operator><operator>*</operator><name>data</name><operator>)</operator><operator>-&gt;</operator><name>tex2_offset</name></name> <operator>=</operator> <name><operator>(</operator><operator>*</operator><name>data</name><operator>)</operator><operator>-&gt;</operator><name>tex1_offset</name></name> <operator>+</operator> <name>aligned_tex</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>global_hook_info</name><operator>-&gt;</operator><name>hook_ver_major</name></name> <operator>=</operator> <name>HOOK_VER_MAJOR</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>global_hook_info</name><operator>-&gt;</operator><name>hook_ver_minor</name></name> <operator>=</operator> <name>HOOK_VER_MINOR</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>global_hook_info</name><operator>-&gt;</operator><name>window</name></name> <operator>=</operator> <operator>(</operator><name>uint32_t</name><operator>)</operator><operator>(</operator><name>uintptr_t</name><operator>)</operator><name>window</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>global_hook_info</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>CAPTURE_TYPE_MEMORY</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>global_hook_info</name><operator>-&gt;</operator><name>format</name></name> <operator>=</operator> <name>format</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>global_hook_info</name><operator>-&gt;</operator><name>flip</name></name> <operator>=</operator> <name>flip</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>global_hook_info</name><operator>-&gt;</operator><name>map_id</name></name> <operator>=</operator> <name>shmem_id_counter</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>global_hook_info</name><operator>-&gt;</operator><name>map_size</name></name> <operator>=</operator> <name>total_size</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>global_hook_info</name><operator>-&gt;</operator><name>pitch</name></name> <operator>=</operator> <name>pitch</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>global_hook_info</name><operator>-&gt;</operator><name>cx</name></name> <operator>=</operator> <name>cx</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>global_hook_info</name><operator>-&gt;</operator><name>cy</name></name> <operator>=</operator> <name>cy</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>global_hook_info</name><operator>-&gt;</operator><name>base_cx</name></name> <operator>=</operator> <name>base_cx</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>global_hook_info</name><operator>-&gt;</operator><name>base_cy</name></name> <operator>=</operator> <name>base_cy</name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>init_shmem_thread</name><argument_list>(<argument><expr><name>pitch</name></expr></argument>, <argument><expr><name>cy</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<return>return <expr><name>false</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>SetEvent</name><argument_list>(<argument><expr><name>signal_ready</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>hlog</name><argument_list>(<argument><expr><literal type="string">"capture_init_shmem: Failed to signal ready: %d"</literal></expr></argument>,
+
+<argument><expr><call><name>GetLastError</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>false</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name>active</name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+
+<return>return <expr><name>true</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <specifier>inline</specifier> <name>void</name></type> <name>thread_data_free</name><parameter_list>(<parameter><decl><type><name>void</name></type></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><name><name>thread_data</name><operator>.</operator><name>copy_thread</name></name></expr>)</condition> <block>{<block_content>
+
+<decl_stmt><decl><type><name>DWORD</name></type> <name>ret</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>SetEvent</name><argument_list>(<argument><expr><name><name>thread_data</name><operator>.</operator><name>stop_event</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <call><name>WaitForSingleObject</name><argument_list>(<argument><expr><name><name>thread_data</name><operator>.</operator><name>copy_thread</name></name></expr></argument>, <argument><expr><literal type="number">500</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>ret</name> <operator>!=</operator> <name>WAIT_OBJECT_0</name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>TerminateThread</name><argument_list>(<argument><expr><name><name>thread_data</name><operator>.</operator><name>copy_thread</name></name></expr></argument>, <argument><expr><operator>(</operator><name>DWORD</name><operator>)</operator><operator>-</operator><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>CloseHandle</name><argument_list>(<argument><expr><name><name>thread_data</name><operator>.</operator><name>copy_thread</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>thread_data</name><operator>.</operator><name>stop_event</name></name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>CloseHandle</name><argument_list>(<argument><expr><name><name>thread_data</name><operator>.</operator><name>stop_event</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>thread_data</name><operator>.</operator><name>copy_event</name></name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>CloseHandle</name><argument_list>(<argument><expr><name><name>thread_data</name><operator>.</operator><name>copy_event</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<for>for <control>(<init><decl><type><name>size_t</name></type> <name>i</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>NUM_BUFFERS</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>DeleteCriticalSection</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>thread_data</name><operator>.</operator><name>mutexes</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></for>
+
+<expr_stmt><expr><call><name>DeleteCriticalSection</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>thread_data</name><operator>.</operator><name>data_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>memset</name><argument_list>(<argument><expr><operator>&amp;</operator><name>thread_data</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr><name>thread_data</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><name>void</name></type> <name>capture_free</name><parameter_list>(<parameter><decl><type><name>void</name></type></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>thread_data_free</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>shmem_info</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>UnmapViewOfFile</name><argument_list>(<argument><expr><name>shmem_info</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>shmem_info</name> <operator>=</operator> <name>NULL</name></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>close_handle</name><argument_list>(<argument><expr><operator>&amp;</operator><name>shmem_file_handle</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>SetEvent</name><argument_list>(<argument><expr><name>signal_restart</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>active</name> <operator>=</operator> <name>false</name></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>HOOK_NAME</name></cpp:macro> <cpp:value>L"graphics_hook_dup_mutex"</cpp:value></cpp:define>
+
+<function><type><specifier>static</specifier> <specifier>inline</specifier> <name>HANDLE</name></type> <name>open_mutex_plus_id</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name>wchar_t</name> <modifier>*</modifier></type><name>name</name></decl></parameter>, <parameter><decl><type><name>DWORD</name></type> <name>id</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>wchar_t</name></type> <name><name>new_name</name><index>[<expr><literal type="number">64</literal></expr>]</index></name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>_snwprintf</name><argument_list>(<argument><expr><name>new_name</name></expr></argument>, <argument><expr><literal type="number">64</literal></expr></argument>, <argument><expr><literal type="string">L"%s%lu"</literal></expr></argument>, <argument><expr><name>name</name></expr></argument>, <argument><expr><name>id</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><call><name>open_mutex</name><argument_list>(<argument><expr><name>new_name</name></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>bool</name></type> <name>init_dll</name><parameter_list>(<parameter><decl><type><name>void</name></type></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>DWORD</name></type> <name>pid</name> <init>= <expr><call><name>GetCurrentProcessId</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>HANDLE</name></type> <name>h</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>h</name> <operator>=</operator> <call><name>open_mutex_plus_id</name><argument_list>(<argument><expr><name>HOOK_NAME</name></expr></argument>, <argument><expr><name>pid</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>h</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>CloseHandle</name><argument_list>(<argument><expr><name>h</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>false</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name>dup_hook_mutex</name> <operator>=</operator> <call><name>create_mutex_plus_id</name><argument_list>(<argument><expr><name>HOOK_NAME</name></expr></argument>, <argument><expr><name>pid</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><operator>!</operator><operator>!</operator><name>dup_hook_mutex</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><name>BOOL</name> <name>WINAPI</name></type> <name>DllMain</name><parameter_list>(<parameter><decl><type><name>HINSTANCE</name></type> <name>hinst</name></decl></parameter>, <parameter><decl><type><name>DWORD</name></type> <name>reason</name></decl></parameter>, <parameter><decl><type><name>LPVOID</name></type> <name>unused1</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><name>reason</name> <operator>==</operator> <name>DLL_PROCESS_ATTACH</name></expr>)</condition> <block>{<block_content>
+
+<decl_stmt><decl><type><name>wchar_t</name></type> <name><name>name</name><index>[<expr><name>MAX_PATH</name></expr>]</index></name></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>dll_inst</name> <operator>=</operator> <name>hinst</name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>init_dll</name><argument_list>()</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>DbgOut</name><argument_list>(<argument><expr><literal type="string">"Duplicate hook library"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>false</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<decl_stmt><decl><type><name>HANDLE</name></type> <name>cur_thread</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>bool</name></type> <name>success</name> <init>= <expr><call><name>DuplicateHandle</name><argument_list>(<argument><expr><call><name>GetCurrentProcess</name><argument_list>()</argument_list></call></expr></argument>,
+
+<argument><expr><call><name>GetCurrentThread</name><argument_list>()</argument_list></call></expr></argument>,
+
+<argument><expr><call><name>GetCurrentProcess</name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><operator>&amp;</operator><name>cur_thread</name></expr></argument>,
+
+<argument><expr><name>SYNCHRONIZE</name></expr></argument>, <argument><expr><name>false</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>success</name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>DbgOut</name><argument_list>(<argument><expr><literal type="string">"Failed to get current thread handle"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>init_signals</name><argument_list>()</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<return>return <expr><name>false</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>init_system_path</name><argument_list>()</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<return>return <expr><name>false</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>init_hook_info</name><argument_list>()</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<return>return <expr><name>false</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>init_mutexes</name><argument_list>()</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<return>return <expr><name>false</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>GetModuleFileNameW</name><argument_list>(<argument><expr><name>hinst</name></expr></argument>, <argument><expr><name>name</name></expr></argument>, <argument><expr><name>MAX_PATH</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>LoadLibraryW</name><argument_list>(<argument><expr><name>name</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>capture_thread</name> <operator>=</operator> <call><name>CreateThread</name><argument_list>(
+
+<argument><expr><name>NULL</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><operator>(</operator><name>LPTHREAD_START_ROUTINE</name><operator>)</operator><name>main_capture_thread</name></expr></argument>,
+
+<argument><expr><operator>(</operator><name>LPVOID</name><operator>)</operator><name>cur_thread</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>capture_thread</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>CloseHandle</name><argument_list>(<argument><expr><name>cur_thread</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>false</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></if> <if type="elseif">else if <condition>(<expr><name>reason</name> <operator>==</operator> <name>DLL_PROCESS_DETACH</name></expr>)</condition> <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>dup_hook_mutex</name></expr>)</condition> <block>{<block_content>
+
+<return>return <expr><name>true</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>capture_thread</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>stop_loop</name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>WaitForSingleObject</name><argument_list>(<argument><expr><name>capture_thread</name></expr></argument>, <argument><expr><literal type="number">300</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>CloseHandle</name><argument_list>(<argument><expr><name>capture_thread</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>free_hook</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><operator>(</operator><name>void</name><operator>)</operator><name>unused1</name></expr>;</expr_stmt>
+
+<return>return <expr><name>true</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<macro><name>__declspec</name><argument_list>(<argument>dllexport</argument>)</argument_list></macro> <function><type><name>LRESULT</name> <name>CALLBACK</name></type>
+
+<name>dummy_debug_proc</name><parameter_list>(<parameter><decl><type><name>int</name></type> <name>code</name></decl></parameter>, <parameter><decl><type><name>WPARAM</name></type> <name>wparam</name></decl></parameter>, <parameter><decl><type><name>LPARAM</name></type> <name>lparam</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>bool</name></type> <name>hooking</name> <init>= <expr><name>true</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>MSG</name> <modifier>*</modifier></type><name>msg</name> <init>= <expr><operator>(</operator><name>MSG</name> <operator>*</operator><operator>)</operator><name>lparam</name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>hooking</name> <operator>&amp;&amp;</operator> <name><name>msg</name><operator>-&gt;</operator><name>message</name></name> <operator>==</operator> <operator>(</operator><name>WM_USER</name> <operator>+</operator> <literal type="number">432</literal><operator>)</operator></expr>)</condition> <block>{<block_content>
+
+<decl_stmt><decl><type><name>HMODULE</name></type> <name>user32</name> <init>= <expr><call><name>GetModuleHandleW</name><argument_list>(<argument><expr><literal type="string">L"USER32"</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<function_decl><type><name>BOOL</name></type>(<name>WINAPI</name> <modifier>*</modifier> <name>unhook_windows_hook_ex</name>)<parameter_list>(<parameter><decl><type><name>HHOOK</name></type></decl></parameter>)</parameter_list> <init>= <expr><name>NULL</name></expr></init>;</function_decl>
+
+<expr_stmt><expr><name>unhook_windows_hook_ex</name> <operator>=</operator> <call><name>get_obfuscated_func</name><argument_list>(
+
+<argument><expr><name>user32</name></expr></argument>, <argument><expr><literal type="string">"VojeleY`bdgxvM`hhDz"</literal></expr></argument>, <argument><expr><literal type="number">0x7F55F80C9EE3A213ULL</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>unhook_windows_hook_ex</name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>unhook_windows_hook_ex</name><argument_list>(<argument><expr><operator>(</operator><name>HHOOK</name><operator>)</operator><name><name>msg</name><operator>-&gt;</operator><name>lParam</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>hooking</name> <operator>=</operator> <name>false</name></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<return>return <expr><call><name>CallNextHookEx</name><argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><name>code</name></expr></argument>, <argument><expr><name>wparam</name></expr></argument>, <argument><expr><name>lparam</name></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+</unit>

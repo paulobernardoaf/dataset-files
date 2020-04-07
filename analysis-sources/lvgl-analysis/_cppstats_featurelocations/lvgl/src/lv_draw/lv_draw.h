@@ -1,0 +1,109 @@
+
+
+
+
+
+#if !defined(LV_DRAW_H)
+#define LV_DRAW_H
+
+#if defined(__cplusplus)
+extern "C" {
+#endif
+
+
+
+
+#if defined(LV_CONF_INCLUDE_SIMPLE)
+#include "lv_conf.h"
+#else
+#include "../../../lv_conf.h"
+#endif
+
+#include "../lv_core/lv_style.h"
+#include "../lv_misc/lv_txt.h"
+#include "lv_img_decoder.h"
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+void * lv_draw_get_buf(uint32_t size);
+
+
+
+
+void lv_draw_free_buf(void);
+
+#if LV_ANTIALIAS
+
+
+
+
+
+
+
+
+lv_opa_t lv_draw_aa_get_opa(lv_coord_t seg, lv_coord_t px_id, lv_opa_t base_opa);
+
+
+
+
+
+
+
+
+
+
+void lv_draw_aa_ver_seg(lv_coord_t x, lv_coord_t y, lv_coord_t length, const lv_area_t * mask, lv_color_t color,
+lv_opa_t opa);
+
+
+
+
+
+
+
+
+
+
+void lv_draw_aa_hor_seg(lv_coord_t x, lv_coord_t y, lv_coord_t length, const lv_area_t * mask, lv_color_t color,
+lv_opa_t opa);
+#endif
+
+
+
+
+
+
+
+
+
+
+
+
+#include "lv_draw_basic.h"
+#include "lv_draw_rect.h"
+#include "lv_draw_label.h"
+#include "lv_draw_img.h"
+#include "lv_draw_line.h"
+#include "lv_draw_triangle.h"
+#include "lv_draw_arc.h"
+
+#if defined(__cplusplus)
+} 
+#endif
+
+#endif 

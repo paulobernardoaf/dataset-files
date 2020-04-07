@@ -1,0 +1,44 @@
+#include <vlc_common.h>
+#include <vlc_codec.h>
+#include <vlc_mouse.h>
+struct vlc_input_decoder_callbacks {
+void (*on_vout_started)(vlc_input_decoder_t *decoder, vout_thread_t *vout,
+enum vlc_vout_order vout_order,
+void *userdata);
+void (*on_vout_stopped)(vlc_input_decoder_t *decoder, vout_thread_t *vout,
+void *userdata);
+void (*on_thumbnail_ready)(vlc_input_decoder_t *decoder, picture_t *pic,
+void *userdata);
+void (*on_new_video_stats)(vlc_input_decoder_t *decoder, unsigned decoded,
+unsigned lost, unsigned displayed,
+void *userdata);
+void (*on_new_audio_stats)(vlc_input_decoder_t *decoder, unsigned decoded,
+unsigned lost, unsigned played, void *userdata);
+int (*get_attachments)(vlc_input_decoder_t *decoder,
+input_attachment_t ***ppp_attachment,
+void *userdata);
+};
+vlc_input_decoder_t *
+vlc_input_decoder_New( vlc_object_t *parent, es_format_t *, vlc_clock_t *,
+input_resource_t *, sout_instance_t *, bool thumbnailing,
+const struct vlc_input_decoder_callbacks *cbs,
+void *userdata ) VLC_USED;
+void vlc_input_decoder_ChangePause( vlc_input_decoder_t *, bool b_paused, vlc_tick_t i_date );
+void vlc_input_decoder_ChangeRate( vlc_input_decoder_t *dec, float rate );
+void vlc_input_decoder_ChangeDelay( vlc_input_decoder_t *, vlc_tick_t i_delay );
+void vlc_input_decoder_StartWait( vlc_input_decoder_t * );
+void vlc_input_decoder_Wait( vlc_input_decoder_t * );
+void vlc_input_decoder_StopWait( vlc_input_decoder_t * );
+bool vlc_input_decoder_IsEmpty( vlc_input_decoder_t * );
+int vlc_input_decoder_SetCcState( vlc_input_decoder_t *, vlc_fourcc_t, int i_channel, bool b_decode );
+int vlc_input_decoder_GetCcState( vlc_input_decoder_t *, vlc_fourcc_t, int i_channel, bool *pb_decode );
+void vlc_input_decoder_GetCcDesc( vlc_input_decoder_t *, decoder_cc_desc_t * );
+void vlc_input_decoder_FrameNext( vlc_input_decoder_t *p_dec, vlc_tick_t *pi_duration );
+bool vlc_input_decoder_HasFormatChanged( vlc_input_decoder_t *p_dec, es_format_t *p_fmt, vlc_meta_t **pp_meta );
+size_t vlc_input_decoder_GetFifoSize( vlc_input_decoder_t *p_dec );
+int vlc_input_decoder_GetVbiPage( vlc_input_decoder_t *, bool *opaque );
+int vlc_input_decoder_SetVbiPage( vlc_input_decoder_t *, unsigned page );
+int vlc_input_decoder_SetVbiOpaque( vlc_input_decoder_t *, bool opaque );
+void vlc_input_decoder_SetVoutMouseEvent( vlc_input_decoder_t *, vlc_mouse_event, void * );
+int vlc_input_decoder_AddVoutOverlay( vlc_input_decoder_t *, subpicture_t *, size_t * );
+int vlc_input_decoder_DelVoutOverlay( vlc_input_decoder_t *, size_t );

@@ -1,0 +1,25 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#if !defined(AVCODEC_AARCH64_ASM_OFFSETS_H)
+#define AVCODEC_AARCH64_ASM_OFFSETS_H
+
+
+#define IMDCT_HALF 0x48
+
+#endif 

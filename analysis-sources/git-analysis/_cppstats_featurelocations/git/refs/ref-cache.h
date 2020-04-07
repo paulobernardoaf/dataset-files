@@ -1,0 +1,243 @@
+#if !defined(REFS_REF_CACHE_H)
+#define REFS_REF_CACHE_H
+
+#include "cache.h"
+
+struct ref_dir;
+struct ref_store;
+
+
+
+
+
+
+typedef void fill_ref_dir_fn(struct ref_store *ref_store,
+struct ref_dir *dir, const char *dirname);
+
+struct ref_cache {
+struct ref_entry *root;
+
+
+struct ref_store *ref_store;
+
+
+
+
+
+fill_ref_dir_fn *fill_ref_dir;
+};
+
+
+
+
+
+
+
+struct ref_value {
+
+
+
+
+
+
+struct object_id oid;
+};
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+struct ref_dir {
+int nr, alloc;
+
+
+
+
+
+
+
+int sorted;
+
+
+struct ref_cache *cache;
+
+struct ref_entry **entries;
+};
+
+
+
+
+
+
+
+
+#define REF_DIR 0x10
+
+
+
+
+
+#define REF_INCOMPLETE 0x20
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+struct ref_entry {
+unsigned char flag; 
+union {
+struct ref_value value; 
+struct ref_dir subdir; 
+} u;
+
+
+
+
+
+char name[FLEX_ARRAY];
+};
+
+
+
+
+
+
+int search_ref_dir(struct ref_dir *dir, const char *refname, size_t len);
+
+struct ref_dir *get_ref_dir(struct ref_entry *entry);
+
+
+
+
+
+
+struct ref_entry *create_dir_entry(struct ref_cache *cache,
+const char *dirname, size_t len,
+int incomplete);
+
+struct ref_entry *create_ref_entry(const char *refname,
+const struct object_id *oid, int flag);
+
+
+
+
+
+
+
+
+
+
+struct ref_cache *create_ref_cache(struct ref_store *refs,
+fill_ref_dir_fn *fill_ref_dir);
+
+
+
+
+void free_ref_cache(struct ref_cache *cache);
+
+
+
+
+
+
+void add_entry_to_dir(struct ref_dir *dir, struct ref_entry *entry);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+int remove_entry_from_dir(struct ref_dir *dir, const char *refname);
+
+
+
+
+
+
+int add_ref_entry(struct ref_dir *dir, struct ref_entry *ref);
+
+
+
+
+
+
+struct ref_entry *find_ref_entry(struct ref_dir *dir, const char *refname);
+
+
+
+
+
+
+
+
+struct ref_iterator *cache_ref_iterator_begin(struct ref_cache *cache,
+const char *prefix,
+int prime_dir);
+
+#endif 

@@ -1,0 +1,588 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" revision="1.0.0" language="C" filename="D:\Pesquisa\Projects\obs-analysis\_cppstats_featurelocations\obs-studio\libobs\media-io\video-io.c">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;assert.h&gt;</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;inttypes.h&gt;</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"../util/bmem.h"</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"../util/platform.h"</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"../util/profiler.h"</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"../util/threading.h"</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"../util/darray.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"format-conversion.h"</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"video-io.h"</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"video-frame.h"</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"video-scaler.h"</cpp:file></cpp:include>
+
+<function_decl><type><specifier>extern</specifier> <name>profiler_name_store_t</name> <modifier>*</modifier></type><name>obs_get_profiler_name_store</name><parameter_list>(<parameter><decl><type><name>void</name></type></decl></parameter>)</parameter_list>;</function_decl>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>MAX_CONVERT_BUFFERS</name></cpp:macro> <cpp:value>3</cpp:value></cpp:define>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>MAX_CACHE_SIZE</name></cpp:macro> <cpp:value>16</cpp:value></cpp:define>
+
+<struct>struct <name>cached_frame_info</name> <block>{
+<decl_stmt><decl><type><name><name>struct</name> <name>video_data</name></name></type> <name>frame</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>skipped</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>count</name></decl>;</decl_stmt>
+}</block>;</struct>
+
+<struct>struct <name>video_input</name> <block>{
+<decl_stmt><decl><type><name><name>struct</name> <name>video_scale_info</name></name></type> <name>conversion</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>video_scaler_t</name> <modifier>*</modifier></type><name>scaler</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name><name>struct</name> <name>video_frame</name></name></type> <name><name>frame</name><index>[<expr><name>MAX_CONVERT_BUFFERS</name></expr>]</index></name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>cur_frame</name></decl>;</decl_stmt>
+
+<function_decl><type><name>void</name></type> (<modifier>*</modifier><name>callback</name>)<parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>param</name></decl></parameter>, <parameter><decl><type><name><name>struct</name> <name>video_data</name></name> <modifier>*</modifier></type><name>frame</name></decl></parameter>)</parameter_list>;</function_decl>
+<decl_stmt><decl><type><name>void</name> <modifier>*</modifier></type><name>param</name></decl>;</decl_stmt>
+}</block>;</struct>
+
+<function><type><specifier>static</specifier> <specifier>inline</specifier> <name>void</name></type> <name>video_input_free</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>video_input</name></name> <modifier>*</modifier></type><name>input</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<for>for <control>(<init><decl><type><name>size_t</name></type> <name>i</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>MAX_CONVERT_BUFFERS</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>video_frame_free</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>input</name><operator>-&gt;</operator><name>frame</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></for>
+<expr_stmt><expr><call><name>video_scaler_destroy</name><argument_list>(<argument><expr><name><name>input</name><operator>-&gt;</operator><name>scaler</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<struct>struct <name>video_output</name> <block>{
+<decl_stmt><decl><type><name><name>struct</name> <name>video_output_info</name></name></type> <name>info</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>pthread_t</name></type> <name>thread</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>pthread_mutex_t</name></type> <name>data_mutex</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>bool</name></type> <name>stop</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>os_sem_t</name> <modifier>*</modifier></type><name>update_semaphore</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>uint64_t</name></type> <name>frame_time</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><specifier>volatile</specifier> <name>long</name></type> <name>skipped_frames</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><specifier>volatile</specifier> <name>long</name></type> <name>total_frames</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>bool</name></type> <name>initialized</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>pthread_mutex_t</name></type> <name>input_mutex</name></decl>;</decl_stmt>
+<macro><name>DARRAY</name><argument_list>(<argument>struct video_input</argument>)</argument_list></macro> <expr_stmt><expr><name>inputs</name></expr>;</expr_stmt>
+
+<decl_stmt><decl><type><name>size_t</name></type> <name>available_frames</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>size_t</name></type> <name>first_added</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>size_t</name></type> <name>last_added</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name><name>struct</name> <name>cached_frame_info</name></name></type> <name><name>cache</name><index>[<expr><name>MAX_CACHE_SIZE</name></expr>]</index></name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>volatile</specifier> <name>bool</name></type> <name>raw_active</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><specifier>volatile</specifier> <name>long</name></type> <name>gpu_refs</name></decl>;</decl_stmt>
+}</block>;</struct>
+
+
+
+<function><type><specifier>static</specifier> <specifier>inline</specifier> <name>bool</name></type> <name>scale_video_output</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>video_input</name></name> <modifier>*</modifier></type><name>input</name></decl></parameter>,
+<parameter><decl><type><name><name>struct</name> <name>video_data</name></name> <modifier>*</modifier></type><name>data</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>bool</name></type> <name>success</name> <init>= <expr><name>true</name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>input</name><operator>-&gt;</operator><name>scaler</name></name></expr>)</condition> <block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>video_frame</name></name> <modifier>*</modifier></type><name>frame</name></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>++</operator><name><name>input</name><operator>-&gt;</operator><name>cur_frame</name></name> <operator>==</operator> <name>MAX_CONVERT_BUFFERS</name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name><name>input</name><operator>-&gt;</operator><name>cur_frame</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>frame</name> <operator>=</operator> <operator>&amp;</operator><name><name>input</name><operator>-&gt;</operator><name>frame</name><index>[<expr><name><name>input</name><operator>-&gt;</operator><name>cur_frame</name></name></expr>]</index></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>success</name> <operator>=</operator> <call><name>video_scaler_scale</name><argument_list>(<argument><expr><name><name>input</name><operator>-&gt;</operator><name>scaler</name></name></expr></argument>, <argument><expr><name><name>frame</name><operator>-&gt;</operator><name>data</name></name></expr></argument>,
+<argument><expr><name><name>frame</name><operator>-&gt;</operator><name>linesize</name></name></expr></argument>,
+<argument><expr><operator>(</operator><specifier>const</specifier> <name>uint8_t</name> <operator>*</operator><specifier>const</specifier> <operator>*</operator><operator>)</operator><name><name>data</name><operator>-&gt;</operator><name>data</name></name></expr></argument>,
+<argument><expr><name><name>data</name><operator>-&gt;</operator><name>linesize</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>success</name></expr>)</condition> <block>{<block_content>
+<for>for <control>(<init><decl><type><name>size_t</name></type> <name>i</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>MAX_AV_PLANES</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<expr_stmt><expr><name><name>data</name><operator>-&gt;</operator><name>data</name><index>[<expr><name>i</name></expr>]</index></name> <operator>=</operator> <name><name>frame</name><operator>-&gt;</operator><name>data</name><index>[<expr><name>i</name></expr>]</index></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>data</name><operator>-&gt;</operator><name>linesize</name><index>[<expr><name>i</name></expr>]</index></name> <operator>=</operator> <name><name>frame</name><operator>-&gt;</operator><name>linesize</name><index>[<expr><name>i</name></expr>]</index></name></expr>;</expr_stmt>
+</block_content>}</block></for>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<expr_stmt><expr><call><name>blog</name><argument_list>(<argument><expr><name>LOG_WARNING</name></expr></argument>, <argument><expr><literal type="string">"video-io: Could not scale frame!"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></else></if_stmt>
+</block_content>}</block></if></if_stmt>
+
+<return>return <expr><name>success</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <specifier>inline</specifier> <name>bool</name></type> <name>video_output_cur_frame</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>video_output</name></name> <modifier>*</modifier></type><name>video</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>cached_frame_info</name></name> <modifier>*</modifier></type><name>frame_info</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>bool</name></type> <name>complete</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>bool</name></type> <name>skipped</name></decl>;</decl_stmt>
+
+
+
+<expr_stmt><expr><call><name>pthread_mutex_lock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>video</name><operator>-&gt;</operator><name>data_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>frame_info</name> <operator>=</operator> <operator>&amp;</operator><name><name>video</name><operator>-&gt;</operator><name>cache</name><index>[<expr><name><name>video</name><operator>-&gt;</operator><name>first_added</name></name></expr>]</index></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_unlock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>video</name><operator>-&gt;</operator><name>data_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+
+
+<expr_stmt><expr><call><name>pthread_mutex_lock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>video</name><operator>-&gt;</operator><name>input_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<for>for <control>(<init><decl><type><name>size_t</name></type> <name>i</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name><name>video</name><operator>-&gt;</operator><name>inputs</name><operator>.</operator><name>num</name></name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>video_input</name></name> <modifier>*</modifier></type><name>input</name> <init>= <expr><name><name>video</name><operator>-&gt;</operator><name>inputs</name><operator>.</operator><name>array</name></name> <operator>+</operator> <name>i</name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name><name>struct</name> <name>video_data</name></name></type> <name>frame</name> <init>= <expr><name><name>frame_info</name><operator>-&gt;</operator><name>frame</name></name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>scale_video_output</name><argument_list>(<argument><expr><name>input</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>frame</name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name><name>input</name><operator>-&gt;</operator><name>callback</name></name><argument_list>(<argument><expr><name><name>input</name><operator>-&gt;</operator><name>param</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name>frame</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+</block_content>}</block></for>
+
+<expr_stmt><expr><call><name>pthread_mutex_unlock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>video</name><operator>-&gt;</operator><name>input_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+
+
+<expr_stmt><expr><call><name>pthread_mutex_lock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>video</name><operator>-&gt;</operator><name>data_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>frame_info</name><operator>-&gt;</operator><name>frame</name><operator>.</operator><name>timestamp</name></name> <operator>+=</operator> <name><name>video</name><operator>-&gt;</operator><name>frame_time</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name>complete</name> <operator>=</operator> <operator>--</operator><name><name>frame_info</name><operator>-&gt;</operator><name>count</name></name> <operator>==</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name>skipped</name> <operator>=</operator> <name><name>frame_info</name><operator>-&gt;</operator><name>skipped</name></name> <operator>&gt;</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>complete</name></expr>)</condition> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><operator>++</operator><name><name>video</name><operator>-&gt;</operator><name>first_added</name></name> <operator>==</operator> <name><name>video</name><operator>-&gt;</operator><name>info</name><operator>.</operator><name>cache_size</name></name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name><name>video</name><operator>-&gt;</operator><name>first_added</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>++</operator><name><name>video</name><operator>-&gt;</operator><name>available_frames</name></name> <operator>==</operator> <name><name>video</name><operator>-&gt;</operator><name>info</name><operator>.</operator><name>cache_size</name></name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name><name>video</name><operator>-&gt;</operator><name>last_added</name></name> <operator>=</operator> <name><name>video</name><operator>-&gt;</operator><name>first_added</name></name></expr>;</expr_stmt></block_content></block></if></if_stmt>
+</block_content>}</block></if> <if type="elseif">else if <condition>(<expr><name>skipped</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><operator>--</operator><name><name>frame_info</name><operator>-&gt;</operator><name>skipped</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>os_atomic_inc_long</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>video</name><operator>-&gt;</operator><name>skipped_frames</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_unlock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>video</name><operator>-&gt;</operator><name>data_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+
+
+<return>return <expr><name>complete</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name> <modifier>*</modifier></type><name>video_thread</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>param</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>video_output</name></name> <modifier>*</modifier></type><name>video</name> <init>= <expr><name>param</name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>os_set_thread_name</name><argument_list>(<argument><expr><literal type="string">"video-io: video thread"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>video_thread_name</name> <init>=
+<expr><call><name>profile_store_name</name><argument_list>(<argument><expr><call><name>obs_get_profiler_name_store</name><argument_list>()</argument_list></call></expr></argument>,
+<argument><expr><literal type="string">"video_thread(%s)"</literal></expr></argument>, <argument><expr><name><name>video</name><operator>-&gt;</operator><name>info</name><operator>.</operator><name>name</name></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<while>while <condition>(<expr><call><name>os_sem_wait</name><argument_list>(<argument><expr><name><name>video</name><operator>-&gt;</operator><name>update_semaphore</name></name></expr></argument>)</argument_list></call> <operator>==</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name><name>video</name><operator>-&gt;</operator><name>stop</name></name></expr>)</condition><block type="pseudo"><block_content>
+<break>break;</break></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>profile_start</name><argument_list>(<argument><expr><name>video_thread_name</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<while>while <condition>(<expr><operator>!</operator><name><name>video</name><operator>-&gt;</operator><name>stop</name></name> <operator>&amp;&amp;</operator> <operator>!</operator><call><name>video_output_cur_frame</name><argument_list>(<argument><expr><name>video</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>os_atomic_inc_long</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>video</name><operator>-&gt;</operator><name>total_frames</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></while>
+
+<expr_stmt><expr><call><name>os_atomic_inc_long</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>video</name><operator>-&gt;</operator><name>total_frames</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>profile_end</name><argument_list>(<argument><expr><name>video_thread_name</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>profile_reenable_thread</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></while>
+
+<return>return <expr><name>NULL</name></expr>;</return>
+</block_content>}</block></function>
+
+
+
+<function><type><specifier>static</specifier> <specifier>inline</specifier> <name>bool</name></type> <name>valid_video_params</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name><name>struct</name> <name>video_output_info</name></name> <modifier>*</modifier></type><name>info</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<return>return <expr><name><name>info</name><operator>-&gt;</operator><name>height</name></name> <operator>!=</operator> <literal type="number">0</literal> <operator>&amp;&amp;</operator> <name><name>info</name><operator>-&gt;</operator><name>width</name></name> <operator>!=</operator> <literal type="number">0</literal> <operator>&amp;&amp;</operator> <name><name>info</name><operator>-&gt;</operator><name>fps_den</name></name> <operator>!=</operator> <literal type="number">0</literal> <operator>&amp;&amp;</operator>
+<name><name>info</name><operator>-&gt;</operator><name>fps_num</name></name> <operator>!=</operator> <literal type="number">0</literal></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <specifier>inline</specifier> <name>void</name></type> <name>init_cache</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>video_output</name></name> <modifier>*</modifier></type><name>video</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name><name>video</name><operator>-&gt;</operator><name>info</name><operator>.</operator><name>cache_size</name></name> <operator>&gt;</operator> <name>MAX_CACHE_SIZE</name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name><name>video</name><operator>-&gt;</operator><name>info</name><operator>.</operator><name>cache_size</name></name> <operator>=</operator> <name>MAX_CACHE_SIZE</name></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<for>for <control>(<init><decl><type><name>size_t</name></type> <name>i</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name><name>video</name><operator>-&gt;</operator><name>info</name><operator>.</operator><name>cache_size</name></name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>video_frame</name></name> <modifier>*</modifier></type><name>frame</name></decl>;</decl_stmt>
+<expr_stmt><expr><name>frame</name> <operator>=</operator> <operator>(</operator>struct <name>video_frame</name> <operator>*</operator><operator>)</operator><operator>&amp;</operator><name><name>video</name><operator>-&gt;</operator><name>cache</name><index>[<expr><name>i</name></expr>]</index></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>video_frame_init</name><argument_list>(<argument><expr><name>frame</name></expr></argument>, <argument><expr><name><name>video</name><operator>-&gt;</operator><name>info</name><operator>.</operator><name>format</name></name></expr></argument>, <argument><expr><name><name>video</name><operator>-&gt;</operator><name>info</name><operator>.</operator><name>width</name></name></expr></argument>,
+<argument><expr><name><name>video</name><operator>-&gt;</operator><name>info</name><operator>.</operator><name>height</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></for>
+
+<expr_stmt><expr><name><name>video</name><operator>-&gt;</operator><name>available_frames</name></name> <operator>=</operator> <name><name>video</name><operator>-&gt;</operator><name>info</name><operator>.</operator><name>cache_size</name></name></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><name>int</name></type> <name>video_output_open</name><parameter_list>(<parameter><decl><type><name>video_t</name> <modifier>*</modifier><modifier>*</modifier></type><name>video</name></decl></parameter>, <parameter><decl><type><name><name>struct</name> <name>video_output_info</name></name> <modifier>*</modifier></type><name>info</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>video_output</name></name> <modifier>*</modifier></type><name>out</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>pthread_mutexattr_t</name></type> <name>attr</name></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>valid_video_params</name><argument_list>(<argument><expr><name>info</name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><name>VIDEO_OUTPUT_INVALIDPARAM</name></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>out</name> <operator>=</operator> <call><name>bzalloc</name><argument_list>(<argument><expr><sizeof>sizeof<argument_list>(<argument><expr>struct <name>video_output</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>out</name></expr>)</condition><block type="pseudo"><block_content>
+<goto>goto <name>fail</name>;</goto></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>memcpy</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>out</name><operator>-&gt;</operator><name>info</name></name></expr></argument>, <argument><expr><name>info</name></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr>struct <name>video_output_info</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>out</name><operator>-&gt;</operator><name>frame_time</name></name> <operator>=</operator> <operator>(</operator><name>uint64_t</name><operator>)</operator><operator>(</operator><literal type="number">1000000000.0</literal> <operator>*</operator> <operator>(</operator><name>double</name><operator>)</operator><name><name>info</name><operator>-&gt;</operator><name>fps_den</name></name> <operator>/</operator>
+<operator>(</operator><name>double</name><operator>)</operator><name><name>info</name><operator>-&gt;</operator><name>fps_num</name></name><operator>)</operator></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>out</name><operator>-&gt;</operator><name>initialized</name></name> <operator>=</operator> <name>false</name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>pthread_mutexattr_init</name><argument_list>(<argument><expr><operator>&amp;</operator><name>attr</name></expr></argument>)</argument_list></call> <operator>!=</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+<goto>goto <name>fail</name>;</goto></block_content></block></if></if_stmt>
+<if_stmt><if>if <condition>(<expr><call><name>pthread_mutexattr_settype</name><argument_list>(<argument><expr><operator>&amp;</operator><name>attr</name></expr></argument>, <argument><expr><name>PTHREAD_MUTEX_RECURSIVE</name></expr></argument>)</argument_list></call> <operator>!=</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+<goto>goto <name>fail</name>;</goto></block_content></block></if></if_stmt>
+<if_stmt><if>if <condition>(<expr><call><name>pthread_mutex_init</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>out</name><operator>-&gt;</operator><name>data_mutex</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name>attr</name></expr></argument>)</argument_list></call> <operator>!=</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+<goto>goto <name>fail</name>;</goto></block_content></block></if></if_stmt>
+<if_stmt><if>if <condition>(<expr><call><name>pthread_mutex_init</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>out</name><operator>-&gt;</operator><name>input_mutex</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name>attr</name></expr></argument>)</argument_list></call> <operator>!=</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+<goto>goto <name>fail</name>;</goto></block_content></block></if></if_stmt>
+<if_stmt><if>if <condition>(<expr><call><name>os_sem_init</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>out</name><operator>-&gt;</operator><name>update_semaphore</name></name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call> <operator>!=</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+<goto>goto <name>fail</name>;</goto></block_content></block></if></if_stmt>
+<if_stmt><if>if <condition>(<expr><call><name>pthread_create</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>out</name><operator>-&gt;</operator><name>thread</name></name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>, <argument><expr><name>video_thread</name></expr></argument>, <argument><expr><name>out</name></expr></argument>)</argument_list></call> <operator>!=</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+<goto>goto <name>fail</name>;</goto></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>init_cache</name><argument_list>(<argument><expr><name>out</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>out</name><operator>-&gt;</operator><name>initialized</name></name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+<expr_stmt><expr><operator>*</operator><name>video</name> <operator>=</operator> <name>out</name></expr>;</expr_stmt>
+<return>return <expr><name>VIDEO_OUTPUT_SUCCESS</name></expr>;</return>
+
+<label><name>fail</name>:</label>
+<expr_stmt><expr><call><name>video_output_close</name><argument_list>(<argument><expr><name>out</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>VIDEO_OUTPUT_FAIL</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><name>void</name></type> <name>video_output_close</name><parameter_list>(<parameter><decl><type><name>video_t</name> <modifier>*</modifier></type><name>video</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>video</name></expr>)</condition><block type="pseudo"><block_content>
+<return>return;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>video_output_stop</name><argument_list>(<argument><expr><name>video</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<for>for <control>(<init><decl><type><name>size_t</name></type> <name>i</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name><name>video</name><operator>-&gt;</operator><name>inputs</name><operator>.</operator><name>num</name></name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>video_input_free</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>video</name><operator>-&gt;</operator><name>inputs</name><operator>.</operator><name>array</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></for>
+<expr_stmt><expr><call><name>da_free</name><argument_list>(<argument><expr><name><name>video</name><operator>-&gt;</operator><name>inputs</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<for>for <control>(<init><decl><type><name>size_t</name></type> <name>i</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name><name>video</name><operator>-&gt;</operator><name>info</name><operator>.</operator><name>cache_size</name></name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>video_frame_free</name><argument_list>(<argument><expr><operator>(</operator>struct <name>video_frame</name> <operator>*</operator><operator>)</operator><operator>&amp;</operator><name><name>video</name><operator>-&gt;</operator><name>cache</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></for>
+
+<expr_stmt><expr><call><name>os_sem_destroy</name><argument_list>(<argument><expr><name><name>video</name><operator>-&gt;</operator><name>update_semaphore</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>pthread_mutex_destroy</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>video</name><operator>-&gt;</operator><name>data_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>pthread_mutex_destroy</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>video</name><operator>-&gt;</operator><name>input_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>bfree</name><argument_list>(<argument><expr><name>video</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>size_t</name></type> <name>video_get_input_idx</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name>video_t</name> <modifier>*</modifier></type><name>video</name></decl></parameter>,
+<parameter><function_decl><type><name>void</name></type> (<modifier>*</modifier><name>callback</name>)<parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>param</name></decl></parameter>,
+<parameter><decl><type><name><name>struct</name> <name>video_data</name></name> <modifier>*</modifier></type><name>frame</name></decl></parameter>)</parameter_list></function_decl></parameter>,
+<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>param</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<for>for <control>(<init><decl><type><name>size_t</name></type> <name>i</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name><name>video</name><operator>-&gt;</operator><name>inputs</name><operator>.</operator><name>num</name></name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>video_input</name></name> <modifier>*</modifier></type><name>input</name> <init>= <expr><name><name>video</name><operator>-&gt;</operator><name>inputs</name><operator>.</operator><name>array</name></name> <operator>+</operator> <name>i</name></expr></init></decl>;</decl_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>input</name><operator>-&gt;</operator><name>callback</name></name> <operator>==</operator> <name>callback</name> <operator>&amp;&amp;</operator> <name><name>input</name><operator>-&gt;</operator><name>param</name></name> <operator>==</operator> <name>param</name></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><name>i</name></expr>;</return></block_content></block></if></if_stmt>
+</block_content>}</block></for>
+
+<return>return <expr><name>DARRAY_INVALID</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <specifier>inline</specifier> <name>bool</name></type> <name>video_input_init</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>video_input</name></name> <modifier>*</modifier></type><name>input</name></decl></parameter>,
+<parameter><decl><type><name><name>struct</name> <name>video_output</name></name> <modifier>*</modifier></type><name>video</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name><name>input</name><operator>-&gt;</operator><name>conversion</name><operator>.</operator><name>width</name></name> <operator>!=</operator> <name><name>video</name><operator>-&gt;</operator><name>info</name><operator>.</operator><name>width</name></name> <operator>||</operator>
+<name><name>input</name><operator>-&gt;</operator><name>conversion</name><operator>.</operator><name>height</name></name> <operator>!=</operator> <name><name>video</name><operator>-&gt;</operator><name>info</name><operator>.</operator><name>height</name></name> <operator>||</operator>
+<name><name>input</name><operator>-&gt;</operator><name>conversion</name><operator>.</operator><name>format</name></name> <operator>!=</operator> <name><name>video</name><operator>-&gt;</operator><name>info</name><operator>.</operator><name>format</name></name></expr>)</condition> <block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>video_scale_info</name></name></type> <name>from</name> <init>= <expr><block>{<expr><operator>.</operator><name>format</name> <operator>=</operator> <name><name>video</name><operator>-&gt;</operator><name>info</name><operator>.</operator><name>format</name></name></expr>,
+<expr><operator>.</operator><name>width</name> <operator>=</operator> <name><name>video</name><operator>-&gt;</operator><name>info</name><operator>.</operator><name>width</name></name></expr>,
+<expr><operator>.</operator><name>height</name> <operator>=</operator> <name><name>video</name><operator>-&gt;</operator><name>info</name><operator>.</operator><name>height</name></name></expr>,
+<expr><operator>.</operator><name>range</name> <operator>=</operator> <name><name>video</name><operator>-&gt;</operator><name>info</name><operator>.</operator><name>range</name></name></expr>,
+<expr><operator>.</operator><name>colorspace</name> <operator>=</operator>
+<name><name>video</name><operator>-&gt;</operator><name>info</name><operator>.</operator><name>colorspace</name></name></expr>}</block></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>ret</name> <init>= <expr><call><name>video_scaler_create</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>input</name><operator>-&gt;</operator><name>scaler</name></name></expr></argument>,
+<argument><expr><operator>&amp;</operator><name><name>input</name><operator>-&gt;</operator><name>conversion</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name>from</name></expr></argument>,
+<argument><expr><name>VIDEO_SCALE_FAST_BILINEAR</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<if_stmt><if>if <condition>(<expr><name>ret</name> <operator>!=</operator> <name>VIDEO_SCALER_SUCCESS</name></expr>)</condition> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name>ret</name> <operator>==</operator> <name>VIDEO_SCALER_BAD_CONVERSION</name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>blog</name><argument_list>(<argument><expr><name>LOG_ERROR</name></expr></argument>, <argument><expr><literal type="string">"video_input_init: Bad "</literal>
+<literal type="string">"scale conversion type"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if>
+<else>else<block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>blog</name><argument_list>(<argument><expr><name>LOG_ERROR</name></expr></argument>, <argument><expr><literal type="string">"video_input_init: Failed to "</literal>
+<literal type="string">"create scaler"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></else></if_stmt>
+
+<return>return <expr><name>false</name></expr>;</return>
+</block_content>}</block></if></if_stmt>
+
+<for>for <control>(<init><decl><type><name>size_t</name></type> <name>i</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>MAX_CONVERT_BUFFERS</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>video_frame_init</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>input</name><operator>-&gt;</operator><name>frame</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>,
+<argument><expr><name><name>input</name><operator>-&gt;</operator><name>conversion</name><operator>.</operator><name>format</name></name></expr></argument>,
+<argument><expr><name><name>input</name><operator>-&gt;</operator><name>conversion</name><operator>.</operator><name>width</name></name></expr></argument>,
+<argument><expr><name><name>input</name><operator>-&gt;</operator><name>conversion</name><operator>.</operator><name>height</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></for>
+</block_content>}</block></if></if_stmt>
+
+<return>return <expr><name>true</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <specifier>inline</specifier> <name>void</name></type> <name>reset_frames</name><parameter_list>(<parameter><decl><type><name>video_t</name> <modifier>*</modifier></type><name>video</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<expr_stmt><expr><call><name>os_atomic_set_long</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>video</name><operator>-&gt;</operator><name>skipped_frames</name></name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>os_atomic_set_long</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>video</name><operator>-&gt;</operator><name>total_frames</name></name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><name>bool</name></type> <name>video_output_connect</name><parameter_list>(
+<parameter><decl><type><name>video_t</name> <modifier>*</modifier></type><name>video</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name><name>struct</name> <name>video_scale_info</name></name> <modifier>*</modifier></type><name>conversion</name></decl></parameter>,
+<parameter><function_decl><type><name>void</name></type> (<modifier>*</modifier><name>callback</name>)<parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>param</name></decl></parameter>, <parameter><decl><type><name><name>struct</name> <name>video_data</name></name> <modifier>*</modifier></type><name>frame</name></decl></parameter>)</parameter_list></function_decl></parameter>, <parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>param</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>bool</name></type> <name>success</name> <init>= <expr><name>false</name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>video</name> <operator>||</operator> <operator>!</operator><name>callback</name></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><name>false</name></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_lock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>video</name><operator>-&gt;</operator><name>input_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>video_get_input_idx</name><argument_list>(<argument><expr><name>video</name></expr></argument>, <argument><expr><name>callback</name></expr></argument>, <argument><expr><name>param</name></expr></argument>)</argument_list></call> <operator>==</operator> <name>DARRAY_INVALID</name></expr>)</condition> <block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>video_input</name></name></type> <name>input</name></decl>;</decl_stmt>
+<expr_stmt><expr><call><name>memset</name><argument_list>(<argument><expr><operator>&amp;</operator><name>input</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr><name>input</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>input</name><operator>.</operator><name>callback</name></name> <operator>=</operator> <name>callback</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>input</name><operator>.</operator><name>param</name></name> <operator>=</operator> <name>param</name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>conversion</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name><name>input</name><operator>.</operator><name>conversion</name></name> <operator>=</operator> <operator>*</operator><name>conversion</name></expr>;</expr_stmt>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<expr_stmt><expr><name><name>input</name><operator>.</operator><name>conversion</name><operator>.</operator><name>format</name></name> <operator>=</operator> <name><name>video</name><operator>-&gt;</operator><name>info</name><operator>.</operator><name>format</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>input</name><operator>.</operator><name>conversion</name><operator>.</operator><name>width</name></name> <operator>=</operator> <name><name>video</name><operator>-&gt;</operator><name>info</name><operator>.</operator><name>width</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>input</name><operator>.</operator><name>conversion</name><operator>.</operator><name>height</name></name> <operator>=</operator> <name><name>video</name><operator>-&gt;</operator><name>info</name><operator>.</operator><name>height</name></name></expr>;</expr_stmt>
+</block_content>}</block></else></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>input</name><operator>.</operator><name>conversion</name><operator>.</operator><name>width</name></name> <operator>==</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name><name>input</name><operator>.</operator><name>conversion</name><operator>.</operator><name>width</name></name> <operator>=</operator> <name><name>video</name><operator>-&gt;</operator><name>info</name><operator>.</operator><name>width</name></name></expr>;</expr_stmt></block_content></block></if></if_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>input</name><operator>.</operator><name>conversion</name><operator>.</operator><name>height</name></name> <operator>==</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name><name>input</name><operator>.</operator><name>conversion</name><operator>.</operator><name>height</name></name> <operator>=</operator> <name><name>video</name><operator>-&gt;</operator><name>info</name><operator>.</operator><name>height</name></name></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>success</name> <operator>=</operator> <call><name>video_input_init</name><argument_list>(<argument><expr><operator>&amp;</operator><name>input</name></expr></argument>, <argument><expr><name>video</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name>success</name></expr>)</condition> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name><name>video</name><operator>-&gt;</operator><name>inputs</name><operator>.</operator><name>num</name></name> <operator>==</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>os_atomic_load_long</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>video</name><operator>-&gt;</operator><name>gpu_refs</name></name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>reset_frames</name><argument_list>(<argument><expr><name>video</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+<expr_stmt><expr><call><name>os_atomic_set_bool</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>video</name><operator>-&gt;</operator><name>raw_active</name></name></expr></argument>, <argument><expr><name>true</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+<expr_stmt><expr><call><name>da_push_back</name><argument_list>(<argument><expr><name><name>video</name><operator>-&gt;</operator><name>inputs</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name>input</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_unlock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>video</name><operator>-&gt;</operator><name>input_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>success</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>log_skipped</name><parameter_list>(<parameter><decl><type><name>video_t</name> <modifier>*</modifier></type><name>video</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>long</name></type> <name>skipped</name> <init>= <expr><call><name>os_atomic_load_long</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>video</name><operator>-&gt;</operator><name>skipped_frames</name></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>double</name></type> <name>percentage_skipped</name> <init>=
+<expr><operator>(</operator><name>double</name><operator>)</operator><name>skipped</name> <operator>/</operator>
+<operator>(</operator><name>double</name><operator>)</operator><call><name>os_atomic_load_long</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>video</name><operator>-&gt;</operator><name>total_frames</name></name></expr></argument>)</argument_list></call> <operator>*</operator> <literal type="number">100.0</literal></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>skipped</name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>blog</name><argument_list>(<argument><expr><name>LOG_INFO</name></expr></argument>,
+<argument><expr><literal type="string">"Video stopped, number of "</literal>
+<literal type="string">"skipped frames due "</literal>
+<literal type="string">"to encoding lag: "</literal>
+<literal type="string">"%ld/%ld (%0.1f%%)"</literal></expr></argument>,
+<argument><expr><name><name>video</name><operator>-&gt;</operator><name>skipped_frames</name></name></expr></argument>, <argument><expr><name><name>video</name><operator>-&gt;</operator><name>total_frames</name></name></expr></argument>,
+<argument><expr><name>percentage_skipped</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+</block_content>}</block></function>
+
+<function><type><name>void</name></type> <name>video_output_disconnect</name><parameter_list>(<parameter><decl><type><name>video_t</name> <modifier>*</modifier></type><name>video</name></decl></parameter>,
+<parameter><function_decl><type><name>void</name></type> (<modifier>*</modifier><name>callback</name>)<parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>param</name></decl></parameter>,
+<parameter><decl><type><name><name>struct</name> <name>video_data</name></name> <modifier>*</modifier></type><name>frame</name></decl></parameter>)</parameter_list></function_decl></parameter>,
+<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>param</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>video</name> <operator>||</operator> <operator>!</operator><name>callback</name></expr>)</condition><block type="pseudo"><block_content>
+<return>return;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_lock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>video</name><operator>-&gt;</operator><name>input_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<decl_stmt><decl><type><name>size_t</name></type> <name>idx</name> <init>= <expr><call><name>video_get_input_idx</name><argument_list>(<argument><expr><name>video</name></expr></argument>, <argument><expr><name>callback</name></expr></argument>, <argument><expr><name>param</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<if_stmt><if>if <condition>(<expr><name>idx</name> <operator>!=</operator> <name>DARRAY_INVALID</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>video_input_free</name><argument_list>(<argument><expr><name><name>video</name><operator>-&gt;</operator><name>inputs</name><operator>.</operator><name>array</name></name> <operator>+</operator> <name>idx</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>da_erase</name><argument_list>(<argument><expr><name><name>video</name><operator>-&gt;</operator><name>inputs</name></name></expr></argument>, <argument><expr><name>idx</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>video</name><operator>-&gt;</operator><name>inputs</name><operator>.</operator><name>num</name></name> <operator>==</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>os_atomic_set_bool</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>video</name><operator>-&gt;</operator><name>raw_active</name></name></expr></argument>, <argument><expr><name>false</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>os_atomic_load_long</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>video</name><operator>-&gt;</operator><name>gpu_refs</name></name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>log_skipped</name><argument_list>(<argument><expr><name>video</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_unlock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>video</name><operator>-&gt;</operator><name>input_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><name>bool</name></type> <name>video_output_active</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name>video_t</name> <modifier>*</modifier></type><name>video</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>video</name></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><name>false</name></expr>;</return></block_content></block></if></if_stmt>
+<return>return <expr><call><name>os_atomic_load_bool</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>video</name><operator>-&gt;</operator><name>raw_active</name></name></expr></argument>)</argument_list></call></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>const</specifier> <name><name>struct</name> <name>video_output_info</name></name> <modifier>*</modifier></type><name>video_output_get_info</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name>video_t</name> <modifier>*</modifier></type><name>video</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<return>return <expr><ternary><condition><expr><name>video</name></expr> ?</condition><then> <expr><operator>&amp;</operator><name><name>video</name><operator>-&gt;</operator><name>info</name></name></expr> </then><else>: <expr><name>NULL</name></expr></else></ternary></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><name>bool</name></type> <name>video_output_lock_frame</name><parameter_list>(<parameter><decl><type><name>video_t</name> <modifier>*</modifier></type><name>video</name></decl></parameter>, <parameter><decl><type><name><name>struct</name> <name>video_frame</name></name> <modifier>*</modifier></type><name>frame</name></decl></parameter>,
+<parameter><decl><type><name>int</name></type> <name>count</name></decl></parameter>, <parameter><decl><type><name>uint64_t</name></type> <name>timestamp</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>cached_frame_info</name></name> <modifier>*</modifier></type><name>cfi</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>bool</name></type> <name>locked</name></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>video</name></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><name>false</name></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_lock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>video</name><operator>-&gt;</operator><name>data_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>video</name><operator>-&gt;</operator><name>available_frames</name></name> <operator>==</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name><name>video</name><operator>-&gt;</operator><name>cache</name><index>[<expr><name><name>video</name><operator>-&gt;</operator><name>last_added</name></name></expr>]</index></name><operator>.</operator><name>count</name> <operator>+=</operator> <name>count</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>video</name><operator>-&gt;</operator><name>cache</name><index>[<expr><name><name>video</name><operator>-&gt;</operator><name>last_added</name></name></expr>]</index></name><operator>.</operator><name>skipped</name> <operator>+=</operator> <name>count</name></expr>;</expr_stmt>
+<expr_stmt><expr><name>locked</name> <operator>=</operator> <name>false</name></expr>;</expr_stmt>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name><name>video</name><operator>-&gt;</operator><name>available_frames</name></name> <operator>!=</operator> <name><name>video</name><operator>-&gt;</operator><name>info</name><operator>.</operator><name>cache_size</name></name></expr>)</condition> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><operator>++</operator><name><name>video</name><operator>-&gt;</operator><name>last_added</name></name> <operator>==</operator> <name><name>video</name><operator>-&gt;</operator><name>info</name><operator>.</operator><name>cache_size</name></name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name><name>video</name><operator>-&gt;</operator><name>last_added</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt></block_content></block></if></if_stmt>
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name>cfi</name> <operator>=</operator> <operator>&amp;</operator><name><name>video</name><operator>-&gt;</operator><name>cache</name><index>[<expr><name><name>video</name><operator>-&gt;</operator><name>last_added</name></name></expr>]</index></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>cfi</name><operator>-&gt;</operator><name>frame</name><operator>.</operator><name>timestamp</name></name> <operator>=</operator> <name>timestamp</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>cfi</name><operator>-&gt;</operator><name>count</name></name> <operator>=</operator> <name>count</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>cfi</name><operator>-&gt;</operator><name>skipped</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>memcpy</name><argument_list>(<argument><expr><name>frame</name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>cfi</name><operator>-&gt;</operator><name>frame</name></name></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr><operator>*</operator><name>frame</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>locked</name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+</block_content>}</block></else></if_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_unlock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>video</name><operator>-&gt;</operator><name>data_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>locked</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><name>void</name></type> <name>video_output_unlock_frame</name><parameter_list>(<parameter><decl><type><name>video_t</name> <modifier>*</modifier></type><name>video</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>video</name></expr>)</condition><block type="pseudo"><block_content>
+<return>return;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_lock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>video</name><operator>-&gt;</operator><name>data_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>video</name><operator>-&gt;</operator><name>available_frames</name></name><operator>--</operator></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>os_sem_post</name><argument_list>(<argument><expr><name><name>video</name><operator>-&gt;</operator><name>update_semaphore</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_unlock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>video</name><operator>-&gt;</operator><name>data_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><name>uint64_t</name></type> <name>video_output_get_frame_time</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name>video_t</name> <modifier>*</modifier></type><name>video</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<return>return <expr><ternary><condition><expr><name>video</name></expr> ?</condition><then> <expr><name><name>video</name><operator>-&gt;</operator><name>frame_time</name></name></expr> </then><else>: <expr><literal type="number">0</literal></expr></else></ternary></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><name>void</name></type> <name>video_output_stop</name><parameter_list>(<parameter><decl><type><name>video_t</name> <modifier>*</modifier></type><name>video</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>void</name> <modifier>*</modifier></type><name>thread_ret</name></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>video</name></expr>)</condition><block type="pseudo"><block_content>
+<return>return;</return></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>video</name><operator>-&gt;</operator><name>initialized</name></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name><name>video</name><operator>-&gt;</operator><name>initialized</name></name> <operator>=</operator> <name>false</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>video</name><operator>-&gt;</operator><name>stop</name></name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>os_sem_post</name><argument_list>(<argument><expr><name><name>video</name><operator>-&gt;</operator><name>update_semaphore</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>pthread_join</name><argument_list>(<argument><expr><name><name>video</name><operator>-&gt;</operator><name>thread</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name>thread_ret</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block></function>
+
+<function><type><name>bool</name></type> <name>video_output_stopped</name><parameter_list>(<parameter><decl><type><name>video_t</name> <modifier>*</modifier></type><name>video</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>video</name></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><name>true</name></expr>;</return></block_content></block></if></if_stmt>
+
+<return>return <expr><name><name>video</name><operator>-&gt;</operator><name>stop</name></name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><name><name>enum</name> <name>video_format</name></name></type> <name>video_output_get_format</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name>video_t</name> <modifier>*</modifier></type><name>video</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<return>return <expr><ternary><condition><expr><name>video</name></expr> ?</condition><then> <expr><name><name>video</name><operator>-&gt;</operator><name>info</name><operator>.</operator><name>format</name></name></expr> </then><else>: <expr><name>VIDEO_FORMAT_NONE</name></expr></else></ternary></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><name>uint32_t</name></type> <name>video_output_get_width</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name>video_t</name> <modifier>*</modifier></type><name>video</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<return>return <expr><ternary><condition><expr><name>video</name></expr> ?</condition><then> <expr><name><name>video</name><operator>-&gt;</operator><name>info</name><operator>.</operator><name>width</name></name></expr> </then><else>: <expr><literal type="number">0</literal></expr></else></ternary></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><name>uint32_t</name></type> <name>video_output_get_height</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name>video_t</name> <modifier>*</modifier></type><name>video</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<return>return <expr><ternary><condition><expr><name>video</name></expr> ?</condition><then> <expr><name><name>video</name><operator>-&gt;</operator><name>info</name><operator>.</operator><name>height</name></name></expr> </then><else>: <expr><literal type="number">0</literal></expr></else></ternary></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><name>double</name></type> <name>video_output_get_frame_rate</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name>video_t</name> <modifier>*</modifier></type><name>video</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>video</name></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><literal type="number">0.0</literal></expr>;</return></block_content></block></if></if_stmt>
+
+<return>return <expr><operator>(</operator><name>double</name><operator>)</operator><name><name>video</name><operator>-&gt;</operator><name>info</name><operator>.</operator><name>fps_num</name></name> <operator>/</operator> <operator>(</operator><name>double</name><operator>)</operator><name><name>video</name><operator>-&gt;</operator><name>info</name><operator>.</operator><name>fps_den</name></name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><name>uint32_t</name></type> <name>video_output_get_skipped_frames</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name>video_t</name> <modifier>*</modifier></type><name>video</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<return>return <expr><operator>(</operator><name>uint32_t</name><operator>)</operator><call><name>os_atomic_load_long</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>video</name><operator>-&gt;</operator><name>skipped_frames</name></name></expr></argument>)</argument_list></call></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><name>uint32_t</name></type> <name>video_output_get_total_frames</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name>video_t</name> <modifier>*</modifier></type><name>video</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<return>return <expr><operator>(</operator><name>uint32_t</name><operator>)</operator><call><name>os_atomic_load_long</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>video</name><operator>-&gt;</operator><name>total_frames</name></name></expr></argument>)</argument_list></call></expr>;</return>
+</block_content>}</block></function>
+
+
+
+
+
+
+
+<function><type><name>void</name></type> <name>video_output_inc_texture_encoders</name><parameter_list>(<parameter><decl><type><name>video_t</name> <modifier>*</modifier></type><name>video</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<if_stmt><if>if <condition>(<expr><call><name>os_atomic_inc_long</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>video</name><operator>-&gt;</operator><name>gpu_refs</name></name></expr></argument>)</argument_list></call> <operator>==</operator> <literal type="number">1</literal> <operator>&amp;&amp;</operator>
+<operator>!</operator><call><name>os_atomic_load_bool</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>video</name><operator>-&gt;</operator><name>raw_active</name></name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>reset_frames</name><argument_list>(<argument><expr><name>video</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block></function>
+
+<function><type><name>void</name></type> <name>video_output_dec_texture_encoders</name><parameter_list>(<parameter><decl><type><name>video_t</name> <modifier>*</modifier></type><name>video</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<if_stmt><if>if <condition>(<expr><call><name>os_atomic_dec_long</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>video</name><operator>-&gt;</operator><name>gpu_refs</name></name></expr></argument>)</argument_list></call> <operator>==</operator> <literal type="number">0</literal> <operator>&amp;&amp;</operator>
+<operator>!</operator><call><name>os_atomic_load_bool</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>video</name><operator>-&gt;</operator><name>raw_active</name></name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>log_skipped</name><argument_list>(<argument><expr><name>video</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block></function>
+
+<function><type><name>void</name></type> <name>video_output_inc_texture_frames</name><parameter_list>(<parameter><decl><type><name>video_t</name> <modifier>*</modifier></type><name>video</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<expr_stmt><expr><call><name>os_atomic_inc_long</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>video</name><operator>-&gt;</operator><name>total_frames</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><name>void</name></type> <name>video_output_inc_texture_skipped_frames</name><parameter_list>(<parameter><decl><type><name>video_t</name> <modifier>*</modifier></type><name>video</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<expr_stmt><expr><call><name>os_atomic_inc_long</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>video</name><operator>-&gt;</operator><name>skipped_frames</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+</unit>

@@ -1,0 +1,3 @@
+#if defined(CURLDEBUG)
+CURL_EXTERN CURLcode curl_easy_perform_ev(struct Curl_easy *easy);
+#endif

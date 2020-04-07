@@ -1,0 +1,92 @@
+
+
+
+
+
+
+
+
+#if !defined(GETTEXT_H)
+#define GETTEXT_H
+
+#if defined(_) || defined(Q_)
+#error "namespace conflict: '_' or 'Q_' is pre-defined?"
+#endif
+
+#if !defined(NO_GETTEXT)
+#include <libintl.h>
+#else
+#if defined(gettext)
+#undef gettext
+#endif
+#define gettext(s) (s)
+#if defined(ngettext)
+#undef ngettext
+#endif
+#define ngettext(s, p, n) ((n == 1) ? (s) : (p))
+#endif
+
+#define FORMAT_PRESERVING(n) __attribute__((format_arg(n)))
+
+int use_gettext_poison(void);
+
+#if !defined(NO_GETTEXT)
+void git_setup_gettext(void);
+int gettext_width(const char *s);
+#else
+static inline void git_setup_gettext(void)
+{
+use_gettext_poison(); 
+}
+static inline int gettext_width(const char *s)
+{
+return strlen(s);
+}
+#endif
+
+static inline FORMAT_PRESERVING(1) const char *_(const char *msgid)
+{
+if (!*msgid)
+return "";
+return use_gettext_poison() ? "#GETTEXT POISON #" : gettext(msgid);
+}
+
+static inline FORMAT_PRESERVING(1) FORMAT_PRESERVING(2)
+const char *Q_(const char *msgid, const char *plu, unsigned long n)
+{
+if (use_gettext_poison())
+return "#GETTEXT POISON #";
+return ngettext(msgid, plu, n);
+}
+
+
+#if !USE_PARENS_AROUND_GETTEXT_N
+#define N_(msgid) msgid
+#else
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#define N_(msgid) (msgid)
+#endif
+
+const char *get_preferred_languages(void);
+int is_utf8_locale(void);
+
+#endif

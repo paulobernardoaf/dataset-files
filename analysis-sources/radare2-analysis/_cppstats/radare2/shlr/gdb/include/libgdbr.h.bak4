@@ -1,0 +1,237 @@
+
+#if !defined(LIBGDBR_H)
+#define LIBGDBR_H
+
+#include <stdint.h>
+#if defined(_MSC_VER)
+typedef unsigned int ssize_t;
+#endif
+
+#include "arch.h"
+#include "r_types_base.h"
+#include "r_socket.h"
+#include "r_th.h"
+
+#define MSG_OK 0
+#define MSG_NOT_SUPPORTED -1
+#define MSG_ERROR_1 -2
+
+#define GDB_REMOTE_TYPE_GDB 0
+#define GDB_REMOTE_TYPE_LLDB 1
+#define GDB_MAX_PKTSZ 4
+
+
+
+
+typedef struct libgdbr_message_t {
+ssize_t len; 
+char *msg; 
+uint8_t chk; 
+} libgdbr_message_t;
+
+
+
+
+
+typedef struct libgdbr_stub_features_t {
+ut32 pkt_sz; 
+bool qXfer_btrace_read;
+bool qXfer_btrace_conf_read;
+bool qXfer_spu_read;
+bool qXfer_spu_write;
+bool qXfer_libraries_read;
+bool qXfer_libraries_svr4_read;
+bool qXfer_siginfo_read;
+bool qXfer_siginfo_write;
+bool qXfer_auxv_read;
+bool qXfer_exec_file_read;
+bool qXfer_features_read;
+bool qXfer_memory_map_read;
+bool qXfer_sdata_read;
+bool qXfer_threads_read;
+bool qXfer_traceframe_info_read;
+bool qXfer_uib_read;
+bool qXfer_fdpic_read;
+bool qXfer_osdata_read;
+bool Qbtrace_off;
+bool Qbtrace_bts;
+bool Qbtrace_pt;
+bool Qbtrace_conf_bts_size;
+bool Qbtrace_conf_pt_size;
+bool QNonStop;
+bool QCatchSyscalls;
+bool QPassSignals;
+bool QStartNoAckMode;
+bool QAgent;
+bool QAllow;
+bool QDisableRandomization;
+bool QTBuffer_size;
+bool QThreadEvents;
+bool StaticTracepoint;
+bool InstallInTrace;
+bool ConditionalBreakpoints;
+bool ConditionalTracepoints;
+bool ReverseContinue;
+bool ReverseStep;
+bool swbreak;
+bool hwbreak;
+bool fork_events;
+bool vfork__events;
+bool exec_events;
+bool vContSupported;
+bool no_resumed;
+bool augmented_libraries_svr4_read;
+bool multiprocess;
+bool TracepointSource;
+bool EnableDisableTracepoints;
+bool tracenz;
+bool BreakpointCommands;
+
+struct {
+bool g;
+bool QThreadSuffixSupported;
+bool QListThreadsInStopReply;
+bool qEcho;
+} lldb;
+
+bool qC;
+int extended_mode;
+struct {
+bool c, C, s, S, t, r;
+} vcont;
+bool P;
+} libgdbr_stub_features_t;
+
+
+
+
+R_PACKED(
+typedef struct libgdbr_fstat_t {
+unsigned dev;
+unsigned ino;
+unsigned mode;
+unsigned numlinks;
+unsigned uid;
+unsigned gid;
+unsigned rdev;
+uint64_t size;
+uint64_t blksize;
+uint64_t blocks;
+unsigned atime;
+unsigned mtime;
+unsigned ctime;
+}) libgdbr_fstat_t;
+
+
+
+
+typedef struct libgdbr_stop_reason {
+unsigned signum;
+int core;
+int reason;
+bool syscall;
+bool library;
+bool swbreak;
+bool hwbreak;
+bool create;
+bool vforkdone;
+bool is_valid;
+struct {
+bool present;
+ut64 addr;
+} watchpoint;
+struct {
+bool present;
+char *path;
+} exec;
+struct {
+bool present;
+int pid;
+int tid;
+} thread, fork, vfork;
+} libgdbr_stop_reason_t;
+
+
+
+
+
+typedef struct libgdbr_t {
+char *send_buff; 
+ssize_t send_len;
+ssize_t send_max; 
+char *read_buff;
+ssize_t read_max; 
+ssize_t read_len; 
+
+
+RSocket *sock;
+int connected;
+int acks;
+char *data;
+ssize_t data_len;
+ssize_t data_max;
+gdb_reg_t *registers;
+int last_code;
+int pid; 
+int tid; 
+int page_size; 
+bool attached; 
+libgdbr_stub_features_t stub_features;
+
+int remote_file_fd; 
+int num_retries; 
+
+int remote_type;
+bool no_ack;
+bool is_server;
+bool server_debug;
+bool get_baddr;
+libgdbr_stop_reason_t stop_reason;
+
+RThreadLock *gdbr_lock;
+int gdbr_lock_depth; 
+
+
+struct {
+char *regprofile;
+int arch, bits;
+bool valid;
+} target;
+
+bool isbreaked;
+} libgdbr_t;
+
+
+
+
+
+int gdbr_init(libgdbr_t *g, bool is_server);
+
+
+
+
+
+
+int gdbr_set_architecture(libgdbr_t *g, int arch, int bits);
+
+
+
+
+
+
+const char *gdbr_get_reg_profile(int arch, int bits);
+
+
+
+
+
+
+int gdbr_set_reg_profile(libgdbr_t *g, const char *str);
+
+
+
+
+
+int gdbr_cleanup(libgdbr_t *g);
+
+#endif

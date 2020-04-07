@@ -1,0 +1,112 @@
+#include "test-tool.h"
+#include "cache.h"
+#include "oidmap.h"
+#include "strbuf.h"
+
+
+struct test_entry {
+	struct oidmap_entry entry;
+	char name[FLEX_ARRAY];
+};
+
+#define DELIM " \t\r\n"
+
+
+
+
+
+
+
+
+
+
+
+int cmd__oidmap(int argc, const char **argv)
+{
+	struct strbuf line = STRBUF_INIT;
+	struct oidmap map = OIDMAP_INIT;
+
+	setup_git_directory();
+
+	
+	oidmap_init(&map, 0);
+
+	
+	while (strbuf_getline(&line, stdin) != EOF) {
+		char *cmd, *p1 = NULL, *p2 = NULL;
+		struct test_entry *entry;
+		struct object_id oid;
+
+		
+		cmd = strtok(line.buf, DELIM);
+		
+		if (!cmd || *cmd == '#')
+			continue;
+
+		p1 = strtok(NULL, DELIM);
+		if (p1)
+			p2 = strtok(NULL, DELIM);
+
+		if (!strcmp("put", cmd) && p1 && p2) {
+
+			if (get_oid(p1, &oid)) {
+				printf("Unknown oid: %s\n", p1);
+				continue;
+			}
+
+			
+			FLEX_ALLOC_STR(entry, name, p2);
+			oidcpy(&entry->entry.oid, &oid);
+
+			
+			entry = oidmap_put(&map, entry);
+
+			
+			puts(entry ? entry->name : "NULL");
+			free(entry);
+
+		} else if (!strcmp("get", cmd) && p1) {
+
+			if (get_oid(p1, &oid)) {
+				printf("Unknown oid: %s\n", p1);
+				continue;
+			}
+
+			
+			entry = oidmap_get(&map, &oid);
+
+			
+			puts(entry ? entry->name : "NULL");
+
+		} else if (!strcmp("remove", cmd) && p1) {
+
+			if (get_oid(p1, &oid)) {
+				printf("Unknown oid: %s\n", p1);
+				continue;
+			}
+
+			
+			entry = oidmap_remove(&map, &oid);
+
+			
+			puts(entry ? entry->name : "NULL");
+			free(entry);
+
+		} else if (!strcmp("iterate", cmd)) {
+
+			struct oidmap_iter iter;
+			oidmap_iter_init(&map, &iter);
+			while ((entry = oidmap_iter_next(&iter)))
+				printf("%s %s\n", oid_to_hex(&entry->entry.oid), entry->name);
+
+		} else {
+
+			printf("Unknown command %s\n", cmd);
+
+		}
+	}
+
+	strbuf_release(&line);
+	oidmap_free(&map, 1);
+	return 0;
+}

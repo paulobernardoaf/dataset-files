@@ -1,0 +1,190 @@
+#if !defined(BLAME_H)
+#define BLAME_H
+
+#include "cache.h"
+#include "commit.h"
+#include "xdiff-interface.h"
+#include "revision.h"
+#include "prio-queue.h"
+#include "diff.h"
+
+#define PICKAXE_BLAME_MOVE 01
+#define PICKAXE_BLAME_COPY 02
+#define PICKAXE_BLAME_COPY_HARDER 04
+#define PICKAXE_BLAME_COPY_HARDEST 010
+
+#define BLAME_DEFAULT_MOVE_SCORE 20
+#define BLAME_DEFAULT_COPY_SCORE 40
+
+struct fingerprint;
+
+
+
+
+struct blame_origin {
+int refcnt;
+
+struct blame_origin *previous;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+struct blame_origin *next;
+struct commit *commit;
+
+
+
+
+
+
+
+struct blame_entry *suspects;
+mmfile_t file;
+int num_lines;
+struct fingerprint *fingerprints;
+struct object_id blob_oid;
+unsigned short mode;
+
+
+
+char guilty;
+char path[FLEX_ARRAY];
+};
+
+
+
+
+
+
+
+
+
+
+struct blame_entry {
+struct blame_entry *next;
+
+
+
+
+int lno;
+
+
+int num_lines;
+
+
+struct blame_origin *suspect;
+
+
+
+
+int s_lno;
+
+
+
+
+unsigned score;
+int ignored;
+int unblamable;
+};
+
+
+
+
+struct blame_scoreboard {
+
+struct commit *final;
+
+struct prio_queue commits;
+struct repository *repo;
+struct rev_info *revs;
+const char *path;
+
+
+
+
+
+
+const char *final_buf;
+unsigned long final_buf_size;
+
+
+struct blame_entry *ent;
+
+struct oidset ignore_list;
+
+
+int num_lines;
+int *lineno;
+
+
+int num_read_blob;
+int num_get_patch;
+int num_commits;
+
+
+
+
+
+unsigned move_score;
+unsigned copy_score;
+
+
+const char *contents_from;
+
+
+int reverse;
+int show_root;
+int xdl_opts;
+int no_whole_file_rename;
+int debug;
+
+
+void(*on_sanity_fail)(struct blame_scoreboard *, int);
+void(*found_guilty_entry)(struct blame_entry *, void *);
+
+void *found_guilty_entry_data;
+};
+
+
+
+
+
+static inline struct blame_origin *blame_origin_incref(struct blame_origin *o)
+{
+if (o)
+o->refcnt++;
+return o;
+}
+void blame_origin_decref(struct blame_origin *o);
+
+void blame_coalesce(struct blame_scoreboard *sb);
+void blame_sort_final(struct blame_scoreboard *sb);
+unsigned blame_entry_score(struct blame_scoreboard *sb, struct blame_entry *e);
+void assign_blame(struct blame_scoreboard *sb, int opt);
+const char *blame_nth_line(struct blame_scoreboard *sb, long lno);
+
+void init_scoreboard(struct blame_scoreboard *sb);
+void setup_scoreboard(struct blame_scoreboard *sb,
+const char *path,
+struct blame_origin **orig);
+
+struct blame_entry *blame_entry_prepend(struct blame_entry *head,
+long start, long end,
+struct blame_origin *o);
+
+struct blame_origin *get_blame_suspects(struct commit *commit);
+
+#endif 

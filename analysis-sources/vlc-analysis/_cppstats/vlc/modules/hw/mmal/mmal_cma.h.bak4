@@ -1,0 +1,49 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#if !defined(VLC_MMAL_MMAL_CMA_H_)
+#define VLC_MMAL_MMAL_CMA_H_
+
+
+struct cma_pool_fixed_s;
+typedef struct cma_pool_fixed_s cma_pool_fixed_t;
+
+struct cma_buf_s;
+typedef struct cma_buf_s cma_buf_t;
+
+size_t cma_buf_size(const cma_buf_t * const cb);
+unsigned int cma_buf_vc_handle(const cma_buf_t *const cb);
+void * cma_buf_addr(const cma_buf_t *const cb);
+
+void cma_buf_unref(cma_buf_t * const cb);
+cma_buf_t * cma_buf_ref(cma_buf_t * const cb);
+
+struct cma_buf_pool_s;
+typedef struct cma_buf_pool_s cma_buf_pool_t;
+
+cma_buf_t * cma_buf_pool_alloc_buf(cma_buf_pool_t * const p, const size_t size);
+void cma_buf_pool_delete(cma_buf_pool_t * const p);
+cma_buf_pool_t * cma_buf_pool_new(const unsigned int pool_size,
+const unsigned int flight_size,
+bool is_cma, const char * const name);
+
+#endif 

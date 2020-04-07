@@ -1,0 +1,219 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#if !defined(VLC_RENDERER_DISCOVERY_H)
+#define VLC_RENDERER_DISCOVERY_H 1
+
+#include <vlc_input.h>
+#include <vlc_probe.h>
+#include <vlc_url.h>
+
+
+
+
+
+
+
+
+
+
+
+
+
+#define VLC_RENDERER_CAN_AUDIO 0x0001
+#define VLC_RENDERER_CAN_VIDEO 0x0002
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+VLC_API vlc_renderer_item_t *
+vlc_renderer_item_new(const char *psz_type, const char *psz_name,
+const char *psz_uri, const char *psz_extra_sout,
+const char *psz_demux_filter, const char *psz_icon_uri,
+int i_flags) VLC_USED;
+
+
+
+
+VLC_API vlc_renderer_item_t *
+vlc_renderer_item_hold(vlc_renderer_item_t *p_item);
+
+
+
+
+VLC_API void
+vlc_renderer_item_release(vlc_renderer_item_t *p_item);
+
+
+
+
+VLC_API const char *
+vlc_renderer_item_name(const vlc_renderer_item_t *p_item);
+
+
+
+
+
+VLC_API const char *
+vlc_renderer_item_type(const vlc_renderer_item_t *p_item);
+
+
+
+
+VLC_API const char *
+vlc_renderer_item_demux_filter(const vlc_renderer_item_t *p_item);
+
+
+
+
+VLC_API const char *
+vlc_renderer_item_sout(const vlc_renderer_item_t *p_item);
+
+
+
+
+VLC_API const char *
+vlc_renderer_item_icon_uri(const vlc_renderer_item_t *p_item);
+
+
+
+
+VLC_API int
+vlc_renderer_item_flags(const vlc_renderer_item_t *p_item);
+
+
+
+
+
+
+
+struct vlc_renderer_discovery_owner;
+
+
+
+
+
+
+
+
+
+
+VLC_API int
+vlc_rd_get_names(vlc_object_t *p_obj, char ***pppsz_names,
+char ***pppsz_longnames) VLC_USED;
+#define vlc_rd_get_names(a, b, c) vlc_rd_get_names(VLC_OBJECT(a), b, c)
+
+
+
+
+
+
+
+
+
+
+
+VLC_API vlc_renderer_discovery_t *
+vlc_rd_new(vlc_object_t *p_obj, const char *psz_name,
+const struct vlc_renderer_discovery_owner *owner) VLC_USED;
+
+VLC_API void vlc_rd_release(vlc_renderer_discovery_t *p_rd);
+
+
+
+
+
+
+
+struct vlc_renderer_discovery_owner
+{
+void *sys;
+void (*item_added)(struct vlc_renderer_discovery_t *,
+struct vlc_renderer_item_t *);
+void (*item_removed)(struct vlc_renderer_discovery_t *,
+struct vlc_renderer_item_t *);
+};
+
+struct vlc_renderer_discovery_t
+{
+struct vlc_object_t obj;
+module_t * p_module;
+
+struct vlc_renderer_discovery_owner owner;
+
+char * psz_name;
+config_chain_t * p_cfg;
+
+void *p_sys;
+};
+
+
+
+
+
+
+static inline void vlc_rd_add_item(vlc_renderer_discovery_t * p_rd,
+vlc_renderer_item_t * p_item)
+{
+p_rd->owner.item_added(p_rd, p_item);
+}
+
+
+
+
+
+
+static inline void vlc_rd_remove_item(vlc_renderer_discovery_t * p_rd,
+vlc_renderer_item_t * p_item)
+{
+p_rd->owner.item_removed(p_rd, p_item);
+}
+
+
+
+
+VLC_API int
+vlc_rd_probe_add(vlc_probe_t *p_probe, const char *psz_name,
+const char *psz_longname);
+
+#define VLC_RD_PROBE_HELPER(name, longname) static int vlc_rd_probe_open(vlc_object_t *obj) { return vlc_rd_probe_add((struct vlc_probe_t *)obj, name, longname); }
+
+
+
+
+
+#define VLC_RD_PROBE_SUBMODULE add_submodule() set_capability("renderer probe", 100) set_callback(vlc_rd_probe_open)
+
+
+
+
+
+
+#endif

@@ -1,0 +1,55 @@
+#if defined(_MSC_VER) || defined(__cplusplus)
+#if defined(_MSC_VER) && defined(__cplusplus)
+#include <eh.h>
+#elif defined(__cplusplus)
+#include <exception>
+#endif
+#if defined(__GNUC__)
+#include <stdlib.h>
+#endif
+#include "test.h"
+enum {
+NUMTHREADS = 1
+};
+void *
+exceptionedThread(void * arg)
+{
+int dummy = 0x1;
+#if defined(_MSC_VER) && !defined(__cplusplus)
+RaiseException(dummy, 0, 0, NULL);
+#elif defined(__cplusplus)
+throw dummy;
+#endif
+return (void *) 100;
+}
+int
+main(int argc, char* argv[])
+{
+int i;
+pthread_t mt;
+pthread_t et[NUMTHREADS];
+if (argc <= 1)
+{
+int result;
+printf("You should see an \"abnormal termination\" message\n");
+fflush(stdout);
+result = system("exception2.exe die");
+exit(0);
+}
+assert((mt = pthread_self()).p != NULL);
+for (i = 0; i < NUMTHREADS; i++)
+{
+assert(pthread_create(&et[i], NULL, exceptionedThread, NULL) == 0);
+}
+Sleep(1000);
+return 0;
+}
+#else 
+#include <stdio.h>
+int
+main()
+{
+fprintf(stderr, "Test N/A for this compiler environment.\n");
+return 0;
+}
+#endif 

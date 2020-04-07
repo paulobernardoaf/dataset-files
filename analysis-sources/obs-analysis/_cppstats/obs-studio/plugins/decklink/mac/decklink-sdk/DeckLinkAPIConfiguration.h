@@ -1,0 +1,131 @@
+#if !defined(BMD_CONST)
+#if defined(_MSC_VER)
+#define BMD_CONST __declspec(selectany) static const
+#else
+#define BMD_CONST static const
+#endif
+#endif
+#if !defined(BMD_PUBLIC)
+#define BMD_PUBLIC
+#endif
+BMD_CONST REFIID IID_IDeckLinkConfiguration = {0xEF,0x90,0x38,0x0B,0x4A,0xE5,0x43,0x46,0x90,0x77,0xE2,0x88,0xE1,0x49,0xF1,0x29};
+BMD_CONST REFIID IID_IDeckLinkEncoderConfiguration = {0x13,0x80,0x50,0xE5,0xC6,0x0A,0x45,0x52,0xBF,0x3F,0x0F,0x35,0x80,0x49,0x32,0x7E};
+typedef uint32_t BMDDeckLinkConfigurationID;
+enum _BMDDeckLinkConfigurationID {
+bmdDeckLinkConfigSwapSerialRxTx = 'ssrt',
+bmdDeckLinkConfigHDMI3DPackingFormat = '3dpf',
+bmdDeckLinkConfigBypass = 'byps',
+bmdDeckLinkConfigClockTimingAdjustment = 'ctad',
+bmdDeckLinkConfigDuplexMode = 'dupx',
+bmdDeckLinkConfigAnalogAudioConsumerLevels = 'aacl',
+bmdDeckLinkConfigFieldFlickerRemoval = 'fdfr',
+bmdDeckLinkConfigHD1080p24ToHD1080i5994Conversion = 'to59',
+bmdDeckLinkConfig444SDIVideoOutput = '444o',
+bmdDeckLinkConfigBlackVideoOutputDuringCapture = 'bvoc',
+bmdDeckLinkConfigLowLatencyVideoOutput = 'llvo',
+bmdDeckLinkConfigDownConversionOnAllAnalogOutput = 'caao',
+bmdDeckLinkConfigSMPTELevelAOutput = 'smta',
+bmdDeckLinkConfigRec2020Output = 'rec2', 
+bmdDeckLinkConfigQuadLinkSDIVideoOutputSquareDivisionSplit = 'SDQS',
+bmdDeckLinkConfigOutput1080pAsPsF = 'pfpr',
+bmdDeckLinkConfigVideoOutputConnection = 'vocn',
+bmdDeckLinkConfigVideoOutputConversionMode = 'vocm',
+bmdDeckLinkConfigAnalogVideoOutputFlags = 'avof',
+bmdDeckLinkConfigReferenceInputTimingOffset = 'glot',
+bmdDeckLinkConfigVideoOutputIdleOperation = 'voio',
+bmdDeckLinkConfigDefaultVideoOutputMode = 'dvom',
+bmdDeckLinkConfigDefaultVideoOutputModeFlags = 'dvof',
+bmdDeckLinkConfigSDIOutputLinkConfiguration = 'solc',
+bmdDeckLinkConfigVideoOutputComponentLumaGain = 'oclg',
+bmdDeckLinkConfigVideoOutputComponentChromaBlueGain = 'occb',
+bmdDeckLinkConfigVideoOutputComponentChromaRedGain = 'occr',
+bmdDeckLinkConfigVideoOutputCompositeLumaGain = 'oilg',
+bmdDeckLinkConfigVideoOutputCompositeChromaGain = 'oicg',
+bmdDeckLinkConfigVideoOutputSVideoLumaGain = 'oslg',
+bmdDeckLinkConfigVideoOutputSVideoChromaGain = 'oscg',
+bmdDeckLinkConfigVideoInputScanning = 'visc', 
+bmdDeckLinkConfigUseDedicatedLTCInput = 'dltc', 
+bmdDeckLinkConfigSDIInput3DPayloadOverride = '3dds',
+bmdDeckLinkConfigCapture1080pAsPsF = 'cfpr',
+bmdDeckLinkConfigVideoInputConnection = 'vicn',
+bmdDeckLinkConfigAnalogVideoInputFlags = 'avif',
+bmdDeckLinkConfigVideoInputConversionMode = 'vicm',
+bmdDeckLinkConfig32PulldownSequenceInitialTimecodeFrame = 'pdif',
+bmdDeckLinkConfigVANCSourceLine1Mapping = 'vsl1',
+bmdDeckLinkConfigVANCSourceLine2Mapping = 'vsl2',
+bmdDeckLinkConfigVANCSourceLine3Mapping = 'vsl3',
+bmdDeckLinkConfigCapturePassThroughMode = 'cptm',
+bmdDeckLinkConfigVideoInputComponentLumaGain = 'iclg',
+bmdDeckLinkConfigVideoInputComponentChromaBlueGain = 'iccb',
+bmdDeckLinkConfigVideoInputComponentChromaRedGain = 'iccr',
+bmdDeckLinkConfigVideoInputCompositeLumaGain = 'iilg',
+bmdDeckLinkConfigVideoInputCompositeChromaGain = 'iicg',
+bmdDeckLinkConfigVideoInputSVideoLumaGain = 'islg',
+bmdDeckLinkConfigVideoInputSVideoChromaGain = 'iscg',
+bmdDeckLinkConfigMicrophonePhantomPower = 'mphp',
+bmdDeckLinkConfigAudioInputConnection = 'aicn',
+bmdDeckLinkConfigAnalogAudioInputScaleChannel1 = 'ais1',
+bmdDeckLinkConfigAnalogAudioInputScaleChannel2 = 'ais2',
+bmdDeckLinkConfigAnalogAudioInputScaleChannel3 = 'ais3',
+bmdDeckLinkConfigAnalogAudioInputScaleChannel4 = 'ais4',
+bmdDeckLinkConfigDigitalAudioInputScale = 'dais',
+bmdDeckLinkConfigMicrophoneInputGain = 'micg',
+bmdDeckLinkConfigAudioOutputAESAnalogSwitch = 'aoaa',
+bmdDeckLinkConfigAnalogAudioOutputScaleChannel1 = 'aos1',
+bmdDeckLinkConfigAnalogAudioOutputScaleChannel2 = 'aos2',
+bmdDeckLinkConfigAnalogAudioOutputScaleChannel3 = 'aos3',
+bmdDeckLinkConfigAnalogAudioOutputScaleChannel4 = 'aos4',
+bmdDeckLinkConfigDigitalAudioOutputScale = 'daos',
+bmdDeckLinkConfigHeadphoneVolume = 'hvol',
+bmdDeckLinkConfigDeviceInformationLabel = 'dila',
+bmdDeckLinkConfigDeviceInformationSerialNumber = 'disn',
+bmdDeckLinkConfigDeviceInformationCompany = 'dico',
+bmdDeckLinkConfigDeviceInformationPhone = 'diph',
+bmdDeckLinkConfigDeviceInformationEmail = 'diem',
+bmdDeckLinkConfigDeviceInformationDate = 'dida',
+bmdDeckLinkConfigDeckControlConnection = 'dcco'
+};
+typedef uint32_t BMDDeckLinkEncoderConfigurationID;
+enum _BMDDeckLinkEncoderConfigurationID {
+bmdDeckLinkEncoderConfigPreferredBitDepth = 'epbr',
+bmdDeckLinkEncoderConfigFrameCodingMode = 'efcm',
+bmdDeckLinkEncoderConfigH265TargetBitrate = 'htbr',
+bmdDeckLinkEncoderConfigDNxHRCompressionID = 'dcid',
+bmdDeckLinkEncoderConfigDNxHRLevel = 'dlev',
+bmdDeckLinkEncoderConfigMPEG4SampleDescription = 'stsE', 
+bmdDeckLinkEncoderConfigMPEG4CodecSpecificDesc = 'esds' 
+};
+class IDeckLinkConfiguration;
+class IDeckLinkEncoderConfiguration;
+class BMD_PUBLIC IDeckLinkConfiguration : public IUnknown
+{
+public:
+virtual HRESULT SetFlag ( BMDDeckLinkConfigurationID cfgID, bool value) = 0;
+virtual HRESULT GetFlag ( BMDDeckLinkConfigurationID cfgID, bool *value) = 0;
+virtual HRESULT SetInt ( BMDDeckLinkConfigurationID cfgID, int64_t value) = 0;
+virtual HRESULT GetInt ( BMDDeckLinkConfigurationID cfgID, int64_t *value) = 0;
+virtual HRESULT SetFloat ( BMDDeckLinkConfigurationID cfgID, double value) = 0;
+virtual HRESULT GetFloat ( BMDDeckLinkConfigurationID cfgID, double *value) = 0;
+virtual HRESULT SetString ( BMDDeckLinkConfigurationID cfgID, CFStringRef value) = 0;
+virtual HRESULT GetString ( BMDDeckLinkConfigurationID cfgID, CFStringRef *value) = 0;
+virtual HRESULT WriteConfigurationToPreferences (void) = 0;
+protected:
+virtual ~IDeckLinkConfiguration () {} 
+};
+class BMD_PUBLIC IDeckLinkEncoderConfiguration : public IUnknown
+{
+public:
+virtual HRESULT SetFlag ( BMDDeckLinkEncoderConfigurationID cfgID, bool value) = 0;
+virtual HRESULT GetFlag ( BMDDeckLinkEncoderConfigurationID cfgID, bool *value) = 0;
+virtual HRESULT SetInt ( BMDDeckLinkEncoderConfigurationID cfgID, int64_t value) = 0;
+virtual HRESULT GetInt ( BMDDeckLinkEncoderConfigurationID cfgID, int64_t *value) = 0;
+virtual HRESULT SetFloat ( BMDDeckLinkEncoderConfigurationID cfgID, double value) = 0;
+virtual HRESULT GetFloat ( BMDDeckLinkEncoderConfigurationID cfgID, double *value) = 0;
+virtual HRESULT SetString ( BMDDeckLinkEncoderConfigurationID cfgID, CFStringRef value) = 0;
+virtual HRESULT GetString ( BMDDeckLinkEncoderConfigurationID cfgID, CFStringRef *value) = 0;
+virtual HRESULT GetBytes ( BMDDeckLinkEncoderConfigurationID cfgID, void *buffer , uint32_t *bufferSize) = 0;
+protected:
+virtual ~IDeckLinkEncoderConfiguration () {} 
+};
+extern "C" {
+}

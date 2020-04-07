@@ -1,0 +1,42 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#if !defined(GRUB_DEVICE_HEADER)
+#define GRUB_DEVICE_HEADER 1
+
+#include <grub/symbol.h>
+#include <grub/err.h>
+
+struct grub_disk;
+struct grub_net;
+struct grub_fs;
+
+struct grub_device
+{
+struct grub_disk *disk;
+struct grub_net *net;
+};
+typedef struct grub_device *grub_device_t;
+
+grub_device_t grub_device_open (const char *name);
+grub_err_t grub_device_close (grub_device_t device);
+int grub_device_iterate (int (*hook) (const char *name, void *closure),
+void *closure);
+
+#endif 

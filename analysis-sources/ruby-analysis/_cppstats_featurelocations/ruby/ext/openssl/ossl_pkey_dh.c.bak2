@@ -1,0 +1,650 @@
+
+
+
+
+
+
+
+
+
+#include "ossl.h"
+
+#if !defined(OPENSSL_NO_DH)
+
+#define GetPKeyDH(obj, pkey) do { GetPKey((obj), (pkey)); if (EVP_PKEY_base_id(pkey) != EVP_PKEY_DH) {  ossl_raise(rb_eRuntimeError, "THIS IS NOT A DH!") ; } } while (0)
+
+
+
+
+
+#define GetDH(obj, dh) do { EVP_PKEY *_pkey; GetPKeyDH((obj), _pkey); (dh) = EVP_PKEY_get0_DH(_pkey); } while (0)
+
+
+
+
+
+
+
+
+VALUE cDH;
+VALUE eDHError;
+
+
+
+
+static VALUE
+dh_instance(VALUE klass, DH *dh)
+{
+    EVP_PKEY *pkey;
+    VALUE obj;
+
+    if (!dh) {
+	return Qfalse;
+    }
+    obj = NewPKey(klass);
+    if (!(pkey = EVP_PKEY_new())) {
+	return Qfalse;
+    }
+    if (!EVP_PKEY_assign_DH(pkey, dh)) {
+	EVP_PKEY_free(pkey);
+	return Qfalse;
+    }
+    SetPKey(obj, pkey);
+
+    return obj;
+}
+
+VALUE
+ossl_dh_new(EVP_PKEY *pkey)
+{
+    VALUE obj;
+
+    if (!pkey) {
+	obj = dh_instance(cDH, DH_new());
+    } else {
+	obj = NewPKey(cDH);
+	if (EVP_PKEY_base_id(pkey) != EVP_PKEY_DH) {
+	    ossl_raise(rb_eTypeError, "Not a DH key!");
+	}
+	SetPKey(obj, pkey);
+    }
+    if (obj == Qfalse) {
+	ossl_raise(eDHError, NULL);
+    }
+
+    return obj;
+}
+
+
+
+
+struct dh_blocking_gen_arg {
+    DH *dh;
+    int size;
+    int gen;
+    BN_GENCB *cb;
+    int result;
+};
+
+static void *
+dh_blocking_gen(void *arg)
+{
+    struct dh_blocking_gen_arg *gen = (struct dh_blocking_gen_arg *)arg;
+    gen->result = DH_generate_parameters_ex(gen->dh, gen->size, gen->gen, gen->cb);
+    return 0;
+}
+
+static DH *
+dh_generate(int size, int gen)
+{
+    struct ossl_generate_cb_arg cb_arg = { 0 };
+    struct dh_blocking_gen_arg gen_arg;
+    DH *dh = DH_new();
+    BN_GENCB *cb = BN_GENCB_new();
+
+    if (!dh || !cb) {
+	DH_free(dh);
+	BN_GENCB_free(cb);
+	return NULL;
+    }
+
+    if (rb_block_given_p())
+	cb_arg.yield = 1;
+    BN_GENCB_set(cb, ossl_generate_cb_2, &cb_arg);
+    gen_arg.dh = dh;
+    gen_arg.size = size;
+    gen_arg.gen = gen;
+    gen_arg.cb = cb;
+    if (cb_arg.yield == 1) {
+	
+	dh_blocking_gen(&gen_arg);
+    } else {
+	
+	rb_thread_call_without_gvl(dh_blocking_gen, &gen_arg, ossl_generate_cb_stop, &cb_arg);
+    }
+
+    BN_GENCB_free(cb);
+    if (!gen_arg.result) {
+	DH_free(dh);
+	if (cb_arg.state) {
+	    
+	    ossl_clear_error();
+	    rb_jump_tag(cb_arg.state);
+	}
+	return NULL;
+    }
+
+    if (!DH_generate_key(dh)) {
+        DH_free(dh);
+        return NULL;
+    }
+
+    return dh;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+static VALUE
+ossl_dh_s_generate(int argc, VALUE *argv, VALUE klass)
+{
+    DH *dh ;
+    int g = 2;
+    VALUE size, gen, obj;
+
+    if (rb_scan_args(argc, argv, "11", &size, &gen) == 2) {
+	g = NUM2INT(gen);
+    }
+    dh = dh_generate(NUM2INT(size), g);
+    obj = dh_instance(klass, dh);
+    if (obj == Qfalse) {
+	DH_free(dh);
+	ossl_raise(eDHError, NULL);
+    }
+
+    return obj;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+static VALUE
+ossl_dh_initialize(int argc, VALUE *argv, VALUE self)
+{
+    EVP_PKEY *pkey;
+    DH *dh;
+    int g = 2;
+    BIO *in;
+    VALUE arg, gen;
+
+    GetPKey(self, pkey);
+    if(rb_scan_args(argc, argv, "02", &arg, &gen) == 0) {
+      dh = DH_new();
+    }
+    else if (RB_INTEGER_TYPE_P(arg)) {
+	if (!NIL_P(gen)) {
+	    g = NUM2INT(gen);
+	}
+	if (!(dh = dh_generate(NUM2INT(arg), g))) {
+	    ossl_raise(eDHError, NULL);
+	}
+    }
+    else {
+	arg = ossl_to_der_if_possible(arg);
+	in = ossl_obj2bio(&arg);
+	dh = PEM_read_bio_DHparams(in, NULL, NULL, NULL);
+	if (!dh){
+	    OSSL_BIO_reset(in);
+	    dh = d2i_DHparams_bio(in, NULL);
+	}
+	BIO_free(in);
+	if (!dh) {
+	    ossl_raise(eDHError, NULL);
+	}
+    }
+    if (!EVP_PKEY_assign_DH(pkey, dh)) {
+	DH_free(dh);
+	ossl_raise(eDHError, NULL);
+    }
+    return self;
+}
+
+static VALUE
+ossl_dh_initialize_copy(VALUE self, VALUE other)
+{
+    EVP_PKEY *pkey;
+    DH *dh, *dh_other;
+    const BIGNUM *pub, *priv;
+
+    GetPKey(self, pkey);
+    if (EVP_PKEY_base_id(pkey) != EVP_PKEY_NONE)
+	ossl_raise(eDHError, "DH already initialized");
+    GetDH(other, dh_other);
+
+    dh = DHparams_dup(dh_other);
+    if (!dh)
+	ossl_raise(eDHError, "DHparams_dup");
+    EVP_PKEY_assign_DH(pkey, dh);
+
+    DH_get0_key(dh_other, &pub, &priv);
+    if (pub) {
+	BIGNUM *pub2 = BN_dup(pub);
+	BIGNUM *priv2 = BN_dup(priv);
+
+        if (!pub2 || (priv && !priv2)) {
+	    BN_clear_free(pub2);
+	    BN_clear_free(priv2);
+	    ossl_raise(eDHError, "BN_dup");
+	}
+	DH_set0_key(dh, pub2, priv2);
+    }
+
+    return self;
+}
+
+
+
+
+
+
+
+
+static VALUE
+ossl_dh_is_public(VALUE self)
+{
+    DH *dh;
+    const BIGNUM *bn;
+
+    GetDH(self, dh);
+    DH_get0_key(dh, &bn, NULL);
+
+    return bn ? Qtrue : Qfalse;
+}
+
+
+
+
+
+
+
+
+static VALUE
+ossl_dh_is_private(VALUE self)
+{
+    DH *dh;
+    const BIGNUM *bn;
+
+    GetDH(self, dh);
+    DH_get0_key(dh, NULL, &bn);
+
+#if !defined(OPENSSL_NO_ENGINE)
+    return (bn || DH_get0_engine(dh)) ? Qtrue : Qfalse;
+#else
+    return bn ? Qtrue : Qfalse;
+#endif
+}
+
+
+
+
+
+
+
+
+
+
+
+static VALUE
+ossl_dh_export(VALUE self)
+{
+    DH *dh;
+    BIO *out;
+    VALUE str;
+
+    GetDH(self, dh);
+    if (!(out = BIO_new(BIO_s_mem()))) {
+	ossl_raise(eDHError, NULL);
+    }
+    if (!PEM_write_bio_DHparams(out, dh)) {
+	BIO_free(out);
+	ossl_raise(eDHError, NULL);
+    }
+    str = ossl_membio2str(out);
+
+    return str;
+}
+
+
+
+
+
+
+
+
+
+
+static VALUE
+ossl_dh_to_der(VALUE self)
+{
+    DH *dh;
+    unsigned char *p;
+    long len;
+    VALUE str;
+
+    GetDH(self, dh);
+    if((len = i2d_DHparams(dh, NULL)) <= 0)
+	ossl_raise(eDHError, NULL);
+    str = rb_str_new(0, len);
+    p = (unsigned char *)RSTRING_PTR(str);
+    if(i2d_DHparams(dh, &p) < 0)
+	ossl_raise(eDHError, NULL);
+    ossl_str_adjust(str, p);
+
+    return str;
+}
+
+
+
+
+
+
+
+
+
+static VALUE
+ossl_dh_get_params(VALUE self)
+{
+    DH *dh;
+    VALUE hash;
+    const BIGNUM *p, *q, *g, *pub_key, *priv_key;
+
+    GetDH(self, dh);
+    DH_get0_pqg(dh, &p, &q, &g);
+    DH_get0_key(dh, &pub_key, &priv_key);
+
+    hash = rb_hash_new();
+    rb_hash_aset(hash, rb_str_new2("p"), ossl_bn_new(p));
+    rb_hash_aset(hash, rb_str_new2("q"), ossl_bn_new(q));
+    rb_hash_aset(hash, rb_str_new2("g"), ossl_bn_new(g));
+    rb_hash_aset(hash, rb_str_new2("pub_key"), ossl_bn_new(pub_key));
+    rb_hash_aset(hash, rb_str_new2("priv_key"), ossl_bn_new(priv_key));
+
+    return hash;
+}
+
+
+
+
+
+
+
+
+
+static VALUE
+ossl_dh_to_text(VALUE self)
+{
+    DH *dh;
+    BIO *out;
+    VALUE str;
+
+    GetDH(self, dh);
+    if (!(out = BIO_new(BIO_s_mem()))) {
+	ossl_raise(eDHError, NULL);
+    }
+    if (!DHparams_print(out, dh)) {
+	BIO_free(out);
+	ossl_raise(eDHError, NULL);
+    }
+    str = ossl_membio2str(out);
+
+    return str;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+static VALUE
+ossl_dh_to_public_key(VALUE self)
+{
+    DH *orig_dh, *dh;
+    VALUE obj;
+
+    GetDH(self, orig_dh);
+    dh = DHparams_dup(orig_dh); 
+    obj = dh_instance(rb_obj_class(self), dh);
+    if (obj == Qfalse) {
+	DH_free(dh);
+	ossl_raise(eDHError, NULL);
+    }
+
+    return obj;
+}
+
+
+
+
+
+
+
+
+
+static VALUE
+ossl_dh_check_params(VALUE self)
+{
+    DH *dh;
+    int codes;
+
+    GetDH(self, dh);
+    if (!DH_check(dh, &codes)) {
+	return Qfalse;
+    }
+
+    return codes == 0 ? Qtrue : Qfalse;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+static VALUE
+ossl_dh_generate_key(VALUE self)
+{
+    DH *dh;
+
+    GetDH(self, dh);
+    if (!DH_generate_key(dh))
+	ossl_raise(eDHError, "Failed to generate key");
+    return self;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+static VALUE
+ossl_dh_compute_key(VALUE self, VALUE pub)
+{
+    DH *dh;
+    const BIGNUM *pub_key, *dh_p;
+    VALUE str;
+    int len;
+
+    GetDH(self, dh);
+    DH_get0_pqg(dh, &dh_p, NULL, NULL);
+    if (!dh_p)
+	ossl_raise(eDHError, "incomplete DH");
+    pub_key = GetBNPtr(pub);
+    len = DH_size(dh);
+    str = rb_str_new(0, len);
+    if ((len = DH_compute_key((unsigned char *)RSTRING_PTR(str), pub_key, dh)) < 0) {
+	ossl_raise(eDHError, NULL);
+    }
+    rb_str_set_len(str, len);
+
+    return str;
+}
+
+
+
+
+
+
+
+
+OSSL_PKEY_BN_DEF3(dh, DH, pqg, p, q, g)
+
+
+
+
+
+
+
+OSSL_PKEY_BN_DEF2(dh, DH, key, pub_key, priv_key)
+
+
+
+
+void
+Init_ossl_dh(void)
+{
+#if 0
+    mPKey = rb_define_module_under(mOSSL, "PKey");
+    cPKey = rb_define_class_under(mPKey, "PKey", rb_cObject);
+    ePKeyError = rb_define_class_under(mPKey, "PKeyError", eOSSLError);
+#endif
+
+    
+
+
+
+
+
+    eDHError = rb_define_class_under(mPKey, "DHError", ePKeyError);
+    
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    cDH = rb_define_class_under(mPKey, "DH", cPKey);
+    rb_define_singleton_method(cDH, "generate", ossl_dh_s_generate, -1);
+    rb_define_method(cDH, "initialize", ossl_dh_initialize, -1);
+    rb_define_method(cDH, "initialize_copy", ossl_dh_initialize_copy, 1);
+    rb_define_method(cDH, "public?", ossl_dh_is_public, 0);
+    rb_define_method(cDH, "private?", ossl_dh_is_private, 0);
+    rb_define_method(cDH, "to_text", ossl_dh_to_text, 0);
+    rb_define_method(cDH, "export", ossl_dh_export, 0);
+    rb_define_alias(cDH, "to_pem", "export");
+    rb_define_alias(cDH, "to_s", "export");
+    rb_define_method(cDH, "to_der", ossl_dh_to_der, 0);
+    rb_define_method(cDH, "public_key", ossl_dh_to_public_key, 0);
+    rb_define_method(cDH, "params_ok?", ossl_dh_check_params, 0);
+    rb_define_method(cDH, "generate_key!", ossl_dh_generate_key, 0);
+    rb_define_method(cDH, "compute_key", ossl_dh_compute_key, 1);
+
+    DEF_OSSL_PKEY_BN(cDH, dh, p);
+    DEF_OSSL_PKEY_BN(cDH, dh, q);
+    DEF_OSSL_PKEY_BN(cDH, dh, g);
+    DEF_OSSL_PKEY_BN(cDH, dh, pub_key);
+    DEF_OSSL_PKEY_BN(cDH, dh, priv_key);
+    rb_define_method(cDH, "set_pqg", ossl_dh_set_pqg, 3);
+    rb_define_method(cDH, "set_key", ossl_dh_set_key, 2);
+
+    rb_define_method(cDH, "params", ossl_dh_get_params, 0);
+}
+
+#else 
+void
+Init_ossl_dh(void)
+{
+}
+#endif 

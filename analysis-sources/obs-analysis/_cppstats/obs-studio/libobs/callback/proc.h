@@ -1,0 +1,18 @@
+#pragma once
+#include "../util/c99defs.h"
+#include "calldata.h"
+#if defined(__cplusplus)
+extern "C" {
+#endif
+struct proc_handler;
+typedef struct proc_handler proc_handler_t;
+typedef void (*proc_handler_proc_t)(void *, calldata_t *);
+EXPORT proc_handler_t *proc_handler_create(void);
+EXPORT void proc_handler_destroy(proc_handler_t *handler);
+EXPORT void proc_handler_add(proc_handler_t *handler, const char *decl_string,
+proc_handler_proc_t proc, void *data);
+EXPORT bool proc_handler_call(proc_handler_t *handler, const char *name,
+calldata_t *params);
+#if defined(__cplusplus)
+}
+#endif

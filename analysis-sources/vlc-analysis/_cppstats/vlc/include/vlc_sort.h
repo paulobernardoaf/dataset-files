@@ -1,0 +1,5 @@
+#include <stdlib.h>
+#include <stddef.h>
+VLC_API void vlc_qsort(void *base, size_t nmemb, size_t size,
+int (*compar)(const void *, const void *, void *),
+void *arg);

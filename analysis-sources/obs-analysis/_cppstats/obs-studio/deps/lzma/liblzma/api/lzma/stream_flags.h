@@ -1,0 +1,40 @@
+#if !defined(LZMA_H_INTERNAL)
+#error Never include this file directly. Use <lzma.h> instead.
+#endif
+#define LZMA_STREAM_HEADER_SIZE 12
+typedef struct {
+uint32_t version;
+lzma_vli backward_size;
+#define LZMA_BACKWARD_SIZE_MIN 4
+#define LZMA_BACKWARD_SIZE_MAX (LZMA_VLI_C(1) << 34)
+lzma_check check;
+lzma_reserved_enum reserved_enum1;
+lzma_reserved_enum reserved_enum2;
+lzma_reserved_enum reserved_enum3;
+lzma_reserved_enum reserved_enum4;
+lzma_bool reserved_bool1;
+lzma_bool reserved_bool2;
+lzma_bool reserved_bool3;
+lzma_bool reserved_bool4;
+lzma_bool reserved_bool5;
+lzma_bool reserved_bool6;
+lzma_bool reserved_bool7;
+lzma_bool reserved_bool8;
+uint32_t reserved_int1;
+uint32_t reserved_int2;
+} lzma_stream_flags;
+extern LZMA_API(lzma_ret) lzma_stream_header_encode(
+const lzma_stream_flags *options, uint8_t *out)
+lzma_nothrow lzma_attr_warn_unused_result;
+extern LZMA_API(lzma_ret) lzma_stream_footer_encode(
+const lzma_stream_flags *options, uint8_t *out)
+lzma_nothrow lzma_attr_warn_unused_result;
+extern LZMA_API(lzma_ret) lzma_stream_header_decode(
+lzma_stream_flags *options, const uint8_t *in)
+lzma_nothrow lzma_attr_warn_unused_result;
+extern LZMA_API(lzma_ret) lzma_stream_footer_decode(
+lzma_stream_flags *options, const uint8_t *in)
+lzma_nothrow lzma_attr_warn_unused_result;
+extern LZMA_API(lzma_ret) lzma_stream_flags_compare(
+const lzma_stream_flags *a, const lzma_stream_flags *b)
+lzma_nothrow lzma_attr_pure;

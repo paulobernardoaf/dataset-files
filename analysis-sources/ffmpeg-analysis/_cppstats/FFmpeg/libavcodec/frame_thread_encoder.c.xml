@@ -1,0 +1,524 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" revision="1.0.0" language="C" filename="D:\Pesquisa\Projects\ffmpeg-analysis\_cppstats\FFmpeg\libavcodec\frame_thread_encoder.c"><cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;stdatomic.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"frame_thread_encoder.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"libavutil/fifo.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"libavutil/avassert.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"libavutil/imgutils.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"libavutil/opt.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"libavutil/thread.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"avcodec.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"internal.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"thread.h"</cpp:file></cpp:include>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>MAX_THREADS</name></cpp:macro> <cpp:value>64</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>BUFFER_SIZE</name></cpp:macro> <cpp:value>(2*MAX_THREADS)</cpp:value></cpp:define>
+
+<typedef>typedef <type><struct>struct<block>{
+
+<decl_stmt><decl><type><name>void</name> <modifier>*</modifier></type><name>indata</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>void</name> <modifier>*</modifier></type><name>outdata</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int64_t</name></type> <name>return_code</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>unsigned</name></type> <name>index</name></decl>;</decl_stmt>
+
+}</block></struct></type> <name>Task</name>;</typedef>
+
+<typedef>typedef <type><struct>struct<block>{
+
+<decl_stmt><decl><type><name>AVCodecContext</name> <modifier>*</modifier></type><name>parent_avctx</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>pthread_mutex_t</name></type> <name>buffer_mutex</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>AVFifoBuffer</name> <modifier>*</modifier></type><name>task_fifo</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>pthread_mutex_t</name></type> <name>task_fifo_mutex</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>pthread_cond_t</name></type> <name>task_fifo_cond</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>Task</name></type> <name><name>finished_tasks</name><index>[<expr><name>BUFFER_SIZE</name></expr>]</index></name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>pthread_mutex_t</name></type> <name>finished_task_mutex</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>pthread_cond_t</name></type> <name>finished_task_cond</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>unsigned</name></type> <name>task_index</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>unsigned</name></type> <name>finished_task_index</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>pthread_t</name></type> <name><name>worker</name><index>[<expr><name>MAX_THREADS</name></expr>]</index></name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>atomic_int</name></type> <name>exit</name></decl>;</decl_stmt>
+
+}</block></struct></type> <name>ThreadContext</name>;</typedef>
+
+<function><type><specifier>static</specifier> <name>void</name> <modifier>*</modifier> <name>attribute_align_arg</name></type> <name>worker</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>v</name></decl></parameter>)</parameter_list><block>{<block_content>
+
+<decl_stmt><decl><type><name>AVCodecContext</name> <modifier>*</modifier></type><name>avctx</name> <init>= <expr><name>v</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>ThreadContext</name> <modifier>*</modifier></type><name>c</name> <init>= <expr><name><name>avctx</name><operator>-&gt;</operator><name>internal</name><operator>-&gt;</operator><name>frame_thread_encoder</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>AVPacket</name> <modifier>*</modifier></type><name>pkt</name> <init>= <expr><name>NULL</name></expr></init></decl>;</decl_stmt>
+
+<while>while <condition>(<expr><operator>!</operator><call><name>atomic_load</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>c</name><operator>-&gt;</operator><name>exit</name></name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<decl_stmt><decl><type><name>int</name></type> <name>got_packet</name></decl>, <decl><type ref="prev"/><name>ret</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>AVFrame</name> <modifier>*</modifier></type><name>frame</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>Task</name></type> <name>task</name></decl>;</decl_stmt>
+
+<if_stmt><if>if<condition>(<expr><operator>!</operator><name>pkt</name></expr>)</condition><block type="pseudo"><block_content> <expr_stmt><expr><name>pkt</name> <operator>=</operator> <call><name>av_packet_alloc</name><argument_list>()</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<if_stmt><if>if<condition>(<expr><operator>!</operator><name>pkt</name></expr>)</condition><block type="pseudo"><block_content> <continue>continue;</continue></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>av_init_packet</name><argument_list>(<argument><expr><name>pkt</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_lock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>c</name><operator>-&gt;</operator><name>task_fifo_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<while>while <condition>(<expr><call><name>av_fifo_size</name><argument_list>(<argument><expr><name><name>c</name><operator>-&gt;</operator><name>task_fifo</name></name></expr></argument>)</argument_list></call> <operator>&lt;=</operator> <literal type="number">0</literal> <operator>||</operator> <call><name>atomic_load</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>c</name><operator>-&gt;</operator><name>exit</name></name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><call><name>atomic_load</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>c</name><operator>-&gt;</operator><name>exit</name></name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>pthread_mutex_unlock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>c</name><operator>-&gt;</operator><name>task_fifo_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<goto>goto <name>end</name>;</goto>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>pthread_cond_wait</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>c</name><operator>-&gt;</operator><name>task_fifo_cond</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>c</name><operator>-&gt;</operator><name>task_fifo_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></while>
+
+<expr_stmt><expr><call><name>av_fifo_generic_read</name><argument_list>(<argument><expr><name><name>c</name><operator>-&gt;</operator><name>task_fifo</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name>task</name></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr><name>task</name></expr></argument>)</argument_list></sizeof></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_unlock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>c</name><operator>-&gt;</operator><name>task_fifo_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>frame</name> <operator>=</operator> <name><name>task</name><operator>.</operator><name>indata</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <call><name>avcodec_encode_video2</name><argument_list>(<argument><expr><name>avctx</name></expr></argument>, <argument><expr><name>pkt</name></expr></argument>, <argument><expr><name>frame</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>got_packet</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_lock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>c</name><operator>-&gt;</operator><name>buffer_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>av_frame_unref</name><argument_list>(<argument><expr><name>frame</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_unlock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>c</name><operator>-&gt;</operator><name>buffer_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>av_frame_free</name><argument_list>(<argument><expr><operator>&amp;</operator><name>frame</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if<condition>(<expr><name>got_packet</name></expr>)</condition> <block>{<block_content>
+
+<decl_stmt><decl><type><name>int</name></type> <name>ret2</name> <init>= <expr><call><name>av_packet_make_refcounted</name><argument_list>(<argument><expr><name>pkt</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>ret</name> <operator>&gt;=</operator> <literal type="number">0</literal> <operator>&amp;&amp;</operator> <name>ret2</name> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <name>ret2</name></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<expr_stmt><expr><name><name>pkt</name><operator>-&gt;</operator><name>data</name></name> <operator>=</operator> <name>NULL</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>pkt</name><operator>-&gt;</operator><name>size</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_lock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>c</name><operator>-&gt;</operator><name>finished_task_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>c</name><operator>-&gt;</operator><name>finished_tasks</name><index>[<expr><name><name>task</name><operator>.</operator><name>index</name></name></expr>]</index></name><operator>.</operator><name>outdata</name> <operator>=</operator> <name>pkt</name></expr>;</expr_stmt> <expr_stmt><expr><name>pkt</name> <operator>=</operator> <name>NULL</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>c</name><operator>-&gt;</operator><name>finished_tasks</name><index>[<expr><name><name>task</name><operator>.</operator><name>index</name></name></expr>]</index></name><operator>.</operator><name>return_code</name> <operator>=</operator> <name>ret</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>pthread_cond_signal</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>c</name><operator>-&gt;</operator><name>finished_task_cond</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_unlock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>c</name><operator>-&gt;</operator><name>finished_task_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></while>
+
+<label><name>end</name>:</label>
+
+<expr_stmt><expr><call><name>av_free</name><argument_list>(<argument><expr><name>pkt</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_lock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>c</name><operator>-&gt;</operator><name>buffer_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>avcodec_close</name><argument_list>(<argument><expr><name>avctx</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_unlock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>c</name><operator>-&gt;</operator><name>buffer_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>av_freep</name><argument_list>(<argument><expr><operator>&amp;</operator><name>avctx</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>NULL</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><name>int</name></type> <name>ff_frame_thread_encoder_init</name><parameter_list>(<parameter><decl><type><name>AVCodecContext</name> <modifier>*</modifier></type><name>avctx</name></decl></parameter>, <parameter><decl><type><name>AVDictionary</name> <modifier>*</modifier></type><name>options</name></decl></parameter>)</parameter_list><block>{<block_content>
+
+<decl_stmt><decl><type><name>int</name></type> <name>i</name><init>=<expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>ThreadContext</name> <modifier>*</modifier></type><name>c</name></decl>;</decl_stmt>
+
+<if_stmt><if>if<condition>( <expr><operator>!</operator><operator>(</operator><name><name>avctx</name><operator>-&gt;</operator><name>thread_type</name></name> <operator>&amp;</operator> <name>FF_THREAD_FRAME</name><operator>)</operator>
+
+<operator>||</operator> <operator>!</operator><operator>(</operator><name><name>avctx</name><operator>-&gt;</operator><name>codec</name><operator>-&gt;</operator><name>capabilities</name></name> <operator>&amp;</operator> <name>AV_CODEC_CAP_INTRA_ONLY</name><operator>)</operator></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><literal type="number">0</literal></expr>;</return></block_content></block></if></if_stmt>
+
+<if_stmt><if>if<condition>( <expr><operator>!</operator><name><name>avctx</name><operator>-&gt;</operator><name>thread_count</name></name>
+
+<operator>&amp;&amp;</operator> <name><name>avctx</name><operator>-&gt;</operator><name>codec_id</name></name> <operator>==</operator> <name>AV_CODEC_ID_MJPEG</name>
+
+<operator>&amp;&amp;</operator> <operator>!</operator><operator>(</operator><name><name>avctx</name><operator>-&gt;</operator><name>flags</name></name> <operator>&amp;</operator> <name>AV_CODEC_FLAG_QSCALE</name><operator>)</operator></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>av_log</name><argument_list>(<argument><expr><name>avctx</name></expr></argument>, <argument><expr><name>AV_LOG_DEBUG</name></expr></argument>,
+
+<argument><expr><literal type="string">"Forcing thread count to 1 for MJPEG encoding, use -thread_type slice "</literal>
+
+<literal type="string">"or a constant quantizer if you want to use multiple cpu cores\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>avctx</name><operator>-&gt;</operator><name>thread_count</name></name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if<condition>( <expr><name><name>avctx</name><operator>-&gt;</operator><name>thread_count</name></name> <operator>&gt;</operator> <literal type="number">1</literal>
+
+<operator>&amp;&amp;</operator> <name><name>avctx</name><operator>-&gt;</operator><name>codec_id</name></name> <operator>==</operator> <name>AV_CODEC_ID_MJPEG</name>
+
+<operator>&amp;&amp;</operator> <operator>!</operator><operator>(</operator><name><name>avctx</name><operator>-&gt;</operator><name>flags</name></name> <operator>&amp;</operator> <name>AV_CODEC_FLAG_QSCALE</name><operator>)</operator></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>av_log</name><argument_list>(<argument><expr><name>avctx</name></expr></argument>, <argument><expr><name>AV_LOG_WARNING</name></expr></argument>,
+
+<argument><expr><literal type="string">"MJPEG CBR encoding works badly with frame multi-threading, consider "</literal>
+
+<literal type="string">"using -threads 1, -thread_type slice or a constant quantizer.\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>avctx</name><operator>-&gt;</operator><name>codec_id</name></name> <operator>==</operator> <name>AV_CODEC_ID_HUFFYUV</name> <operator>||</operator>
+
+<name><name>avctx</name><operator>-&gt;</operator><name>codec_id</name></name> <operator>==</operator> <name>AV_CODEC_ID_FFVHUFF</name></expr>)</condition> <block>{<block_content>
+
+<decl_stmt><decl><type><name>int</name></type> <name>warn</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>context_model</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>AVDictionaryEntry</name> <modifier>*</modifier></type><name>con</name> <init>= <expr><call><name>av_dict_get</name><argument_list>(<argument><expr><name>options</name></expr></argument>, <argument><expr><literal type="string">"context"</literal></expr></argument>, <argument><expr><name>NULL</name></expr></argument>, <argument><expr><name>AV_DICT_MATCH_CASE</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>con</name> <operator>&amp;&amp;</operator> <name><name>con</name><operator>-&gt;</operator><name>value</name></name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name>context_model</name> <operator>=</operator> <call><name>atoi</name><argument_list>(<argument><expr><name><name>con</name><operator>-&gt;</operator><name>value</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>avctx</name><operator>-&gt;</operator><name>flags</name></name> <operator>&amp;</operator> <name>AV_CODEC_FLAG_PASS1</name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name>warn</name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt></block_content></block></if>
+
+<if type="elseif">else if<condition>(<expr><name>context_model</name> <operator>&gt;</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<decl_stmt><decl><type><name>AVDictionaryEntry</name> <modifier>*</modifier></type><name>t</name> <init>= <expr><call><name>av_dict_get</name><argument_list>(<argument><expr><name>options</name></expr></argument>, <argument><expr><literal type="string">"non_deterministic"</literal></expr></argument>,
+
+<argument><expr><name>NULL</name></expr></argument>, <argument><expr><name>AV_DICT_MATCH_CASE</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>warn</name> <operator>=</operator> <ternary><condition><expr><operator>!</operator><name>t</name> <operator>||</operator> <operator>!</operator><name><name>t</name><operator>-&gt;</operator><name>value</name></name> <operator>||</operator> <operator>!</operator><call><name>atoi</name><argument_list>(<argument><expr><name><name>t</name><operator>-&gt;</operator><name>value</name></name></expr></argument>)</argument_list></call></expr> ?</condition><then> <expr><literal type="number">1</literal></expr> </then><else>: <expr><literal type="number">0</literal></expr></else></ternary></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>warn</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>av_log</name><argument_list>(<argument><expr><name>avctx</name></expr></argument>, <argument><expr><name>AV_LOG_WARNING</name></expr></argument>,
+
+<argument><expr><literal type="string">"Forcing thread count to 1 for huffyuv encoding with first pass or context 1\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>avctx</name><operator>-&gt;</operator><name>thread_count</name></name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if<condition>(<expr><operator>!</operator><name><name>avctx</name><operator>-&gt;</operator><name>thread_count</name></name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name><name>avctx</name><operator>-&gt;</operator><name>thread_count</name></name> <operator>=</operator> <call><name>av_cpu_count</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>avctx</name><operator>-&gt;</operator><name>thread_count</name></name> <operator>=</operator> <call><name>FFMIN</name><argument_list>(<argument><expr><name><name>avctx</name><operator>-&gt;</operator><name>thread_count</name></name></expr></argument>, <argument><expr><name>MAX_THREADS</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if<condition>(<expr><name><name>avctx</name><operator>-&gt;</operator><name>thread_count</name></name> <operator>&lt;=</operator> <literal type="number">1</literal></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><literal type="number">0</literal></expr>;</return></block_content></block></if></if_stmt>
+
+<if_stmt><if>if<condition>(<expr><name><name>avctx</name><operator>-&gt;</operator><name>thread_count</name></name> <operator>&gt;</operator> <name>MAX_THREADS</name></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><call><name>AVERROR</name><argument_list>(<argument><expr><name>EINVAL</name></expr></argument>)</argument_list></call></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>av_assert0</name><argument_list>(<argument><expr><operator>!</operator><name><name>avctx</name><operator>-&gt;</operator><name>internal</name><operator>-&gt;</operator><name>frame_thread_encoder</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>c</name> <operator>=</operator> <name><name>avctx</name><operator>-&gt;</operator><name>internal</name><operator>-&gt;</operator><name>frame_thread_encoder</name></name> <operator>=</operator> <call><name>av_mallocz</name><argument_list>(<argument><expr><sizeof>sizeof<argument_list>(<argument><expr><name>ThreadContext</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if<condition>(<expr><operator>!</operator><name>c</name></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><call><name>AVERROR</name><argument_list>(<argument><expr><name>ENOMEM</name></expr></argument>)</argument_list></call></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name><name>c</name><operator>-&gt;</operator><name>parent_avctx</name></name> <operator>=</operator> <name>avctx</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>c</name><operator>-&gt;</operator><name>task_fifo</name></name> <operator>=</operator> <call><name>av_fifo_alloc_array</name><argument_list>(<argument><expr><name>BUFFER_SIZE</name></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr><name>Task</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if<condition>(<expr><operator>!</operator><name><name>c</name><operator>-&gt;</operator><name>task_fifo</name></name></expr>)</condition><block type="pseudo"><block_content>
+
+<goto>goto <name>fail</name>;</goto></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_init</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>c</name><operator>-&gt;</operator><name>task_fifo_mutex</name></name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_init</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>c</name><operator>-&gt;</operator><name>finished_task_mutex</name></name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_init</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>c</name><operator>-&gt;</operator><name>buffer_mutex</name></name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>pthread_cond_init</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>c</name><operator>-&gt;</operator><name>task_fifo_cond</name></name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>pthread_cond_init</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>c</name><operator>-&gt;</operator><name>finished_task_cond</name></name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>atomic_init</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>c</name><operator>-&gt;</operator><name>exit</name></name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<for>for<control>(<init><expr><name>i</name><operator>=</operator><literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name><operator>&lt;</operator><name><name>avctx</name><operator>-&gt;</operator><name>thread_count</name></name></expr> ;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control><block>{<block_content>
+
+<decl_stmt><decl><type><name>AVDictionary</name> <modifier>*</modifier></type><name>tmp</name> <init>= <expr><name>NULL</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>ret</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>void</name> <modifier>*</modifier></type><name>tmpv</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>AVCodecContext</name> <modifier>*</modifier></type><name>thread_avctx</name> <init>= <expr><call><name>avcodec_alloc_context3</name><argument_list>(<argument><expr><name><name>avctx</name><operator>-&gt;</operator><name>codec</name></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if<condition>(<expr><operator>!</operator><name>thread_avctx</name></expr>)</condition><block type="pseudo"><block_content>
+
+<goto>goto <name>fail</name>;</goto></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>tmpv</name> <operator>=</operator> <name><name>thread_avctx</name><operator>-&gt;</operator><name>priv_data</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><operator>*</operator><name>thread_avctx</name> <operator>=</operator> <operator>*</operator><name>avctx</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <call><name>av_opt_copy</name><argument_list>(<argument><expr><name>thread_avctx</name></expr></argument>, <argument><expr><name>avctx</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>ret</name> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+
+<goto>goto <name>fail</name>;</goto></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name><name>thread_avctx</name><operator>-&gt;</operator><name>priv_data</name></name> <operator>=</operator> <name>tmpv</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>thread_avctx</name><operator>-&gt;</operator><name>internal</name></name> <operator>=</operator> <name>NULL</name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>avctx</name><operator>-&gt;</operator><name>codec</name><operator>-&gt;</operator><name>priv_class</name></name></expr>)</condition> <block>{<block_content>
+
+<decl_stmt><decl><type><name>int</name></type> <name>ret</name> <init>= <expr><call><name>av_opt_copy</name><argument_list>(<argument><expr><name><name>thread_avctx</name><operator>-&gt;</operator><name>priv_data</name></name></expr></argument>, <argument><expr><name><name>avctx</name><operator>-&gt;</operator><name>priv_data</name></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>ret</name> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+
+<goto>goto <name>fail</name>;</goto></block_content></block></if></if_stmt>
+
+</block_content>}</block></if> <if type="elseif">else if <condition>(<expr><name><name>avctx</name><operator>-&gt;</operator><name>codec</name><operator>-&gt;</operator><name>priv_data_size</name></name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>memcpy</name><argument_list>(<argument><expr><name><name>thread_avctx</name><operator>-&gt;</operator><name>priv_data</name></name></expr></argument>, <argument><expr><name><name>avctx</name><operator>-&gt;</operator><name>priv_data</name></name></expr></argument>, <argument><expr><name><name>avctx</name><operator>-&gt;</operator><name>codec</name><operator>-&gt;</operator><name>priv_data_size</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>thread_avctx</name><operator>-&gt;</operator><name>thread_count</name></name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>thread_avctx</name><operator>-&gt;</operator><name>active_thread_type</name></name> <operator>&amp;=</operator> <operator>~</operator><name>FF_THREAD_FRAME</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>av_dict_copy</name><argument_list>(<argument><expr><operator>&amp;</operator><name>tmp</name></expr></argument>, <argument><expr><name>options</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>av_dict_set</name><argument_list>(<argument><expr><operator>&amp;</operator><name>tmp</name></expr></argument>, <argument><expr><literal type="string">"threads"</literal></expr></argument>, <argument><expr><literal type="string">"1"</literal></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if<condition>(<expr><call><name>avcodec_open2</name><argument_list>(<argument><expr><name>thread_avctx</name></expr></argument>, <argument><expr><name><name>avctx</name><operator>-&gt;</operator><name>codec</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name>tmp</name></expr></argument>)</argument_list></call> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>av_dict_free</name><argument_list>(<argument><expr><operator>&amp;</operator><name>tmp</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<goto>goto <name>fail</name>;</goto>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>av_dict_free</name><argument_list>(<argument><expr><operator>&amp;</operator><name>tmp</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>av_assert0</name><argument_list>(<argument><expr><operator>!</operator><name><name>thread_avctx</name><operator>-&gt;</operator><name>internal</name><operator>-&gt;</operator><name>frame_thread_encoder</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>thread_avctx</name><operator>-&gt;</operator><name>internal</name><operator>-&gt;</operator><name>frame_thread_encoder</name></name> <operator>=</operator> <name>c</name></expr>;</expr_stmt>
+
+<if_stmt><if>if<condition>(<expr><call><name>pthread_create</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>c</name><operator>-&gt;</operator><name>worker</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>, <argument><expr><name>worker</name></expr></argument>, <argument><expr><name>thread_avctx</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<goto>goto <name>fail</name>;</goto>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></for>
+
+<expr_stmt><expr><name><name>avctx</name><operator>-&gt;</operator><name>active_thread_type</name></name> <operator>=</operator> <name>FF_THREAD_FRAME</name></expr>;</expr_stmt>
+
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+
+<label><name>fail</name>:</label>
+
+<expr_stmt><expr><name><name>avctx</name><operator>-&gt;</operator><name>thread_count</name></name> <operator>=</operator> <name>i</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>av_log</name><argument_list>(<argument><expr><name>avctx</name></expr></argument>, <argument><expr><name>AV_LOG_ERROR</name></expr></argument>, <argument><expr><literal type="string">"ff_frame_thread_encoder_init failed\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>ff_frame_thread_encoder_free</name><argument_list>(<argument><expr><name>avctx</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><operator>-</operator><literal type="number">1</literal></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><name>void</name></type> <name>ff_frame_thread_encoder_free</name><parameter_list>(<parameter><decl><type><name>AVCodecContext</name> <modifier>*</modifier></type><name>avctx</name></decl></parameter>)</parameter_list><block>{<block_content>
+
+<decl_stmt><decl><type><name>int</name></type> <name>i</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>ThreadContext</name> <modifier>*</modifier></type><name>c</name><init>= <expr><name><name>avctx</name><operator>-&gt;</operator><name>internal</name><operator>-&gt;</operator><name>frame_thread_encoder</name></name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_lock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>c</name><operator>-&gt;</operator><name>task_fifo_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>atomic_store</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>c</name><operator>-&gt;</operator><name>exit</name></name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>pthread_cond_broadcast</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>c</name><operator>-&gt;</operator><name>task_fifo_cond</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_unlock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>c</name><operator>-&gt;</operator><name>task_fifo_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<for>for <control>(<init><expr><name>i</name><operator>=</operator><literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name><operator>&lt;</operator><name><name>avctx</name><operator>-&gt;</operator><name>thread_count</name></name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+
+<expr_stmt><expr><call><name>pthread_join</name><argument_list>(<argument><expr><name><name>c</name><operator>-&gt;</operator><name>worker</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></for>
+
+<while>while <condition>(<expr><call><name>av_fifo_size</name><argument_list>(<argument><expr><name><name>c</name><operator>-&gt;</operator><name>task_fifo</name></name></expr></argument>)</argument_list></call> <operator>&gt;</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<decl_stmt><decl><type><name>Task</name></type> <name>task</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>AVFrame</name> <modifier>*</modifier></type><name>frame</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>av_fifo_generic_read</name><argument_list>(<argument><expr><name><name>c</name><operator>-&gt;</operator><name>task_fifo</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name>task</name></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr><name>task</name></expr></argument>)</argument_list></sizeof></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>frame</name> <operator>=</operator> <name><name>task</name><operator>.</operator><name>indata</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>av_frame_free</name><argument_list>(<argument><expr><operator>&amp;</operator><name>frame</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>task</name><operator>.</operator><name>indata</name></name> <operator>=</operator> <name>NULL</name></expr>;</expr_stmt>
+
+</block_content>}</block></while>
+
+<for>for <control>(<init><expr><name>i</name><operator>=</operator><literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name><operator>&lt;</operator><name>BUFFER_SIZE</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><name><name>c</name><operator>-&gt;</operator><name>finished_tasks</name><index>[<expr><name>i</name></expr>]</index></name><operator>.</operator><name>outdata</name> <operator>!=</operator> <name>NULL</name></expr>)</condition> <block>{<block_content>
+
+<decl_stmt><decl><type><name>AVPacket</name> <modifier>*</modifier></type><name>pkt</name> <init>= <expr><name><name>c</name><operator>-&gt;</operator><name>finished_tasks</name><index>[<expr><name>i</name></expr>]</index></name><operator>.</operator><name>outdata</name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>av_packet_free</name><argument_list>(<argument><expr><operator>&amp;</operator><name>pkt</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>c</name><operator>-&gt;</operator><name>finished_tasks</name><index>[<expr><name>i</name></expr>]</index></name><operator>.</operator><name>outdata</name> <operator>=</operator> <name>NULL</name></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></for>
+
+<expr_stmt><expr><call><name>pthread_mutex_destroy</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>c</name><operator>-&gt;</operator><name>task_fifo_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_destroy</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>c</name><operator>-&gt;</operator><name>finished_task_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_destroy</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>c</name><operator>-&gt;</operator><name>buffer_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>pthread_cond_destroy</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>c</name><operator>-&gt;</operator><name>task_fifo_cond</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>pthread_cond_destroy</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>c</name><operator>-&gt;</operator><name>finished_task_cond</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>av_fifo_freep</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>c</name><operator>-&gt;</operator><name>task_fifo</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>av_freep</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>avctx</name><operator>-&gt;</operator><name>internal</name><operator>-&gt;</operator><name>frame_thread_encoder</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><name>int</name></type> <name>ff_thread_video_encode_frame</name><parameter_list>(<parameter><decl><type><name>AVCodecContext</name> <modifier>*</modifier></type><name>avctx</name></decl></parameter>, <parameter><decl><type><name>AVPacket</name> <modifier>*</modifier></type><name>pkt</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>AVFrame</name> <modifier>*</modifier></type><name>frame</name></decl></parameter>, <parameter><decl><type><name>int</name> <modifier>*</modifier></type><name>got_packet_ptr</name></decl></parameter>)</parameter_list><block>{<block_content>
+
+<decl_stmt><decl><type><name>ThreadContext</name> <modifier>*</modifier></type><name>c</name> <init>= <expr><name><name>avctx</name><operator>-&gt;</operator><name>internal</name><operator>-&gt;</operator><name>frame_thread_encoder</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>Task</name></type> <name>task</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>ret</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>av_assert1</name><argument_list>(<argument><expr><operator>!</operator><operator>*</operator><name>got_packet_ptr</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if<condition>(<expr><name>frame</name></expr>)</condition><block>{<block_content>
+
+<decl_stmt><decl><type><name>AVFrame</name> <modifier>*</modifier></type><name>new</name> <init>= <expr><call><name>av_frame_alloc</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if<condition>(<expr><operator>!</operator><name>new</name></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><call><name>AVERROR</name><argument_list>(<argument><expr><name>ENOMEM</name></expr></argument>)</argument_list></call></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <call><name>av_frame_ref</name><argument_list>(<argument><expr><name>new</name></expr></argument>, <argument><expr><name>frame</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if<condition>(<expr><name>ret</name> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>av_frame_free</name><argument_list>(<argument><expr><operator>&amp;</operator><name>new</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>ret</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>task</name><operator>.</operator><name>index</name></name> <operator>=</operator> <name><name>c</name><operator>-&gt;</operator><name>task_index</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>task</name><operator>.</operator><name>indata</name></name> <operator>=</operator> <operator>(</operator><name>void</name><operator>*</operator><operator>)</operator><name>new</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_lock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>c</name><operator>-&gt;</operator><name>task_fifo_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>av_fifo_generic_write</name><argument_list>(<argument><expr><name><name>c</name><operator>-&gt;</operator><name>task_fifo</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name>task</name></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr><name>task</name></expr></argument>)</argument_list></sizeof></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>pthread_cond_signal</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>c</name><operator>-&gt;</operator><name>task_fifo_cond</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_unlock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>c</name><operator>-&gt;</operator><name>task_fifo_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>c</name><operator>-&gt;</operator><name>task_index</name></name> <operator>=</operator> <operator>(</operator><name><name>c</name><operator>-&gt;</operator><name>task_index</name></name><operator>+</operator><literal type="number">1</literal><operator>)</operator> <operator>%</operator> <name>BUFFER_SIZE</name></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_lock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>c</name><operator>-&gt;</operator><name>finished_task_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>c</name><operator>-&gt;</operator><name>task_index</name></name> <operator>==</operator> <name><name>c</name><operator>-&gt;</operator><name>finished_task_index</name></name> <operator>||</operator>
+
+<operator>(</operator><name>frame</name> <operator>&amp;&amp;</operator> <operator>!</operator><name><name>c</name><operator>-&gt;</operator><name>finished_tasks</name><index>[<expr><name><name>c</name><operator>-&gt;</operator><name>finished_task_index</name></name></expr>]</index></name><operator>.</operator><name>outdata</name> <operator>&amp;&amp;</operator>
+
+<operator>(</operator><name><name>c</name><operator>-&gt;</operator><name>task_index</name></name> <operator>-</operator> <name><name>c</name><operator>-&gt;</operator><name>finished_task_index</name></name><operator>)</operator> <operator>%</operator> <name>BUFFER_SIZE</name> <operator>&lt;=</operator> <name><name>avctx</name><operator>-&gt;</operator><name>thread_count</name></name><operator>)</operator></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>pthread_mutex_unlock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>c</name><operator>-&gt;</operator><name>finished_task_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<while>while <condition>(<expr><operator>!</operator><name><name>c</name><operator>-&gt;</operator><name>finished_tasks</name><index>[<expr><name><name>c</name><operator>-&gt;</operator><name>finished_task_index</name></name></expr>]</index></name><operator>.</operator><name>outdata</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>pthread_cond_wait</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>c</name><operator>-&gt;</operator><name>finished_task_cond</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>c</name><operator>-&gt;</operator><name>finished_task_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></while>
+
+<expr_stmt><expr><name>task</name> <operator>=</operator> <name><name>c</name><operator>-&gt;</operator><name>finished_tasks</name><index>[<expr><name><name>c</name><operator>-&gt;</operator><name>finished_task_index</name></name></expr>]</index></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><operator>*</operator><name>pkt</name> <operator>=</operator> <operator>*</operator><operator>(</operator><name>AVPacket</name><operator>*</operator><operator>)</operator><operator>(</operator><name><name>task</name><operator>.</operator><name>outdata</name></name><operator>)</operator></expr>;</expr_stmt>
+
+<if_stmt><if>if<condition>(<expr><name><name>pkt</name><operator>-&gt;</operator><name>data</name></name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><operator>*</operator><name>got_packet_ptr</name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>av_freep</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>c</name><operator>-&gt;</operator><name>finished_tasks</name><index>[<expr><name><name>c</name><operator>-&gt;</operator><name>finished_task_index</name></name></expr>]</index></name><operator>.</operator><name>outdata</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>c</name><operator>-&gt;</operator><name>finished_task_index</name></name> <operator>=</operator> <operator>(</operator><name><name>c</name><operator>-&gt;</operator><name>finished_task_index</name></name><operator>+</operator><literal type="number">1</literal><operator>)</operator> <operator>%</operator> <name>BUFFER_SIZE</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_unlock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>c</name><operator>-&gt;</operator><name>finished_task_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name><name>task</name><operator>.</operator><name>return_code</name></name></expr>;</return>
+
+</block_content>}</block></function>
+
+</unit>

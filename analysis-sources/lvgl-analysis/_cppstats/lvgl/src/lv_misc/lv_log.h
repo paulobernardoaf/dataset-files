@@ -1,0 +1,55 @@
+#if defined(__cplusplus)
+extern "C" {
+#endif
+#if defined(LV_CONF_INCLUDE_SIMPLE)
+#include "lv_conf.h"
+#else
+#include "../../../lv_conf.h"
+#endif
+#include <stdint.h>
+#define LV_LOG_LEVEL_TRACE 0 
+#define LV_LOG_LEVEL_INFO 1 
+#define LV_LOG_LEVEL_WARN 2 
+#define LV_LOG_LEVEL_ERROR 3 
+#define LV_LOG_LEVEL_NONE 4 
+#define _LV_LOG_LEVEL_NUM 5 
+LV_EXPORT_CONST_INT(LV_LOG_LEVEL_TRACE);
+LV_EXPORT_CONST_INT(LV_LOG_LEVEL_INFO);
+LV_EXPORT_CONST_INT(LV_LOG_LEVEL_WARN);
+LV_EXPORT_CONST_INT(LV_LOG_LEVEL_ERROR);
+LV_EXPORT_CONST_INT(LV_LOG_LEVEL_NONE);
+typedef int8_t lv_log_level_t;
+#if LV_USE_LOG
+typedef void (*lv_log_print_g_cb_t)(lv_log_level_t level, const char *, uint32_t, const char *);
+void lv_log_register_print_cb(lv_log_print_g_cb_t print_cb);
+void lv_log_add(lv_log_level_t level, const char * file, int line, const char * dsc);
+#if LV_LOG_LEVEL <= LV_LOG_LEVEL_TRACE
+#define LV_LOG_TRACE(dsc) lv_log_add(LV_LOG_LEVEL_TRACE, __FILE__, __LINE__, dsc);
+#else
+#define LV_LOG_TRACE(dsc) { ; }
+#endif
+#if LV_LOG_LEVEL <= LV_LOG_LEVEL_INFO
+#define LV_LOG_INFO(dsc) lv_log_add(LV_LOG_LEVEL_INFO, __FILE__, __LINE__, dsc);
+#else
+#define LV_LOG_INFO(dsc) { ; }
+#endif
+#if LV_LOG_LEVEL <= LV_LOG_LEVEL_WARN
+#define LV_LOG_WARN(dsc) lv_log_add(LV_LOG_LEVEL_WARN, __FILE__, __LINE__, dsc);
+#else
+#define LV_LOG_WARN(dsc) { ; }
+#endif
+#if LV_LOG_LEVEL <= LV_LOG_LEVEL_ERROR
+#define LV_LOG_ERROR(dsc) lv_log_add(LV_LOG_LEVEL_ERROR, __FILE__, __LINE__, dsc);
+#else
+#define LV_LOG_ERROR(dsc) { ; }
+#endif
+#else 
+#define lv_log_add(level, file, line, dsc) { ; }
+#define LV_LOG_TRACE(dsc) { ; }
+#define LV_LOG_INFO(dsc) { ; }
+#define LV_LOG_WARN(dsc) { ; }
+#define LV_LOG_ERROR(dsc) { ; }
+#endif 
+#if defined(__cplusplus)
+} 
+#endif

@@ -1,0 +1,187 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#include "pthread.h"
+#include "semaphore.h"
+#include "implement.h"
+
+
+static void PTW32_CDECL
+ptw32_sem_wait_cleanup(void * sem)
+{
+sem_t s = (sem_t) sem;
+
+if (pthread_mutex_lock (&s->lock) == 0)
+{
+
+
+
+
+
+
+
+if (*((sem_t *)sem) != NULL && !(WaitForSingleObject(s->sem, 0) == WAIT_OBJECT_0))
+{
+++s->value;
+#if defined(NEED_SEM)
+if (s->value > 0)
+{
+s->leftToUnblock = 0;
+}
+#else
+
+
+
+
+#endif 
+}
+(void) pthread_mutex_unlock (&s->lock);
+}
+}
+
+int
+sem_wait (sem_t * sem)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+{
+int result = 0;
+sem_t s = *sem;
+
+pthread_testcancel();
+
+if (s == NULL)
+{
+result = EINVAL;
+}
+else
+{
+if ((result = pthread_mutex_lock (&s->lock)) == 0)
+{
+int v;
+
+
+
+if (*sem == NULL)
+{
+(void) pthread_mutex_unlock (&s->lock);
+errno = EINVAL;
+return -1;
+}
+
+v = --s->value;
+(void) pthread_mutex_unlock (&s->lock);
+
+if (v < 0)
+{
+#if defined(_MSC_VER) && _MSC_VER < 1400
+#pragma inline_depth(0)
+#endif
+
+pthread_cleanup_push(ptw32_sem_wait_cleanup, (void *) s);
+result = pthreadCancelableWait (s->sem);
+
+pthread_cleanup_pop(result);
+#if defined(_MSC_VER) && _MSC_VER < 1400
+#pragma inline_depth()
+#endif
+}
+#if defined(NEED_SEM)
+
+if (!result && pthread_mutex_lock (&s->lock) == 0)
+{
+if (*sem == NULL)
+{
+(void) pthread_mutex_unlock (&s->lock);
+errno = EINVAL;
+return -1;
+}
+
+if (s->leftToUnblock > 0)
+{
+--s->leftToUnblock;
+SetEvent(s->sem);
+}
+(void) pthread_mutex_unlock (&s->lock);
+}
+
+#endif 
+
+}
+
+}
+
+if (result != 0)
+{
+errno = result;
+return -1;
+}
+
+return 0;
+
+} 

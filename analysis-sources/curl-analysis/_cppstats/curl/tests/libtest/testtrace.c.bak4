@@ -1,0 +1,144 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#include "test.h"
+#include "testutil.h"
+#include "testtrace.h"
+#include "memdebug.h"
+
+struct libtest_trace_cfg libtest_debug_config;
+
+static time_t epoch_offset; 
+static int known_offset; 
+
+static
+void libtest_debug_dump(const char *timebuf, const char *text, FILE *stream,
+const unsigned char *ptr, size_t size, int nohex)
+{
+size_t i;
+size_t c;
+
+unsigned int width = 0x10;
+
+if(nohex)
+
+width = 0x40;
+
+fprintf(stream, "%s%s, %zu bytes (0x%zx)\n", timebuf, text,
+size, size);
+
+for(i = 0; i < size; i += width) {
+
+fprintf(stream, "%04zx: ", i);
+
+if(!nohex) {
+
+for(c = 0; c < width; c++)
+if(i + c < size)
+fprintf(stream, "%02x ", ptr[i + c]);
+else
+fputs(" ", stream);
+}
+
+for(c = 0; (c < width) && (i + c < size); c++) {
+
+if(nohex &&
+(i + c + 1 < size) && (ptr[i + c] == 0x0D) &&
+(ptr[i + c + 1] == 0x0A)) {
+i += (c + 2 - width);
+break;
+}
+fprintf(stream, "%c", ((ptr[i + c] >= 0x20) && (ptr[i + c] < 0x80)) ?
+ptr[i + c] : '.');
+
+if(nohex &&
+(i + c + 2 < size) && (ptr[i + c + 1] == 0x0D) &&
+(ptr[i + c + 2] == 0x0A)) {
+i += (c + 3 - width);
+break;
+}
+}
+fputc('\n', stream); 
+}
+fflush(stream);
+}
+
+int libtest_debug_cb(CURL *handle, curl_infotype type,
+unsigned char *data, size_t size,
+void *userp)
+{
+
+struct libtest_trace_cfg *trace_cfg = userp;
+const char *text;
+struct timeval tv;
+char timebuf[20];
+char *timestr;
+time_t secs;
+
+(void)handle;
+
+timebuf[0] = '\0';
+timestr = &timebuf[0];
+
+if(trace_cfg->tracetime) {
+struct tm *now;
+tv = tutil_tvnow();
+if(!known_offset) {
+epoch_offset = time(NULL) - tv.tv_sec;
+known_offset = 1;
+}
+secs = epoch_offset + tv.tv_sec;
+now = localtime(&secs); 
+msnprintf(timebuf, sizeof(timebuf), "%02d:%02d:%02d.%06ld ",
+now->tm_hour, now->tm_min, now->tm_sec, (long)tv.tv_usec);
+}
+
+switch(type) {
+case CURLINFO_TEXT:
+fprintf(stderr, "%s== Info: %s", timestr, (char *)data);
+
+default: 
+return 0;
+
+case CURLINFO_HEADER_OUT:
+text = "=> Send header";
+break;
+case CURLINFO_DATA_OUT:
+text = "=> Send data";
+break;
+case CURLINFO_SSL_DATA_OUT:
+text = "=> Send SSL data";
+break;
+case CURLINFO_HEADER_IN:
+text = "<= Recv header";
+break;
+case CURLINFO_DATA_IN:
+text = "<= Recv data";
+break;
+case CURLINFO_SSL_DATA_IN:
+text = "<= Recv SSL data";
+break;
+}
+
+libtest_debug_dump(timebuf, text, stderr, data, size, trace_cfg->nohex);
+return 0;
+}

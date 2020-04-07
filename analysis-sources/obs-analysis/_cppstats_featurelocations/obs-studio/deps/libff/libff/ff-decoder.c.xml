@@ -1,0 +1,389 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" revision="1.0.0" language="C" filename="D:\Pesquisa\Projects\obs-analysis\_cppstats_featurelocations\obs-studio\deps\libff\libff\ff-decoder.c">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"ff-decoder.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;libavutil/time.h&gt;</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;assert.h&gt;</cpp:file></cpp:include>
+
+<typedef>typedef <function_decl><type><name>void</name> <modifier>*</modifier></type>(<modifier>*</modifier><name>ff_decoder_thread_t</name>)<parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>opaque_decoder</name></decl></parameter>)</parameter_list>;</function_decl></typedef>
+
+<function_decl><type><specifier>extern</specifier> <name>void</name> <modifier>*</modifier></type><name>ff_audio_decoder_thread</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>opaque_audio_decoder</name></decl></parameter>)</parameter_list>;</function_decl>
+<function_decl><type><specifier>extern</specifier> <name>void</name> <modifier>*</modifier></type><name>ff_video_decoder_thread</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>opaque_video_decoder</name></decl></parameter>)</parameter_list>;</function_decl>
+
+<function><type><name><name>struct</name> <name>ff_decoder</name></name> <modifier>*</modifier></type><name>ff_decoder_init</name><parameter_list>(<parameter><decl><type><name>AVCodecContext</name> <modifier>*</modifier></type><name>codec_context</name></decl></parameter>,
+<parameter><decl><type><name>AVStream</name> <modifier>*</modifier></type><name>stream</name></decl></parameter>,
+<parameter><decl><type><name>unsigned</name> <name>int</name></type> <name>packet_queue_size</name></decl></parameter>,
+<parameter><decl><type><name>unsigned</name> <name>int</name></type> <name>frame_queue_size</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>bool</name></type> <name>success</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>assert</name><argument_list>(<argument><expr><name>codec_context</name> <operator>!=</operator> <name>NULL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>assert</name><argument_list>(<argument><expr><name>stream</name> <operator>!=</operator> <name>NULL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>ff_decoder</name></name> <modifier>*</modifier></type><name>decoder</name> <init>= <expr><call><name>av_mallocz</name><argument_list>(<argument><expr><sizeof>sizeof<argument_list>(<argument><expr>struct <name>ff_decoder</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>decoder</name> <operator>==</operator> <name>NULL</name></expr>)</condition><block type="pseudo"><block_content>
+<goto>goto <name>fail</name>;</goto></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name><name>decoder</name><operator>-&gt;</operator><name>codec</name></name> <operator>=</operator> <name>codec_context</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>decoder</name><operator>-&gt;</operator><name>codec</name><operator>-&gt;</operator><name>opaque</name></name> <operator>=</operator> <name>decoder</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>decoder</name><operator>-&gt;</operator><name>stream</name></name> <operator>=</operator> <name>stream</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>decoder</name><operator>-&gt;</operator><name>abort</name></name> <operator>=</operator> <name>false</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>decoder</name><operator>-&gt;</operator><name>finished</name></name> <operator>=</operator> <name>false</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>decoder</name><operator>-&gt;</operator><name>packet_queue_size</name></name> <operator>=</operator> <name>packet_queue_size</name></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>packet_queue_init</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>decoder</name><operator>-&gt;</operator><name>packet_queue</name></name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+<goto>goto <name>fail1</name>;</goto></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name><name>decoder</name><operator>-&gt;</operator><name>timer_next_wake</name></name> <operator>=</operator> <operator>(</operator><name>double</name><operator>)</operator><call><name>av_gettime</name><argument_list>()</argument_list></call> <operator>/</operator> <literal type="number">1000000.0</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>decoder</name><operator>-&gt;</operator><name>previous_pts_diff</name></name> <operator>=</operator> <literal type="number">40e-3</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>decoder</name><operator>-&gt;</operator><name>current_pts_time</name></name> <operator>=</operator> <call><name>av_gettime</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>decoder</name><operator>-&gt;</operator><name>start_pts</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>decoder</name><operator>-&gt;</operator><name>predicted_pts</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>decoder</name><operator>-&gt;</operator><name>first_frame</name></name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>success</name> <operator>=</operator> <call><name>ff_timer_init</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>decoder</name><operator>-&gt;</operator><name>refresh_timer</name></name></expr></argument>, <argument><expr><name>ff_decoder_refresh</name></expr></argument>,
+<argument><expr><name>decoder</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>success</name></expr>)</condition><block type="pseudo"><block_content>
+<goto>goto <name>fail2</name>;</goto></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>success</name> <operator>=</operator> <call><name>ff_circular_queue_init</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>decoder</name><operator>-&gt;</operator><name>frame_queue</name></name></expr></argument>,
+<argument><expr><sizeof>sizeof<argument_list>(<argument><expr>struct <name>ff_frame</name></expr></argument>)</argument_list></sizeof></expr></argument>,
+<argument><expr><name>frame_queue_size</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>success</name></expr>)</condition><block type="pseudo"><block_content>
+<goto>goto <name>fail3</name>;</goto></block_content></block></if></if_stmt>
+
+<return>return <expr><name>decoder</name></expr>;</return>
+
+<label><name>fail3</name>:</label>
+<expr_stmt><expr><call><name>ff_timer_free</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>decoder</name><operator>-&gt;</operator><name>refresh_timer</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<label><name>fail2</name>:</label>
+<expr_stmt><expr><call><name>packet_queue_free</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>decoder</name><operator>-&gt;</operator><name>packet_queue</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<label><name>fail1</name>:</label>
+<expr_stmt><expr><call><name>av_free</name><argument_list>(<argument><expr><name>decoder</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<label><name>fail</name>:</label>
+<return>return <expr><name>NULL</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><name>bool</name></type> <name>ff_decoder_start</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>ff_decoder</name></name> <modifier>*</modifier></type><name>decoder</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<expr_stmt><expr><call><name>assert</name><argument_list>(<argument><expr><name>decoder</name> <operator>!=</operator> <name>NULL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<decl_stmt><decl><type><name>ff_decoder_thread_t</name></type> <name>decoder_thread</name></decl>;</decl_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>decoder</name><operator>-&gt;</operator><name>codec</name><operator>-&gt;</operator><name>codec_type</name></name> <operator>==</operator> <name>AVMEDIA_TYPE_AUDIO</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name>decoder_thread</name> <operator>=</operator> <name>ff_audio_decoder_thread</name></expr>;</expr_stmt>
+</block_content>}</block></if> <if type="elseif">else if <condition>(<expr><name><name>decoder</name><operator>-&gt;</operator><name>codec</name><operator>-&gt;</operator><name>codec_type</name></name> <operator>==</operator> <name>AVMEDIA_TYPE_VIDEO</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name>decoder_thread</name> <operator>=</operator> <name>ff_video_decoder_thread</name></expr>;</expr_stmt>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<expr_stmt><expr><call><name>av_log</name><argument_list>(<argument><expr><name>NULL</name></expr></argument>, <argument><expr><name>AV_LOG_ERROR</name></expr></argument>, <argument><expr><literal type="string">"no decoder found for type %d"</literal></expr></argument>,
+<argument><expr><name><name>decoder</name><operator>-&gt;</operator><name>codec</name><operator>-&gt;</operator><name>codec_type</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>false</name></expr>;</return>
+</block_content>}</block></else></if_stmt>
+
+<expr_stmt><expr><call><name>ff_decoder_schedule_refresh</name><argument_list>(<argument><expr><name>decoder</name></expr></argument>, <argument><expr><literal type="number">40</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><operator>(</operator><call><name>pthread_create</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>decoder</name><operator>-&gt;</operator><name>decoder_thread</name></name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>, <argument><expr><name>decoder_thread</name></expr></argument>,
+<argument><expr><name>decoder</name></expr></argument>)</argument_list></call> <operator>!=</operator> <literal type="number">0</literal><operator>)</operator></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><name>void</name></type> <name>ff_decoder_free</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>ff_decoder</name></name> <modifier>*</modifier></type><name>decoder</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>void</name> <modifier>*</modifier></type><name>decoder_thread_result</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>i</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>assert</name><argument_list>(<argument><expr><name>decoder</name> <operator>!=</operator> <name>NULL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>decoder</name><operator>-&gt;</operator><name>abort</name></name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>ff_circular_queue_abort</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>decoder</name><operator>-&gt;</operator><name>frame_queue</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>packet_queue_abort</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>decoder</name><operator>-&gt;</operator><name>packet_queue</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>ff_timer_free</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>decoder</name><operator>-&gt;</operator><name>refresh_timer</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>pthread_join</name><argument_list>(<argument><expr><name><name>decoder</name><operator>-&gt;</operator><name>decoder_thread</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name>decoder_thread_result</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name><name>decoder</name><operator>-&gt;</operator><name>frame_queue</name><operator>.</operator><name>capacity</name></name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<decl_stmt><decl><type><name>void</name> <modifier>*</modifier></type><name>item</name> <init>= <expr><name><name>decoder</name><operator>-&gt;</operator><name>frame_queue</name><operator>.</operator><name>slots</name><index>[<expr><name>i</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name><name>struct</name> <name>ff_frame</name></name> <modifier>*</modifier></type><name>frame</name> <init>= <expr><operator>(</operator>struct <name>ff_frame</name> <operator>*</operator><operator>)</operator><name>item</name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>ff_callbacks_frame_free</name><argument_list>(<argument><expr><name>frame</name></expr></argument>, <argument><expr><name><name>decoder</name><operator>-&gt;</operator><name>callbacks</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>frame</name> <operator>!=</operator> <name>NULL</name></expr>)</condition> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name><name>frame</name><operator>-&gt;</operator><name>frame</name></name> <operator>!=</operator> <name>NULL</name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>av_frame_unref</name><argument_list>(<argument><expr><name><name>frame</name><operator>-&gt;</operator><name>frame</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>frame</name><operator>-&gt;</operator><name>clock</name></name> <operator>!=</operator> <name>NULL</name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>ff_clock_release</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>frame</name><operator>-&gt;</operator><name>clock</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+<expr_stmt><expr><call><name>av_free</name><argument_list>(<argument><expr><name>frame</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block></for>
+
+<expr_stmt><expr><call><name>packet_queue_free</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>decoder</name><operator>-&gt;</operator><name>packet_queue</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ff_circular_queue_free</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>decoder</name><operator>-&gt;</operator><name>frame_queue</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>avcodec_close</name><argument_list>(<argument><expr><name><name>decoder</name><operator>-&gt;</operator><name>codec</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>av_free</name><argument_list>(<argument><expr><name>decoder</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><name>void</name></type> <name>ff_decoder_schedule_refresh</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>ff_decoder</name></name> <modifier>*</modifier></type><name>decoder</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>delay</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<expr_stmt><expr><call><name>ff_timer_schedule</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>decoder</name><operator>-&gt;</operator><name>refresh_timer</name></name></expr></argument>, <argument><expr><literal type="number">1000</literal> <operator>*</operator> <name>delay</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><name>double</name></type> <name>ff_decoder_clock</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>opaque</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>ff_decoder</name></name> <modifier>*</modifier></type><name>decoder</name> <init>= <expr><name>opaque</name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>double</name></type> <name>delta</name> <init>= <expr><operator>(</operator><call><name>av_gettime</name><argument_list>()</argument_list></call> <operator>-</operator> <name><name>decoder</name><operator>-&gt;</operator><name>current_pts_time</name></name><operator>)</operator> <operator>/</operator> <literal type="number">1000000.0</literal></expr></init></decl>;</decl_stmt>
+<return>return <expr><name><name>decoder</name><operator>-&gt;</operator><name>current_pts</name></name> <operator>+</operator> <name>delta</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>double</name></type> <name>get_sync_adjusted_pts_diff</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>ff_clock</name></name> <modifier>*</modifier></type><name>clock</name></decl></parameter>, <parameter><decl><type><name>double</name></type> <name>pts</name></decl></parameter>,
+<parameter><decl><type><name>double</name></type> <name>pts_diff</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>double</name></type> <name>new_pts_diff</name> <init>= <expr><name>pts_diff</name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>double</name></type> <name>sync_time</name> <init>= <expr><call><name>ff_get_sync_clock</name><argument_list>(<argument><expr><name>clock</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>double</name></type> <name>diff</name> <init>= <expr><name>pts</name> <operator>-</operator> <name>sync_time</name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>double</name></type> <name>sync_threshold</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>sync_threshold</name> <operator>=</operator> <ternary><condition><expr><operator>(</operator><name>pts_diff</name> <operator>&gt;</operator> <name>AV_SYNC_THRESHOLD</name><operator>)</operator></expr> ?</condition><then> <expr><name>pts_diff</name></expr>
+</then><else>: <expr><name>AV_SYNC_THRESHOLD</name></expr></else></ternary></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>fabs</name><argument_list>(<argument><expr><name>diff</name></expr></argument>)</argument_list></call> <operator>&lt;</operator> <name>AV_NOSYNC_THRESHOLD</name></expr>)</condition> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name>diff</name> <operator>&lt;=</operator> <operator>-</operator><name>sync_threshold</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name>new_pts_diff</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+</block_content>}</block></if> <if type="elseif">else if <condition>(<expr><name>diff</name> <operator>&gt;=</operator> <name>sync_threshold</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name>new_pts_diff</name> <operator>=</operator> <literal type="number">2</literal> <operator>*</operator> <name>pts_diff</name></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block></if></if_stmt>
+
+<return>return <expr><name>new_pts_diff</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><name>void</name></type> <name>ff_decoder_refresh</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>opaque</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>ff_decoder</name></name> <modifier>*</modifier></type><name>decoder</name> <init>= <expr><operator>(</operator>struct <name>ff_decoder</name> <operator>*</operator><operator>)</operator><name>opaque</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>ff_frame</name></name> <modifier>*</modifier></type><name>frame</name></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>decoder</name><operator>-&gt;</operator><name>stream</name></name></expr>)</condition> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name><name>decoder</name><operator>-&gt;</operator><name>frame_queue</name><operator>.</operator><name>size</name></name> <operator>==</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>decoder</name><operator>-&gt;</operator><name>eof</name></name> <operator>||</operator> <operator>!</operator><name><name>decoder</name><operator>-&gt;</operator><name>finished</name></name></expr>)</condition> <block>{<block_content>
+
+
+
+
+<expr_stmt><expr><call><name>ff_decoder_schedule_refresh</name><argument_list>(<argument><expr><name>decoder</name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<expr_stmt><expr><call><name>ff_callbacks_frame</name><argument_list>(<argument><expr><name><name>decoder</name><operator>-&gt;</operator><name>callbacks</name></name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>decoder</name><operator>-&gt;</operator><name>refresh_timer</name><operator>.</operator><name>abort</name></name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>av_log</name><argument_list>(<argument><expr><name>NULL</name></expr></argument>, <argument><expr><name>AV_LOG_INFO</name></expr></argument>,
+<argument><expr><literal type="string">"refresh timer stopping; eof"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return;</return>
+</block_content>}</block></else></if_stmt>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<decl_stmt><decl><type><name>double</name></type> <name>pts_diff</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>double</name></type> <name>delay_until_next_wake</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>bool</name></type> <name>late_first_frame</name> <init>= <expr><name>false</name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>frame</name> <operator>=</operator> <call><name>ff_circular_queue_peek_read</name><argument_list>(
+<argument><expr><operator>&amp;</operator><name><name>decoder</name><operator>-&gt;</operator><name>frame_queue</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+
+<decl_stmt><decl><type><name>ff_clock_t</name> <modifier>*</modifier></type><name>clock</name> <init>= <expr><call><name>ff_clock_move</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>frame</name><operator>-&gt;</operator><name>clock</name></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>ff_clock_start</name><argument_list>(<argument><expr><name>clock</name></expr></argument>, <argument><expr><name><name>decoder</name><operator>-&gt;</operator><name>natural_sync_clock</name></name></expr></argument>,
+<argument><expr><operator>&amp;</operator><name><name>decoder</name><operator>-&gt;</operator><name>refresh_timer</name><operator>.</operator><name>abort</name></name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>ff_clock_release</name><argument_list>(<argument><expr><operator>&amp;</operator><name>clock</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+
+
+
+<if_stmt><if>if <condition>(<expr><name><name>decoder</name><operator>-&gt;</operator><name>refresh_timer</name><operator>.</operator><name>abort</name></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>av_log</name><argument_list>(<argument><expr><name>NULL</name></expr></argument>, <argument><expr><name>AV_LOG_INFO</name></expr></argument>,
+<argument><expr><literal type="string">"refresh timer aborted"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return;</return>
+</block_content>}</block></if></if_stmt>
+
+
+
+
+
+
+<expr_stmt><expr><call><name>ff_decoder_schedule_refresh</name><argument_list>(<argument><expr><name>decoder</name></expr></argument>, <argument><expr><literal type="number">100</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+
+
+<expr_stmt><expr><call><name>ff_circular_queue_advance_read</name><argument_list>(
+<argument><expr><operator>&amp;</operator><name><name>decoder</name><operator>-&gt;</operator><name>frame_queue</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return;</return>
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>decoder</name><operator>-&gt;</operator><name>current_pts</name></name> <operator>=</operator> <name><name>frame</name><operator>-&gt;</operator><name>pts</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>decoder</name><operator>-&gt;</operator><name>current_pts_time</name></name> <operator>=</operator> <call><name>av_gettime</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+
+
+<expr_stmt><expr><name>pts_diff</name> <operator>=</operator> <name><name>frame</name><operator>-&gt;</operator><name>pts</name></name> <operator>-</operator> <name><name>decoder</name><operator>-&gt;</operator><name>previous_pts</name></name></expr>;</expr_stmt>
+
+
+
+
+<if_stmt><if>if <condition>(<expr><name><name>decoder</name><operator>-&gt;</operator><name>first_frame</name></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name>late_first_frame</name> <operator>=</operator> <name>pts_diff</name> <operator>&gt;=</operator> <literal type="number">1.0</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>decoder</name><operator>-&gt;</operator><name>first_frame</name></name> <operator>=</operator> <name>false</name></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>pts_diff</name> <operator>&lt;=</operator> <literal type="number">0</literal> <operator>||</operator> <name>late_first_frame</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>pts_diff</name> <operator>=</operator> <name><name>decoder</name><operator>-&gt;</operator><name>previous_pts_diff</name></name></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+
+
+<expr_stmt><expr><name><name>decoder</name><operator>-&gt;</operator><name>previous_pts_diff</name></name> <operator>=</operator> <name>pts_diff</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>decoder</name><operator>-&gt;</operator><name>previous_pts</name></name> <operator>=</operator> <name><name>frame</name><operator>-&gt;</operator><name>pts</name></name></expr>;</expr_stmt>
+
+
+<if_stmt><if>if <condition>(<expr><name><name>clock</name><operator>-&gt;</operator><name>sync_type</name></name> <operator>!=</operator> <name><name>decoder</name><operator>-&gt;</operator><name>natural_sync_clock</name></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name>pts_diff</name> <operator>=</operator> <call><name>get_sync_adjusted_pts_diff</name><argument_list>(
+<argument><expr><name>clock</name></expr></argument>, <argument><expr><name><name>frame</name><operator>-&gt;</operator><name>pts</name></name></expr></argument>, <argument><expr><name>pts_diff</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>decoder</name><operator>-&gt;</operator><name>timer_next_wake</name></name> <operator>+=</operator> <name>pts_diff</name></expr>;</expr_stmt>
+
+
+<expr_stmt><expr><name>delay_until_next_wake</name> <operator>=</operator> <name><name>decoder</name><operator>-&gt;</operator><name>timer_next_wake</name></name> <operator>-</operator>
+<operator>(</operator><call><name>av_gettime</name><argument_list>()</argument_list></call> <operator>/</operator> <literal type="number">1000000.0L</literal><operator>)</operator></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name>delay_until_next_wake</name> <operator>&lt;</operator> <literal type="number">0.010L</literal></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name>delay_until_next_wake</name> <operator>=</operator> <literal type="number">0.010L</literal></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>delay_until_next_wake</name> <operator>&gt;</operator> <name>pts_diff</name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name>delay_until_next_wake</name> <operator>=</operator> <name>pts_diff</name></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>ff_clock_release</name><argument_list>(<argument><expr><operator>&amp;</operator><name>clock</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ff_callbacks_frame</name><argument_list>(<argument><expr><name><name>decoder</name><operator>-&gt;</operator><name>callbacks</name></name></expr></argument>, <argument><expr><name>frame</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>ff_decoder_schedule_refresh</name><argument_list>(
+<argument><expr><name>decoder</name></expr></argument>,
+<argument><expr><operator>(</operator><name>int</name><operator>)</operator><operator>(</operator><name>delay_until_next_wake</name> <operator>*</operator> <literal type="number">1000</literal> <operator>+</operator> <literal type="number">0.5L</literal><operator>)</operator></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>av_frame_free</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>frame</name><operator>-&gt;</operator><name>frame</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>ff_circular_queue_advance_read</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>decoder</name><operator>-&gt;</operator><name>frame_queue</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></else></if_stmt>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<expr_stmt><expr><call><name>ff_decoder_schedule_refresh</name><argument_list>(<argument><expr><name>decoder</name></expr></argument>, <argument><expr><literal type="number">100</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></else></if_stmt>
+</block_content>}</block></function>
+
+<function><type><name>bool</name></type> <name>ff_decoder_full</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>ff_decoder</name></name> <modifier>*</modifier></type><name>decoder</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name>decoder</name> <operator>==</operator> <name>NULL</name></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><name>false</name></expr>;</return></block_content></block></if></if_stmt>
+
+<return>return <expr><operator>(</operator><name><name>decoder</name><operator>-&gt;</operator><name>packet_queue</name><operator>.</operator><name>total_size</name></name> <operator>&gt;</operator> <name><name>decoder</name><operator>-&gt;</operator><name>packet_queue_size</name></name><operator>)</operator></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><name>bool</name></type> <name>ff_decoder_accept</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>ff_decoder</name></name> <modifier>*</modifier></type><name>decoder</name></decl></parameter>, <parameter><decl><type><name><name>struct</name> <name>ff_packet</name></name> <modifier>*</modifier></type><name>packet</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name>decoder</name> <operator>&amp;&amp;</operator> <name><name>packet</name><operator>-&gt;</operator><name>base</name><operator>.</operator><name>stream_index</name></name> <operator>==</operator> <name><name>decoder</name><operator>-&gt;</operator><name>stream</name><operator>-&gt;</operator><name>index</name></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>packet_queue_put</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>decoder</name><operator>-&gt;</operator><name>packet_queue</name></name></expr></argument>, <argument><expr><name>packet</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>true</name></expr>;</return>
+</block_content>}</block></if></if_stmt>
+
+<return>return <expr><name>false</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><name>double</name></type> <name>ff_decoder_get_best_effort_pts</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>ff_decoder</name></name> <modifier>*</modifier></type><name>decoder</name></decl></parameter>,
+<parameter><decl><type><name>AVFrame</name> <modifier>*</modifier></type><name>frame</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+
+
+<decl_stmt><decl><type><name>double</name></type> <name>estimated_frame_delay</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int64_t</name></type> <name>best_effort_pts</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>double</name></type> <name>d_pts</name></decl>;</decl_stmt>
+
+
+
+
+<expr_stmt><expr><name>best_effort_pts</name> <operator>=</operator> <call><name>av_frame_get_best_effort_timestamp</name><argument_list>(<argument><expr><name>frame</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>best_effort_pts</name> <operator>!=</operator> <name>AV_NOPTS_VALUE</name></expr>)</condition> <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><name>best_effort_pts</name> <operator>&lt;</operator> <name><name>decoder</name><operator>-&gt;</operator><name>start_pts</name></name></expr>)</condition> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name><name>decoder</name><operator>-&gt;</operator><name>first_frame</name></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name>best_effort_pts</name> <operator>=</operator> <name><name>decoder</name><operator>-&gt;</operator><name>start_pts</name></name></expr>;</expr_stmt>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<expr_stmt><expr><call><name>av_log</name><argument_list>(<argument><expr><name>NULL</name></expr></argument>, <argument><expr><name>AV_LOG_WARNING</name></expr></argument>,
+<argument><expr><literal type="string">"multiple pts &lt; "</literal>
+<literal type="string">"start_pts; setting start pts "</literal>
+<literal type="string">"to 0"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>decoder</name><operator>-&gt;</operator><name>start_pts</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+</block_content>}</block></else></if_stmt>
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name>best_effort_pts</name> <operator>-=</operator> <name><name>decoder</name><operator>-&gt;</operator><name>start_pts</name></name></expr>;</expr_stmt>
+
+
+
+<expr_stmt><expr><name>d_pts</name> <operator>=</operator> <name>best_effort_pts</name> <operator>*</operator> <call><name>av_q2d</name><argument_list>(<argument><expr><name><name>decoder</name><operator>-&gt;</operator><name>stream</name><operator>-&gt;</operator><name>time_base</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>decoder</name><operator>-&gt;</operator><name>predicted_pts</name></name> <operator>=</operator> <name>d_pts</name></expr>;</expr_stmt>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<expr_stmt><expr><name>d_pts</name> <operator>=</operator> <name><name>decoder</name><operator>-&gt;</operator><name>predicted_pts</name></name></expr>;</expr_stmt>
+</block_content>}</block></else></if_stmt>
+
+
+
+<expr_stmt><expr><name>estimated_frame_delay</name> <operator>=</operator> <call><name>av_frame_get_pkt_duration</name><argument_list>(<argument><expr><name>frame</name></expr></argument>)</argument_list></call> <operator>*</operator>
+<call><name>av_q2d</name><argument_list>(<argument><expr><name><name>decoder</name><operator>-&gt;</operator><name>codec</name><operator>-&gt;</operator><name>time_base</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>estimated_frame_delay</name> <operator>+=</operator>
+<name><name>frame</name><operator>-&gt;</operator><name>repeat_pict</name></name> <operator>/</operator> <operator>(</operator><literal type="number">1.0L</literal> <operator>/</operator> <name>estimated_frame_delay</name><operator>)</operator></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>decoder</name><operator>-&gt;</operator><name>predicted_pts</name></name> <operator>+=</operator> <name>estimated_frame_delay</name></expr>;</expr_stmt>
+
+<return>return <expr><name>d_pts</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><name>bool</name></type> <name>ff_decoder_set_frame_drop_state</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>ff_decoder</name></name> <modifier>*</modifier></type><name>decoder</name></decl></parameter>,
+<parameter><decl><type><name>int64_t</name></type> <name>start_time</name></decl></parameter>, <parameter><decl><type><name>int64_t</name></type> <name>pts</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name>pts</name> <operator>!=</operator> <name>AV_NOPTS_VALUE</name></expr>)</condition> <block>{<block_content>
+<decl_stmt><decl><type><name>int64_t</name></type> <name>rescaled_pts</name> <init>= <expr><call><name>av_rescale_q</name><argument_list>(
+<argument><expr><name>pts</name></expr></argument>, <argument><expr><name><name>decoder</name><operator>-&gt;</operator><name>stream</name><operator>-&gt;</operator><name>time_base</name></name></expr></argument>, <argument><expr><name>AV_TIME_BASE_Q</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int64_t</name></type> <name>master_clock</name> <init>= <expr><call><name>av_gettime</name><argument_list>()</argument_list></call> <operator>-</operator> <name>start_time</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int64_t</name></type> <name>diff</name> <init>= <expr><name>master_clock</name> <operator>-</operator> <name>rescaled_pts</name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>diff</name> <operator>&gt;</operator> <operator>(</operator><name>AV_TIME_BASE</name> <operator>/</operator> <literal type="number">2</literal><operator>)</operator></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name><name>decoder</name><operator>-&gt;</operator><name>codec</name><operator>-&gt;</operator><name>skip_frame</name></name> <operator>=</operator> <name><name>decoder</name><operator>-&gt;</operator><name>frame_drop</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>decoder</name><operator>-&gt;</operator><name>codec</name><operator>-&gt;</operator><name>skip_idct</name></name> <operator>=</operator> <name><name>decoder</name><operator>-&gt;</operator><name>frame_drop</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>decoder</name><operator>-&gt;</operator><name>codec</name><operator>-&gt;</operator><name>skip_loop_filter</name></name> <operator>=</operator> <name><name>decoder</name><operator>-&gt;</operator><name>frame_drop</name></name></expr>;</expr_stmt>
+<return>return <expr><name>true</name></expr>;</return>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<expr_stmt><expr><name><name>decoder</name><operator>-&gt;</operator><name>codec</name><operator>-&gt;</operator><name>skip_frame</name></name> <operator>=</operator> <name>AVDISCARD_DEFAULT</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>decoder</name><operator>-&gt;</operator><name>codec</name><operator>-&gt;</operator><name>skip_idct</name></name> <operator>=</operator> <name>AVDISCARD_DEFAULT</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>decoder</name><operator>-&gt;</operator><name>codec</name><operator>-&gt;</operator><name>skip_loop_filter</name></name> <operator>=</operator> <name>AVDISCARD_DEFAULT</name></expr>;</expr_stmt>
+<return>return <expr><name>false</name></expr>;</return>
+</block_content>}</block></else></if_stmt>
+</block_content>}</block></if></if_stmt>
+
+<return>return <expr><name>false</name></expr>;</return>
+</block_content>}</block></function>
+</unit>

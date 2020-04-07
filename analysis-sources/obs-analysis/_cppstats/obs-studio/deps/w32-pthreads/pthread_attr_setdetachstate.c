@@ -1,0 +1,17 @@
+#include "pthread.h"
+#include "implement.h"
+int
+pthread_attr_setdetachstate (pthread_attr_t * attr, int detachstate)
+{
+if (ptw32_is_attr (attr) != 0)
+{
+return EINVAL;
+}
+if (detachstate != PTHREAD_CREATE_JOINABLE &&
+detachstate != PTHREAD_CREATE_DETACHED)
+{
+return EINVAL;
+}
+(*attr)->detachstate = detachstate;
+return 0;
+}

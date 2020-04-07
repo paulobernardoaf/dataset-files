@@ -1,0 +1,328 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#ifndef AVFILTER_VULKAN_H
+#define AVFILTER_VULKAN_H
+
+#include "avfilter.h"
+#include "libavutil/pixdesc.h"
+#include "libavutil/bprint.h"
+#include "libavutil/hwcontext.h"
+#include "libavutil/hwcontext_vulkan.h"
+
+
+#define INDENT(N) INDENT_##N
+#define INDENT_0
+#define INDENT_1 INDENT_0 "    "
+#define INDENT_2 INDENT_1 INDENT_1
+#define INDENT_3 INDENT_2 INDENT_1
+#define INDENT_4 INDENT_3 INDENT_1
+#define INDENT_5 INDENT_4 INDENT_1
+#define INDENT_6 INDENT_5 INDENT_1
+#define C(N, S)          INDENT(N) #S "\n"
+#define GLSLC(N, S)      av_bprintf(&shd->src, C(N, S))
+#define GLSLA(...)       av_bprintf(&shd->src, __VA_ARGS__)
+#define GLSLF(N, S, ...) av_bprintf(&shd->src, C(N, S), __VA_ARGS__)
+#define GLSLD(D)         GLSLC(0, );                                           av_bprint_append_data(&shd->src, D, strlen(D));       GLSLC(0, )
+
+
+
+
+#define RET(x)                                                                 do {                                                                       if ((err = (x)) < 0)                                                   goto fail;                                                         } while (0)
+
+
+
+
+
+
+#define DUP_SAMPLER_ARRAY4(x) (VkSampler []){ x, x, x, x, }
+
+typedef struct SPIRVShader {
+    const char *name;                       
+    AVBPrint src;
+    int local_size[3];                      
+    VkPipelineShaderStageCreateInfo shader;
+} SPIRVShader;
+
+typedef struct VulkanDescriptorSetBinding {
+    const char         *name;
+    VkDescriptorType    type;
+    const char         *mem_layout;  
+    const char         *mem_quali;   
+    const char         *buf_content; 
+    uint32_t            dimensions;  
+    uint32_t            elems;       
+    VkShaderStageFlags  stages;
+    const VkSampler    *samplers;    
+    void               *updater;     
+} VulkanDescriptorSetBinding;
+
+typedef struct FFVkBuffer {
+    VkBuffer buf;
+    VkDeviceMemory mem;
+    VkMemoryPropertyFlagBits flags;
+} FFVkBuffer;
+
+typedef struct VulkanPipeline {
+    VkPipelineBindPoint bind_point;
+
+    
+    VkPipelineLayout pipeline_layout;
+    VkPipeline       pipeline;
+
+    
+    SPIRVShader **shaders;
+    int shaders_num;
+
+    
+    VkPushConstantRange *push_consts;
+    int push_consts_num;
+
+    
+    VkDescriptorSetLayout      *desc_layout;
+    VkDescriptorPool            desc_pool;
+    VkDescriptorSet            *desc_set;
+    VkDescriptorUpdateTemplate *desc_template;
+    int                         descriptor_sets_num;
+    int                         pool_size_desc_num;
+
+    
+    VkDescriptorUpdateTemplateCreateInfo *desc_template_info;
+    VkDescriptorPoolSize *pool_size_desc;
+} VulkanPipeline;
+
+typedef struct FFVkExecContext {
+    VkCommandPool pool;
+    VkCommandBuffer buf;
+    VkQueue queue;
+    VkFence fence;
+
+    VulkanPipeline *bound_pl;
+
+    VkSemaphore *sem_wait;
+    int sem_wait_alloc; 
+    int sem_wait_cnt;
+
+    VkPipelineStageFlagBits *sem_wait_dst;
+    int sem_wait_dst_alloc; 
+
+    VkSemaphore *sem_sig;
+    int sem_sig_alloc; 
+    int sem_sig_cnt;
+} FFVkExecContext;
+
+typedef struct VulkanFilterContext {
+    const AVClass         *class;
+
+    AVBufferRef           *device_ref;
+    AVBufferRef           *frames_ref; 
+    AVHWDeviceContext     *device;
+    AVVulkanDeviceContext *hwctx;
+
+    
+    int                 output_width;
+    int                output_height;
+    enum AVPixelFormat output_format;
+    enum AVPixelFormat  input_format;
+
+    
+    VkSampler **samplers;
+    int samplers_num;
+
+    
+    FFVkExecContext **exec_ctx;
+    int exec_ctx_num;
+
+    
+    VulkanPipeline **pipelines;
+    int pipelines_num;
+
+    void *scratch; 
+    unsigned int scratch_size;
+} VulkanFilterContext;
+
+
+extern const VkComponentMapping ff_comp_identity_map;
+
+
+
+
+int  ff_vk_filter_query_formats        (AVFilterContext *avctx);
+int  ff_vk_filter_init                 (AVFilterContext *avctx);
+int  ff_vk_filter_config_input         (AVFilterLink   *inlink);
+int  ff_vk_filter_config_output        (AVFilterLink  *outlink);
+int  ff_vk_filter_config_output_inplace(AVFilterLink  *outlink);
+void ff_vk_filter_uninit               (AVFilterContext *avctx);
+
+
+
+
+const char *ff_vk_ret2str(VkResult res);
+
+
+
+
+int ff_vk_mt_is_np_rgb(enum AVPixelFormat pix_fmt);
+
+
+
+
+const char *ff_vk_shader_rep_fmt(enum AVPixelFormat pixfmt);
+
+
+
+
+VkSampler *ff_vk_init_sampler(AVFilterContext *avctx, int unnorm_coords,
+                              VkFilter filt);
+
+
+
+
+int ff_vk_create_imageview(AVFilterContext *avctx, VkImageView *v, VkImage img,
+                           VkFormat fmt, const VkComponentMapping map);
+
+
+
+
+
+void ff_vk_destroy_imageview(AVFilterContext *avctx, VkImageView *v);
+
+
+
+
+
+int ff_vk_add_push_constant(AVFilterContext *avctx, VulkanPipeline *pl,
+                            int offset, int size, VkShaderStageFlagBits stage);
+
+
+
+
+
+VulkanPipeline *ff_vk_create_pipeline(AVFilterContext *avctx);
+
+
+
+
+SPIRVShader *ff_vk_init_shader(AVFilterContext *avctx, VulkanPipeline *pl,
+                               const char *name, VkShaderStageFlags stage);
+
+
+
+
+void ff_vk_set_compute_shader_sizes(AVFilterContext *avctx, SPIRVShader *shd,
+                                    int local_size[3]);
+
+
+
+
+int ff_vk_add_descriptor_set(AVFilterContext *avctx, VulkanPipeline *pl,
+                             SPIRVShader *shd, VulkanDescriptorSetBinding *desc,
+                             int num, int only_print_to_shader);
+
+
+
+
+int ff_vk_compile_shader(AVFilterContext *avctx, SPIRVShader *shd,
+                         const char *entrypoint);
+
+
+
+
+
+int ff_vk_init_pipeline_layout(AVFilterContext *avctx, VulkanPipeline *pl);
+
+
+
+
+
+int ff_vk_init_compute_pipeline(AVFilterContext *avctx, VulkanPipeline *pl);
+
+
+
+
+
+
+void ff_vk_update_descriptor_set(AVFilterContext *avctx, VulkanPipeline *pl,
+                                 int set_id);
+
+
+
+
+
+int ff_vk_create_exec_ctx(AVFilterContext *avctx, FFVkExecContext **ctx, int queue);
+
+
+
+
+
+int ff_vk_start_exec_recording(AVFilterContext *avctx, FFVkExecContext *e);
+
+
+
+
+
+void ff_vk_bind_pipeline_exec(AVFilterContext *avctx, FFVkExecContext *e,
+                              VulkanPipeline *pl);
+
+
+
+
+
+void ff_vk_update_push_exec(AVFilterContext *avctx, FFVkExecContext *e,
+                            VkShaderStageFlagBits stage, int offset,
+                            size_t size, void *src);
+
+
+
+
+
+int ff_vk_add_exec_dep(AVFilterContext *avctx, FFVkExecContext *e,
+                       AVFrame *frame, VkPipelineStageFlagBits in_wait_dst_flag);
+
+
+
+
+
+
+int ff_vk_submit_exec_queue(AVFilterContext *avctx, FFVkExecContext *e);
+
+
+
+
+int ff_vk_create_buf(AVFilterContext *avctx, FFVkBuffer *buf, size_t size,
+                     VkBufferUsageFlags usage, VkMemoryPropertyFlagBits flags);
+
+
+
+
+
+int ff_vk_map_buffers(AVFilterContext *avctx, FFVkBuffer *buf, uint8_t *mem[],
+                      int nb_buffers, int invalidate);
+
+
+
+
+int ff_vk_unmap_buffers(AVFilterContext *avctx, FFVkBuffer *buf, int nb_buffers,
+                        int flush);
+
+
+
+
+void ff_vk_free_buf(AVFilterContext *avctx, FFVkBuffer *buf);
+
+#endif 

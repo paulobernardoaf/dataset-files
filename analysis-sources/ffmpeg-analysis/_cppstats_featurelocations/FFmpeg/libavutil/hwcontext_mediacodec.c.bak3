@@ -1,0 +1,50 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#include "config.h"
+
+#include "buffer.h"
+#include "common.h"
+#include "hwcontext.h"
+#include "hwcontext_internal.h"
+#include "hwcontext_mediacodec.h"
+
+static int mc_device_create(AVHWDeviceContext *ctx, const char *device,
+AVDictionary *opts, int flags)
+{
+if (device && device[0]) {
+av_log(ctx, AV_LOG_ERROR, "Device selection unsupported.\n");
+return AVERROR_UNKNOWN;
+}
+
+return 0;
+}
+
+const HWContextType ff_hwcontext_type_mediacodec = {
+.type = AV_HWDEVICE_TYPE_MEDIACODEC,
+.name = "mediacodec",
+
+.device_hwctx_size = sizeof(AVMediaCodecDeviceContext),
+
+.device_create = mc_device_create,
+
+.pix_fmts = (const enum AVPixelFormat[]){
+AV_PIX_FMT_MEDIACODEC,
+AV_PIX_FMT_NONE
+},
+};

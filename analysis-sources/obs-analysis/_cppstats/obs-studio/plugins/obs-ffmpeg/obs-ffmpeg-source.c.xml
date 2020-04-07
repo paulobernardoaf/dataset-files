@@ -1,0 +1,1044 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" revision="1.0.0" language="C" filename="D:\Pesquisa\Projects\obs-analysis\_cppstats\obs-studio\plugins\obs-ffmpeg\obs-ffmpeg-source.c"><cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;obs-module.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;util/platform.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;util/dstr.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"obs-ffmpeg-compat.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"obs-ffmpeg-formats.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;media-playback/media.h&gt;</cpp:file></cpp:include>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>FF_LOG</name><parameter_list>(<parameter><type><name>level</name></type></parameter>, <parameter><type><name>format</name></type></parameter>, <parameter><type><modifier>...</modifier></type></parameter>)</parameter_list></cpp:macro> <cpp:value>blog(level, "[Media Source]: " format, ##__VA_ARGS__)</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>FF_LOG_S</name><parameter_list>(<parameter><type><name>source</name></type></parameter>, <parameter><type><name>level</name></type></parameter>, <parameter><type><name>format</name></type></parameter>, <parameter><type><modifier>...</modifier></type></parameter>)</parameter_list></cpp:macro> <cpp:value>blog(level, "[Media Source '%s']: " format, obs_source_get_name(source), ##__VA_ARGS__)</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>FF_BLOG</name><parameter_list>(<parameter><type><name>level</name></type></parameter>, <parameter><type><name>format</name></type></parameter>, <parameter><type><modifier>...</modifier></type></parameter>)</parameter_list></cpp:macro> <cpp:value>FF_LOG_S(s-&gt;source, level, format, ##__VA_ARGS__)</cpp:value></cpp:define>
+
+<struct>struct <name>ffmpeg_source</name> <block>{
+
+<decl_stmt><decl><type><name>mp_media_t</name></type> <name>media</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>bool</name></type> <name>media_valid</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>bool</name></type> <name>destroy_media</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>SwsContext</name></name> <modifier>*</modifier></type><name>sws_ctx</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>sws_width</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>sws_height</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name><name>enum</name> <name>AVPixelFormat</name></name></type> <name>sws_format</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>uint8_t</name> <modifier>*</modifier></type><name>sws_data</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>sws_linesize</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name><name>enum</name> <name>video_range_type</name></name></type> <name>range</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>obs_source_t</name> <modifier>*</modifier></type><name>source</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>obs_hotkey_id</name></type> <name>hotkey</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>char</name> <modifier>*</modifier></type><name>input</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>char</name> <modifier>*</modifier></type><name>input_format</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>buffering_mb</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>speed_percent</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>bool</name></type> <name>is_looping</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>bool</name></type> <name>is_local_file</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>bool</name></type> <name>is_hw_decoding</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>bool</name></type> <name>is_clear_on_media_end</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>bool</name></type> <name>restart_on_activate</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>bool</name></type> <name>close_when_inactive</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>bool</name></type> <name>seekable</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name><name>enum</name> <name>obs_media_state</name></name></type> <name>state</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>obs_hotkey_pair_id</name></type> <name>play_pause_hotkey</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>obs_hotkey_id</name></type> <name>stop_hotkey</name></decl>;</decl_stmt>
+
+}</block>;</struct>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>set_media_state</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>, <parameter><decl><type><name><name>enum</name> <name>obs_media_state</name></name></type> <name>state</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>ffmpeg_source</name></name> <modifier>*</modifier></type><name>s</name> <init>= <expr><name>data</name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>state</name></name> <operator>=</operator> <name>state</name></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>bool</name></type> <name>is_local_file_modified</name><parameter_list>(<parameter><decl><type><name>obs_properties_t</name> <modifier>*</modifier></type><name>props</name></decl></parameter>,
+
+<parameter><decl><type><name>obs_property_t</name> <modifier>*</modifier></type><name>prop</name></decl></parameter>, <parameter><decl><type><name>obs_data_t</name> <modifier>*</modifier></type><name>settings</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>UNUSED_PARAMETER</name><argument_list>(<argument><expr><name>prop</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<decl_stmt><decl><type><name>bool</name></type> <name>enabled</name> <init>= <expr><call><name>obs_data_get_bool</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"is_local_file"</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>obs_property_t</name> <modifier>*</modifier></type><name>input</name> <init>= <expr><call><name>obs_properties_get</name><argument_list>(<argument><expr><name>props</name></expr></argument>, <argument><expr><literal type="string">"input"</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>obs_property_t</name> <modifier>*</modifier></type><name>input_format</name> <init>=
+
+<expr><call><name>obs_properties_get</name><argument_list>(<argument><expr><name>props</name></expr></argument>, <argument><expr><literal type="string">"input_format"</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>obs_property_t</name> <modifier>*</modifier></type><name>local_file</name> <init>= <expr><call><name>obs_properties_get</name><argument_list>(<argument><expr><name>props</name></expr></argument>, <argument><expr><literal type="string">"local_file"</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>obs_property_t</name> <modifier>*</modifier></type><name>looping</name> <init>= <expr><call><name>obs_properties_get</name><argument_list>(<argument><expr><name>props</name></expr></argument>, <argument><expr><literal type="string">"looping"</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>obs_property_t</name> <modifier>*</modifier></type><name>buffering</name> <init>= <expr><call><name>obs_properties_get</name><argument_list>(<argument><expr><name>props</name></expr></argument>, <argument><expr><literal type="string">"buffering_mb"</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>obs_property_t</name> <modifier>*</modifier></type><name>close</name> <init>=
+
+<expr><call><name>obs_properties_get</name><argument_list>(<argument><expr><name>props</name></expr></argument>, <argument><expr><literal type="string">"close_when_inactive"</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>obs_property_t</name> <modifier>*</modifier></type><name>seekable</name> <init>= <expr><call><name>obs_properties_get</name><argument_list>(<argument><expr><name>props</name></expr></argument>, <argument><expr><literal type="string">"seekable"</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>obs_property_t</name> <modifier>*</modifier></type><name>speed</name> <init>= <expr><call><name>obs_properties_get</name><argument_list>(<argument><expr><name>props</name></expr></argument>, <argument><expr><literal type="string">"speed_percent"</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>obs_property_set_visible</name><argument_list>(<argument><expr><name>input</name></expr></argument>, <argument><expr><operator>!</operator><name>enabled</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_property_set_visible</name><argument_list>(<argument><expr><name>input_format</name></expr></argument>, <argument><expr><operator>!</operator><name>enabled</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_property_set_visible</name><argument_list>(<argument><expr><name>buffering</name></expr></argument>, <argument><expr><operator>!</operator><name>enabled</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_property_set_visible</name><argument_list>(<argument><expr><name>close</name></expr></argument>, <argument><expr><name>enabled</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_property_set_visible</name><argument_list>(<argument><expr><name>local_file</name></expr></argument>, <argument><expr><name>enabled</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_property_set_visible</name><argument_list>(<argument><expr><name>looping</name></expr></argument>, <argument><expr><name>enabled</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_property_set_visible</name><argument_list>(<argument><expr><name>speed</name></expr></argument>, <argument><expr><name>enabled</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_property_set_visible</name><argument_list>(<argument><expr><name>seekable</name></expr></argument>, <argument><expr><operator>!</operator><name>enabled</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>true</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>ffmpeg_source_defaults</name><parameter_list>(<parameter><decl><type><name>obs_data_t</name> <modifier>*</modifier></type><name>settings</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>obs_data_set_default_bool</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"is_local_file"</literal></expr></argument>, <argument><expr><name>true</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_data_set_default_bool</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"looping"</literal></expr></argument>, <argument><expr><name>false</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_data_set_default_bool</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"clear_on_media_end"</literal></expr></argument>, <argument><expr><name>true</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_data_set_default_bool</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"restart_on_activate"</literal></expr></argument>, <argument><expr><name>true</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_data_set_default_int</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"buffering_mb"</literal></expr></argument>, <argument><expr><literal type="number">2</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_data_set_default_int</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"speed_percent"</literal></expr></argument>, <argument><expr><literal type="number">100</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<decl_stmt><decl><type><specifier>static</specifier> <specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>media_filter</name> <init>=
+
+<expr><literal type="string">" (*.mp4 *.ts *.mov *.flv *.mkv *.avi *.mp3 *.ogg *.aac *.wav *.gif *.webm);;"</literal></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>video_filter</name> <init>=
+
+<expr><literal type="string">" (*.mp4 *.ts *.mov *.flv *.mkv *.avi *.gif *.webm);;"</literal></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>audio_filter</name> <init>= <expr><literal type="string">" (*.mp3 *.aac *.ogg *.wav);;"</literal></expr></init></decl>;</decl_stmt>
+
+<function><type><specifier>static</specifier> <name>obs_properties_t</name> <modifier>*</modifier></type><name>ffmpeg_source_getproperties</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>ffmpeg_source</name></name> <modifier>*</modifier></type><name>s</name> <init>= <expr><name>data</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>dstr</name></name></type> <name>filter</name> <init>= <expr><block>{<expr><literal type="number">0</literal></expr>}</block></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>dstr</name></name></type> <name>path</name> <init>= <expr><block>{<expr><literal type="number">0</literal></expr>}</block></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>UNUSED_PARAMETER</name><argument_list>(<argument><expr><name>data</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<decl_stmt><decl><type><name>obs_properties_t</name> <modifier>*</modifier></type><name>props</name> <init>= <expr><call><name>obs_properties_create</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>obs_properties_set_flags</name><argument_list>(<argument><expr><name>props</name></expr></argument>, <argument><expr><name>OBS_PROPERTIES_DEFER_UPDATE</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<decl_stmt><decl><type><name>obs_property_t</name> <modifier>*</modifier></type><name>prop</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>prop</name> <operator>=</operator> <call><name>obs_properties_add_bool</name><argument_list>(<argument><expr><name>props</name></expr></argument>, <argument><expr><literal type="string">"is_local_file"</literal></expr></argument>,
+
+<argument><expr><call><name>obs_module_text</name><argument_list>(<argument><expr><literal type="string">"LocalFile"</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_property_set_modified_callback</name><argument_list>(<argument><expr><name>prop</name></expr></argument>, <argument><expr><name>is_local_file_modified</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>dstr_copy</name><argument_list>(<argument><expr><operator>&amp;</operator><name>filter</name></expr></argument>, <argument><expr><call><name>obs_module_text</name><argument_list>(<argument><expr><literal type="string">"MediaFileFilter.AllMediaFiles"</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>dstr_cat</name><argument_list>(<argument><expr><operator>&amp;</operator><name>filter</name></expr></argument>, <argument><expr><name>media_filter</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>dstr_cat</name><argument_list>(<argument><expr><operator>&amp;</operator><name>filter</name></expr></argument>, <argument><expr><call><name>obs_module_text</name><argument_list>(<argument><expr><literal type="string">"MediaFileFilter.VideoFiles"</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>dstr_cat</name><argument_list>(<argument><expr><operator>&amp;</operator><name>filter</name></expr></argument>, <argument><expr><name>video_filter</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>dstr_cat</name><argument_list>(<argument><expr><operator>&amp;</operator><name>filter</name></expr></argument>, <argument><expr><call><name>obs_module_text</name><argument_list>(<argument><expr><literal type="string">"MediaFileFilter.AudioFiles"</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>dstr_cat</name><argument_list>(<argument><expr><operator>&amp;</operator><name>filter</name></expr></argument>, <argument><expr><name>audio_filter</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>dstr_cat</name><argument_list>(<argument><expr><operator>&amp;</operator><name>filter</name></expr></argument>, <argument><expr><call><name>obs_module_text</name><argument_list>(<argument><expr><literal type="string">"MediaFileFilter.AllFiles"</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>dstr_cat</name><argument_list>(<argument><expr><operator>&amp;</operator><name>filter</name></expr></argument>, <argument><expr><literal type="string">" (*.*)"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>s</name> <operator>&amp;&amp;</operator> <name><name>s</name><operator>-&gt;</operator><name>input</name></name> <operator>&amp;&amp;</operator> <operator>*</operator><name><name>s</name><operator>-&gt;</operator><name>input</name></name></expr>)</condition> <block>{<block_content>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>slash</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>dstr_copy</name><argument_list>(<argument><expr><operator>&amp;</operator><name>path</name></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>input</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>dstr_replace</name><argument_list>(<argument><expr><operator>&amp;</operator><name>path</name></expr></argument>, <argument><expr><literal type="string">"\\"</literal></expr></argument>, <argument><expr><literal type="string">"/"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>slash</name> <operator>=</operator> <call><name>strrchr</name><argument_list>(<argument><expr><name><name>path</name><operator>.</operator><name>array</name></name></expr></argument>, <argument><expr><literal type="char">'/'</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>slash</name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>dstr_resize</name><argument_list>(<argument><expr><operator>&amp;</operator><name>path</name></expr></argument>, <argument><expr><name>slash</name> <operator>-</operator> <name><name>path</name><operator>.</operator><name>array</name></name> <operator>+</operator> <literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>obs_properties_add_path</name><argument_list>(<argument><expr><name>props</name></expr></argument>, <argument><expr><literal type="string">"local_file"</literal></expr></argument>,
+
+<argument><expr><call><name>obs_module_text</name><argument_list>(<argument><expr><literal type="string">"LocalFile"</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name>OBS_PATH_FILE</name></expr></argument>,
+
+<argument><expr><name><name>filter</name><operator>.</operator><name>array</name></name></expr></argument>, <argument><expr><name><name>path</name><operator>.</operator><name>array</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>dstr_free</name><argument_list>(<argument><expr><operator>&amp;</operator><name>filter</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>dstr_free</name><argument_list>(<argument><expr><operator>&amp;</operator><name>path</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>prop</name> <operator>=</operator> <call><name>obs_properties_add_bool</name><argument_list>(<argument><expr><name>props</name></expr></argument>, <argument><expr><literal type="string">"looping"</literal></expr></argument>,
+
+<argument><expr><call><name>obs_module_text</name><argument_list>(<argument><expr><literal type="string">"Looping"</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_properties_add_bool</name><argument_list>(<argument><expr><name>props</name></expr></argument>, <argument><expr><literal type="string">"restart_on_activate"</literal></expr></argument>,
+
+<argument><expr><call><name>obs_module_text</name><argument_list>(<argument><expr><literal type="string">"RestartWhenActivated"</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>prop</name> <operator>=</operator> <call><name>obs_properties_add_int_slider</name><argument_list>(<argument><expr><name>props</name></expr></argument>, <argument><expr><literal type="string">"buffering_mb"</literal></expr></argument>,
+
+<argument><expr><call><name>obs_module_text</name><argument_list>(<argument><expr><literal type="string">"BufferingMB"</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>,
+
+<argument><expr><literal type="number">16</literal></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_property_int_set_suffix</name><argument_list>(<argument><expr><name>prop</name></expr></argument>, <argument><expr><literal type="string">" MB"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_properties_add_text</name><argument_list>(<argument><expr><name>props</name></expr></argument>, <argument><expr><literal type="string">"input"</literal></expr></argument>, <argument><expr><call><name>obs_module_text</name><argument_list>(<argument><expr><literal type="string">"Input"</literal></expr></argument>)</argument_list></call></expr></argument>,
+
+<argument><expr><name>OBS_TEXT_DEFAULT</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_properties_add_text</name><argument_list>(<argument><expr><name>props</name></expr></argument>, <argument><expr><literal type="string">"input_format"</literal></expr></argument>,
+
+<argument><expr><call><name>obs_module_text</name><argument_list>(<argument><expr><literal type="string">"InputFormat"</literal></expr></argument>)</argument_list></call></expr></argument>,
+
+<argument><expr><name>OBS_TEXT_DEFAULT</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><operator>!</operator><call><name>defined</name><argument_list>(<argument><expr><name>__APPLE__</name></expr></argument>)</argument_list></call></expr></cpp:if>
+<expr_stmt><expr><call><name>obs_properties_add_bool</name><argument_list>(<argument><expr><name>props</name></expr></argument>, <argument><expr><literal type="string">"hw_decode"</literal></expr></argument>,
+
+<argument><expr><call><name>obs_module_text</name><argument_list>(<argument><expr><literal type="string">"HardwareDecode"</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+<expr_stmt><expr><call><name>obs_properties_add_bool</name><argument_list>(<argument><expr><name>props</name></expr></argument>, <argument><expr><literal type="string">"clear_on_media_end"</literal></expr></argument>,
+
+<argument><expr><call><name>obs_module_text</name><argument_list>(<argument><expr><literal type="string">"ClearOnMediaEnd"</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>prop</name> <operator>=</operator> <call><name>obs_properties_add_bool</name><argument_list>(
+
+<argument><expr><name>props</name></expr></argument>, <argument><expr><literal type="string">"close_when_inactive"</literal></expr></argument>,
+
+<argument><expr><call><name>obs_module_text</name><argument_list>(<argument><expr><literal type="string">"CloseFileWhenInactive"</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_property_set_long_description</name><argument_list>(
+
+<argument><expr><name>prop</name></expr></argument>, <argument><expr><call><name>obs_module_text</name><argument_list>(<argument><expr><literal type="string">"CloseFileWhenInactive.ToolTip"</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>prop</name> <operator>=</operator> <call><name>obs_properties_add_int_slider</name><argument_list>(<argument><expr><name>props</name></expr></argument>, <argument><expr><literal type="string">"speed_percent"</literal></expr></argument>,
+
+<argument><expr><call><name>obs_module_text</name><argument_list>(<argument><expr><literal type="string">"SpeedPercentage"</literal></expr></argument>)</argument_list></call></expr></argument>,
+
+<argument><expr><literal type="number">1</literal></expr></argument>, <argument><expr><literal type="number">200</literal></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_property_int_set_suffix</name><argument_list>(<argument><expr><name>prop</name></expr></argument>, <argument><expr><literal type="string">"%"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>prop</name> <operator>=</operator> <call><name>obs_properties_add_list</name><argument_list>(<argument><expr><name>props</name></expr></argument>, <argument><expr><literal type="string">"color_range"</literal></expr></argument>,
+
+<argument><expr><call><name>obs_module_text</name><argument_list>(<argument><expr><literal type="string">"ColorRange"</literal></expr></argument>)</argument_list></call></expr></argument>,
+
+<argument><expr><name>OBS_COMBO_TYPE_LIST</name></expr></argument>,
+
+<argument><expr><name>OBS_COMBO_FORMAT_INT</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_property_list_add_int</name><argument_list>(<argument><expr><name>prop</name></expr></argument>, <argument><expr><call><name>obs_module_text</name><argument_list>(<argument><expr><literal type="string">"ColorRange.Auto"</literal></expr></argument>)</argument_list></call></expr></argument>,
+
+<argument><expr><name>VIDEO_RANGE_DEFAULT</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_property_list_add_int</name><argument_list>(<argument><expr><name>prop</name></expr></argument>, <argument><expr><call><name>obs_module_text</name><argument_list>(<argument><expr><literal type="string">"ColorRange.Partial"</literal></expr></argument>)</argument_list></call></expr></argument>,
+
+<argument><expr><name>VIDEO_RANGE_PARTIAL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_property_list_add_int</name><argument_list>(<argument><expr><name>prop</name></expr></argument>, <argument><expr><call><name>obs_module_text</name><argument_list>(<argument><expr><literal type="string">"ColorRange.Full"</literal></expr></argument>)</argument_list></call></expr></argument>,
+
+<argument><expr><name>VIDEO_RANGE_FULL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_properties_add_bool</name><argument_list>(<argument><expr><name>props</name></expr></argument>, <argument><expr><literal type="string">"seekable"</literal></expr></argument>, <argument><expr><call><name>obs_module_text</name><argument_list>(<argument><expr><literal type="string">"Seekable"</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>props</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>dump_source_info</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>ffmpeg_source</name></name> <modifier>*</modifier></type><name>s</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>input</name></decl></parameter>,
+
+<parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>input_format</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>FF_BLOG</name><argument_list>(<argument><expr><name>LOG_INFO</name></expr></argument>,
+
+<argument><expr><literal type="string">"settings:\n"</literal>
+
+<literal type="string">"\tinput: %s\n"</literal>
+
+<literal type="string">"\tinput_format: %s\n"</literal>
+
+<literal type="string">"\tspeed: %d\n"</literal>
+
+<literal type="string">"\tis_looping: %s\n"</literal>
+
+<literal type="string">"\tis_hw_decoding: %s\n"</literal>
+
+<literal type="string">"\tis_clear_on_media_end: %s\n"</literal>
+
+<literal type="string">"\trestart_on_activate: %s\n"</literal>
+
+<literal type="string">"\tclose_when_inactive: %s"</literal></expr></argument>,
+
+<argument><expr><ternary><condition><expr><name>input</name></expr> ?</condition><then> <expr><name>input</name></expr> </then><else>: <expr><literal type="string">"(null)"</literal></expr></else></ternary></expr></argument>,
+
+<argument><expr><ternary><condition><expr><name>input_format</name></expr> ?</condition><then> <expr><name>input_format</name></expr> </then><else>: <expr><literal type="string">"(null)"</literal></expr></else></ternary></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>speed_percent</name></name></expr></argument>,
+
+<argument><expr><ternary><condition><expr><name><name>s</name><operator>-&gt;</operator><name>is_looping</name></name></expr> ?</condition><then> <expr><literal type="string">"yes"</literal></expr> </then><else>: <expr><literal type="string">"no"</literal></expr></else></ternary></expr></argument>, <argument><expr><ternary><condition><expr><name><name>s</name><operator>-&gt;</operator><name>is_hw_decoding</name></name></expr> ?</condition><then> <expr><literal type="string">"yes"</literal></expr> </then><else>: <expr><literal type="string">"no"</literal></expr></else></ternary></expr></argument>,
+
+<argument><expr><ternary><condition><expr><name><name>s</name><operator>-&gt;</operator><name>is_clear_on_media_end</name></name></expr> ?</condition><then> <expr><literal type="string">"yes"</literal></expr> </then><else>: <expr><literal type="string">"no"</literal></expr></else></ternary></expr></argument>,
+
+<argument><expr><ternary><condition><expr><name><name>s</name><operator>-&gt;</operator><name>restart_on_activate</name></name></expr> ?</condition><then> <expr><literal type="string">"yes"</literal></expr> </then><else>: <expr><literal type="string">"no"</literal></expr></else></ternary></expr></argument>,
+
+<argument><expr><ternary><condition><expr><name><name>s</name><operator>-&gt;</operator><name>close_when_inactive</name></name></expr> ?</condition><then> <expr><literal type="string">"yes"</literal></expr> </then><else>: <expr><literal type="string">"no"</literal></expr></else></ternary></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>get_frame</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>opaque</name></decl></parameter>, <parameter><decl><type><name><name>struct</name> <name>obs_source_frame</name></name> <modifier>*</modifier></type><name>f</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>ffmpeg_source</name></name> <modifier>*</modifier></type><name>s</name> <init>= <expr><name>opaque</name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>obs_source_output_video</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>source</name></name></expr></argument>, <argument><expr><name>f</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>preload_frame</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>opaque</name></decl></parameter>, <parameter><decl><type><name><name>struct</name> <name>obs_source_frame</name></name> <modifier>*</modifier></type><name>f</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>ffmpeg_source</name></name> <modifier>*</modifier></type><name>s</name> <init>= <expr><name>opaque</name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>s</name><operator>-&gt;</operator><name>close_when_inactive</name></name></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return;</return></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>s</name><operator>-&gt;</operator><name>is_clear_on_media_end</name></name> <operator>||</operator> <name><name>s</name><operator>-&gt;</operator><name>is_looping</name></name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>obs_source_preload_video</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>source</name></name></expr></argument>, <argument><expr><name>f</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>get_audio</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>opaque</name></decl></parameter>, <parameter><decl><type><name><name>struct</name> <name>obs_source_audio</name></name> <modifier>*</modifier></type><name>a</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>ffmpeg_source</name></name> <modifier>*</modifier></type><name>s</name> <init>= <expr><name>opaque</name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>obs_source_output_audio</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>source</name></name></expr></argument>, <argument><expr><name>a</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>media_stopped</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>opaque</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>ffmpeg_source</name></name> <modifier>*</modifier></type><name>s</name> <init>= <expr><name>opaque</name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>s</name><operator>-&gt;</operator><name>is_clear_on_media_end</name></name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>obs_source_output_video</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>source</name></name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>s</name><operator>-&gt;</operator><name>close_when_inactive</name></name> <operator>&amp;&amp;</operator> <name><name>s</name><operator>-&gt;</operator><name>media_valid</name></name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>destroy_media</name></name> <operator>=</operator> <name>true</name></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>set_media_state</name><argument_list>(<argument><expr><name>s</name></expr></argument>, <argument><expr><name>OBS_MEDIA_STATE_ENDED</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_source_media_ended</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>source</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>ffmpeg_source_open</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>ffmpeg_source</name></name> <modifier>*</modifier></type><name>s</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><name><name>s</name><operator>-&gt;</operator><name>input</name></name> <operator>&amp;&amp;</operator> <operator>*</operator><name><name>s</name><operator>-&gt;</operator><name>input</name></name></expr>)</condition> <block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>mp_media_info</name></name></type> <name>info</name> <init>= <expr><block>{
+
+<expr><operator>.</operator><name>opaque</name> <operator>=</operator> <name>s</name></expr>,
+
+<expr><operator>.</operator><name>v_cb</name> <operator>=</operator> <name>get_frame</name></expr>,
+
+<expr><operator>.</operator><name>v_preload_cb</name> <operator>=</operator> <name>preload_frame</name></expr>,
+
+<expr><operator>.</operator><name>a_cb</name> <operator>=</operator> <name>get_audio</name></expr>,
+
+<expr><operator>.</operator><name>stop_cb</name> <operator>=</operator> <name>media_stopped</name></expr>,
+
+<expr><operator>.</operator><name>path</name> <operator>=</operator> <name><name>s</name><operator>-&gt;</operator><name>input</name></name></expr>,
+
+<expr><operator>.</operator><name>format</name> <operator>=</operator> <name><name>s</name><operator>-&gt;</operator><name>input_format</name></name></expr>,
+
+<expr><operator>.</operator><name>buffering</name> <operator>=</operator> <name><name>s</name><operator>-&gt;</operator><name>buffering_mb</name></name> <operator>*</operator> <literal type="number">1024</literal> <operator>*</operator> <literal type="number">1024</literal></expr>,
+
+<expr><operator>.</operator><name>speed</name> <operator>=</operator> <name><name>s</name><operator>-&gt;</operator><name>speed_percent</name></name></expr>,
+
+<expr><operator>.</operator><name>force_range</name> <operator>=</operator> <name><name>s</name><operator>-&gt;</operator><name>range</name></name></expr>,
+
+<expr><operator>.</operator><name>hardware_decoding</name> <operator>=</operator> <name><name>s</name><operator>-&gt;</operator><name>is_hw_decoding</name></name></expr>,
+
+<expr><operator>.</operator><name>is_local_file</name> <operator>=</operator> <name><name>s</name><operator>-&gt;</operator><name>is_local_file</name></name> <operator>||</operator> <name><name>s</name><operator>-&gt;</operator><name>seekable</name></name></expr>}</block></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>media_valid</name></name> <operator>=</operator> <call><name>mp_media_init</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>media</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name>info</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>ffmpeg_source_tick</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>, <parameter><decl><type><name>float</name></type> <name>seconds</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>UNUSED_PARAMETER</name><argument_list>(<argument><expr><name>seconds</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>ffmpeg_source</name></name> <modifier>*</modifier></type><name>s</name> <init>= <expr><name>data</name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>s</name><operator>-&gt;</operator><name>destroy_media</name></name></expr>)</condition> <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><name><name>s</name><operator>-&gt;</operator><name>media_valid</name></name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>mp_media_free</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>media</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>media_valid</name></name> <operator>=</operator> <name>false</name></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>destroy_media</name></name> <operator>=</operator> <name>false</name></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>ffmpeg_source_start</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>ffmpeg_source</name></name> <modifier>*</modifier></type><name>s</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>s</name><operator>-&gt;</operator><name>media_valid</name></name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>ffmpeg_source_open</name><argument_list>(<argument><expr><name>s</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>s</name><operator>-&gt;</operator><name>media_valid</name></name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>mp_media_play</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>media</name></name></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>is_looping</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>s</name><operator>-&gt;</operator><name>is_local_file</name></name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>obs_source_show_preloaded_video</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>source</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>set_media_state</name><argument_list>(<argument><expr><name>s</name></expr></argument>, <argument><expr><name>OBS_MEDIA_STATE_PLAYING</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_source_media_started</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>source</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>ffmpeg_source_update</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>, <parameter><decl><type><name>obs_data_t</name> <modifier>*</modifier></type><name>settings</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>ffmpeg_source</name></name> <modifier>*</modifier></type><name>s</name> <init>= <expr><name>data</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>bool</name></type> <name>is_local_file</name> <init>= <expr><call><name>obs_data_get_bool</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"is_local_file"</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>char</name> <modifier>*</modifier></type><name>input</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>char</name> <modifier>*</modifier></type><name>input_format</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>bfree</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>input</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>bfree</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>input_format</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>is_local_file</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>input</name> <operator>=</operator> <operator>(</operator><name>char</name> <operator>*</operator><operator>)</operator><call><name>obs_data_get_string</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"local_file"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>input_format</name> <operator>=</operator> <name>NULL</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>is_looping</name></name> <operator>=</operator> <call><name>obs_data_get_bool</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"looping"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>close_when_inactive</name></name> <operator>=</operator>
+
+<call><name>obs_data_get_bool</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"close_when_inactive"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<expr_stmt><expr><name>input</name> <operator>=</operator> <operator>(</operator><name>char</name> <operator>*</operator><operator>)</operator><call><name>obs_data_get_string</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"input"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>input_format</name> <operator>=</operator>
+
+<operator>(</operator><name>char</name> <operator>*</operator><operator>)</operator><call><name>obs_data_get_string</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"input_format"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>is_looping</name></name> <operator>=</operator> <name>false</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>close_when_inactive</name></name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>input</name></name> <operator>=</operator> <ternary><condition><expr><name>input</name></expr> ?</condition><then> <expr><call><name>bstrdup</name><argument_list>(<argument><expr><name>input</name></expr></argument>)</argument_list></call></expr> </then><else>: <expr><name>NULL</name></expr></else></ternary></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>input_format</name></name> <operator>=</operator> <ternary><condition><expr><name>input_format</name></expr> ?</condition><then> <expr><call><name>bstrdup</name><argument_list>(<argument><expr><name>input_format</name></expr></argument>)</argument_list></call></expr> </then><else>: <expr><name>NULL</name></expr></else></ternary></expr>;</expr_stmt>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><operator>!</operator><call><name>defined</name><argument_list>(<argument><expr><name>__APPLE__</name></expr></argument>)</argument_list></call></expr></cpp:if>
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>is_hw_decoding</name></name> <operator>=</operator> <call><name>obs_data_get_bool</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"hw_decode"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>is_clear_on_media_end</name></name> <operator>=</operator>
+
+<call><name>obs_data_get_bool</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"clear_on_media_end"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>restart_on_activate</name></name> <operator>=</operator>
+
+<call><name>obs_data_get_bool</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"restart_on_activate"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>range</name></name> <operator>=</operator> <operator>(</operator>enum <name>video_range_type</name><operator>)</operator><call><name>obs_data_get_int</name><argument_list>(<argument><expr><name>settings</name></expr></argument>,
+
+<argument><expr><literal type="string">"color_range"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>buffering_mb</name></name> <operator>=</operator> <operator>(</operator><name>int</name><operator>)</operator><call><name>obs_data_get_int</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"buffering_mb"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>speed_percent</name></name> <operator>=</operator> <operator>(</operator><name>int</name><operator>)</operator><call><name>obs_data_get_int</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"speed_percent"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>is_local_file</name></name> <operator>=</operator> <name>is_local_file</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>seekable</name></name> <operator>=</operator> <call><name>obs_data_get_bool</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"seekable"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>s</name><operator>-&gt;</operator><name>speed_percent</name></name> <operator>&lt;</operator> <literal type="number">1</literal> <operator>||</operator> <name><name>s</name><operator>-&gt;</operator><name>speed_percent</name></name> <operator>&gt;</operator> <literal type="number">200</literal></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>speed_percent</name></name> <operator>=</operator> <literal type="number">100</literal></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>s</name><operator>-&gt;</operator><name>media_valid</name></name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>mp_media_free</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>media</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>media_valid</name></name> <operator>=</operator> <name>false</name></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<decl_stmt><decl><type><name>bool</name></type> <name>active</name> <init>= <expr><call><name>obs_source_active</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>source</name></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>s</name><operator>-&gt;</operator><name>close_when_inactive</name></name> <operator>||</operator> <name>active</name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>ffmpeg_source_open</name><argument_list>(<argument><expr><name>s</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>dump_source_info</name><argument_list>(<argument><expr><name>s</name></expr></argument>, <argument><expr><name>input</name></expr></argument>, <argument><expr><name>input_format</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>s</name><operator>-&gt;</operator><name>restart_on_activate</name></name> <operator>||</operator> <name>active</name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>ffmpeg_source_start</name><argument_list>(<argument><expr><name>s</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>ffmpeg_source_getname</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>unused</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>UNUSED_PARAMETER</name><argument_list>(<argument><expr><name>unused</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><call><name>obs_module_text</name><argument_list>(<argument><expr><literal type="string">"FFMpegSource"</literal></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>restart_hotkey</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>, <parameter><decl><type><name>obs_hotkey_id</name></type> <name>id</name></decl></parameter>, <parameter><decl><type><name>obs_hotkey_t</name> <modifier>*</modifier></type><name>hotkey</name></decl></parameter>,
+
+<parameter><decl><type><name>bool</name></type> <name>pressed</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>UNUSED_PARAMETER</name><argument_list>(<argument><expr><name>id</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>UNUSED_PARAMETER</name><argument_list>(<argument><expr><name>hotkey</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>pressed</name></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return;</return></block_content></block></if></if_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>ffmpeg_source</name></name> <modifier>*</modifier></type><name>s</name> <init>= <expr><name>data</name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>obs_source_active</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>source</name></name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>obs_source_media_restart</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>source</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>restart_proc</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>, <parameter><decl><type><name>calldata_t</name> <modifier>*</modifier></type><name>cd</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>restart_hotkey</name><argument_list>(<argument><expr><name>data</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><name>NULL</name></expr></argument>, <argument><expr><name>true</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>UNUSED_PARAMETER</name><argument_list>(<argument><expr><name>cd</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>get_duration</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>, <parameter><decl><type><name>calldata_t</name> <modifier>*</modifier></type><name>cd</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>ffmpeg_source</name></name> <modifier>*</modifier></type><name>s</name> <init>= <expr><name>data</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int64_t</name></type> <name>dur</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>s</name><operator>-&gt;</operator><name>media</name><operator>.</operator><name>fmt</name></name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name>dur</name> <operator>=</operator> <name><name>s</name><operator>-&gt;</operator><name>media</name><operator>.</operator><name>fmt</name><operator>-&gt;</operator><name>duration</name></name></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>calldata_set_int</name><argument_list>(<argument><expr><name>cd</name></expr></argument>, <argument><expr><literal type="string">"duration"</literal></expr></argument>, <argument><expr><name>dur</name> <operator>*</operator> <literal type="number">1000</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>get_nb_frames</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>, <parameter><decl><type><name>calldata_t</name> <modifier>*</modifier></type><name>cd</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>ffmpeg_source</name></name> <modifier>*</modifier></type><name>s</name> <init>= <expr><name>data</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int64_t</name></type> <name>frames</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>s</name><operator>-&gt;</operator><name>media</name><operator>.</operator><name>fmt</name></name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>calldata_set_int</name><argument_list>(<argument><expr><name>cd</name></expr></argument>, <argument><expr><literal type="string">"num_frames"</literal></expr></argument>, <argument><expr><name>frames</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>video_stream_index</name> <init>= <expr><call><name>av_find_best_stream</name><argument_list>(
+
+<argument><expr><name><name>s</name><operator>-&gt;</operator><name>media</name><operator>.</operator><name>fmt</name></name></expr></argument>, <argument><expr><name>AVMEDIA_TYPE_VIDEO</name></expr></argument>, <argument><expr><operator>-</operator><literal type="number">1</literal></expr></argument>, <argument><expr><operator>-</operator><literal type="number">1</literal></expr></argument>, <argument><expr><name>NULL</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>video_stream_index</name> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>FF_BLOG</name><argument_list>(<argument><expr><name>LOG_WARNING</name></expr></argument>, <argument><expr><literal type="string">"Getting number of frames failed: No "</literal>
+
+<literal type="string">"video stream in media file!"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>calldata_set_int</name><argument_list>(<argument><expr><name>cd</name></expr></argument>, <argument><expr><literal type="string">"num_frames"</literal></expr></argument>, <argument><expr><name>frames</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<decl_stmt><decl><type><name>AVStream</name> <modifier>*</modifier></type><name>stream</name> <init>= <expr><name><name>s</name><operator>-&gt;</operator><name>media</name><operator>.</operator><name>fmt</name><operator>-&gt;</operator><name>streams</name><index>[<expr><name>video_stream_index</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>stream</name><operator>-&gt;</operator><name>nb_frames</name></name> <operator>&gt;</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>frames</name> <operator>=</operator> <name><name>stream</name><operator>-&gt;</operator><name>nb_frames</name></name></expr>;</expr_stmt>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<expr_stmt><expr><call><name>FF_BLOG</name><argument_list>(<argument><expr><name>LOG_DEBUG</name></expr></argument>, <argument><expr><literal type="string">"nb_frames not set, estimating using frame "</literal>
+
+<literal type="string">"rate and duration"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<decl_stmt><decl><type><name>AVRational</name></type> <name>avg_frame_rate</name> <init>= <expr><name><name>stream</name><operator>-&gt;</operator><name>avg_frame_rate</name></name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>frames</name> <operator>=</operator> <operator>(</operator><name>int64_t</name><operator>)</operator><call><name>ceil</name><argument_list>(<argument><expr><operator>(</operator><name>double</name><operator>)</operator><name><name>s</name><operator>-&gt;</operator><name>media</name><operator>.</operator><name>fmt</name><operator>-&gt;</operator><name>duration</name></name> <operator>/</operator>
+
+<operator>(</operator><name>double</name><operator>)</operator><name>AV_TIME_BASE</name> <operator>*</operator>
+
+<operator>(</operator><name>double</name><operator>)</operator><name><name>avg_frame_rate</name><operator>.</operator><name>num</name></name> <operator>/</operator>
+
+<operator>(</operator><name>double</name><operator>)</operator><name><name>avg_frame_rate</name><operator>.</operator><name>den</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+<expr_stmt><expr><call><name>calldata_set_int</name><argument_list>(<argument><expr><name>cd</name></expr></argument>, <argument><expr><literal type="string">"num_frames"</literal></expr></argument>, <argument><expr><name>frames</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>bool</name></type> <name>ffmpeg_source_play_hotkey</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>, <parameter><decl><type><name>obs_hotkey_pair_id</name></type> <name>id</name></decl></parameter>,
+
+<parameter><decl><type><name>obs_hotkey_t</name> <modifier>*</modifier></type><name>hotkey</name></decl></parameter>, <parameter><decl><type><name>bool</name></type> <name>pressed</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>UNUSED_PARAMETER</name><argument_list>(<argument><expr><name>id</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>UNUSED_PARAMETER</name><argument_list>(<argument><expr><name>hotkey</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>pressed</name></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>false</name></expr>;</return></block_content></block></if></if_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>ffmpeg_source</name></name> <modifier>*</modifier></type><name>s</name> <init>= <expr><name>data</name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>s</name><operator>-&gt;</operator><name>state</name></name> <operator>==</operator> <name>OBS_MEDIA_STATE_PLAYING</name> <operator>||</operator>
+
+<operator>!</operator><call><name>obs_source_active</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>source</name></name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>false</name></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>obs_source_media_play_pause</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>source</name></name></expr></argument>, <argument><expr><name>false</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>true</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>bool</name></type> <name>ffmpeg_source_pause_hotkey</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>, <parameter><decl><type><name>obs_hotkey_pair_id</name></type> <name>id</name></decl></parameter>,
+
+<parameter><decl><type><name>obs_hotkey_t</name> <modifier>*</modifier></type><name>hotkey</name></decl></parameter>, <parameter><decl><type><name>bool</name></type> <name>pressed</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>UNUSED_PARAMETER</name><argument_list>(<argument><expr><name>id</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>UNUSED_PARAMETER</name><argument_list>(<argument><expr><name>hotkey</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>pressed</name></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>false</name></expr>;</return></block_content></block></if></if_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>ffmpeg_source</name></name> <modifier>*</modifier></type><name>s</name> <init>= <expr><name>data</name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>s</name><operator>-&gt;</operator><name>state</name></name> <operator>!=</operator> <name>OBS_MEDIA_STATE_PLAYING</name> <operator>||</operator>
+
+<operator>!</operator><call><name>obs_source_active</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>source</name></name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>false</name></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>obs_source_media_play_pause</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>source</name></name></expr></argument>, <argument><expr><name>true</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>true</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>ffmpeg_source_stop_hotkey</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>, <parameter><decl><type><name>obs_hotkey_id</name></type> <name>id</name></decl></parameter>,
+
+<parameter><decl><type><name>obs_hotkey_t</name> <modifier>*</modifier></type><name>hotkey</name></decl></parameter>, <parameter><decl><type><name>bool</name></type> <name>pressed</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>UNUSED_PARAMETER</name><argument_list>(<argument><expr><name>id</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>UNUSED_PARAMETER</name><argument_list>(<argument><expr><name>hotkey</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>pressed</name></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return;</return></block_content></block></if></if_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>ffmpeg_source</name></name> <modifier>*</modifier></type><name>s</name> <init>= <expr><name>data</name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>obs_source_active</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>source</name></name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>obs_source_media_stop</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>source</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name> <modifier>*</modifier></type><name>ffmpeg_source_create</name><parameter_list>(<parameter><decl><type><name>obs_data_t</name> <modifier>*</modifier></type><name>settings</name></decl></parameter>, <parameter><decl><type><name>obs_source_t</name> <modifier>*</modifier></type><name>source</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>UNUSED_PARAMETER</name><argument_list>(<argument><expr><name>settings</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>ffmpeg_source</name></name> <modifier>*</modifier></type><name>s</name> <init>= <expr><call><name>bzalloc</name><argument_list>(<argument><expr><sizeof>sizeof<argument_list>(<argument><expr>struct <name>ffmpeg_source</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>source</name></name> <operator>=</operator> <name>source</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>hotkey</name></name> <operator>=</operator> <call><name>obs_hotkey_register_source</name><argument_list>(<argument><expr><name>source</name></expr></argument>, <argument><expr><literal type="string">"MediaSource.Restart"</literal></expr></argument>,
+
+<argument><expr><call><name>obs_module_text</name><argument_list>(<argument><expr><literal type="string">"RestartMedia"</literal></expr></argument>)</argument_list></call></expr></argument>,
+
+<argument><expr><name>restart_hotkey</name></expr></argument>, <argument><expr><name>s</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>play_pause_hotkey</name></name> <operator>=</operator> <call><name>obs_hotkey_pair_register_source</name><argument_list>(
+
+<argument><expr><name><name>s</name><operator>-&gt;</operator><name>source</name></name></expr></argument>, <argument><expr><literal type="string">"MediaSource.Play"</literal></expr></argument>, <argument><expr><call><name>obs_module_text</name><argument_list>(<argument><expr><literal type="string">"Play"</literal></expr></argument>)</argument_list></call></expr></argument>,
+
+<argument><expr><literal type="string">"MediaSource.Pause"</literal></expr></argument>, <argument><expr><call><name>obs_module_text</name><argument_list>(<argument><expr><literal type="string">"Pause"</literal></expr></argument>)</argument_list></call></expr></argument>,
+
+<argument><expr><name>ffmpeg_source_play_hotkey</name></expr></argument>, <argument><expr><name>ffmpeg_source_pause_hotkey</name></expr></argument>, <argument><expr><name>s</name></expr></argument>, <argument><expr><name>s</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>stop_hotkey</name></name> <operator>=</operator> <call><name>obs_hotkey_register_source</name><argument_list>(<argument><expr><name>source</name></expr></argument>, <argument><expr><literal type="string">"MediaSource.Stop"</literal></expr></argument>,
+
+<argument><expr><call><name>obs_module_text</name><argument_list>(<argument><expr><literal type="string">"Stop"</literal></expr></argument>)</argument_list></call></expr></argument>,
+
+<argument><expr><name>ffmpeg_source_stop_hotkey</name></expr></argument>,
+
+<argument><expr><name>s</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<decl_stmt><decl><type><name>proc_handler_t</name> <modifier>*</modifier></type><name>ph</name> <init>= <expr><call><name>obs_source_get_proc_handler</name><argument_list>(<argument><expr><name>source</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>proc_handler_add</name><argument_list>(<argument><expr><name>ph</name></expr></argument>, <argument><expr><literal type="string">"void restart()"</literal></expr></argument>, <argument><expr><name>restart_proc</name></expr></argument>, <argument><expr><name>s</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>proc_handler_add</name><argument_list>(<argument><expr><name>ph</name></expr></argument>, <argument><expr><literal type="string">"void get_duration(out int duration)"</literal></expr></argument>,
+
+<argument><expr><name>get_duration</name></expr></argument>, <argument><expr><name>s</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>proc_handler_add</name><argument_list>(<argument><expr><name>ph</name></expr></argument>, <argument><expr><literal type="string">"void get_nb_frames(out int num_frames)"</literal></expr></argument>,
+
+<argument><expr><name>get_nb_frames</name></expr></argument>, <argument><expr><name>s</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>ffmpeg_source_update</name><argument_list>(<argument><expr><name>s</name></expr></argument>, <argument><expr><name>settings</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>s</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>ffmpeg_source_destroy</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>ffmpeg_source</name></name> <modifier>*</modifier></type><name>s</name> <init>= <expr><name>data</name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>s</name><operator>-&gt;</operator><name>hotkey</name></name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>obs_hotkey_unregister</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>hotkey</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>s</name><operator>-&gt;</operator><name>media_valid</name></name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>mp_media_free</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>media</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>s</name><operator>-&gt;</operator><name>sws_ctx</name></name> <operator>!=</operator> <name>NULL</name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>sws_freeContext</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>sws_ctx</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>bfree</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>sws_data</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>bfree</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>input</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>bfree</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>input_format</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>bfree</name><argument_list>(<argument><expr><name>s</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>ffmpeg_source_activate</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>ffmpeg_source</name></name> <modifier>*</modifier></type><name>s</name> <init>= <expr><name>data</name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>s</name><operator>-&gt;</operator><name>restart_on_activate</name></name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>obs_source_media_restart</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>source</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>ffmpeg_source_deactivate</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>ffmpeg_source</name></name> <modifier>*</modifier></type><name>s</name> <init>= <expr><name>data</name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>s</name><operator>-&gt;</operator><name>restart_on_activate</name></name></expr>)</condition> <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><name><name>s</name><operator>-&gt;</operator><name>media_valid</name></name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>mp_media_stop</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>media</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>s</name><operator>-&gt;</operator><name>is_clear_on_media_end</name></name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>obs_source_output_video</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>source</name></name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>ffmpeg_source_play_pause</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>, <parameter><decl><type><name>bool</name></type> <name>pause</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>ffmpeg_source</name></name> <modifier>*</modifier></type><name>s</name> <init>= <expr><name>data</name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>mp_media_play_pause</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>media</name></name></expr></argument>, <argument><expr><name>pause</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>pause</name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>set_media_state</name><argument_list>(<argument><expr><name>s</name></expr></argument>, <argument><expr><name>OBS_MEDIA_STATE_PAUSED</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if>
+
+<else>else<block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>set_media_state</name><argument_list>(<argument><expr><name>s</name></expr></argument>, <argument><expr><name>OBS_MEDIA_STATE_PLAYING</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></else></if_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>ffmpeg_source_stop</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>ffmpeg_source</name></name> <modifier>*</modifier></type><name>s</name> <init>= <expr><name>data</name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>s</name><operator>-&gt;</operator><name>media_valid</name></name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>mp_media_stop</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>media</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_source_output_video</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>source</name></name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>set_media_state</name><argument_list>(<argument><expr><name>s</name></expr></argument>, <argument><expr><name>OBS_MEDIA_STATE_STOPPED</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>ffmpeg_source_restart</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>ffmpeg_source</name></name> <modifier>*</modifier></type><name>s</name> <init>= <expr><name>data</name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>obs_source_active</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>source</name></name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>ffmpeg_source_start</name><argument_list>(<argument><expr><name>s</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>set_media_state</name><argument_list>(<argument><expr><name>s</name></expr></argument>, <argument><expr><name>OBS_MEDIA_STATE_PLAYING</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int64_t</name></type> <name>ffmpeg_source_get_duration</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>ffmpeg_source</name></name> <modifier>*</modifier></type><name>s</name> <init>= <expr><name>data</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int64_t</name></type> <name>dur</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>s</name><operator>-&gt;</operator><name>media</name><operator>.</operator><name>fmt</name></name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name>dur</name> <operator>=</operator> <name><name>s</name><operator>-&gt;</operator><name>media</name><operator>.</operator><name>fmt</name><operator>-&gt;</operator><name>duration</name></name> <operator>/</operator> <call><name>INT64_C</name><argument_list>(<argument><expr><literal type="number">1000</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<return>return <expr><name>dur</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int64_t</name></type> <name>ffmpeg_source_get_time</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>ffmpeg_source</name></name> <modifier>*</modifier></type><name>s</name> <init>= <expr><name>data</name></expr></init></decl>;</decl_stmt>
+
+<return>return <expr><call><name>mp_get_current_time</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>media</name></name></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>ffmpeg_source_set_time</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>, <parameter><decl><type><name>int64_t</name></type> <name>ms</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>ffmpeg_source</name></name> <modifier>*</modifier></type><name>s</name> <init>= <expr><name>data</name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>mp_media_seek_to</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>media</name></name></expr></argument>, <argument><expr><name>ms</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name><name>enum</name> <name>obs_media_state</name></name></type> <name>ffmpeg_source_get_state</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>ffmpeg_source</name></name> <modifier>*</modifier></type><name>s</name> <init>= <expr><name>data</name></expr></init></decl>;</decl_stmt>
+
+<return>return <expr><name><name>s</name><operator>-&gt;</operator><name>state</name></name></expr>;</return>
+
+</block_content>}</block></function>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>obs_source_info</name></name></type> <name>ffmpeg_source</name> <init>= <expr><block>{
+
+<expr><operator>.</operator><name>id</name> <operator>=</operator> <literal type="string">"ffmpeg_source"</literal></expr>,
+
+<expr><operator>.</operator><name>type</name> <operator>=</operator> <name>OBS_SOURCE_TYPE_INPUT</name></expr>,
+
+<expr><operator>.</operator><name>output_flags</name> <operator>=</operator> <name>OBS_SOURCE_ASYNC_VIDEO</name> <operator>|</operator> <name>OBS_SOURCE_AUDIO</name> <operator>|</operator>
+
+<name>OBS_SOURCE_DO_NOT_DUPLICATE</name> <operator>|</operator>
+
+<name>OBS_SOURCE_CONTROLLABLE_MEDIA</name></expr>,
+
+<expr><operator>.</operator><name>get_name</name> <operator>=</operator> <name>ffmpeg_source_getname</name></expr>,
+
+<expr><operator>.</operator><name>create</name> <operator>=</operator> <name>ffmpeg_source_create</name></expr>,
+
+<expr><operator>.</operator><name>destroy</name> <operator>=</operator> <name>ffmpeg_source_destroy</name></expr>,
+
+<expr><operator>.</operator><name>get_defaults</name> <operator>=</operator> <name>ffmpeg_source_defaults</name></expr>,
+
+<expr><operator>.</operator><name>get_properties</name> <operator>=</operator> <name>ffmpeg_source_getproperties</name></expr>,
+
+<expr><operator>.</operator><name>activate</name> <operator>=</operator> <name>ffmpeg_source_activate</name></expr>,
+
+<expr><operator>.</operator><name>deactivate</name> <operator>=</operator> <name>ffmpeg_source_deactivate</name></expr>,
+
+<expr><operator>.</operator><name>video_tick</name> <operator>=</operator> <name>ffmpeg_source_tick</name></expr>,
+
+<expr><operator>.</operator><name>update</name> <operator>=</operator> <name>ffmpeg_source_update</name></expr>,
+
+<expr><operator>.</operator><name>icon_type</name> <operator>=</operator> <name>OBS_ICON_TYPE_MEDIA</name></expr>,
+
+<expr><operator>.</operator><name>media_play_pause</name> <operator>=</operator> <name>ffmpeg_source_play_pause</name></expr>,
+
+<expr><operator>.</operator><name>media_restart</name> <operator>=</operator> <name>ffmpeg_source_restart</name></expr>,
+
+<expr><operator>.</operator><name>media_stop</name> <operator>=</operator> <name>ffmpeg_source_stop</name></expr>,
+
+<expr><operator>.</operator><name>media_get_duration</name> <operator>=</operator> <name>ffmpeg_source_get_duration</name></expr>,
+
+<expr><operator>.</operator><name>media_get_time</name> <operator>=</operator> <name>ffmpeg_source_get_time</name></expr>,
+
+<expr><operator>.</operator><name>media_set_time</name> <operator>=</operator> <name>ffmpeg_source_set_time</name></expr>,
+
+<expr><operator>.</operator><name>media_get_state</name> <operator>=</operator> <name>ffmpeg_source_get_state</name></expr>,
+
+}</block></expr></init></decl>;</decl_stmt>
+
+</unit>

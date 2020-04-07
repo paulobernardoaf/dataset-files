@@ -1,0 +1,9 @@
+#include <assert.h> 
+#include "compilers.h" 
+#if defined(static_assert)
+#define STATIC_ASSERT(name, expr) static_assert(expr, #name ": " #expr)
+#elif __has_extension(c_static_assert) || GCC_VERSION_SINCE(4, 6, 0)
+#define STATIC_ASSERT(name, expr) __extension__ _Static_assert(expr, #name ": " #expr)
+#else
+#define STATIC_ASSERT(name, expr) typedef int static_assert_ ##name ##_check[1 - 2 * !(expr)]
+#endif 

@@ -1,0 +1,608 @@
+#if defined(ONIG_DEBUG_PARSE_TREE) || defined(ONIG_DEBUG_MATCH) || defined(ONIG_DEBUG_SEARCH) || defined(ONIG_DEBUG_COMPILE) || defined(ONIG_DEBUG_STATISTICS) || defined(ONIG_DEBUG_MEMLEAK)
+#if !defined(ONIG_DEBUG)
+#define ONIG_DEBUG
+#endif
+#endif
+#if !defined(UNALIGNED_WORD_ACCESS)
+#if defined(__i386) || defined(__i386__) || defined(_M_IX86) || defined(__x86_64) || defined(__x86_64__) || defined(_M_AMD64) || defined(__powerpc64__) || defined(__mc68020__)
+#define UNALIGNED_WORD_ACCESS 1
+#else
+#define UNALIGNED_WORD_ACCESS 0
+#endif
+#endif
+#if UNALIGNED_WORD_ACCESS
+#define PLATFORM_UNALIGNED_WORD_ACCESS
+#endif
+#define USE_NAMED_GROUP
+#define USE_SUBEXP_CALL
+#define USE_PERL_SUBEXP_CALL
+#define USE_CAPITAL_P_NAMED_GROUP
+#define USE_BACKREF_WITH_LEVEL 
+#define USE_MONOMANIAC_CHECK_CAPTURES_IN_ENDLESS_REPEAT 
+#define USE_NEWLINE_AT_END_OF_STRING_HAS_EMPTY_LINE 
+#define USE_WARNING_REDUNDANT_NESTED_REPEAT_OPERATOR
+#define USE_NO_INVALID_QUANTIFIER
+#define USE_QTFR_PEEK_NEXT
+#define USE_ST_LIBRARY
+#define USE_SUNDAY_QUICK_SEARCH
+#define INIT_MATCH_STACK_SIZE 160
+#define DEFAULT_MATCH_STACK_LIMIT_SIZE 0 
+#define DEFAULT_PARSE_DEPTH_LIMIT 4096
+#define OPT_EXACT_MAXLEN 24
+#if defined(USE_PERL_SUBEXP_CALL) || defined(USE_CAPITAL_P_NAMED_GROUP)
+#if !defined(USE_NAMED_GROUP) || !defined(USE_SUBEXP_CALL)
+#error USE_NAMED_GROUP and USE_SUBEXP_CALL must be defined.
+#endif
+#endif
+#if defined(__GNUC__)
+#define ARG_UNUSED __attribute__ ((unused))
+#else
+#define ARG_UNUSED
+#endif
+#if !defined(RUBY) && defined(RUBY_EXPORT)
+#define RUBY
+#endif
+#if defined(RUBY)
+#if !defined(RUBY_DEFINES_H)
+#include "ruby/ruby.h"
+#undef xmalloc
+#undef xrealloc
+#undef xcalloc
+#undef xfree
+#endif
+#else 
+#include "config.h"
+#if SIZEOF_LONG_LONG > 0
+#define LONG_LONG long long
+#endif
+#endif 
+#include <stdarg.h>
+#if defined(ONIG_ESCAPE_UCHAR_COLLISION)
+#undef ONIG_ESCAPE_UCHAR_COLLISION
+#endif
+#define USE_WORD_BEGIN_END 
+#if defined(RUBY)
+#undef USE_CAPTURE_HISTORY
+#else
+#define USE_CAPTURE_HISTORY
+#endif
+#define USE_VARIABLE_META_CHARS
+#define USE_FIND_LONGEST_SEARCH_ALL_OF_RANGE
+#if !defined(xmalloc)
+#define xmalloc malloc
+#define xrealloc realloc
+#define xcalloc calloc
+#define xfree free
+#endif
+#if defined(RUBY)
+#define CHECK_INTERRUPT_IN_MATCH_AT rb_thread_check_ints()
+#define onig_st_init_table st_init_table
+#define onig_st_init_table_with_size st_init_table_with_size
+#define onig_st_init_numtable st_init_numtable
+#define onig_st_init_numtable_with_size st_init_numtable_with_size
+#define onig_st_init_strtable st_init_strtable
+#define onig_st_init_strtable_with_size st_init_strtable_with_size
+#define onig_st_delete st_delete
+#define onig_st_delete_safe st_delete_safe
+#define onig_st_insert st_insert
+#define onig_st_lookup st_lookup
+#define onig_st_foreach st_foreach
+#define onig_st_add_direct st_add_direct
+#define onig_st_free_table st_free_table
+#define onig_st_cleanup_safe st_cleanup_safe
+#define onig_st_copy st_copy
+#define onig_st_nothing_key_clone st_nothing_key_clone
+#define onig_st_nothing_key_free st_nothing_key_free
+#define onig_st_is_member st_is_member
+#define USE_UPPER_CASE_TABLE
+#else 
+#define CHECK_INTERRUPT_IN_MATCH_AT
+#define st_init_table onig_st_init_table
+#define st_init_table_with_size onig_st_init_table_with_size
+#define st_init_numtable onig_st_init_numtable
+#define st_init_numtable_with_size onig_st_init_numtable_with_size
+#define st_init_strtable onig_st_init_strtable
+#define st_init_strtable_with_size onig_st_init_strtable_with_size
+#define st_delete onig_st_delete
+#define st_delete_safe onig_st_delete_safe
+#define st_insert onig_st_insert
+#define st_lookup onig_st_lookup
+#define st_foreach onig_st_foreach
+#define st_add_direct onig_st_add_direct
+#define st_free_table onig_st_free_table
+#define st_cleanup_safe onig_st_cleanup_safe
+#define st_copy onig_st_copy
+#define st_nothing_key_clone onig_st_nothing_key_clone
+#define st_nothing_key_free onig_st_nothing_key_free
+#define onig_st_is_member st_is_member
+#endif 
+#define STATE_CHECK_STRING_THRESHOLD_LEN 7
+#define STATE_CHECK_BUFF_MAX_SIZE 0x4000
+#define xmemset memset
+#define xmemcpy memcpy
+#define xmemmove memmove
+#if ((defined(RUBY_MSVCRT_VERSION) && RUBY_MSVCRT_VERSION >= 90) || (!defined(RUBY_MSVCRT_VERSION) && defined(_WIN32))) && !defined(__GNUC__)
+#define xalloca _alloca
+#define xvsnprintf(buf,size,fmt,args) _vsnprintf_s(buf,size,_TRUNCATE,fmt,args)
+#define xsnprintf sprintf_s
+#define xstrcat(dest,src,size) strcat_s(dest,size,src)
+#else
+#define xalloca alloca
+#define xvsnprintf vsnprintf
+#define xsnprintf snprintf
+#define xstrcat(dest,src,size) strcat(dest,src)
+#endif
+#if defined(ONIG_DEBUG_MEMLEAK) && defined(_MSC_VER)
+#define _CRTDBG_MAP_ALLOC
+#include <malloc.h>
+#include <crtdbg.h>
+#endif
+#include <stdlib.h>
+#if defined(HAVE_ALLOCA_H) && (defined(_AIX) || !defined(__GNUC__))
+#include <alloca.h>
+#endif
+#include <string.h>
+#include <ctype.h>
+#if defined(HAVE_SYS_TYPES_H)
+#include <sys/types.h>
+#endif
+#if defined(HAVE_STDINT_H)
+#include <stdint.h>
+#endif
+#if defined(HAVE_INTTYPES_H)
+#include <inttypes.h>
+#endif
+#include <stddef.h>
+#if defined(_WIN32)
+#include <malloc.h> 
+#endif
+#if defined(ONIG_DEBUG)
+#include <stdio.h>
+#endif
+#if defined(_WIN32)
+#if defined(_MSC_VER) && (_MSC_VER < 1300)
+#if !defined(_INTPTR_T_DEFINED)
+#define _INTPTR_T_DEFINED
+typedef int intptr_t;
+#endif
+#if !defined(_UINTPTR_T_DEFINED)
+#define _UINTPTR_T_DEFINED
+typedef unsigned int uintptr_t;
+#endif
+#endif
+#endif 
+#if !defined(PRIdPTR)
+#if defined(_WIN64)
+#define PRIdPTR "I64d"
+#define PRIuPTR "I64u"
+#define PRIxPTR "I64x"
+#else
+#define PRIdPTR "ld"
+#define PRIuPTR "lu"
+#define PRIxPTR "lx"
+#endif
+#endif
+#if !defined(PRIdPTRDIFF)
+#define PRIdPTRDIFF PRIdPTR
+#endif
+#include "regenc.h"
+RUBY_SYMBOL_EXPORT_BEGIN
+#if defined(MIN)
+#undef MIN
+#endif
+#if defined(MAX)
+#undef MAX
+#endif
+#define MIN(a,b) (((a)>(b))?(b):(a))
+#define MAX(a,b) (((a)<(b))?(b):(a))
+#define IS_NULL(p) (((void*)(p)) == (void*)0)
+#define IS_NOT_NULL(p) (((void*)(p)) != (void*)0)
+#define CHECK_NULL_RETURN(p) if (IS_NULL(p)) return NULL
+#define CHECK_NULL_RETURN_MEMERR(p) if (IS_NULL(p)) return ONIGERR_MEMORY
+#define NULL_UCHARP ((UChar* )0)
+#define ONIG_LAST_CODE_POINT (~((OnigCodePoint )0))
+#if defined(PLATFORM_UNALIGNED_WORD_ACCESS)
+#define PLATFORM_GET_INC(val,p,type) do{val = *(type* )p;(p) += sizeof(type);} while(0)
+#else
+#define PLATFORM_GET_INC(val,p,type) do{xmemcpy(&val, (p), sizeof(type));(p) += sizeof(type);} while(0)
+#define WORD_ALIGNMENT_SIZE SIZEOF_LONG
+#define GET_ALIGNMENT_PAD_SIZE(addr,pad_size) do {(pad_size) = WORD_ALIGNMENT_SIZE - ((uintptr_t )(addr) % WORD_ALIGNMENT_SIZE);if ((pad_size) == WORD_ALIGNMENT_SIZE) (pad_size) = 0;} while (0)
+#define ALIGNMENT_RIGHT(addr) do {(addr) += (WORD_ALIGNMENT_SIZE - 1);(addr) -= ((uintptr_t )(addr) % WORD_ALIGNMENT_SIZE);} while (0)
+#endif 
+#define STACK_POP_LEVEL_FREE 0
+#define STACK_POP_LEVEL_MEM_START 1
+#define STACK_POP_LEVEL_ALL 2
+#define ONIG_OPTIMIZE_NONE 0
+#define ONIG_OPTIMIZE_EXACT 1 
+#define ONIG_OPTIMIZE_EXACT_BM 2 
+#define ONIG_OPTIMIZE_EXACT_BM_NOT_REV 3 
+#define ONIG_OPTIMIZE_EXACT_IC 4 
+#define ONIG_OPTIMIZE_MAP 5 
+#define ONIG_OPTIMIZE_EXACT_BM_IC 6 
+#define ONIG_OPTIMIZE_EXACT_BM_NOT_REV_IC 7 
+typedef unsigned int BitStatusType;
+#define BIT_STATUS_BITS_NUM (sizeof(BitStatusType) * 8)
+#define BIT_STATUS_CLEAR(stats) (stats) = 0
+#define BIT_STATUS_ON_ALL(stats) (stats) = ~((BitStatusType )0)
+#define BIT_STATUS_AT(stats,n) ((n) < (int )BIT_STATUS_BITS_NUM ? ((stats) & ((BitStatusType )1 << n)) : ((stats) & 1))
+#define BIT_STATUS_ON_AT(stats,n) do {if ((n) < (int )BIT_STATUS_BITS_NUM)(stats) |= (1 << (n));else(stats) |= 1;} while (0)
+#define BIT_STATUS_ON_AT_SIMPLE(stats,n) do {if ((n) < (int )BIT_STATUS_BITS_NUM)(stats) |= (1 << (n));} while (0)
+#define INT_MAX_LIMIT ((1UL << (SIZEOF_INT * 8 - 1)) - 1)
+#define DIGITVAL(code) ((code) - '0')
+#define ODIGITVAL(code) DIGITVAL(code)
+#define XDIGITVAL(enc,code) (ONIGENC_IS_CODE_DIGIT(enc,code) ? DIGITVAL(code) : (ONIGENC_IS_CODE_UPPER(enc,code) ? (code) - 'A' + 10 : (code) - 'a' + 10))
+#define IS_SINGLELINE(option) ((option) & ONIG_OPTION_SINGLELINE)
+#define IS_MULTILINE(option) ((option) & ONIG_OPTION_MULTILINE)
+#define IS_IGNORECASE(option) ((option) & ONIG_OPTION_IGNORECASE)
+#define IS_EXTEND(option) ((option) & ONIG_OPTION_EXTEND)
+#define IS_FIND_LONGEST(option) ((option) & ONIG_OPTION_FIND_LONGEST)
+#define IS_FIND_NOT_EMPTY(option) ((option) & ONIG_OPTION_FIND_NOT_EMPTY)
+#define IS_FIND_CONDITION(option) ((option) & (ONIG_OPTION_FIND_LONGEST | ONIG_OPTION_FIND_NOT_EMPTY))
+#define IS_NOTBOL(option) ((option) & ONIG_OPTION_NOTBOL)
+#define IS_NOTEOL(option) ((option) & ONIG_OPTION_NOTEOL)
+#define IS_NOTBOS(option) ((option) & ONIG_OPTION_NOTBOS)
+#define IS_NOTEOS(option) ((option) & ONIG_OPTION_NOTEOS)
+#define IS_ASCII_RANGE(option) ((option) & ONIG_OPTION_ASCII_RANGE)
+#define IS_POSIX_BRACKET_ALL_RANGE(option) ((option) & ONIG_OPTION_POSIX_BRACKET_ALL_RANGE)
+#define IS_WORD_BOUND_ALL_RANGE(option) ((option) & ONIG_OPTION_WORD_BOUND_ALL_RANGE)
+#define IS_NEWLINE_CRLF(option) ((option) & ONIG_OPTION_NEWLINE_CRLF)
+#define IS_DYNAMIC_OPTION(option) 0
+#define DISABLE_CASE_FOLD_MULTI_CHAR(case_fold_flag) ((case_fold_flag) & ~INTERNAL_ONIGENC_CASE_FOLD_MULTI_CHAR)
+#define REPEAT_INFINITE -1
+#define IS_REPEAT_INFINITE(n) ((n) == REPEAT_INFINITE)
+#define BITS_PER_BYTE 8
+#define SINGLE_BYTE_SIZE (1 << BITS_PER_BYTE)
+#define BITS_IN_ROOM ((int )sizeof(Bits) * BITS_PER_BYTE)
+#define BITSET_SIZE (SINGLE_BYTE_SIZE / BITS_IN_ROOM)
+#if defined(PLATFORM_UNALIGNED_WORD_ACCESS)
+typedef unsigned int Bits;
+#else
+typedef unsigned char Bits;
+#endif
+typedef Bits BitSet[BITSET_SIZE];
+typedef Bits* BitSetRef;
+#define SIZE_BITSET (int )sizeof(BitSet)
+#define BITSET_CLEAR(bs) do {int i;for (i = 0; i < BITSET_SIZE; i++) { (bs)[i] = 0; } } while (0)
+#define BS_ROOM(bs,pos) (bs)[(int )(pos) / BITS_IN_ROOM]
+#define BS_BIT(pos) (1U << ((int )(pos) % BITS_IN_ROOM))
+#define BITSET_AT(bs, pos) (BS_ROOM(bs,pos) & BS_BIT(pos))
+#define BITSET_SET_BIT(bs, pos) BS_ROOM(bs,pos) |= BS_BIT(pos)
+#define BITSET_CLEAR_BIT(bs, pos) BS_ROOM(bs,pos) &= ~(BS_BIT(pos))
+#define BITSET_INVERT_BIT(bs, pos) BS_ROOM(bs,pos) ^= BS_BIT(pos)
+typedef struct _BBuf {
+UChar* p;
+unsigned int used;
+unsigned int alloc;
+} BBuf;
+#define BBUF_INIT(buf,size) onig_bbuf_init((BBuf* )(buf), (size))
+#define BBUF_SIZE_INC(buf,inc) do{UChar *tmp;(buf)->alloc += (inc);tmp = (UChar* )xrealloc((buf)->p, (buf)->alloc);if (IS_NULL(tmp)) return(ONIGERR_MEMORY);(buf)->p = tmp;} while (0)
+#define BBUF_EXPAND(buf,low) do{UChar *tmp;do { (buf)->alloc *= 2; } while ((buf)->alloc < (unsigned int )low);tmp = (UChar* )xrealloc((buf)->p, (buf)->alloc);if (IS_NULL(tmp)) return(ONIGERR_MEMORY);(buf)->p = tmp;} while (0)
+#define BBUF_ENSURE_SIZE(buf,size) do{unsigned int new_alloc = (buf)->alloc;while (new_alloc < (unsigned int )(size)) { new_alloc *= 2; }if ((buf)->alloc != new_alloc) {UChar *tmp;tmp = (UChar* )xrealloc((buf)->p, new_alloc);if (IS_NULL(tmp)) return(ONIGERR_MEMORY);(buf)->p = tmp;(buf)->alloc = new_alloc;}} while (0)
+#define BBUF_WRITE(buf,pos,bytes,n) do{int used = (pos) + (int )(n);if ((buf)->alloc < (unsigned int )used) BBUF_EXPAND((buf),used);xmemcpy((buf)->p + (pos), (bytes), (n));if ((buf)->used < (unsigned int )used) (buf)->used = used;} while (0)
+#define BBUF_WRITE1(buf,pos,byte) do{int used = (pos) + 1;if ((buf)->alloc < (unsigned int )used) BBUF_EXPAND((buf),used);(buf)->p[(pos)] = (UChar )(byte);if ((buf)->used < (unsigned int )used) (buf)->used = used;} while (0)
+#define BBUF_ADD(buf,bytes,n) BBUF_WRITE((buf),(buf)->used,(bytes),(n))
+#define BBUF_ADD1(buf,byte) BBUF_WRITE1((buf),(buf)->used,(byte))
+#define BBUF_GET_ADD_ADDRESS(buf) ((buf)->p + (buf)->used)
+#define BBUF_GET_OFFSET_POS(buf) ((buf)->used)
+#define BBUF_MOVE_RIGHT(buf,from,to,n) do {if ((unsigned int )((to)+(n)) > (buf)->alloc) BBUF_EXPAND((buf),(to) + (n));xmemmove((buf)->p + (to), (buf)->p + (from), (n));if ((unsigned int )((to)+(n)) > (buf)->used) (buf)->used = (to) + (n);} while (0)
+#define BBUF_MOVE_LEFT(buf,from,to,n) do {xmemmove((buf)->p + (to), (buf)->p + (from), (n));} while (0)
+#define BBUF_MOVE_LEFT_REDUCE(buf,from,to) do {xmemmove((buf)->p + (to), (buf)->p + (from), (buf)->used - (from));(buf)->used -= (from - to);} while (0)
+#define BBUF_INSERT(buf,pos,bytes,n) do {if (pos >= (buf)->used) {BBUF_WRITE(buf,pos,bytes,n);}else {BBUF_MOVE_RIGHT((buf),(pos),(pos) + (n),((buf)->used - (pos)));xmemcpy((buf)->p + (pos), (bytes), (n));}} while (0)
+#define BBUF_GET_BYTE(buf, pos) (buf)->p[(pos)]
+#define ANCHOR_BEGIN_BUF (1<<0)
+#define ANCHOR_BEGIN_LINE (1<<1)
+#define ANCHOR_BEGIN_POSITION (1<<2)
+#define ANCHOR_END_BUF (1<<3)
+#define ANCHOR_SEMI_END_BUF (1<<4)
+#define ANCHOR_END_LINE (1<<5)
+#define ANCHOR_WORD_BOUND (1<<6)
+#define ANCHOR_NOT_WORD_BOUND (1<<7)
+#define ANCHOR_WORD_BEGIN (1<<8)
+#define ANCHOR_WORD_END (1<<9)
+#define ANCHOR_PREC_READ (1<<10)
+#define ANCHOR_PREC_READ_NOT (1<<11)
+#define ANCHOR_LOOK_BEHIND (1<<12)
+#define ANCHOR_LOOK_BEHIND_NOT (1<<13)
+#define ANCHOR_ANYCHAR_STAR (1<<14) 
+#define ANCHOR_ANYCHAR_STAR_ML (1<<15) 
+#define ANCHOR_KEEP (1<<16)
+enum OpCode {
+OP_FINISH = 0, 
+OP_END = 1, 
+OP_EXACT1 = 2, 
+OP_EXACT2, 
+OP_EXACT3, 
+OP_EXACT4, 
+OP_EXACT5, 
+OP_EXACTN, 
+OP_EXACTMB2N1, 
+OP_EXACTMB2N2, 
+OP_EXACTMB2N3, 
+OP_EXACTMB2N, 
+OP_EXACTMB3N, 
+OP_EXACTMBN, 
+OP_EXACT1_IC, 
+OP_EXACTN_IC, 
+OP_CCLASS,
+OP_CCLASS_MB,
+OP_CCLASS_MIX,
+OP_CCLASS_NOT,
+OP_CCLASS_MB_NOT,
+OP_CCLASS_MIX_NOT,
+OP_ANYCHAR, 
+OP_ANYCHAR_ML, 
+OP_ANYCHAR_STAR, 
+OP_ANYCHAR_ML_STAR, 
+OP_ANYCHAR_STAR_PEEK_NEXT,
+OP_ANYCHAR_ML_STAR_PEEK_NEXT,
+OP_WORD,
+OP_NOT_WORD,
+OP_WORD_BOUND,
+OP_NOT_WORD_BOUND,
+OP_WORD_BEGIN,
+OP_WORD_END,
+OP_ASCII_WORD,
+OP_NOT_ASCII_WORD,
+OP_ASCII_WORD_BOUND,
+OP_NOT_ASCII_WORD_BOUND,
+OP_ASCII_WORD_BEGIN,
+OP_ASCII_WORD_END,
+OP_BEGIN_BUF,
+OP_END_BUF,
+OP_BEGIN_LINE,
+OP_END_LINE,
+OP_SEMI_END_BUF,
+OP_BEGIN_POSITION,
+OP_BACKREF1,
+OP_BACKREF2,
+OP_BACKREFN,
+OP_BACKREFN_IC,
+OP_BACKREF_MULTI,
+OP_BACKREF_MULTI_IC,
+OP_BACKREF_WITH_LEVEL, 
+OP_MEMORY_START,
+OP_MEMORY_START_PUSH, 
+OP_MEMORY_END_PUSH, 
+OP_MEMORY_END_PUSH_REC, 
+OP_MEMORY_END,
+OP_MEMORY_END_REC, 
+OP_KEEP,
+OP_FAIL, 
+OP_JUMP,
+OP_PUSH,
+OP_POP,
+OP_PUSH_OR_JUMP_EXACT1, 
+OP_PUSH_IF_PEEK_NEXT, 
+OP_REPEAT, 
+OP_REPEAT_NG, 
+OP_REPEAT_INC,
+OP_REPEAT_INC_NG, 
+OP_REPEAT_INC_SG, 
+OP_REPEAT_INC_NG_SG, 
+OP_NULL_CHECK_START, 
+OP_NULL_CHECK_END, 
+OP_NULL_CHECK_END_MEMST, 
+OP_NULL_CHECK_END_MEMST_PUSH, 
+OP_PUSH_POS, 
+OP_POP_POS, 
+OP_PUSH_POS_NOT, 
+OP_FAIL_POS, 
+OP_PUSH_STOP_BT, 
+OP_POP_STOP_BT, 
+OP_LOOK_BEHIND, 
+OP_PUSH_LOOK_BEHIND_NOT, 
+OP_FAIL_LOOK_BEHIND_NOT, 
+OP_PUSH_ABSENT_POS, 
+OP_ABSENT, 
+OP_ABSENT_END, 
+OP_CALL, 
+OP_RETURN,
+OP_CONDITION,
+OP_STATE_CHECK_PUSH, 
+OP_STATE_CHECK_PUSH_OR_JUMP, 
+OP_STATE_CHECK, 
+OP_STATE_CHECK_ANYCHAR_STAR,
+OP_STATE_CHECK_ANYCHAR_ML_STAR,
+OP_SET_OPTION_PUSH, 
+OP_SET_OPTION 
+};
+typedef int RelAddrType;
+typedef int AbsAddrType;
+typedef int LengthType;
+typedef int RepeatNumType;
+typedef short int MemNumType;
+typedef short int StateCheckNumType;
+typedef void* PointerType;
+#define SIZE_OPCODE 1
+#define SIZE_RELADDR (int )sizeof(RelAddrType)
+#define SIZE_ABSADDR (int )sizeof(AbsAddrType)
+#define SIZE_LENGTH (int )sizeof(LengthType)
+#define SIZE_MEMNUM (int )sizeof(MemNumType)
+#define SIZE_STATE_CHECK_NUM (int )sizeof(StateCheckNumType)
+#define SIZE_REPEATNUM (int )sizeof(RepeatNumType)
+#define SIZE_OPTION (int )sizeof(OnigOptionType)
+#define SIZE_CODE_POINT (int )sizeof(OnigCodePoint)
+#define SIZE_POINTER (int )sizeof(PointerType)
+#define GET_RELADDR_INC(addr,p) PLATFORM_GET_INC(addr, p, RelAddrType)
+#define GET_ABSADDR_INC(addr,p) PLATFORM_GET_INC(addr, p, AbsAddrType)
+#define GET_LENGTH_INC(len,p) PLATFORM_GET_INC(len, p, LengthType)
+#define GET_MEMNUM_INC(num,p) PLATFORM_GET_INC(num, p, MemNumType)
+#define GET_REPEATNUM_INC(num,p) PLATFORM_GET_INC(num, p, RepeatNumType)
+#define GET_OPTION_INC(option,p) PLATFORM_GET_INC(option, p, OnigOptionType)
+#define GET_POINTER_INC(ptr,p) PLATFORM_GET_INC(ptr, p, PointerType)
+#define GET_STATE_CHECK_NUM_INC(num,p) PLATFORM_GET_INC(num, p, StateCheckNumType)
+#define GET_CODE_POINT(code,p) code = *((OnigCodePoint* )(p))
+#define GET_BYTE_INC(byte,p) do{byte = *(p);(p)++;} while(0)
+#define SIZE_OP_ANYCHAR_STAR SIZE_OPCODE
+#define SIZE_OP_ANYCHAR_STAR_PEEK_NEXT (SIZE_OPCODE + 1)
+#define SIZE_OP_JUMP (SIZE_OPCODE + SIZE_RELADDR)
+#define SIZE_OP_PUSH (SIZE_OPCODE + SIZE_RELADDR)
+#define SIZE_OP_POP SIZE_OPCODE
+#define SIZE_OP_PUSH_OR_JUMP_EXACT1 (SIZE_OPCODE + SIZE_RELADDR + 1)
+#define SIZE_OP_PUSH_IF_PEEK_NEXT (SIZE_OPCODE + SIZE_RELADDR + 1)
+#define SIZE_OP_REPEAT_INC (SIZE_OPCODE + SIZE_MEMNUM)
+#define SIZE_OP_REPEAT_INC_NG (SIZE_OPCODE + SIZE_MEMNUM)
+#define SIZE_OP_PUSH_POS SIZE_OPCODE
+#define SIZE_OP_PUSH_POS_NOT (SIZE_OPCODE + SIZE_RELADDR)
+#define SIZE_OP_POP_POS SIZE_OPCODE
+#define SIZE_OP_FAIL_POS SIZE_OPCODE
+#define SIZE_OP_SET_OPTION (SIZE_OPCODE + SIZE_OPTION)
+#define SIZE_OP_SET_OPTION_PUSH (SIZE_OPCODE + SIZE_OPTION)
+#define SIZE_OP_FAIL SIZE_OPCODE
+#define SIZE_OP_MEMORY_START (SIZE_OPCODE + SIZE_MEMNUM)
+#define SIZE_OP_MEMORY_START_PUSH (SIZE_OPCODE + SIZE_MEMNUM)
+#define SIZE_OP_MEMORY_END_PUSH (SIZE_OPCODE + SIZE_MEMNUM)
+#define SIZE_OP_MEMORY_END_PUSH_REC (SIZE_OPCODE + SIZE_MEMNUM)
+#define SIZE_OP_MEMORY_END (SIZE_OPCODE + SIZE_MEMNUM)
+#define SIZE_OP_MEMORY_END_REC (SIZE_OPCODE + SIZE_MEMNUM)
+#define SIZE_OP_PUSH_STOP_BT SIZE_OPCODE
+#define SIZE_OP_POP_STOP_BT SIZE_OPCODE
+#define SIZE_OP_NULL_CHECK_START (SIZE_OPCODE + SIZE_MEMNUM)
+#define SIZE_OP_NULL_CHECK_END (SIZE_OPCODE + SIZE_MEMNUM)
+#define SIZE_OP_LOOK_BEHIND (SIZE_OPCODE + SIZE_LENGTH)
+#define SIZE_OP_PUSH_LOOK_BEHIND_NOT (SIZE_OPCODE + SIZE_RELADDR + SIZE_LENGTH)
+#define SIZE_OP_FAIL_LOOK_BEHIND_NOT SIZE_OPCODE
+#define SIZE_OP_CALL (SIZE_OPCODE + SIZE_ABSADDR)
+#define SIZE_OP_RETURN SIZE_OPCODE
+#define SIZE_OP_CONDITION (SIZE_OPCODE + SIZE_MEMNUM + SIZE_RELADDR)
+#define SIZE_OP_PUSH_ABSENT_POS SIZE_OPCODE
+#define SIZE_OP_ABSENT (SIZE_OPCODE + SIZE_RELADDR)
+#define SIZE_OP_ABSENT_END SIZE_OPCODE
+#if defined(USE_COMBINATION_EXPLOSION_CHECK)
+#define SIZE_OP_STATE_CHECK (SIZE_OPCODE + SIZE_STATE_CHECK_NUM)
+#define SIZE_OP_STATE_CHECK_PUSH (SIZE_OPCODE + SIZE_STATE_CHECK_NUM + SIZE_RELADDR)
+#define SIZE_OP_STATE_CHECK_PUSH_OR_JUMP (SIZE_OPCODE + SIZE_STATE_CHECK_NUM + SIZE_RELADDR)
+#define SIZE_OP_STATE_CHECK_ANYCHAR_STAR (SIZE_OPCODE + SIZE_STATE_CHECK_NUM)
+#endif
+#define MC_ESC(syn) (syn)->meta_char_table.esc
+#define MC_ANYCHAR(syn) (syn)->meta_char_table.anychar
+#define MC_ANYTIME(syn) (syn)->meta_char_table.anytime
+#define MC_ZERO_OR_ONE_TIME(syn) (syn)->meta_char_table.zero_or_one_time
+#define MC_ONE_OR_MORE_TIME(syn) (syn)->meta_char_table.one_or_more_time
+#define MC_ANYCHAR_ANYTIME(syn) (syn)->meta_char_table.anychar_anytime
+#define IS_MC_ESC_CODE(code, syn) ((code) == MC_ESC(syn) && !IS_SYNTAX_OP2((syn), ONIG_SYN_OP2_INEFFECTIVE_ESCAPE))
+#define SYN_POSIX_COMMON_OP ( ONIG_SYN_OP_DOT_ANYCHAR | ONIG_SYN_OP_POSIX_BRACKET | ONIG_SYN_OP_DECIMAL_BACKREF | ONIG_SYN_OP_BRACKET_CC | ONIG_SYN_OP_ASTERISK_ZERO_INF | ONIG_SYN_OP_LINE_ANCHOR | ONIG_SYN_OP_ESC_CONTROL_CHARS )
+#define SYN_GNU_REGEX_OP ( ONIG_SYN_OP_DOT_ANYCHAR | ONIG_SYN_OP_BRACKET_CC | ONIG_SYN_OP_POSIX_BRACKET | ONIG_SYN_OP_DECIMAL_BACKREF | ONIG_SYN_OP_BRACE_INTERVAL | ONIG_SYN_OP_LPAREN_SUBEXP | ONIG_SYN_OP_VBAR_ALT | ONIG_SYN_OP_ASTERISK_ZERO_INF | ONIG_SYN_OP_PLUS_ONE_INF | ONIG_SYN_OP_QMARK_ZERO_ONE | ONIG_SYN_OP_ESC_AZ_BUF_ANCHOR | ONIG_SYN_OP_ESC_CAPITAL_G_BEGIN_ANCHOR | ONIG_SYN_OP_ESC_W_WORD | ONIG_SYN_OP_ESC_B_WORD_BOUND | ONIG_SYN_OP_ESC_LTGT_WORD_BEGIN_END | ONIG_SYN_OP_ESC_S_WHITE_SPACE | ONIG_SYN_OP_ESC_D_DIGIT | ONIG_SYN_OP_LINE_ANCHOR )
+#define SYN_GNU_REGEX_BV ( ONIG_SYN_CONTEXT_INDEP_ANCHORS | ONIG_SYN_CONTEXT_INDEP_REPEAT_OPS | ONIG_SYN_CONTEXT_INVALID_REPEAT_OPS | ONIG_SYN_ALLOW_INVALID_INTERVAL | ONIG_SYN_BACKSLASH_ESCAPE_IN_CC | ONIG_SYN_ALLOW_DOUBLE_RANGE_OP_IN_CC )
+#define NCCLASS_FLAGS(cc) ((cc)->flags)
+#define NCCLASS_FLAG_SET(cc,flag) (NCCLASS_FLAGS(cc) |= (flag))
+#define NCCLASS_FLAG_CLEAR(cc,flag) (NCCLASS_FLAGS(cc) &= ~(flag))
+#define IS_NCCLASS_FLAG_ON(cc,flag) ((NCCLASS_FLAGS(cc) & (flag)) != 0)
+#define FLAG_NCCLASS_NOT (1<<0)
+#define NCCLASS_SET_NOT(nd) NCCLASS_FLAG_SET(nd, FLAG_NCCLASS_NOT)
+#define NCCLASS_CLEAR_NOT(nd) NCCLASS_FLAG_CLEAR(nd, FLAG_NCCLASS_NOT)
+#define IS_NCCLASS_NOT(nd) IS_NCCLASS_FLAG_ON(nd, FLAG_NCCLASS_NOT)
+typedef struct {
+int type;
+} NodeBase;
+typedef struct {
+NodeBase base;
+unsigned int flags;
+BitSet bs;
+BBuf* mbuf; 
+} CClassNode;
+typedef intptr_t OnigStackIndex;
+typedef struct _OnigStackType {
+unsigned int type;
+union {
+struct {
+UChar *pcode; 
+UChar *pstr; 
+UChar *pstr_prev; 
+#if defined(USE_COMBINATION_EXPLOSION_CHECK)
+unsigned int state_check;
+#endif
+UChar *pkeep; 
+} state;
+struct {
+int count; 
+UChar *pcode; 
+int num; 
+} repeat;
+struct {
+OnigStackIndex si; 
+} repeat_inc;
+struct {
+int num; 
+UChar *pstr; 
+OnigStackIndex start; 
+OnigStackIndex end; 
+} mem;
+struct {
+int num; 
+UChar *pstr; 
+} null_check;
+#if defined(USE_SUBEXP_CALL)
+struct {
+UChar *ret_addr; 
+int num; 
+UChar *pstr; 
+} call_frame;
+#endif
+struct {
+UChar *abs_pstr; 
+const UChar *end_pstr; 
+} absent_pos;
+} u;
+} OnigStackType;
+typedef struct {
+void* stack_p;
+size_t stack_n;
+OnigOptionType options;
+OnigRegion* region;
+const UChar* start; 
+const UChar* gpos; 
+#if defined(USE_FIND_LONGEST_SEARCH_ALL_OF_RANGE)
+OnigPosition best_len; 
+UChar* best_s;
+#endif
+#if defined(USE_COMBINATION_EXPLOSION_CHECK)
+void* state_check_buff;
+int state_check_buff_size;
+#endif
+} OnigMatchArg;
+#define IS_CODE_SB_WORD(enc,code) (ONIGENC_IS_CODE_ASCII(code) && ONIGENC_IS_CODE_WORD(enc,code))
+typedef struct OnigEndCallListItem {
+struct OnigEndCallListItem* next;
+void (*func)(void);
+} OnigEndCallListItemType;
+extern void onig_add_end_call(void (*func)(void));
+#if defined(ONIG_DEBUG)
+typedef struct {
+short int opcode;
+const char* name;
+short int arg_type;
+} OnigOpInfoType;
+extern OnigOpInfoType OnigOpInfo[];
+extern void onig_print_compiled_byte_code(FILE* f, UChar* bp, UChar* bpend, UChar** nextp, OnigEncoding enc);
+#if defined(ONIG_DEBUG_STATISTICS)
+extern void onig_statistics_init(void);
+extern void onig_print_statistics(FILE* f);
+#endif
+#endif
+extern UChar* onig_error_code_to_format(OnigPosition code);
+extern void onig_vsnprintf_with_pattern(UChar buf[], int bufsize, OnigEncoding enc, UChar* pat, UChar* pat_end, const UChar *fmt, va_list args);
+extern void onig_snprintf_with_pattern(UChar buf[], int bufsize, OnigEncoding enc, UChar* pat, UChar* pat_end, const UChar *fmt, ...);
+extern int onig_bbuf_init(BBuf* buf, OnigDistance size);
+extern int onig_compile(regex_t* reg, const UChar* pattern, const UChar* pattern_end, OnigErrorInfo* einfo);
+#if defined(RUBY)
+extern int onig_compile_ruby(regex_t* reg, const UChar* pattern, const UChar* pattern_end, OnigErrorInfo* einfo, const char *sourcefile, int sourceline);
+#endif
+extern void onig_transfer(regex_t* to, regex_t* from);
+extern int onig_is_code_in_cc(OnigEncoding enc, OnigCodePoint code, CClassNode* cc);
+extern int onig_is_code_in_cc_len(int enclen, OnigCodePoint code, CClassNode* cc);
+typedef void hash_table_type;
+#if defined(RUBY)
+#include "ruby/st.h"
+#else
+#include "st.h"
+#endif
+typedef st_data_t hash_data_type;
+extern hash_table_type* onig_st_init_strend_table_with_size(st_index_t size);
+extern int onig_st_lookup_strend(hash_table_type* table, const UChar* str_key, const UChar* end_key, hash_data_type *value);
+extern int onig_st_insert_strend(hash_table_type* table, const UChar* str_key, const UChar* end_key, hash_data_type value);
+#if defined(RUBY)
+extern size_t onig_memsize(const regex_t *reg);
+extern size_t onig_region_memsize(const struct re_registers *regs);
+#endif
+RUBY_SYMBOL_EXPORT_END

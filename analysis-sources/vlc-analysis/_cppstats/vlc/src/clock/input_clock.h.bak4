@@ -1,0 +1,138 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#if !defined(LIBVLC_INPUT_CLOCK_H)
+#define LIBVLC_INPUT_CLOCK_H 1
+
+#include <vlc_common.h>
+#include <vlc_input.h> 
+
+
+
+
+
+
+
+typedef struct input_clock_t input_clock_t;
+
+
+
+
+
+input_clock_t *input_clock_New( float rate );
+
+
+
+
+void input_clock_Delete( input_clock_t * );
+
+
+
+
+
+
+
+
+
+vlc_tick_t input_clock_Update( input_clock_t *, vlc_object_t *p_log,
+bool b_can_pace_control, bool b_buffering_allowed,
+vlc_tick_t i_clock, vlc_tick_t i_system );
+
+
+
+
+
+void input_clock_Reset( input_clock_t * );
+
+
+
+
+vlc_tick_t input_clock_GetWakeup( input_clock_t * );
+
+
+
+
+void input_clock_ChangeRate( input_clock_t *, float rate );
+
+
+
+
+void input_clock_ChangePause( input_clock_t *, bool b_paused, vlc_tick_t i_date );
+
+
+
+
+
+void input_clock_GetSystemOrigin( input_clock_t *, vlc_tick_t *pi_system, vlc_tick_t *pi_delay );
+
+
+
+
+
+
+
+void input_clock_ChangeSystemOrigin( input_clock_t *, bool b_absolute, vlc_tick_t i_system );
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+int input_clock_ConvertTS( vlc_object_t *, input_clock_t *, float *p_rate,
+vlc_tick_t *pi_ts0, vlc_tick_t *pi_ts1, vlc_tick_t i_ts_bound );
+
+
+
+
+float input_clock_GetRate( input_clock_t * );
+
+
+
+
+
+int input_clock_GetState( input_clock_t *,
+vlc_tick_t *pi_stream_start, vlc_tick_t *pi_system_start,
+vlc_tick_t *pi_stream_duration, vlc_tick_t *pi_system_duration );
+
+
+
+
+void input_clock_SetJitter( input_clock_t *,
+vlc_tick_t i_pts_delay, int i_cr_average );
+
+
+
+
+
+vlc_tick_t input_clock_GetJitter( input_clock_t * );
+
+#endif

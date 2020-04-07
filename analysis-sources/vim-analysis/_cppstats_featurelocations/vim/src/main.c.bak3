@@ -1,0 +1,4383 @@
+
+
+
+
+
+
+
+
+
+#define EXTERN
+#include "vim.h"
+
+#ifdef __CYGWIN__
+#ifndef MSWIN
+#include <cygwin/version.h>
+#include <sys/cygwin.h> 
+
+#endif
+#include <limits.h>
+#endif
+
+#if defined(MSWIN) && (!defined(FEAT_GUI_MSWIN) || defined(VIMDLL))
+#include "iscygpty.h"
+#endif
+
+
+#define EDIT_NONE 0 
+#define EDIT_FILE 1 
+#define EDIT_STDIN 2 
+#define EDIT_TAG 3 
+#define EDIT_QF 4 
+
+#if (defined(UNIX) || defined(VMS)) && !defined(NO_VIM_MAIN)
+static int file_owned(char *fname);
+#endif
+static void mainerr(int, char_u *);
+#if defined(HAVE_LOCALE_H) || defined(X_LOCALE)
+static void init_locale(void);
+#endif
+static void early_arg_scan(mparm_T *parmp);
+#ifndef NO_VIM_MAIN
+static void usage(void);
+static void parse_command_name(mparm_T *parmp);
+static void command_line_scan(mparm_T *parmp);
+static void check_tty(mparm_T *parmp);
+static void read_stdin(void);
+static void create_windows(mparm_T *parmp);
+static void edit_buffers(mparm_T *parmp, char_u *cwd);
+static void exe_pre_commands(mparm_T *parmp);
+static void exe_commands(mparm_T *parmp);
+static void source_startup_scripts(mparm_T *parmp);
+static void main_start_gui(void);
+static void check_swap_exists_action(void);
+#ifdef FEAT_EVAL
+static void set_progpath(char_u *argv0);
+#endif
+#if defined(FEAT_CLIENTSERVER) || defined(PROTO)
+static void exec_on_server(mparm_T *parmp);
+static void prepare_server(mparm_T *parmp);
+static void cmdsrv_main(int *argc, char **argv, char_u *serverName_arg, char_u **serverStr);
+static char_u *serverMakeName(char_u *arg, char *cmd);
+#endif
+#endif
+
+
+
+
+
+static char *(main_errors[]) =
+{
+N_("Unknown option argument"),
+#define ME_UNKNOWN_OPTION 0
+N_("Too many edit arguments"),
+#define ME_TOO_MANY_ARGS 1
+N_("Argument missing after"),
+#define ME_ARG_MISSING 2
+N_("Garbage after option argument"),
+#define ME_GARBAGE 3
+N_("Too many \"+command\", \"-c command\" or \"--cmd command\" arguments"),
+#define ME_EXTRA_CMD 4
+N_("Invalid argument for"),
+#define ME_INVALID_ARG 5
+};
+
+#ifndef PROTO 
+
+
+static mparm_T params;
+
+#ifndef NO_VIM_MAIN 
+
+static char_u *start_dir = NULL; 
+
+static int has_dash_c_arg = FALSE;
+
+#ifdef VIMDLL
+__declspec(dllexport)
+#endif
+int
+#ifdef MSWIN
+VimMain
+#else
+main
+#endif
+(int argc, char **argv)
+{
+#if defined(STARTUPTIME) || defined(CLEAN_RUNTIMEPATH)
+int i;
+#endif
+
+
+
+
+
+mch_early_init();
+
+#ifdef MSWIN
+
+
+
+
+argc = get_cmd_argsW(&argv);
+#endif
+
+
+
+
+vim_memset(&params, 0, sizeof(params));
+params.argc = argc;
+params.argv = argv;
+params.want_full_screen = TRUE;
+#ifdef FEAT_EVAL
+params.use_debug_break_level = -1;
+#endif
+params.window_count = -1;
+
+#ifdef FEAT_RUBY
+{
+int ruby_stack_start;
+vim_ruby_init((void *)&ruby_stack_start);
+}
+#endif
+
+#ifdef FEAT_TCL
+vim_tcl_init(params.argv[0]);
+#endif
+
+#ifdef MEM_PROFILE
+atexit(vim_mem_profile_dump);
+#endif
+
+#ifdef STARTUPTIME
+
+for (i = 1; i < argc - 1; ++i)
+if (STRICMP(argv[i], "--startuptime") == 0)
+{
+time_fd = mch_fopen(argv[i + 1], "a");
+TIME_MSG("--- VIM STARTING ---");
+break;
+}
+#endif
+starttime = time(NULL);
+
+#ifdef CLEAN_RUNTIMEPATH
+
+for (i = 1; i < argc; ++i)
+if (STRICMP(argv[i], "--clean") == 0)
+{
+params.clean = TRUE;
+break;
+}
+#endif
+common_init(&params);
+
+#ifdef VIMDLL
+
+gui.starting = mch_is_gui_executable();
+#elif defined(FEAT_GUI_MSWIN)
+gui.starting = TRUE;
+#endif
+
+#ifdef FEAT_CLIENTSERVER
+
+
+
+
+exec_on_server(&params);
+#endif
+
+
+
+
+
+parse_command_name(&params);
+
+
+
+
+
+command_line_scan(&params);
+TIME_MSG("parsing arguments");
+
+
+
+
+
+
+#ifdef ALWAYS_USE_GUI
+gui.starting = TRUE;
+#else
+#if defined(FEAT_GUI_X11) || defined(FEAT_GUI_GTK)
+
+
+
+
+if (gui.starting)
+{
+if (gui_init_check() == FAIL)
+{
+gui.starting = FALSE;
+
+
+
+if (params.evim_mode)
+mch_exit(1);
+}
+}
+#endif
+#endif
+
+if (GARGCOUNT > 0)
+{
+#ifdef EXPAND_FILENAMES
+
+
+
+if (!params.literal)
+{
+start_dir = alloc(MAXPATHL);
+if (start_dir != NULL)
+mch_dirname(start_dir, MAXPATHL);
+
+
+
+do_cmdline_cmd((char_u *)":set isf+=(,)");
+alist_expand(NULL, 0);
+do_cmdline_cmd((char_u *)":set isf&");
+if (start_dir != NULL)
+mch_chdir((char *)start_dir);
+}
+#endif
+params.fname = alist_name(&GARGLIST[0]);
+}
+
+#ifdef MSWIN
+{
+extern void set_alist_count(void);
+
+
+
+set_alist_count();
+}
+#endif
+
+#ifdef MSWIN
+if (GARGCOUNT == 1 && params.full_path)
+{
+
+
+
+
+
+
+(void)vim_chdirfile(params.fname, "drop");
+if (start_dir != NULL)
+mch_dirname(start_dir, MAXPATHL);
+}
+#endif
+TIME_MSG("expanding arguments");
+
+#ifdef FEAT_DIFF
+if (params.diff_mode && params.window_count == -1)
+params.window_count = 0; 
+#endif
+
+
+++RedrawingDisabled;
+
+
+
+
+if (recoverymode && params.fname == NULL)
+params.want_full_screen = FALSE;
+
+
+
+
+
+
+#if defined(ALWAYS_USE_GUI) || defined(FEAT_GUI_X11) || defined(FEAT_GUI_GTK) || defined(VIMDLL)
+
+if (gui.starting
+#ifdef FEAT_GUI_GTK
+&& !isatty(2)
+#endif
+)
+params.want_full_screen = FALSE;
+#endif
+
+#if defined(FEAT_GUI_MAC) && defined(MACOS_X_DARWIN)
+
+
+
+if (gui.starting && (!isatty(2) || strcmp("/dev/console", ttyname(2)) == 0))
+{
+params.want_full_screen = FALSE;
+
+
+
+
+if (getcwd((char *)NameBuff, MAXPATHL) != NULL
+&& STRCMP(NameBuff, "/") == 0)
+{
+if (params.fname != NULL)
+(void)vim_chdirfile(params.fname, "drop");
+else
+{
+expand_env((char_u *)"$HOME", NameBuff, MAXPATHL);
+vim_chdir(NameBuff);
+}
+if (start_dir != NULL)
+mch_dirname(start_dir, MAXPATHL);
+}
+}
+#endif
+
+
+
+
+
+
+mch_init();
+TIME_MSG("shell init");
+
+#ifdef USE_XSMP
+
+
+
+
+
+
+
+if (!x_no_connect)
+{
+char *p = getenv("SESSION_MANAGER");
+
+if (p != NULL && *p != NUL)
+{
+xsmp_init();
+TIME_MSG("xsmp init");
+}
+}
+#endif
+
+
+
+
+check_tty(&params);
+
+#ifdef _IOLBF
+
+
+if (silent_mode)
+setvbuf(stdout, NULL, _IOLBF, 0);
+#endif
+
+
+
+if (GARGCOUNT > 1 && !silent_mode && !is_not_a_term())
+printf(_("%d files to edit\n"), GARGCOUNT);
+
+if (params.want_full_screen && !silent_mode)
+{
+termcapinit(params.term); 
+
+screen_start(); 
+TIME_MSG("Termcap init");
+}
+
+
+
+
+ui_get_shellsize(); 
+win_init_size();
+#ifdef FEAT_DIFF
+
+
+if (params.diff_mode)
+diff_win_options(firstwin, FALSE);
+#endif
+
+cmdline_row = Rows - p_ch;
+msg_row = cmdline_row;
+screenalloc(FALSE); 
+set_init_2();
+TIME_MSG("inits 2");
+
+msg_scroll = TRUE;
+no_wait_return = TRUE;
+
+init_mappings(); 
+
+init_highlight(TRUE, FALSE); 
+TIME_MSG("init highlight");
+
+#ifdef FEAT_EVAL
+
+debug_break_level = params.use_debug_break_level;
+#endif
+
+
+
+if (params.use_vimrc != NULL
+&& (STRCMP(params.use_vimrc, "NONE") == 0
+|| STRCMP(params.use_vimrc, "DEFAULTS") == 0))
+p_lpl = FALSE;
+
+
+exe_pre_commands(&params);
+
+
+source_startup_scripts(&params);
+
+#ifdef FEAT_MZSCHEME
+
+
+
+
+
+
+
+return mzscheme_main();
+#else
+return vim_main2();
+#endif
+}
+#endif 
+#endif 
+
+
+
+
+
+
+int
+vim_main2(void)
+{
+#ifndef NO_VIM_MAIN
+#ifdef FEAT_EVAL
+
+
+
+
+if (p_lpl)
+{
+char_u *rtp_copy = NULL;
+
+
+
+
+
+
+if (!did_source_packages)
+{
+rtp_copy = vim_strsave(p_rtp);
+add_pack_start_dirs();
+}
+
+source_in_path(rtp_copy == NULL ? p_rtp : rtp_copy,
+#ifdef VMS 
+(char_u *)"plugin/*.vim",
+#else
+(char_u *)"plugin/**/*.vim",
+#endif
+DIP_ALL | DIP_NOAFTER, NULL);
+TIME_MSG("loading plugins");
+vim_free(rtp_copy);
+
+
+
+if (!did_source_packages)
+load_start_packages();
+TIME_MSG("loading packages");
+
+#ifdef VMS 
+source_runtime((char_u *)"plugin/*.vim", DIP_ALL | DIP_AFTER);
+#else
+source_runtime((char_u *)"plugin/**/*.vim", DIP_ALL | DIP_AFTER);
+#endif
+TIME_MSG("loading after plugins");
+
+}
+#endif
+
+#ifdef FEAT_DIFF
+
+if (params.diff_mode && params.window_layout == 0)
+{
+if (diffopt_horizontal())
+params.window_layout = WIN_HOR; 
+else
+params.window_layout = WIN_VER; 
+}
+#endif
+
+
+
+
+
+
+if (recoverymode && params.fname == NULL)
+{
+recover_names(NULL, TRUE, 0, NULL);
+mch_exit(0);
+}
+
+
+
+
+
+set_init_3();
+TIME_MSG("inits 3");
+
+
+
+
+
+if (params.no_swap_file)
+p_uc = 0;
+
+#ifdef FEAT_GUI
+if (gui.starting)
+{
+#if defined(UNIX) || defined(VMS)
+
+
+if (did_emsg || msg_didout)
+putchar('\n');
+#endif
+
+gui_start(NULL); 
+TIME_MSG("starting GUI");
+
+
+
+if (!gui.in_use && params.evim_mode)
+mch_exit(1);
+}
+#endif
+
+#ifdef FEAT_VIMINFO
+
+
+
+
+if (*p_viminfo != NUL)
+{
+read_viminfo(NULL, VIF_WANT_INFO | VIF_GET_OLDFILES);
+TIME_MSG("reading viminfo");
+}
+#endif
+#ifdef FEAT_EVAL
+
+if (get_vim_var_list(VV_OLDFILES) == NULL)
+set_vim_var_list(VV_OLDFILES, list_alloc());
+#endif
+
+#ifdef FEAT_QUICKFIX
+
+
+
+
+if (params.edit_type == EDIT_QF)
+{
+char_u *enc = NULL;
+
+enc = p_menc;
+if (params.use_ef != NULL)
+set_string_option_direct((char_u *)"ef", -1,
+params.use_ef, OPT_FREE, SID_CARG);
+vim_snprintf((char *)IObuff, IOSIZE, "cfile %s", p_ef);
+if (qf_init(NULL, p_ef, p_efm, TRUE, IObuff, enc) < 0)
+{
+out_char('\n');
+mch_exit(3);
+}
+TIME_MSG("reading errorfile");
+}
+#endif
+
+
+
+
+
+
+starting = NO_BUFFERS;
+no_wait_return = FALSE;
+if (!exmode_active)
+msg_scroll = FALSE;
+
+#ifdef FEAT_GUI
+
+
+
+
+
+
+
+if (gui.in_use)
+{
+gui_wait_for_chars(50L, typebuf.tb_change_cnt);
+TIME_MSG("GUI delay");
+}
+#endif
+
+#if defined(FEAT_GUI_PHOTON) && defined(FEAT_CLIPBOARD)
+qnx_clip_init();
+#endif
+
+#if defined(MACOS_X) && defined(FEAT_CLIPBOARD)
+clip_init(TRUE);
+#endif
+
+#ifdef FEAT_XCLIPBOARD
+
+#ifdef FEAT_GUI
+if (!gui.in_use)
+#endif
+{
+setup_term_clip();
+TIME_MSG("setup clipboard");
+}
+#endif
+
+#ifdef FEAT_CLIENTSERVER
+
+prepare_server(&params);
+#endif
+
+
+
+
+
+
+
+
+if (params.edit_type == EDIT_STDIN && !recoverymode)
+read_stdin();
+
+#if defined(UNIX) || defined(VMS)
+
+
+if ((did_emsg || msg_didout) && *T_TI != NUL)
+newline_on_exit = TRUE;
+#endif
+
+
+
+
+
+
+
+
+
+settmode(TMODE_RAW);
+TIME_MSG("setting raw mode");
+
+if (need_wait_return || msg_didany)
+{
+wait_return(TRUE);
+TIME_MSG("waiting for return");
+}
+
+starttermcap(); 
+TIME_MSG("start termcap");
+
+setmouse(); 
+if (scroll_region)
+scroll_region_reset(); 
+scroll_start(); 
+
+#if defined(FEAT_TITLE) && (defined(UNIX) || defined(VMS) || defined(MACOS_X))
+term_push_title(SAVE_RESTORE_BOTH);
+#endif
+
+
+
+
+if (exmode_active
+#ifdef FEAT_GUI
+&& !gui.in_use
+#endif
+)
+must_redraw = CLEAR;
+else
+{
+screenclear(); 
+TIME_MSG("clearing screen");
+}
+
+#ifdef FEAT_CRYPT
+if (params.ask_for_key)
+{
+crypt_check_current_method();
+(void)crypt_get_key(TRUE, TRUE);
+TIME_MSG("getting crypt key");
+}
+#endif
+
+no_wait_return = TRUE;
+
+
+
+
+
+create_windows(&params);
+TIME_MSG("opening buffers");
+
+#ifdef FEAT_EVAL
+
+set_vim_var_string(VV_SWAPCOMMAND, NULL, -1);
+#endif
+
+
+if (exmode_active)
+curwin->w_cursor.lnum = curbuf->b_ml.ml_line_count;
+
+apply_autocmds(EVENT_BUFENTER, NULL, NULL, FALSE, curbuf);
+TIME_MSG("BufEnter autocommands");
+setpcmark();
+
+#ifdef FEAT_QUICKFIX
+
+
+
+if (params.edit_type == EDIT_QF)
+{
+qf_jump(NULL, 0, 0, FALSE);
+TIME_MSG("jump to first error");
+}
+#endif
+
+
+
+
+
+edit_buffers(&params, start_dir);
+vim_free(start_dir);
+
+#ifdef FEAT_DIFF
+if (params.diff_mode)
+{
+win_T *wp;
+
+
+FOR_ALL_WINDOWS(wp)
+diff_win_options(wp, TRUE);
+}
+#endif
+
+
+
+
+shorten_fnames(FALSE);
+
+
+
+
+
+if (params.tagname != NULL)
+{
+swap_exists_did_quit = FALSE;
+
+vim_snprintf((char *)IObuff, IOSIZE, "ta %s", params.tagname);
+do_cmdline_cmd(IObuff);
+TIME_MSG("jumping to tag");
+
+
+if (swap_exists_did_quit)
+getout(1);
+}
+
+
+if (params.n_commands > 0)
+exe_commands(&params);
+
+
+starting = 0;
+
+#if defined(FEAT_TERMRESPONSE)
+
+may_req_ambiguous_char_width();
+#endif
+
+RedrawingDisabled = 0;
+redraw_all_later(NOT_VALID);
+no_wait_return = FALSE;
+
+
+DO_AUTOCHDIR;
+
+#ifdef FEAT_TERMRESPONSE
+
+
+may_req_termresponse();
+
+may_req_bg_color();
+#endif
+
+
+if (p_im)
+need_start_insertmode = TRUE;
+
+#ifdef FEAT_EVAL
+set_vim_var_nr(VV_VIM_DID_ENTER, 1L);
+#endif
+apply_autocmds(EVENT_VIMENTER, NULL, NULL, FALSE, curbuf);
+TIME_MSG("VimEnter autocommands");
+
+#if defined(FEAT_EVAL) && defined(FEAT_CLIPBOARD)
+
+
+
+
+{
+int default_regname = 0;
+
+adjust_clip_reg(&default_regname);
+set_reg_var(default_regname);
+}
+#endif
+
+#if defined(FEAT_DIFF)
+
+
+if (curwin->w_p_diff && curwin->w_p_scb)
+{
+update_topline();
+check_scrollbind((linenr_T)0, 0L);
+TIME_MSG("diff scrollbinding");
+}
+#endif
+
+#if defined(MSWIN) && (!defined(FEAT_GUI_MSWIN) || defined(VIMDLL))
+#ifdef VIMDLL
+if (!gui.in_use)
+#endif
+mch_set_winsize_now(); 
+#endif
+
+#if defined(FEAT_GUI)
+
+
+if (first_tabpage->tp_next != NULL)
+{
+out_flush();
+gui_init_which_components(NULL);
+gui_update_scrollbars(TRUE);
+}
+need_mouse_correct = TRUE;
+#endif
+
+
+
+if (restart_edit != 0)
+stuffcharReadbuff(K_NOP);
+
+#ifdef FEAT_NETBEANS_INTG
+if (netbeansArg != NULL && strncmp("-nb", netbeansArg, 3) == 0)
+{
+#ifdef FEAT_GUI
+#if !defined(FEAT_GUI_X11) && !defined(FEAT_GUI_GTK) && !defined(FEAT_GUI_MSWIN)
+
+if (gui.in_use)
+{
+mch_errmsg(_("netbeans is not supported with this GUI\n"));
+mch_exit(2);
+}
+#endif
+#endif
+
+netbeans_open(netbeansArg + 3, TRUE);
+}
+#endif
+
+
+
+do_redraw = TRUE;
+
+TIME_MSG("before starting main loop");
+
+
+
+
+main_loop(FALSE, FALSE);
+
+#endif 
+
+return 0;
+}
+
+
+
+
+void
+common_init(mparm_T *paramp)
+{
+estack_init();
+cmdline_init();
+
+(void)mb_init(); 
+#ifdef FEAT_EVAL
+eval_init(); 
+#endif
+
+#ifdef __QNXNTO__
+qnx_init(); 
+#endif
+
+
+init_normal_cmds();
+
+
+
+
+
+if ((IObuff = alloc(IOSIZE)) == NULL
+|| (NameBuff = alloc(MAXPATHL)) == NULL)
+mch_exit(0);
+TIME_MSG("Allocated generic buffers");
+
+#ifdef NBDEBUG
+
+
+nbdebug_log_init("SPRO_GVIM_DEBUG", "SPRO_GVIM_DLEVEL");
+nbdebug_wait(WT_ENV | WT_WAIT | WT_STOP, "SPRO_GVIM_WAIT", 20);
+TIME_MSG("NetBeans debug wait");
+#endif
+
+#if defined(HAVE_LOCALE_H) || defined(X_LOCALE)
+
+
+
+
+
+init_locale();
+TIME_MSG("locale set");
+#endif
+
+#ifdef FEAT_GUI
+gui.dofork = TRUE; 
+#endif
+
+
+
+
+
+
+
+
+early_arg_scan(paramp);
+
+#if defined(FEAT_GUI)
+
+gui_prepare(&paramp->argc, paramp->argv);
+TIME_MSG("GUI prepared");
+#endif
+
+#ifdef FEAT_CLIPBOARD
+clip_init(FALSE); 
+TIME_MSG("clipboard setup");
+#endif
+
+
+
+
+
+
+
+stdout_isatty = (mch_check_win(paramp->argc, paramp->argv) != FAIL);
+TIME_MSG("window checked");
+
+
+
+
+
+if (win_alloc_first() == FAIL)
+mch_exit(0);
+
+init_yank(); 
+
+alist_init(&global_alist); 
+global_alist.id = 0;
+
+
+
+
+
+
+
+
+init_homedir(); 
+set_init_1(paramp->clean);
+TIME_MSG("inits 1");
+
+#ifdef FEAT_EVAL
+
+set_lang_var();
+
+
+set_argv_var(paramp->argv, paramp->argc);
+#endif
+
+#ifdef FEAT_SIGNS
+init_signs();
+#endif
+}
+
+
+
+
+int
+is_not_a_term()
+{
+return params.not_a_term;
+}
+
+
+
+static int was_safe = FALSE;
+static oparg_T *current_oap = NULL;
+
+
+
+
+
+int
+op_pending(void)
+{
+return !(current_oap != NULL
+&& !finish_op
+&& current_oap->prev_opcount == 0
+&& current_oap->prev_count0 == 0
+&& current_oap->op_type == OP_NOP
+&& current_oap->regname == NUL);
+}
+
+
+
+
+
+static int
+is_safe_now(void)
+{
+return stuff_empty()
+&& typebuf.tb_len == 0
+&& scriptin[curscript] == NULL
+&& !global_busy;
+}
+
+
+
+
+
+void
+may_trigger_safestate(int safe)
+{
+int is_safe = safe && is_safe_now();
+
+#ifdef FEAT_JOB_CHANNEL
+if (was_safe != is_safe)
+
+
+ch_log(NULL, is_safe ? "SafeState: Start triggering"
+: "SafeState: Stop triggering");
+#endif
+if (is_safe)
+apply_autocmds(EVENT_SAFESTATE, NULL, NULL, FALSE, curbuf);
+was_safe = is_safe;
+}
+
+
+
+
+
+
+void
+state_no_longer_safe(char *reason UNUSED)
+{
+#ifdef FEAT_JOB_CHANNEL
+if (was_safe)
+ch_log(NULL, "SafeState: reset: %s", reason);
+#endif
+was_safe = FALSE;
+}
+
+int
+get_was_safe_state(void)
+{
+return was_safe;
+}
+
+
+
+
+
+void
+may_trigger_safestateagain(void)
+{
+if (!was_safe)
+{
+
+
+
+was_safe = is_safe_now();
+#ifdef FEAT_JOB_CHANNEL
+if (was_safe)
+ch_log(NULL, "SafeState: undo reset");
+#endif
+}
+if (was_safe)
+{
+#ifdef FEAT_JOB_CHANNEL
+
+
+if ((did_repeated_msg & REPEATED_MSG_SAFESTATE) == 0)
+{
+int did = did_repeated_msg;
+
+ch_log(NULL,
+"SafeState: back to waiting, triggering SafeStateAgain");
+did_repeated_msg = did | REPEATED_MSG_SAFESTATE;
+}
+#endif
+apply_autocmds(EVENT_SAFESTATEAGAIN, NULL, NULL, FALSE, curbuf);
+}
+#ifdef FEAT_JOB_CHANNEL
+else
+ch_log(NULL,
+"SafeState: back to waiting, not triggering SafeStateAgain");
+#endif
+}
+
+
+
+
+
+
+
+
+
+void
+main_loop(
+int cmdwin, 
+int noexmode) 
+{
+oparg_T oa; 
+oparg_T *prev_oap; 
+volatile int previous_got_int = FALSE; 
+#ifdef FEAT_CONCEAL
+
+static linenr_T conceal_old_cursor_line = 0;
+static linenr_T conceal_new_cursor_line = 0;
+static int conceal_update_lines = FALSE;
+#endif
+
+prev_oap = current_oap;
+current_oap = &oa;
+
+#if defined(FEAT_X11) && defined(FEAT_XCLIPBOARD)
+
+
+
+
+if (!cmdwin && !noexmode && SETJMP(x_jump_env))
+{
+State = NORMAL;
+VIsual_active = FALSE;
+got_int = TRUE;
+need_wait_return = FALSE;
+global_busy = FALSE;
+exmode_active = 0;
+skip_redraw = FALSE;
+RedrawingDisabled = 0;
+no_wait_return = 0;
+vgetc_busy = 0;
+#ifdef FEAT_EVAL
+emsg_skip = 0;
+#endif
+emsg_off = 0;
+setmouse();
+settmode(TMODE_RAW);
+starttermcap();
+scroll_start();
+redraw_later_clear();
+}
+#endif
+
+clear_oparg(&oa);
+while (!cmdwin
+#ifdef FEAT_CMDWIN
+|| cmdwin_result == 0
+#endif
+)
+{
+if (stuff_empty())
+{
+did_check_timestamps = FALSE;
+if (need_check_timestamps)
+check_timestamps(FALSE);
+if (need_wait_return) 
+wait_return(FALSE); 
+if (need_start_insertmode && goto_im() && !VIsual_active)
+{
+need_start_insertmode = FALSE;
+stuffReadbuff((char_u *)"i"); 
+
+
+need_fileinfo = FALSE;
+}
+}
+
+
+
+
+
+
+if (got_int)
+{
+if (noexmode && global_busy && !exmode_active && previous_got_int)
+{
+
+
+exmode_active = EXMODE_NORMAL;
+State = NORMAL;
+}
+else if (!global_busy || !exmode_active)
+{
+if (!quit_more)
+(void)vgetc(); 
+got_int = FALSE;
+}
+previous_got_int = TRUE;
+}
+else
+previous_got_int = FALSE;
+
+if (!exmode_active)
+msg_scroll = FALSE;
+quit_more = FALSE;
+
+
+was_safe = FALSE;
+
+
+
+
+
+
+if (skip_redraw || exmode_active)
+skip_redraw = FALSE;
+else if (do_redraw || stuff_empty())
+{
+#ifdef FEAT_GUI
+
+gui_may_resize_shell();
+#endif
+#ifdef HAVE_DROP_FILE
+
+
+handle_any_postponed_drop();
+#endif
+#ifdef FEAT_CONCEAL
+if (curwin->w_p_cole == 0)
+conceal_update_lines = FALSE;
+#endif
+
+
+if (!finish_op && (
+has_cursormoved()
+#ifdef FEAT_PROP_POPUP
+|| popup_visible
+#endif
+#ifdef FEAT_CONCEAL
+|| curwin->w_p_cole > 0
+#endif
+)
+&& !EQUAL_POS(last_cursormoved, curwin->w_cursor))
+{
+if (has_cursormoved())
+apply_autocmds(EVENT_CURSORMOVED, NULL, NULL,
+FALSE, curbuf);
+#ifdef FEAT_PROP_POPUP
+if (popup_visible)
+popup_check_cursor_pos();
+#endif
+#ifdef FEAT_CONCEAL
+if (curwin->w_p_cole > 0)
+{
+conceal_old_cursor_line = last_cursormoved.lnum;
+conceal_new_cursor_line = curwin->w_cursor.lnum;
+conceal_update_lines = TRUE;
+}
+#endif
+last_cursormoved = curwin->w_cursor;
+}
+
+#if defined(FEAT_CONCEAL)
+if (conceal_update_lines
+&& (conceal_old_cursor_line != conceal_new_cursor_line
+|| conceal_cursor_line(curwin)
+|| need_cursor_line_redraw))
+{
+if (conceal_old_cursor_line != conceal_new_cursor_line
+&& conceal_old_cursor_line != 0
+&& conceal_old_cursor_line
+<= curbuf->b_ml.ml_line_count)
+redrawWinline(curwin, conceal_old_cursor_line);
+redrawWinline(curwin, conceal_new_cursor_line);
+curwin->w_valid &= ~VALID_CROW;
+need_cursor_line_redraw = FALSE;
+}
+#endif
+
+
+if (!finish_op && has_textchanged()
+&& curbuf->b_last_changedtick != CHANGEDTICK(curbuf))
+{
+apply_autocmds(EVENT_TEXTCHANGED, NULL, NULL, FALSE, curbuf);
+curbuf->b_last_changedtick = CHANGEDTICK(curbuf);
+}
+
+
+
+may_trigger_safestate(!op_pending() && restart_edit == 0);
+
+#if defined(FEAT_DIFF)
+
+
+
+if (curtab->tp_diff_update || curtab->tp_diff_invalid)
+{
+ex_diffupdate(NULL);
+curtab->tp_diff_update = FALSE;
+}
+
+
+
+if (diff_need_scrollbind)
+{
+check_scrollbind((linenr_T)0, 0L);
+diff_need_scrollbind = FALSE;
+}
+#endif
+#if defined(FEAT_FOLDING)
+
+foldAdjustVisual();
+#endif
+#ifdef FEAT_FOLDING
+
+
+
+
+
+
+if (hasAnyFolding(curwin) && !char_avail())
+{
+foldCheckClose();
+if (fdo_flags & FDO_ALL)
+foldOpenCursor();
+}
+#endif
+
+
+
+
+
+update_topline();
+validate_cursor();
+
+#ifdef FEAT_SYN_HL
+
+
+if (curwin->w_p_cul
+&& (curwin->w_last_cursorline != curwin->w_cursor.lnum
+|| (curwin->w_p_culopt_flags & CULOPT_SCRLINE))
+&& !char_avail())
+redraw_later(VALID);
+#endif
+if (VIsual_active)
+update_curbuf(INVERTED); 
+else if (must_redraw)
+{
+mch_disable_flush(); 
+update_screen(0);
+mch_enable_flush();
+}
+else if (redraw_cmdline || clear_cmdline)
+showmode();
+redraw_statuslines();
+#ifdef FEAT_TITLE
+if (need_maketitle)
+maketitle();
+#endif
+#ifdef FEAT_VIMINFO
+curbuf->b_last_used = vim_time();
+#endif
+
+if (keep_msg != NULL)
+{
+char_u *p = vim_strsave(keep_msg);
+
+if (p != NULL)
+{
+
+
+
+
+msg_hist_off = TRUE;
+msg_attr((char *)p, keep_msg_attr);
+msg_hist_off = FALSE;
+vim_free(p);
+}
+}
+if (need_fileinfo) 
+{
+fileinfo(FALSE, TRUE, FALSE);
+need_fileinfo = FALSE;
+}
+
+emsg_on_display = FALSE; 
+did_emsg = FALSE;
+msg_didany = FALSE; 
+may_clear_sb_text(); 
+showruler(FALSE);
+
+setcursor();
+cursor_on();
+
+do_redraw = FALSE;
+
+#ifdef STARTUPTIME
+
+
+if (time_fd != NULL)
+{
+TIME_MSG("first screen update");
+TIME_MSG("--- VIM STARTED ---");
+fclose(time_fd);
+time_fd = NULL;
+}
+#endif
+}
+#ifdef FEAT_GUI
+if (need_mouse_correct)
+gui_mouse_correct();
+#endif
+
+
+
+
+
+update_curswant();
+
+#ifdef FEAT_EVAL
+
+
+
+
+
+
+
+may_garbage_collect = (!cmdwin && !noexmode);
+#endif
+
+
+
+
+if (exmode_active)
+{
+if (noexmode) 
+goto theend;
+do_exmode(exmode_active == EXMODE_VIM);
+}
+else
+{
+#ifdef FEAT_TERMINAL
+if (term_use_loop()
+&& oa.op_type == OP_NOP && oa.regname == NUL
+&& !VIsual_active
+&& !skip_term_loop)
+{
+
+
+
+if (terminal_loop(TRUE) == OK)
+normal_cmd(&oa, TRUE);
+}
+else
+#endif
+{
+#ifdef FEAT_TERMINAL
+skip_term_loop = FALSE;
+#endif
+normal_cmd(&oa, TRUE);
+}
+}
+}
+
+theend:
+current_oap = prev_oap;
+}
+
+
+#if defined(USE_XSMP) || defined(FEAT_GUI) || defined(PROTO)
+
+
+
+void
+getout_preserve_modified(int exitval)
+{
+#if defined(SIGHUP) && defined(SIG_IGN)
+
+
+
+signal(SIGHUP, SIG_IGN);
+#endif
+
+ml_close_notmod(); 
+ml_sync_all(FALSE, FALSE); 
+ml_close_all(FALSE); 
+getout(exitval); 
+}
+#endif
+
+
+
+
+
+void
+getout(int exitval)
+{
+exiting = TRUE;
+#if defined(FEAT_JOB_CHANNEL)
+ch_log(NULL, "Exiting...");
+#endif
+
+
+
+
+if (exmode_active)
+exitval += ex_exitval;
+
+
+#ifdef FEAT_GUI
+if (!gui.in_use)
+#endif
+windgoto((int)Rows - 1, 0);
+
+#if defined(FEAT_EVAL) || defined(FEAT_SYN_HL)
+
+hash_debug_results();
+#endif
+
+#ifdef FEAT_GUI
+msg_didany = FALSE;
+#endif
+
+if (v_dying <= 1)
+{
+tabpage_T *tp;
+tabpage_T *next_tp;
+buf_T *buf;
+win_T *wp;
+
+
+for (tp = first_tabpage; tp != NULL; tp = next_tp)
+{
+next_tp = tp->tp_next;
+FOR_ALL_WINDOWS_IN_TAB(tp, wp)
+{
+if (wp->w_buffer == NULL)
+
+continue;
+buf = wp->w_buffer;
+if (CHANGEDTICK(buf) != -1)
+{
+bufref_T bufref;
+
+set_bufref(&bufref, buf);
+apply_autocmds(EVENT_BUFWINLEAVE, buf->b_fname,
+buf->b_fname, FALSE, buf);
+if (bufref_valid(&bufref))
+CHANGEDTICK(buf) = -1; 
+
+
+next_tp = first_tabpage;
+break;
+}
+}
+}
+
+
+FOR_ALL_BUFFERS(buf)
+if (buf->b_ml.ml_mfp != NULL)
+{
+bufref_T bufref;
+
+set_bufref(&bufref, buf);
+apply_autocmds(EVENT_BUFUNLOAD, buf->b_fname, buf->b_fname,
+FALSE, buf);
+if (!bufref_valid(&bufref))
+
+break;
+}
+apply_autocmds(EVENT_VIMLEAVEPRE, NULL, NULL, FALSE, curbuf);
+}
+
+#ifdef FEAT_VIMINFO
+if (*p_viminfo != NUL)
+
+write_viminfo(NULL, FALSE);
+#endif
+
+if (v_dying <= 1)
+{
+int unblock = 0;
+
+
+if (is_autocmd_blocked())
+{
+unblock_autocmds();
+++unblock;
+}
+apply_autocmds(EVENT_VIMLEAVE, NULL, NULL, FALSE, curbuf);
+if (unblock)
+block_autocmds();
+}
+
+#ifdef FEAT_PROFILE
+profile_dump();
+#endif
+
+if (did_emsg
+#ifdef FEAT_GUI
+|| (gui.in_use && msg_didany && p_verbose > 0)
+#endif
+)
+{
+
+no_wait_return = FALSE;
+wait_return(FALSE);
+}
+
+
+#ifdef FEAT_GUI
+if (!gui.in_use)
+#endif
+windgoto((int)Rows - 1, 0);
+
+#ifdef FEAT_JOB_CHANNEL
+job_stop_on_exit();
+#endif
+#ifdef FEAT_LUA
+lua_end();
+#endif
+#ifdef FEAT_MZSCHEME
+mzscheme_end();
+#endif
+#ifdef FEAT_TCL
+tcl_end();
+#endif
+#ifdef FEAT_RUBY
+ruby_end();
+#endif
+#ifdef FEAT_PYTHON
+python_end();
+#endif
+#ifdef FEAT_PYTHON3
+python3_end();
+#endif
+#ifdef FEAT_PERL
+perl_end();
+#endif
+#if defined(USE_ICONV) && defined(DYNAMIC_ICONV)
+iconv_end();
+#endif
+#ifdef FEAT_NETBEANS_INTG
+netbeans_end();
+#endif
+#ifdef FEAT_CSCOPE
+cs_end();
+#endif
+#ifdef FEAT_EVAL
+if (garbage_collect_at_exit)
+garbage_collect(FALSE);
+#endif
+#ifdef MSWIN
+free_cmd_argsW();
+#endif
+
+mch_exit(exitval);
+}
+
+#if defined(HAVE_LOCALE_H) || defined(X_LOCALE)
+
+
+
+static void
+init_locale(void)
+{
+setlocale(LC_ALL, "");
+
+#ifdef FEAT_GUI_GTK
+
+gtk_disable_setlocale();
+#endif
+#if defined(FEAT_FLOAT) && defined(LC_NUMERIC)
+
+setlocale(LC_NUMERIC, "C");
+#endif
+
+#ifdef MSWIN
+
+
+
+setlocale(LC_CTYPE, "C");
+#endif
+
+#ifdef FEAT_GETTEXT
+{
+int mustfree = FALSE;
+char_u *p;
+
+#ifdef DYNAMIC_GETTEXT
+
+dyn_libintl_init();
+#endif
+
+
+p = vim_getenv((char_u *)"VIMRUNTIME", &mustfree);
+if (p != NULL && *p != NUL)
+{
+vim_snprintf((char *)NameBuff, MAXPATHL, "%s/lang", p);
+bindtextdomain(VIMPACKAGE, (char *)NameBuff);
+}
+if (mustfree)
+vim_free(p);
+textdomain(VIMPACKAGE);
+}
+#endif
+}
+#endif
+
+
+
+
+
+
+
+static void
+early_arg_scan(mparm_T *parmp UNUSED)
+{
+#if defined(FEAT_XCLIPBOARD) || defined(FEAT_CLIENTSERVER) || !defined(FEAT_NETBEANS_INTG)
+
+int argc = parmp->argc;
+char **argv = parmp->argv;
+int i;
+
+for (i = 1; i < argc; i++)
+{
+if (STRCMP(argv[i], "--") == 0)
+break;
+#ifdef FEAT_XCLIPBOARD
+else if (STRICMP(argv[i], "-display") == 0
+#if defined(FEAT_GUI_GTK)
+|| STRICMP(argv[i], "--display") == 0
+#endif
+)
+{
+if (i == argc - 1)
+mainerr_arg_missing((char_u *)argv[i]);
+xterm_display = argv[++i];
+}
+#endif
+#ifdef FEAT_CLIENTSERVER
+else if (STRICMP(argv[i], "--servername") == 0)
+{
+if (i == argc - 1)
+mainerr_arg_missing((char_u *)argv[i]);
+parmp->serverName_arg = (char_u *)argv[++i];
+}
+else if (STRICMP(argv[i], "--serverlist") == 0)
+parmp->serverArg = TRUE;
+else if (STRNICMP(argv[i], "--remote", 8) == 0)
+{
+parmp->serverArg = TRUE;
+#ifdef FEAT_GUI
+if (strstr(argv[i], "-wait") != 0)
+
+gui.dofork = FALSE;
+#endif
+}
+#endif
+
+#if defined(FEAT_GUI_GTK) || defined(FEAT_GUI_MSWIN)
+#ifdef FEAT_GUI_MSWIN
+else if (STRICMP(argv[i], "--windowid") == 0)
+#else
+else if (STRICMP(argv[i], "--socketid") == 0)
+#endif
+{
+long_u id;
+int count;
+
+if (i == argc - 1)
+mainerr_arg_missing((char_u *)argv[i]);
+if (STRNICMP(argv[i+1], "0x", 2) == 0)
+count = sscanf(&(argv[i + 1][2]), SCANF_HEX_LONG_U, &id);
+else
+count = sscanf(argv[i + 1], SCANF_DECIMAL_LONG_U, &id);
+if (count != 1)
+mainerr(ME_INVALID_ARG, (char_u *)argv[i]);
+else
+#ifdef FEAT_GUI_MSWIN
+win_socket_id = id;
+#else
+gtk_socket_id = id;
+#endif
+i++;
+}
+#endif
+#ifdef FEAT_GUI_GTK
+else if (STRICMP(argv[i], "--echo-wid") == 0)
+echo_wid_arg = TRUE;
+#endif
+#ifndef FEAT_NETBEANS_INTG
+else if (strncmp(argv[i], "-nb", (size_t)3) == 0)
+{
+mch_errmsg(_("'-nb' cannot be used: not enabled at compile time\n"));
+mch_exit(2);
+}
+#endif
+
+}
+#endif
+}
+
+#ifndef NO_VIM_MAIN
+
+
+
+static int
+get_number_arg(
+char_u *p, 
+int *idx, 
+int def) 
+{
+if (vim_isdigit(p[*idx]))
+{
+def = atoi((char *)&(p[*idx]));
+while (vim_isdigit(p[*idx]))
+*idx = *idx + 1;
+}
+return def;
+}
+
+
+
+
+
+
+
+
+
+
+
+static void
+parse_command_name(mparm_T *parmp)
+{
+char_u *initstr;
+
+initstr = gettail((char_u *)parmp->argv[0]);
+
+#ifdef FEAT_GUI_MAC
+
+
+
+
+if (STRCMP(initstr, parmp->argv[0]) == 0)
+disallow_gui = TRUE;
+
+
+
+#endif
+
+#ifdef FEAT_EVAL
+set_vim_var_string(VV_PROGNAME, initstr, -1);
+set_progpath((char_u *)parmp->argv[0]);
+#endif
+
+if (TOLOWER_ASC(initstr[0]) == 'r')
+{
+restricted = TRUE;
+++initstr;
+}
+
+
+if (TOLOWER_ASC(initstr[0]) == 'e'
+&& (TOLOWER_ASC(initstr[1]) == 'v'
+|| TOLOWER_ASC(initstr[1]) == 'g'))
+{
+#ifdef FEAT_GUI
+gui.starting = TRUE;
+#endif
+parmp->evim_mode = TRUE;
+++initstr;
+}
+
+
+if (TOLOWER_ASC(initstr[0]) == 'g')
+{
+main_start_gui();
+#ifdef FEAT_GUI
+++initstr;
+#endif
+#ifdef GUI_MAY_SPAWN
+gui.dospawn = FALSE; 
+#endif
+}
+#ifdef GUI_MAY_SPAWN
+else
+gui.dospawn = TRUE; 
+#endif
+
+
+if (STRNICMP(initstr, "view", 4) == 0)
+{
+readonlymode = TRUE;
+curbuf->b_p_ro = TRUE;
+p_uc = 10000; 
+initstr += 4;
+}
+else if (STRNICMP(initstr, "vim", 3) == 0)
+initstr += 3;
+
+
+if (STRICMP(initstr, "diff") == 0)
+{
+#ifdef FEAT_DIFF
+parmp->diff_mode = TRUE;
+#else
+mch_errmsg(_("This Vim was not compiled with the diff feature."));
+mch_errmsg("\n");
+mch_exit(2);
+#endif
+}
+
+
+
+if (STRNICMP(initstr, "ex", 2) == 0)
+{
+if (STRNICMP(initstr + 2, "im", 2) == 0)
+exmode_active = EXMODE_VIM;
+else
+exmode_active = EXMODE_NORMAL;
+change_compatible(TRUE); 
+}
+}
+
+
+
+
+static void
+command_line_scan(mparm_T *parmp)
+{
+int argc = parmp->argc;
+char **argv = parmp->argv;
+int argv_idx; 
+int had_minmin = FALSE; 
+int want_argument; 
+int c;
+char_u *p = NULL;
+long n;
+
+--argc;
+++argv;
+argv_idx = 1; 
+while (argc > 0)
+{
+
+
+
+if (argv[0][0] == '+' && !had_minmin)
+{
+if (parmp->n_commands >= MAX_ARG_CMDS)
+mainerr(ME_EXTRA_CMD, NULL);
+argv_idx = -1; 
+if (argv[0][1] == NUL)
+parmp->commands[parmp->n_commands++] = (char_u *)"$";
+else
+parmp->commands[parmp->n_commands++] = (char_u *)&(argv[0][1]);
+}
+
+
+
+
+else if (argv[0][0] == '-' && !had_minmin)
+{
+want_argument = FALSE;
+c = argv[0][argv_idx++];
+#ifdef VMS
+
+
+
+
+if (c == '/')
+{
+c = argv[0][argv_idx++];
+c = TOUPPER_ASC(c);
+}
+else
+c = TOLOWER_ASC(c);
+#endif
+switch (c)
+{
+case NUL: 
+
+if (exmode_active)
+silent_mode = TRUE;
+else
+{
+if (parmp->edit_type != EDIT_NONE)
+mainerr(ME_TOO_MANY_ARGS, (char_u *)argv[0]);
+parmp->edit_type = EDIT_STDIN;
+read_cmd_fd = 2; 
+}
+argv_idx = -1; 
+break;
+
+case '-': 
+
+
+
+
+
+
+
+
+
+if (STRICMP(argv[0] + argv_idx, "help") == 0)
+usage();
+else if (STRICMP(argv[0] + argv_idx, "version") == 0)
+{
+Columns = 80; 
+info_message = TRUE; 
+list_version();
+msg_putchar('\n');
+msg_didout = FALSE;
+mch_exit(0);
+}
+else if (STRNICMP(argv[0] + argv_idx, "clean", 5) == 0)
+{
+parmp->use_vimrc = (char_u *)"DEFAULTS";
+#ifdef FEAT_GUI
+use_gvimrc = (char_u *)"NONE";
+#endif
+parmp->clean = TRUE;
+set_option_value((char_u *)"vif", 0L, (char_u *)"NONE", 0);
+}
+else if (STRNICMP(argv[0] + argv_idx, "literal", 7) == 0)
+{
+#ifdef EXPAND_FILENAMES
+parmp->literal = TRUE;
+#endif
+}
+else if (STRNICMP(argv[0] + argv_idx, "nofork", 6) == 0)
+{
+#ifdef FEAT_GUI
+gui.dofork = FALSE; 
+#endif
+}
+else if (STRNICMP(argv[0] + argv_idx, "noplugin", 8) == 0)
+p_lpl = FALSE;
+else if (STRNICMP(argv[0] + argv_idx, "not-a-term", 10) == 0)
+parmp->not_a_term = TRUE;
+else if (STRNICMP(argv[0] + argv_idx, "ttyfail", 7) == 0)
+parmp->tty_fail = TRUE;
+else if (STRNICMP(argv[0] + argv_idx, "cmd", 3) == 0)
+{
+want_argument = TRUE;
+argv_idx += 3;
+}
+else if (STRNICMP(argv[0] + argv_idx, "startuptime", 11) == 0)
+{
+want_argument = TRUE;
+argv_idx += 11;
+}
+#ifdef FEAT_CLIENTSERVER
+else if (STRNICMP(argv[0] + argv_idx, "serverlist", 10) == 0)
+; 
+else if (STRNICMP(argv[0] + argv_idx, "servername", 10) == 0
+|| STRNICMP(argv[0] + argv_idx, "serversend", 10) == 0)
+{
+
+if (argc > 1)
+{
+--argc;
+++argv;
+}
+}
+#endif
+#if defined(FEAT_GUI_GTK) || defined(FEAT_GUI_MSWIN)
+#ifdef FEAT_GUI_GTK
+else if (STRNICMP(argv[0] + argv_idx, "socketid", 8) == 0)
+#else
+else if (STRNICMP(argv[0] + argv_idx, "windowid", 8) == 0)
+#endif
+{
+
+if (argc > 1)
+{
+--argc;
+++argv;
+}
+}
+#endif
+#ifdef FEAT_GUI_GTK
+else if (STRNICMP(argv[0] + argv_idx, "echo-wid", 8) == 0)
+{
+
+}
+#endif
+else
+{
+if (argv[0][argv_idx])
+mainerr(ME_UNKNOWN_OPTION, (char_u *)argv[0]);
+had_minmin = TRUE;
+}
+if (!want_argument)
+argv_idx = -1; 
+break;
+
+case 'A': 
+#ifdef FEAT_ARABIC
+set_option_value((char_u *)"arabic", 1L, NULL, 0);
+#else
+mch_errmsg(_(e_noarabic));
+mch_exit(2);
+#endif
+break;
+
+case 'b': 
+
+
+
+set_options_bin(curbuf->b_p_bin, 1, 0);
+curbuf->b_p_bin = 1; 
+break;
+
+case 'C': 
+change_compatible(TRUE);
+has_dash_c_arg = TRUE;
+break;
+
+case 'e': 
+exmode_active = EXMODE_NORMAL;
+break;
+
+case 'E': 
+exmode_active = EXMODE_VIM;
+break;
+
+case 'f': 
+
+#ifdef FEAT_GUI
+gui.dofork = FALSE; 
+#endif
+break;
+
+case 'g': 
+main_start_gui();
+break;
+
+case 'F': 
+mch_errmsg(_(e_nofarsi));
+mch_exit(2);
+break;
+
+case '?': 
+case 'h': 
+#ifdef FEAT_GUI_GNOME
+
+gui.starting = FALSE;
+#endif
+usage();
+break;
+
+case 'H': 
+#ifdef FEAT_RIGHTLEFT
+p_hkmap = TRUE;
+set_option_value((char_u *)"rl", 1L, NULL, 0);
+#else
+mch_errmsg(_(e_nohebrew));
+mch_exit(2);
+#endif
+break;
+
+case 'l': 
+#ifdef FEAT_LISP
+set_option_value((char_u *)"lisp", 1L, NULL, 0);
+p_sm = TRUE;
+#endif
+break;
+
+case 'M': 
+reset_modifiable();
+
+
+case 'm': 
+p_write = FALSE;
+break;
+
+case 'y': 
+#ifdef FEAT_GUI
+gui.starting = TRUE; 
+#endif
+parmp->evim_mode = TRUE;
+break;
+
+case 'N': 
+change_compatible(FALSE);
+break;
+
+case 'n': 
+#ifdef FEAT_NETBEANS_INTG
+
+if (argv[0][argv_idx] == 'b')
+{
+netbeansArg = argv[0];
+argv_idx = -1; 
+}
+else
+#endif
+parmp->no_swap_file = TRUE;
+break;
+
+case 'p': 
+#ifdef TARGET_API_MAC_OSX
+
+
+
+if (argv[0][argv_idx] == 's')
+{
+argv_idx = -1; 
+main_start_gui();
+break;
+}
+#endif
+
+parmp->window_count = get_number_arg((char_u *)argv[0],
+&argv_idx, 0);
+parmp->window_layout = WIN_TABS;
+break;
+
+case 'o': 
+
+parmp->window_count = get_number_arg((char_u *)argv[0],
+&argv_idx, 0);
+parmp->window_layout = WIN_HOR;
+break;
+
+case 'O': 
+
+parmp->window_count = get_number_arg((char_u *)argv[0],
+&argv_idx, 0);
+parmp->window_layout = WIN_VER;
+break;
+
+#ifdef FEAT_QUICKFIX
+case 'q': 
+if (parmp->edit_type != EDIT_NONE)
+mainerr(ME_TOO_MANY_ARGS, (char_u *)argv[0]);
+parmp->edit_type = EDIT_QF;
+if (argv[0][argv_idx]) 
+{
+parmp->use_ef = (char_u *)argv[0] + argv_idx;
+argv_idx = -1;
+}
+else if (argc > 1) 
+want_argument = TRUE;
+break;
+#endif
+
+case 'R': 
+readonlymode = TRUE;
+curbuf->b_p_ro = TRUE;
+p_uc = 10000; 
+break;
+
+case 'r': 
+case 'L': 
+recoverymode = 1;
+break;
+
+case 's':
+if (exmode_active) 
+silent_mode = TRUE;
+else 
+want_argument = TRUE;
+break;
+
+case 't': 
+if (parmp->edit_type != EDIT_NONE)
+mainerr(ME_TOO_MANY_ARGS, (char_u *)argv[0]);
+parmp->edit_type = EDIT_TAG;
+if (argv[0][argv_idx]) 
+{
+parmp->tagname = (char_u *)argv[0] + argv_idx;
+argv_idx = -1;
+}
+else 
+want_argument = TRUE;
+break;
+
+#ifdef FEAT_EVAL
+case 'D': 
+parmp->use_debug_break_level = 9999;
+break;
+#endif
+#ifdef FEAT_DIFF
+case 'd': 
+#ifdef AMIGA
+
+if (argv[0][argv_idx] == 'e' && argv[0][argv_idx + 1] == 'v')
+want_argument = TRUE;
+else
+#endif
+parmp->diff_mode = TRUE;
+break;
+#endif
+case 'V': 
+
+p_verbose = get_number_arg((char_u *)argv[0], &argv_idx, 10);
+if (argv[0][argv_idx] != NUL)
+{
+set_option_value((char_u *)"verbosefile", 0L,
+(char_u *)argv[0] + argv_idx, 0);
+argv_idx = (int)STRLEN(argv[0]);
+}
+break;
+
+case 'v': 
+exmode_active = 0;
+#if defined(FEAT_GUI) && !defined(VIMDLL)
+gui.starting = FALSE; 
+#endif
+break;
+
+case 'w': 
+
+if (vim_isdigit(((char_u *)argv[0])[argv_idx]))
+{
+n = get_number_arg((char_u *)argv[0], &argv_idx, 10);
+set_option_value((char_u *)"window", n, NULL, 0);
+break;
+}
+want_argument = TRUE;
+break;
+
+#ifdef FEAT_CRYPT
+case 'x': 
+parmp->ask_for_key = TRUE;
+break;
+#endif
+
+case 'X': 
+#if (defined(UNIX) || defined(VMS)) && defined(FEAT_X11)
+x_no_connect = TRUE;
+#endif
+break;
+
+case 'Z': 
+restricted = TRUE;
+break;
+
+case 'c': 
+
+if (argv[0][argv_idx] != NUL)
+{
+if (parmp->n_commands >= MAX_ARG_CMDS)
+mainerr(ME_EXTRA_CMD, NULL);
+parmp->commands[parmp->n_commands++] = (char_u *)argv[0]
++ argv_idx;
+argv_idx = -1;
+break;
+}
+
+case 'S': 
+case 'i': 
+#ifndef FEAT_DIFF
+case 'd': 
+#endif
+case 'T': 
+case 'u': 
+case 'U': 
+case 'W': 
+#ifdef FEAT_GUI_MSWIN
+case 'P': 
+#endif
+want_argument = TRUE;
+break;
+
+default:
+mainerr(ME_UNKNOWN_OPTION, (char_u *)argv[0]);
+}
+
+
+
+
+if (want_argument)
+{
+
+
+
+if (argv[0][argv_idx] != NUL)
+mainerr(ME_GARBAGE, (char_u *)argv[0]);
+
+--argc;
+if (argc < 1 && c != 'S') 
+mainerr_arg_missing((char_u *)argv[0]);
+++argv;
+argv_idx = -1;
+
+switch (c)
+{
+case 'c': 
+case 'S': 
+if (parmp->n_commands >= MAX_ARG_CMDS)
+mainerr(ME_EXTRA_CMD, NULL);
+if (c == 'S')
+{
+char *a;
+
+if (argc < 1)
+
+
+a = SESSION_FILE;
+else if (argv[0][0] == '-')
+{
+
+
+a = SESSION_FILE;
+++argc;
+--argv;
+}
+else
+a = argv[0];
+p = alloc(STRLEN(a) + 4);
+if (p == NULL)
+mch_exit(2);
+sprintf((char *)p, "so %s", a);
+parmp->cmds_tofree[parmp->n_commands] = TRUE;
+parmp->commands[parmp->n_commands++] = p;
+}
+else
+parmp->commands[parmp->n_commands++] =
+(char_u *)argv[0];
+break;
+
+case '-':
+if (argv[-1][2] == 'c')
+{
+
+if (parmp->n_pre_commands >= MAX_ARG_CMDS)
+mainerr(ME_EXTRA_CMD, NULL);
+parmp->pre_commands[parmp->n_pre_commands++] =
+(char_u *)argv[0];
+}
+
+break;
+
+
+
+
+#ifdef FEAT_QUICKFIX
+case 'q': 
+parmp->use_ef = (char_u *)argv[0];
+break;
+#endif
+
+case 'i': 
+set_option_value((char_u *)"vif", 0L, (char_u *)argv[0], 0);
+break;
+
+case 's': 
+if (scriptin[0] != NULL)
+{
+scripterror:
+mch_errmsg(_("Attempt to open script file again: \""));
+mch_errmsg(argv[-1]);
+mch_errmsg(" ");
+mch_errmsg(argv[0]);
+mch_errmsg("\"\n");
+mch_exit(2);
+}
+if ((scriptin[0] = mch_fopen(argv[0], READBIN)) == NULL)
+{
+mch_errmsg(_("Cannot open for reading: \""));
+mch_errmsg(argv[0]);
+mch_errmsg("\"\n");
+mch_exit(2);
+}
+if (save_typebuf() == FAIL)
+mch_exit(2); 
+break;
+
+case 't': 
+parmp->tagname = (char_u *)argv[0];
+break;
+
+case 'T': 
+
+
+
+
+
+#ifdef FEAT_GUI
+if (term_is_gui((char_u *)argv[0]))
+gui.starting = TRUE; 
+else
+#endif
+parmp->term = (char_u *)argv[0];
+break;
+
+case 'u': 
+parmp->use_vimrc = (char_u *)argv[0];
+break;
+
+case 'U': 
+#ifdef FEAT_GUI
+use_gvimrc = (char_u *)argv[0];
+#endif
+break;
+
+case 'w': 
+
+if (vim_isdigit(*((char_u *)argv[0])))
+{
+argv_idx = 0;
+n = get_number_arg((char_u *)argv[0], &argv_idx, 10);
+set_option_value((char_u *)"window", n, NULL, 0);
+argv_idx = -1;
+break;
+}
+
+case 'W': 
+if (scriptout != NULL)
+goto scripterror;
+if ((scriptout = mch_fopen(argv[0],
+c == 'w' ? APPENDBIN : WRITEBIN)) == NULL)
+{
+mch_errmsg(_("Cannot open for script output: \""));
+mch_errmsg(argv[0]);
+mch_errmsg("\"\n");
+mch_exit(2);
+}
+break;
+
+#ifdef FEAT_GUI_MSWIN
+case 'P': 
+gui_mch_set_parent(argv[0]);
+break;
+#endif
+}
+}
+}
+
+
+
+
+else
+{
+argv_idx = -1; 
+
+
+if (parmp->edit_type != EDIT_NONE && parmp->edit_type != EDIT_FILE)
+mainerr(ME_TOO_MANY_ARGS, (char_u *)argv[0]);
+parmp->edit_type = EDIT_FILE;
+
+#ifdef MSWIN
+
+
+if (argv[0][0] != NUL && argv[0][1] == ':' && argv[0][2] == '\\')
+parmp->full_path = TRUE;
+#endif
+
+
+if (ga_grow(&global_alist.al_ga, 1) == FAIL
+|| (p = vim_strsave((char_u *)argv[0])) == NULL)
+mch_exit(2);
+#ifdef FEAT_DIFF
+if (parmp->diff_mode && mch_isdir(p) && GARGCOUNT > 0
+&& !mch_isdir(alist_name(&GARGLIST[0])))
+{
+char_u *r;
+
+r = concat_fnames(p, gettail(alist_name(&GARGLIST[0])), TRUE);
+if (r != NULL)
+{
+vim_free(p);
+p = r;
+}
+}
+#endif
+#if defined(__CYGWIN32__) && !defined(MSWIN)
+
+
+
+
+
+
+if (vim_strpbrk(p, "\\:") != NULL && !path_with_url(p))
+{
+char posix_path[MAXPATHL];
+
+#if CYGWIN_VERSION_DLL_MAJOR >= 1007
+cygwin_conv_path(CCP_WIN_A_TO_POSIX, p, posix_path, MAXPATHL);
+#else
+cygwin_conv_to_posix_path(p, posix_path);
+#endif
+vim_free(p);
+p = vim_strsave((char_u *)posix_path);
+if (p == NULL)
+mch_exit(2);
+}
+#endif
+
+#ifdef USE_FNAME_CASE
+
+fname_case(p, 0);
+#endif
+
+alist_add(&global_alist, p,
+#ifdef EXPAND_FILENAMES
+parmp->literal ? 2 : 0 
+#else
+2 
+#endif
+);
+
+#ifdef MSWIN
+{
+
+
+used_file_arg(argv[0], parmp->literal, parmp->full_path,
+#ifdef FEAT_DIFF
+parmp->diff_mode
+#else
+FALSE
+#endif
+);
+}
+#endif
+}
+
+
+
+
+
+
+if (argv_idx <= 0 || argv[0][argv_idx] == NUL)
+{
+--argc;
+++argv;
+argv_idx = 1;
+}
+}
+
+#ifdef FEAT_EVAL
+
+
+if (parmp->n_commands > 0)
+{
+p = alloc(STRLEN(parmp->commands[0]) + 3);
+if (p != NULL)
+{
+sprintf((char *)p, ":%s\r", parmp->commands[0]);
+set_vim_var_string(VV_SWAPCOMMAND, p, -1);
+vim_free(p);
+}
+}
+#endif
+}
+
+
+
+
+
+static void
+check_tty(mparm_T *parmp)
+{
+int input_isatty; 
+
+input_isatty = mch_input_isatty();
+if (exmode_active)
+{
+if (!input_isatty)
+silent_mode = TRUE;
+}
+else if (parmp->want_full_screen && (!stdout_isatty || !input_isatty)
+#ifdef FEAT_GUI
+
+&& !gui.starting
+#endif
+&& !parmp->not_a_term)
+{
+#ifdef NBDEBUG
+
+
+
+
+
+
+
+if (netbeans_active() && (!stdout_isatty || !input_isatty))
+{
+mch_errmsg(_("Vim: Error: Failure to start gvim from NetBeans\n"));
+exit(1);
+}
+#endif
+#if defined(MSWIN) && (!defined(FEAT_GUI_MSWIN) || defined(VIMDLL))
+if (
+#ifdef VIMDLL
+!gui.starting &&
+#endif
+is_cygpty_used())
+{
+#if defined(HAVE_BIND_TEXTDOMAIN_CODESET) && defined(FEAT_GETTEXT)
+
+char *s, *tofree = NULL;
+
+
+
+
+
+
+tofree = s = (char *)enc_locale_env(NULL);
+if (s == NULL)
+s = "utf-8"; 
+(void)bind_textdomain_codeset(VIMPACKAGE, s);
+vim_free(tofree);
+#endif
+mch_errmsg(_("Vim: Error: This version of Vim does not run in a Cygwin terminal\n"));
+exit(1);
+}
+#endif
+if (!stdout_isatty)
+mch_errmsg(_("Vim: Warning: Output is not to a terminal\n"));
+if (!input_isatty)
+mch_errmsg(_("Vim: Warning: Input is not from a terminal\n"));
+out_flush();
+if (parmp->tty_fail && (!stdout_isatty || !input_isatty))
+exit(1);
+if (scriptin[0] == NULL)
+ui_delay(2005L, TRUE);
+TIME_MSG("Warning delay");
+}
+}
+
+
+
+
+static void
+read_stdin(void)
+{
+int i;
+
+
+swap_exists_action = SEA_DIALOG;
+
+no_wait_return = TRUE;
+i = msg_didany;
+set_buflisted(TRUE);
+(void)open_buffer(TRUE, NULL, 0); 
+no_wait_return = FALSE;
+msg_didany = i;
+TIME_MSG("reading stdin");
+
+check_swap_exists_action();
+#if !(defined(AMIGA) || defined(MACOS_X))
+
+
+
+
+
+close(0);
+vim_ignored = dup(2);
+#endif
+}
+
+
+
+
+
+static void
+create_windows(mparm_T *parmp UNUSED)
+{
+int dorewind;
+int done = 0;
+
+
+
+
+if (parmp->window_count == -1) 
+parmp->window_count = 1;
+if (parmp->window_count == 0)
+parmp->window_count = GARGCOUNT;
+if (parmp->window_count > 1)
+{
+
+
+if (parmp->window_layout == 0)
+parmp->window_layout = WIN_HOR;
+if (parmp->window_layout == WIN_TABS)
+{
+parmp->window_count = make_tabpages(parmp->window_count);
+TIME_MSG("making tab pages");
+}
+else if (firstwin->w_next == NULL)
+{
+parmp->window_count = make_windows(parmp->window_count,
+parmp->window_layout == WIN_VER);
+TIME_MSG("making windows");
+}
+else
+parmp->window_count = win_count();
+}
+else
+parmp->window_count = 1;
+
+if (recoverymode) 
+{
+msg_scroll = TRUE; 
+ml_recover(TRUE);
+if (curbuf->b_ml.ml_mfp == NULL) 
+getout(1);
+do_modelines(0); 
+}
+else
+{
+
+
+
+
+
+
+
+
+++autocmd_no_enter;
+++autocmd_no_leave;
+dorewind = TRUE;
+while (done++ < 1000)
+{
+if (dorewind)
+{
+if (parmp->window_layout == WIN_TABS)
+goto_tabpage(1);
+else
+curwin = firstwin;
+}
+else if (parmp->window_layout == WIN_TABS)
+{
+if (curtab->tp_next == NULL)
+break;
+goto_tabpage(0);
+}
+else
+{
+if (curwin->w_next == NULL)
+break;
+curwin = curwin->w_next;
+}
+dorewind = FALSE;
+curbuf = curwin->w_buffer;
+if (curbuf->b_ml.ml_mfp == NULL)
+{
+#ifdef FEAT_FOLDING
+
+if (p_fdls >= 0)
+curwin->w_p_fdl = p_fdls;
+#endif
+
+swap_exists_action = SEA_DIALOG;
+
+set_buflisted(TRUE);
+
+
+(void)open_buffer(FALSE, NULL, 0);
+
+if (swap_exists_action == SEA_QUIT)
+{
+if (got_int || only_one_window())
+{
+
+did_emsg = FALSE; 
+getout(1);
+}
+
+
+
+setfname(curbuf, NULL, NULL, FALSE);
+curwin->w_arg_idx = -1;
+swap_exists_action = SEA_NONE;
+}
+else
+handle_swap_exists(NULL);
+dorewind = TRUE; 
+}
+ui_breakcheck();
+if (got_int)
+{
+(void)vgetc(); 
+break;
+}
+}
+if (parmp->window_layout == WIN_TABS)
+goto_tabpage(1);
+else
+curwin = firstwin;
+curbuf = curwin->w_buffer;
+--autocmd_no_enter;
+--autocmd_no_leave;
+}
+}
+
+
+
+
+
+static void
+edit_buffers(
+mparm_T *parmp,
+char_u *cwd) 
+{
+int arg_idx; 
+int i;
+int advance = TRUE;
+win_T *win;
+char_u *p_shm_save = NULL;
+
+
+
+
+++autocmd_no_enter;
+++autocmd_no_leave;
+
+
+if (curwin->w_arg_idx == -1)
+{
+win_close(curwin, TRUE);
+advance = FALSE;
+}
+
+arg_idx = 1;
+for (i = 1; i < parmp->window_count; ++i)
+{
+if (cwd != NULL)
+mch_chdir((char *)cwd);
+
+if (curwin->w_arg_idx == -1)
+{
+++arg_idx;
+win_close(curwin, TRUE);
+advance = FALSE;
+continue;
+}
+
+if (advance)
+{
+if (parmp->window_layout == WIN_TABS)
+{
+if (curtab->tp_next == NULL) 
+break;
+goto_tabpage(0);
+
+
+
+if (i == 1)
+{
+char buf[100];
+
+p_shm_save = vim_strsave(p_shm);
+vim_snprintf(buf, 100, "F%s", p_shm);
+set_option_value((char_u *)"shm", 0L, (char_u *)buf, 0);
+}
+}
+else
+{
+if (curwin->w_next == NULL) 
+break;
+win_enter(curwin->w_next, FALSE);
+}
+}
+advance = TRUE;
+
+
+
+if (curbuf == firstwin->w_buffer || curbuf->b_ffname == NULL)
+{
+curwin->w_arg_idx = arg_idx;
+
+
+swap_exists_did_quit = FALSE;
+(void)do_ecmd(0, arg_idx < GARGCOUNT
+? alist_name(&GARGLIST[arg_idx]) : NULL,
+NULL, NULL, ECMD_LASTL, ECMD_HIDE, curwin);
+if (swap_exists_did_quit)
+{
+
+if (got_int || only_one_window())
+{
+
+did_emsg = FALSE; 
+getout(1);
+}
+win_close(curwin, TRUE);
+advance = FALSE;
+}
+if (arg_idx == GARGCOUNT - 1)
+arg_had_last = TRUE;
+++arg_idx;
+}
+ui_breakcheck();
+if (got_int)
+{
+(void)vgetc(); 
+break;
+}
+}
+
+if (p_shm_save != NULL)
+{
+set_option_value((char_u *)"shm", 0L, p_shm_save, 0);
+vim_free(p_shm_save);
+}
+
+if (parmp->window_layout == WIN_TABS)
+goto_tabpage(1);
+--autocmd_no_enter;
+
+
+win = firstwin;
+#if defined(FEAT_QUICKFIX)
+
+while (win->w_p_pvw)
+{
+win = win->w_next;
+if (win == NULL)
+{
+win = firstwin;
+break;
+}
+}
+#endif
+win_enter(win, FALSE);
+
+--autocmd_no_leave;
+TIME_MSG("editing files in windows");
+if (parmp->window_count > 1 && parmp->window_layout != WIN_TABS)
+win_equal(curwin, FALSE, 'b'); 
+}
+
+
+
+
+static void
+exe_pre_commands(mparm_T *parmp)
+{
+char_u **cmds = parmp->pre_commands;
+int cnt = parmp->n_pre_commands;
+int i;
+ESTACK_CHECK_DECLARATION
+
+if (cnt > 0)
+{
+curwin->w_cursor.lnum = 0; 
+estack_push(ETYPE_ARGS, (char_u *)_("pre-vimrc command line"), 0);
+ESTACK_CHECK_SETUP
+#ifdef FEAT_EVAL
+current_sctx.sc_sid = SID_CMDARG;
+#endif
+for (i = 0; i < cnt; ++i)
+do_cmdline_cmd(cmds[i]);
+ESTACK_CHECK_NOW
+estack_pop();
+#ifdef FEAT_EVAL
+current_sctx.sc_sid = 0;
+#endif
+TIME_MSG("--cmd commands");
+}
+}
+
+
+
+
+static void
+exe_commands(mparm_T *parmp)
+{
+int i;
+ESTACK_CHECK_DECLARATION
+
+
+
+
+
+
+msg_scroll = TRUE;
+if (parmp->tagname == NULL && curwin->w_cursor.lnum <= 1)
+curwin->w_cursor.lnum = 0;
+estack_push(ETYPE_ARGS, (char_u *)"command line", 0);
+ESTACK_CHECK_SETUP
+#ifdef FEAT_EVAL
+current_sctx.sc_sid = SID_CARG;
+current_sctx.sc_seq = 0;
+#endif
+for (i = 0; i < parmp->n_commands; ++i)
+{
+do_cmdline_cmd(parmp->commands[i]);
+if (parmp->cmds_tofree[i])
+vim_free(parmp->commands[i]);
+}
+ESTACK_CHECK_NOW
+estack_pop();
+#ifdef FEAT_EVAL
+current_sctx.sc_sid = 0;
+#endif
+if (curwin->w_cursor.lnum == 0)
+curwin->w_cursor.lnum = 1;
+
+if (!exmode_active)
+msg_scroll = FALSE;
+
+#ifdef FEAT_QUICKFIX
+
+if (parmp->edit_type == EDIT_QF)
+qf_jump(NULL, 0, 0, FALSE);
+#endif
+TIME_MSG("executing command arguments");
+}
+
+
+
+
+static void
+source_startup_scripts(mparm_T *parmp)
+{
+int i;
+
+
+
+
+
+if (parmp->evim_mode)
+{
+(void)do_source((char_u *)EVIM_FILE, FALSE, DOSO_NONE, NULL);
+TIME_MSG("source evim file");
+}
+
+
+
+
+
+if (parmp->use_vimrc != NULL)
+{
+if (STRCMP(parmp->use_vimrc, "DEFAULTS") == 0)
+do_source((char_u *)VIM_DEFAULTS_FILE, FALSE, DOSO_NONE, NULL);
+else if (STRCMP(parmp->use_vimrc, "NONE") == 0
+|| STRCMP(parmp->use_vimrc, "NORC") == 0)
+{
+#ifdef FEAT_GUI
+if (use_gvimrc == NULL) 
+use_gvimrc = parmp->use_vimrc;
+#endif
+}
+else
+{
+if (do_source(parmp->use_vimrc, FALSE, DOSO_NONE, NULL) != OK)
+semsg(_("E282: Cannot read from \"%s\""), parmp->use_vimrc);
+}
+}
+else if (!silent_mode)
+{
+#ifdef AMIGA
+struct Process *proc = (struct Process *)FindTask(0L);
+APTR save_winptr = proc->pr_WindowPtr;
+
+
+proc->pr_WindowPtr = (APTR)-1L;
+#endif
+
+
+
+
+#ifdef SYS_VIMRC_FILE
+(void)do_source((char_u *)SYS_VIMRC_FILE, FALSE, DOSO_NONE, NULL);
+#endif
+#ifdef MACOS_X
+(void)do_source((char_u *)"$VIMRUNTIME/macmap.vim", FALSE,
+DOSO_NONE, NULL);
+#endif
+
+
+
+
+
+
+
+
+
+
+
+if (process_env((char_u *)"VIMINIT", TRUE) != OK)
+{
+if (do_source((char_u *)USR_VIMRC_FILE, TRUE,
+DOSO_VIMRC, NULL) == FAIL
+#ifdef USR_VIMRC_FILE2
+&& do_source((char_u *)USR_VIMRC_FILE2, TRUE,
+DOSO_VIMRC, NULL) == FAIL
+#endif
+#ifdef USR_VIMRC_FILE3
+&& do_source((char_u *)USR_VIMRC_FILE3, TRUE,
+DOSO_VIMRC, NULL) == FAIL
+#endif
+#ifdef USR_VIMRC_FILE4
+&& do_source((char_u *)USR_VIMRC_FILE4, TRUE,
+DOSO_VIMRC, NULL) == FAIL
+#endif
+&& process_env((char_u *)"EXINIT", FALSE) == FAIL
+&& do_source((char_u *)USR_EXRC_FILE, FALSE,
+DOSO_NONE, NULL) == FAIL
+#ifdef USR_EXRC_FILE2
+&& do_source((char_u *)USR_EXRC_FILE2, FALSE,
+DOSO_NONE, NULL) == FAIL
+#endif
+&& !has_dash_c_arg)
+{
+
+do_source((char_u *)VIM_DEFAULTS_FILE, FALSE, DOSO_NONE, NULL);
+}
+}
+
+
+
+
+
+
+
+
+
+
+if (p_exrc)
+{
+#if defined(UNIX) || defined(VMS)
+
+if (!file_owned(VIMRC_FILE))
+#endif
+secure = p_secure;
+
+i = FAIL;
+if (fullpathcmp((char_u *)USR_VIMRC_FILE,
+(char_u *)VIMRC_FILE, FALSE, TRUE) != FPC_SAME
+#ifdef USR_VIMRC_FILE2
+&& fullpathcmp((char_u *)USR_VIMRC_FILE2,
+(char_u *)VIMRC_FILE, FALSE, TRUE) != FPC_SAME
+#endif
+#ifdef USR_VIMRC_FILE3
+&& fullpathcmp((char_u *)USR_VIMRC_FILE3,
+(char_u *)VIMRC_FILE, FALSE, TRUE) != FPC_SAME
+#endif
+#ifdef SYS_VIMRC_FILE
+&& fullpathcmp((char_u *)SYS_VIMRC_FILE,
+(char_u *)VIMRC_FILE, FALSE, TRUE) != FPC_SAME
+#endif
+)
+i = do_source((char_u *)VIMRC_FILE, TRUE, DOSO_VIMRC, NULL);
+
+if (i == FAIL)
+{
+#if defined(UNIX) || defined(VMS)
+
+if (!file_owned(EXRC_FILE))
+secure = p_secure;
+else
+secure = 0;
+#endif
+if ( fullpathcmp((char_u *)USR_EXRC_FILE,
+(char_u *)EXRC_FILE, FALSE, TRUE) != FPC_SAME
+#ifdef USR_EXRC_FILE2
+&& fullpathcmp((char_u *)USR_EXRC_FILE2,
+(char_u *)EXRC_FILE, FALSE, TRUE) != FPC_SAME
+#endif
+)
+(void)do_source((char_u *)EXRC_FILE, FALSE,
+DOSO_NONE, NULL);
+}
+}
+if (secure == 2)
+need_wait_return = TRUE;
+secure = 0;
+#ifdef AMIGA
+proc->pr_WindowPtr = save_winptr;
+#endif
+}
+TIME_MSG("sourcing vimrc file(s)");
+}
+
+
+
+
+static void
+main_start_gui(void)
+{
+#ifdef FEAT_GUI
+gui.starting = TRUE; 
+#else
+mch_errmsg(_(e_nogvim));
+mch_errmsg("\n");
+mch_exit(2);
+#endif
+}
+
+#endif 
+
+
+
+
+
+int
+process_env(
+char_u *env,
+int is_viminit) 
+{
+char_u *initstr;
+#ifdef FEAT_EVAL
+sctx_T save_current_sctx;
+#endif
+ESTACK_CHECK_DECLARATION
+
+if ((initstr = mch_getenv(env)) != NULL && *initstr != NUL)
+{
+if (is_viminit)
+vimrc_found(NULL, NULL);
+estack_push(ETYPE_ENV, env, 0);
+ESTACK_CHECK_SETUP
+#ifdef FEAT_EVAL
+save_current_sctx = current_sctx;
+current_sctx.sc_sid = SID_ENV;
+current_sctx.sc_seq = 0;
+current_sctx.sc_lnum = 0;
+current_sctx.sc_version = 1;
+#endif
+do_cmdline_cmd(initstr);
+
+ESTACK_CHECK_NOW
+estack_pop();
+#ifdef FEAT_EVAL
+current_sctx = save_current_sctx;
+#endif
+return OK;
+}
+return FAIL;
+}
+
+#if (defined(UNIX) || defined(VMS)) && !defined(NO_VIM_MAIN)
+
+
+
+
+
+static int
+file_owned(char *fname)
+{
+stat_T s;
+#ifdef UNIX
+uid_t uid = getuid();
+#else 
+uid_t uid = ((getgid() << 16) | getuid());
+#endif
+
+return !(mch_stat(fname, &s) != 0 || s.st_uid != uid
+#ifdef HAVE_LSTAT
+|| mch_lstat(fname, &s) != 0 || s.st_uid != uid
+#endif
+);
+}
+#endif
+
+
+
+
+static void
+mainerr(
+int n, 
+char_u *str) 
+{
+#if defined(UNIX) || defined(VMS)
+reset_signals(); 
+#endif
+
+
+#ifdef VIMDLL
+gui.in_use = mch_is_gui_executable();
+#endif
+#ifdef FEAT_GUI_MSWIN
+gui.starting = FALSE; 
+#endif
+
+init_longVersion();
+mch_errmsg(longVersion);
+mch_errmsg("\n");
+mch_errmsg(_(main_errors[n]));
+if (str != NULL)
+{
+mch_errmsg(": \"");
+mch_errmsg((char *)str);
+mch_errmsg("\"");
+}
+mch_errmsg(_("\nMore info with: \"vim -h\"\n"));
+
+mch_exit(1);
+}
+
+void
+mainerr_arg_missing(char_u *str)
+{
+mainerr(ME_ARG_MISSING, str);
+}
+
+#ifndef NO_VIM_MAIN
+
+
+
+static void
+main_msg(char *s)
+{
+mch_msg(" ");
+mch_msg(s);
+mch_msg("\n");
+}
+
+
+
+
+static void
+usage(void)
+{
+int i;
+static char *(use[]) =
+{
+N_("[file ..] edit specified file(s)"),
+N_("- read text from stdin"),
+N_("-t tag edit file where tag is defined"),
+#ifdef FEAT_QUICKFIX
+N_("-q [errorfile] edit file with first error")
+#endif
+};
+
+#if defined(UNIX) || defined(VMS)
+reset_signals(); 
+#endif
+
+init_longVersion();
+mch_msg(longVersion);
+mch_msg(_("\n\nUsage:"));
+for (i = 0; ; ++i)
+{
+mch_msg(_(" vim [arguments] "));
+mch_msg(_(use[i]));
+if (i == (sizeof(use) / sizeof(char_u *)) - 1)
+break;
+mch_msg(_("\n or:"));
+}
+#ifdef VMS
+mch_msg(_("\nWhere case is ignored prepend / to make flag upper case"));
+#endif
+
+mch_msg(_("\n\nArguments:\n"));
+main_msg(_("--\t\t\tOnly file names after this"));
+#ifdef EXPAND_FILENAMES
+main_msg(_("--literal\t\tDon't expand wildcards"));
+#endif
+#ifdef FEAT_OLE
+main_msg(_("-register\t\tRegister this gvim for OLE"));
+main_msg(_("-unregister\t\tUnregister gvim for OLE"));
+#endif
+#ifdef FEAT_GUI
+main_msg(_("-g\t\t\tRun using GUI (like \"gvim\")"));
+main_msg(_("-f or --nofork\tForeground: Don't fork when starting GUI"));
+#endif
+main_msg(_("-v\t\t\tVi mode (like \"vi\")"));
+main_msg(_("-e\t\t\tEx mode (like \"ex\")"));
+main_msg(_("-E\t\t\tImproved Ex mode"));
+main_msg(_("-s\t\t\tSilent (batch) mode (only for \"ex\")"));
+#ifdef FEAT_DIFF
+main_msg(_("-d\t\t\tDiff mode (like \"vimdiff\")"));
+#endif
+main_msg(_("-y\t\t\tEasy mode (like \"evim\", modeless)"));
+main_msg(_("-R\t\t\tReadonly mode (like \"view\")"));
+main_msg(_("-Z\t\t\tRestricted mode (like \"rvim\")"));
+main_msg(_("-m\t\t\tModifications (writing files) not allowed"));
+main_msg(_("-M\t\t\tModifications in text not allowed"));
+main_msg(_("-b\t\t\tBinary mode"));
+#ifdef FEAT_LISP
+main_msg(_("-l\t\t\tLisp mode"));
+#endif
+main_msg(_("-C\t\t\tCompatible with Vi: 'compatible'"));
+main_msg(_("-N\t\t\tNot fully Vi compatible: 'nocompatible'"));
+main_msg(_("-V[N][fname]\t\tBe verbose [level N] [log messages to fname]"));
+#ifdef FEAT_EVAL
+main_msg(_("-D\t\t\tDebugging mode"));
+#endif
+main_msg(_("-n\t\t\tNo swap file, use memory only"));
+main_msg(_("-r\t\t\tList swap files and exit"));
+main_msg(_("-r (with file name)\tRecover crashed session"));
+main_msg(_("-L\t\t\tSame as -r"));
+#ifdef AMIGA
+main_msg(_("-f\t\t\tDon't use newcli to open window"));
+main_msg(_("-dev <device>\t\tUse <device> for I/O"));
+#endif
+#ifdef FEAT_ARABIC
+main_msg(_("-A\t\t\tStart in Arabic mode"));
+#endif
+#ifdef FEAT_RIGHTLEFT
+main_msg(_("-H\t\t\tStart in Hebrew mode"));
+#endif
+main_msg(_("-T <terminal>\tSet terminal type to <terminal>"));
+main_msg(_("--not-a-term\t\tSkip warning for input/output not being a terminal"));
+main_msg(_("--ttyfail\t\tExit if input or output is not a terminal"));
+main_msg(_("-u <vimrc>\t\tUse <vimrc> instead of any .vimrc"));
+#ifdef FEAT_GUI
+main_msg(_("-U <gvimrc>\t\tUse <gvimrc> instead of any .gvimrc"));
+#endif
+main_msg(_("--noplugin\t\tDon't load plugin scripts"));
+main_msg(_("-p[N]\t\tOpen N tab pages (default: one for each file)"));
+main_msg(_("-o[N]\t\tOpen N windows (default: one for each file)"));
+main_msg(_("-O[N]\t\tLike -o but split vertically"));
+main_msg(_("+\t\t\tStart at end of file"));
+main_msg(_("+<lnum>\t\tStart at line <lnum>"));
+main_msg(_("--cmd <command>\tExecute <command> before loading any vimrc file"));
+main_msg(_("-c <command>\t\tExecute <command> after loading the first file"));
+main_msg(_("-S <session>\t\tSource file <session> after loading the first file"));
+main_msg(_("-s <scriptin>\tRead Normal mode commands from file <scriptin>"));
+main_msg(_("-w <scriptout>\tAppend all typed commands to file <scriptout>"));
+main_msg(_("-W <scriptout>\tWrite all typed commands to file <scriptout>"));
+#ifdef FEAT_CRYPT
+main_msg(_("-x\t\t\tEdit encrypted files"));
+#endif
+#if (defined(UNIX) || defined(VMS)) && defined(FEAT_X11)
+#if defined(FEAT_GUI_X11) && !defined(FEAT_GUI_GTK)
+main_msg(_("-display <display>\tConnect vim to this particular X-server"));
+#endif
+main_msg(_("-X\t\t\tDo not connect to X server"));
+#endif
+#ifdef FEAT_CLIENTSERVER
+main_msg(_("--remote <files>\tEdit <files> in a Vim server if possible"));
+main_msg(_("--remote-silent <files> Same, don't complain if there is no server"));
+main_msg(_("--remote-wait <files> As --remote but wait for files to have been edited"));
+main_msg(_("--remote-wait-silent <files> Same, don't complain if there is no server"));
+main_msg(_("--remote-tab[-wait][-silent] <files> As --remote but use tab page per file"));
+main_msg(_("--remote-send <keys>\tSend <keys> to a Vim server and exit"));
+main_msg(_("--remote-expr <expr>\tEvaluate <expr> in a Vim server and print result"));
+main_msg(_("--serverlist\t\tList available Vim server names and exit"));
+main_msg(_("--servername <name>\tSend to/become the Vim server <name>"));
+#endif
+#ifdef STARTUPTIME
+main_msg(_("--startuptime <file>\tWrite startup timing messages to <file>"));
+#endif
+#ifdef FEAT_VIMINFO
+main_msg(_("-i <viminfo>\t\tUse <viminfo> instead of .viminfo"));
+#endif
+main_msg(_("--clean\t\t'nocompatible', Vim defaults, no plugins, no viminfo"));
+main_msg(_("-h or --help\tPrint Help (this message) and exit"));
+main_msg(_("--version\t\tPrint version information and exit"));
+
+#ifdef FEAT_GUI_X11
+#ifdef FEAT_GUI_MOTIF
+mch_msg(_("\nArguments recognised by gvim (Motif version):\n"));
+#else
+#ifdef FEAT_GUI_ATHENA
+#ifdef FEAT_GUI_NEXTAW
+mch_msg(_("\nArguments recognised by gvim (neXtaw version):\n"));
+#else
+mch_msg(_("\nArguments recognised by gvim (Athena version):\n"));
+#endif
+#endif
+#endif
+main_msg(_("-display <display>\tRun vim on <display>"));
+main_msg(_("-iconic\t\tStart vim iconified"));
+main_msg(_("-background <color>\tUse <color> for the background (also: -bg)"));
+main_msg(_("-foreground <color>\tUse <color> for normal text (also: -fg)"));
+main_msg(_("-font <font>\t\tUse <font> for normal text (also: -fn)"));
+main_msg(_("-boldfont <font>\tUse <font> for bold text"));
+main_msg(_("-italicfont <font>\tUse <font> for italic text"));
+main_msg(_("-geometry <geom>\tUse <geom> for initial geometry (also: -geom)"));
+main_msg(_("-borderwidth <width>\tUse a border width of <width> (also: -bw)"));
+main_msg(_("-scrollbarwidth <width> Use a scrollbar width of <width> (also: -sw)"));
+#ifdef FEAT_GUI_ATHENA
+main_msg(_("-menuheight <height>\tUse a menu bar height of <height> (also: -mh)"));
+#endif
+main_msg(_("-reverse\t\tUse reverse video (also: -rv)"));
+main_msg(_("+reverse\t\tDon't use reverse video (also: +rv)"));
+main_msg(_("-xrm <resource>\tSet the specified resource"));
+#endif 
+#ifdef FEAT_GUI_GTK
+mch_msg(_("\nArguments recognised by gvim (GTK+ version):\n"));
+main_msg(_("-font <font>\t\tUse <font> for normal text (also: -fn)"));
+main_msg(_("-geometry <geom>\tUse <geom> for initial geometry (also: -geom)"));
+main_msg(_("-reverse\t\tUse reverse video (also: -rv)"));
+main_msg(_("-display <display>\tRun vim on <display> (also: --display)"));
+main_msg(_("--role <role>\tSet a unique role to identify the main window"));
+main_msg(_("--socketid <xid>\tOpen Vim inside another GTK widget"));
+main_msg(_("--echo-wid\t\tMake gvim echo the Window ID on stdout"));
+#endif
+#ifdef FEAT_GUI_MSWIN
+#ifdef VIMDLL
+if (gui.starting)
+#endif
+{
+main_msg(_("-P <parent title>\tOpen Vim inside parent application"));
+main_msg(_("--windowid <HWND>\tOpen Vim inside another win32 widget"));
+}
+#endif
+
+#ifdef FEAT_GUI_GNOME
+
+if (gui.starting)
+{
+mch_msg("\n");
+gui.dofork = FALSE;
+}
+else
+#endif
+mch_exit(0);
+}
+
+
+
+
+
+
+static void
+check_swap_exists_action(void)
+{
+if (swap_exists_action == SEA_QUIT)
+getout(1);
+handle_swap_exists(NULL);
+}
+
+#endif 
+
+#if !defined(NO_VIM_MAIN) && defined(FEAT_EVAL)
+static void
+set_progpath(char_u *argv0)
+{
+char_u *val = argv0;
+
+#ifdef MSWIN
+
+
+
+
+char_u *path = NULL;
+
+if (mch_can_exe(argv0, &path, FALSE) && path != NULL)
+val = path;
+#else
+char_u buf[MAXPATHL + 1];
+#ifdef PROC_EXE_LINK
+char linkbuf[MAXPATHL + 1];
+ssize_t len;
+
+len = readlink(PROC_EXE_LINK, linkbuf, MAXPATHL);
+if (len > 0)
+{
+linkbuf[len] = NUL;
+val = (char_u *)linkbuf;
+}
+#endif
+
+if (!mch_isFullName(val))
+{
+if (gettail(val) != val
+&& vim_FullName(val, buf, MAXPATHL, TRUE) != FAIL)
+val = buf;
+}
+#endif
+
+set_vim_var_string(VV_PROGPATH, val, -1);
+
+#ifdef MSWIN
+vim_free(path);
+#endif
+}
+
+#endif 
+
+#if (defined(FEAT_CLIENTSERVER) && !defined(NO_VIM_MAIN)) || defined(PROTO)
+
+
+
+
+
+static char_u *build_drop_cmd(int filec, char **filev, int tabs, int sendReply);
+
+
+
+
+static void
+exec_on_server(mparm_T *parmp)
+{
+if (parmp->serverName_arg == NULL || *parmp->serverName_arg != NUL)
+{
+#ifdef MSWIN
+
+serverInitMessaging();
+#endif
+
+
+
+
+
+
+if (parmp->serverArg)
+{
+cmdsrv_main(&parmp->argc, parmp->argv,
+parmp->serverName_arg, &parmp->serverStr);
+parmp->serverStrEnc = vim_strsave(p_enc);
+}
+
+
+
+
+parmp->servername = serverMakeName(parmp->serverName_arg,
+parmp->argv[0]);
+#ifdef MSWIN
+if (parmp->servername != NULL)
+{
+serverSetName(parmp->servername);
+vim_free(parmp->servername);
+}
+#endif
+}
+}
+
+
+
+
+static void
+prepare_server(mparm_T *parmp)
+{
+#if defined(FEAT_X11)
+
+
+
+
+
+
+
+if (X_DISPLAY != NULL && parmp->servername != NULL && (
+#if defined(FEAT_AUTOSERVERNAME) || defined(FEAT_GUI)
+(
+#if defined(FEAT_AUTOSERVERNAME)
+1
+#else
+gui.in_use
+#endif
+#ifdef UNIX
+&& getuid() != ROOT_UID
+#endif
+) ||
+#endif
+parmp->serverName_arg != NULL))
+{
+(void)serverRegisterName(X_DISPLAY, parmp->servername);
+vim_free(parmp->servername);
+TIME_MSG("register server name");
+}
+else
+serverDelayedStartName = parmp->servername;
+#endif
+
+
+
+
+
+if (parmp->serverStr != NULL)
+{
+char_u *p;
+
+server_to_input_buf(serverConvert(parmp->serverStrEnc,
+parmp->serverStr, &p));
+vim_free(p);
+}
+}
+
+static void
+cmdsrv_main(
+int *argc,
+char **argv,
+char_u *serverName_arg,
+char_u **serverStr)
+{
+char_u *res;
+int i;
+char_u *sname;
+int ret;
+int didone = FALSE;
+int exiterr = 0;
+char **newArgV = argv + 1;
+int newArgC = 1,
+Argc = *argc;
+int argtype;
+#define ARGTYPE_OTHER 0
+#define ARGTYPE_EDIT 1
+#define ARGTYPE_EDIT_WAIT 2
+#define ARGTYPE_SEND 3
+int silent = FALSE;
+int tabs = FALSE;
+#ifndef FEAT_X11
+HWND srv;
+#else
+Window srv;
+
+setup_term_clip();
+#endif
+
+sname = serverMakeName(serverName_arg, argv[0]);
+if (sname == NULL)
+return;
+
+
+
+
+
+for (i = 1; i < Argc; i++)
+{
+res = NULL;
+if (STRCMP(argv[i], "--") == 0) 
+{
+for (; i < *argc; i++)
+{
+*newArgV++ = argv[i];
+newArgC++;
+}
+break;
+}
+
+if (STRICMP(argv[i], "--remote-send") == 0)
+argtype = ARGTYPE_SEND;
+else if (STRNICMP(argv[i], "--remote", 8) == 0)
+{
+char *p = argv[i] + 8;
+
+argtype = ARGTYPE_EDIT;
+while (*p != NUL)
+{
+if (STRNICMP(p, "-wait", 5) == 0)
+{
+argtype = ARGTYPE_EDIT_WAIT;
+p += 5;
+}
+else if (STRNICMP(p, "-silent", 7) == 0)
+{
+silent = TRUE;
+p += 7;
+}
+else if (STRNICMP(p, "-tab", 4) == 0)
+{
+tabs = TRUE;
+p += 4;
+}
+else
+{
+argtype = ARGTYPE_OTHER;
+break;
+}
+}
+}
+else
+argtype = ARGTYPE_OTHER;
+
+if (argtype != ARGTYPE_OTHER)
+{
+if (i == *argc - 1)
+mainerr_arg_missing((char_u *)argv[i]);
+if (argtype == ARGTYPE_SEND)
+{
+*serverStr = (char_u *)argv[i + 1];
+i++;
+}
+else
+{
+*serverStr = build_drop_cmd(*argc - i - 1, argv + i + 1,
+tabs, argtype == ARGTYPE_EDIT_WAIT);
+if (*serverStr == NULL)
+{
+
+didone = TRUE;
+exiterr = 1;
+break;
+}
+Argc = i;
+}
+#ifdef FEAT_X11
+if (xterm_dpy == NULL)
+{
+mch_errmsg(_("No display"));
+ret = -1;
+}
+else
+ret = serverSendToVim(xterm_dpy, sname, *serverStr,
+NULL, &srv, 0, 0, 0, silent);
+#else
+
+ret = serverSendToVim(sname, *serverStr, NULL, &srv, 0, 0, silent);
+#endif
+if (ret < 0)
+{
+if (argtype == ARGTYPE_SEND)
+{
+
+mch_errmsg(_(": Send failed.\n"));
+didone = TRUE;
+exiterr = 1;
+}
+else if (!silent)
+
+mch_errmsg(_(": Send failed. Trying to execute locally\n"));
+break;
+}
+
+#ifdef FEAT_GUI_MSWIN
+
+
+
+if (argtype != ARGTYPE_SEND && TOUPPER_ASC(*sname) == 'G')
+SetForegroundWindow(srv);
+#endif
+
+
+
+
+
+if (ret >= 0 && argtype == ARGTYPE_EDIT_WAIT)
+{
+int numFiles = *argc - i - 1;
+int j;
+char_u *done = alloc(numFiles);
+char_u *p;
+#ifdef FEAT_GUI_MSWIN
+NOTIFYICONDATA ni;
+int count = 0;
+extern HWND message_window;
+#endif
+
+if (numFiles > 0 && argv[i + 1][0] == '+')
+
+--numFiles;
+
+#ifdef FEAT_GUI_MSWIN
+ni.cbSize = sizeof(ni);
+ni.hWnd = message_window;
+ni.uID = 0;
+ni.uFlags = NIF_ICON|NIF_TIP;
+ni.hIcon = LoadIcon((HINSTANCE)GetModuleHandle(0), "IDR_VIM");
+sprintf(ni.szTip, _("%d of %d edited"), count, numFiles);
+Shell_NotifyIcon(NIM_ADD, &ni);
+#endif
+
+
+vim_memset(done, 0, numFiles);
+while (memchr(done, 0, numFiles) != NULL)
+{
+#ifdef MSWIN
+p = serverGetReply(srv, NULL, TRUE, TRUE, 0);
+if (p == NULL)
+break;
+#else
+if (serverReadReply(xterm_dpy, srv, &p, TRUE, -1) < 0)
+break;
+#endif
+j = atoi((char *)p);
+if (j >= 0 && j < numFiles)
+{
+#ifdef FEAT_GUI_MSWIN
+++count;
+sprintf(ni.szTip, _("%d of %d edited"),
+count, numFiles);
+Shell_NotifyIcon(NIM_MODIFY, &ni);
+#endif
+done[j] = 1;
+}
+}
+#ifdef FEAT_GUI_MSWIN
+Shell_NotifyIcon(NIM_DELETE, &ni);
+#endif
+}
+}
+else if (STRICMP(argv[i], "--remote-expr") == 0)
+{
+if (i == *argc - 1)
+mainerr_arg_missing((char_u *)argv[i]);
+#ifdef MSWIN
+
+if (serverSendToVim(sname, (char_u *)argv[i + 1],
+&res, NULL, 1, 0, FALSE) < 0)
+#else
+if (xterm_dpy == NULL)
+mch_errmsg(_("No display: Send expression failed.\n"));
+else if (serverSendToVim(xterm_dpy, sname, (char_u *)argv[i + 1],
+&res, NULL, 1, 0, 1, FALSE) < 0)
+#endif
+{
+if (res != NULL && *res != NUL)
+{
+
+mch_errmsg((char *)res);
+VIM_CLEAR(res);
+}
+mch_errmsg(_(": Send expression failed.\n"));
+}
+}
+else if (STRICMP(argv[i], "--serverlist") == 0)
+{
+#ifdef MSWIN
+
+res = serverGetVimNames();
+#else
+if (xterm_dpy != NULL)
+res = serverGetVimNames(xterm_dpy);
+#endif
+if (did_emsg)
+mch_errmsg("\n");
+}
+else if (STRICMP(argv[i], "--servername") == 0)
+{
+
+i++;
+continue;
+}
+else
+{
+*newArgV++ = argv[i];
+newArgC++;
+continue;
+}
+didone = TRUE;
+if (res != NULL && *res != NUL)
+{
+mch_msg((char *)res);
+if (res[STRLEN(res) - 1] != '\n')
+mch_msg("\n");
+}
+vim_free(res);
+}
+
+if (didone)
+{
+display_errors(); 
+exit(exiterr); 
+}
+
+
+*argc = newArgC;
+vim_free(sname);
+}
+
+
+
+
+static char_u *
+build_drop_cmd(
+int filec,
+char **filev,
+int tabs, 
+int sendReply)
+{
+garray_T ga;
+int i;
+char_u *inicmd = NULL;
+char_u *p;
+char_u *cdp;
+char_u *cwd;
+
+if (filec > 0 && filev[0][0] == '+')
+{
+inicmd = (char_u *)filev[0] + 1;
+filev++;
+filec--;
+}
+
+if (filec <= 0)
+mainerr_arg_missing((char_u *)filev[-1]);
+
+
+cwd = alloc(MAXPATHL);
+if (cwd == NULL)
+return NULL;
+if (mch_dirname(cwd, MAXPATHL) != OK)
+{
+vim_free(cwd);
+return NULL;
+}
+cdp = vim_strsave_escaped_ext(cwd,
+#ifdef BACKSLASH_IN_FILENAME
+(char_u *)"", 
+#else
+PATH_ESC_CHARS,
+#endif
+'\\', TRUE);
+vim_free(cwd);
+if (cdp == NULL)
+return NULL;
+ga_init2(&ga, 1, 100);
+ga_concat(&ga, (char_u *)"<C-\\><C-N>:cd ");
+ga_concat(&ga, cdp);
+
+
+ga_concat(&ga, (char_u *)"<CR>:if exists('*inputsave')|call inputsave()|endif|");
+if (tabs)
+ga_concat(&ga, (char_u *)"tab ");
+ga_concat(&ga, (char_u *)"drop");
+for (i = 0; i < filec; i++)
+{
+
+
+
+p = vim_strsave_escaped((char_u *)filev[i],
+#ifdef UNIX
+PATH_ESC_CHARS
+#else
+(char_u *)" \t%#"
+#endif
+);
+if (p == NULL)
+{
+vim_free(ga.ga_data);
+return NULL;
+}
+ga_concat(&ga, (char_u *)" ");
+ga_concat(&ga, p);
+vim_free(p);
+}
+ga_concat(&ga, (char_u *)"|if exists('*inputrestore')|call inputrestore()|endif<CR>");
+
+
+
+ga_concat(&ga, (char_u *)"<C-\\><C-N>");
+
+
+
+
+
+
+
+
+
+
+
+
+ga_concat(&ga, (char_u *)":if !exists('+acd')||!&acd|if haslocaldir()|");
+ga_concat(&ga, (char_u *)"cd -|lcd -|elseif getcwd() ==#'");
+ga_concat(&ga, cdp);
+ga_concat(&ga, (char_u *)"'|cd -|endif|endif<CR>");
+vim_free(cdp);
+
+if (sendReply)
+ga_concat(&ga, (char_u *)":call SetupRemoteReplies()<CR>");
+ga_concat(&ga, (char_u *)":");
+if (inicmd != NULL)
+{
+
+
+
+ga_concat(&ga, inicmd);
+ga_concat(&ga, (char_u *)"|");
+}
+
+
+ga_concat(&ga, (char_u *)"cal foreground()|if &im|star|en|redr|f<CR>");
+ga_append(&ga, NUL);
+return ga.ga_data;
+}
+
+
+
+
+
+
+static char_u *
+serverMakeName(char_u *arg, char *cmd)
+{
+char_u *p;
+
+if (arg != NULL && *arg != NUL)
+p = vim_strsave_up(arg);
+else
+{
+p = vim_strsave_up(gettail((char_u *)cmd));
+
+if (p != NULL && vim_strchr(p, '.') != NULL)
+*vim_strchr(p, '.') = NUL;
+}
+return p;
+}
+#endif 
+
+#if defined(FEAT_CLIENTSERVER) || defined(PROTO)
+
+
+
+void
+server_to_input_buf(char_u *str)
+{
+char_u *ptr = NULL;
+char_u *cpo_save = p_cpo;
+
+
+
+
+
+
+
+p_cpo = (char_u *)"Bk";
+str = replace_termcodes((char_u *)str, &ptr, REPTERM_DO_LT, NULL);
+p_cpo = cpo_save;
+
+if (*ptr != NUL) 
+{
+
+
+
+
+
+
+
+
+if (typebuf.tb_maplen < typebuf.tb_len)
+del_typebuf(typebuf.tb_len - typebuf.tb_maplen, typebuf.tb_maplen);
+(void)ins_typebuf(str, REMAP_NONE, typebuf.tb_len, TRUE, FALSE);
+
+
+
+typebuf_was_filled = TRUE;
+}
+vim_free((char_u *)ptr);
+}
+
+
+
+
+char_u *
+eval_client_expr_to_string(char_u *expr)
+{
+char_u *res;
+int save_dbl = debug_break_level;
+int save_ro = redir_off;
+funccal_entry_T funccal_entry;
+int did_save_funccal = FALSE;
+
+
+
+if (!debug_mode)
+{
+save_funccal(&funccal_entry);
+did_save_funccal = TRUE;
+}
+
+
+
+debug_break_level = -1;
+redir_off = 0;
+
+
+++emsg_silent;
+
+res = eval_to_string(expr, NULL, TRUE);
+
+debug_break_level = save_dbl;
+redir_off = save_ro;
+--emsg_silent;
+if (emsg_silent < 0)
+emsg_silent = 0;
+if (did_save_funccal)
+restore_funccal();
+
+
+
+setcursor();
+out_flush_cursor(FALSE, FALSE);
+
+return res;
+}
+
+
+
+
+int
+sendToLocalVim(char_u *cmd, int asExpr, char_u **result)
+{
+if (asExpr)
+{
+char_u *ret;
+
+ret = eval_client_expr_to_string(cmd);
+if (result != NULL)
+{
+if (ret == NULL)
+{
+char *err = _(e_invexprmsg);
+size_t len = STRLEN(cmd) + STRLEN(err) + 5;
+char_u *msg;
+
+msg = alloc(len);
+if (msg != NULL)
+vim_snprintf((char *)msg, len, "%s: \"%s\"", err, cmd);
+*result = msg;
+}
+else
+*result = ret;
+}
+else
+vim_free(ret);
+return ret == NULL ? -1 : 0;
+}
+server_to_input_buf(cmd);
+return 0;
+}
+
+
+
+
+
+
+char_u *
+serverConvert(
+char_u *client_enc UNUSED,
+char_u *data,
+char_u **tofree)
+{
+char_u *res = data;
+
+*tofree = NULL;
+if (client_enc != NULL && p_enc != NULL)
+{
+vimconv_T vimconv;
+
+vimconv.vc_type = CONV_NONE;
+if (convert_setup(&vimconv, client_enc, p_enc) != FAIL
+&& vimconv.vc_type != CONV_NONE)
+{
+res = string_convert(&vimconv, data, NULL);
+if (res == NULL)
+res = data;
+else
+*tofree = res;
+}
+convert_setup(&vimconv, NULL, NULL);
+}
+return res;
+}
+#endif

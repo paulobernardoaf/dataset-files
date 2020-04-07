@@ -1,0 +1,37 @@
+#define NSISPIAPIVER_1_0 0x00010000
+#define NSISPIAPIVER_CURR NSISPIAPIVER_1_0
+enum NSPIM 
+{
+NSPIM_UNLOAD, 
+NSPIM_GUIUNLOAD, 
+};
+typedef UINT_PTR (*NSISPLUGINCALLBACK)(enum NSPIM);
+typedef struct
+{
+int autoclose;
+int all_user_var;
+int exec_error;
+int abort;
+int exec_reboot; 
+int reboot_called; 
+int XXX_cur_insttype; 
+int plugin_api_version; 
+int silent; 
+int instdir_error;
+int rtl;
+int errlvl;
+int alter_reg_view;
+int status_update;
+} exec_flags_t;
+#if !defined(NSISCALL)
+#define NSISCALL __stdcall
+#endif
+typedef struct {
+exec_flags_t *exec_flags;
+int (NSISCALL *ExecuteCodeSegment)(int, HWND);
+void (NSISCALL *validate_filename)(TCHAR *);
+BOOL (NSISCALL *RegisterPluginCallback)(HMODULE, NSISPLUGINCALLBACK);
+} extra_parameters;
+#define WM_NOTIFY_OUTER_NEXT (WM_USER+0x8)
+#define WM_NOTIFY_CUSTOM_READY (WM_USER+0xd)
+#define NOTIFY_BYE_BYE 'x'

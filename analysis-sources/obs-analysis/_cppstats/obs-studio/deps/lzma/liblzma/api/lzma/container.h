@@ -1,0 +1,48 @@
+#if !defined(LZMA_H_INTERNAL)
+#error Never include this file directly. Use <lzma.h> instead.
+#endif
+#define LZMA_PRESET_DEFAULT UINT32_C(6)
+#define LZMA_PRESET_LEVEL_MASK UINT32_C(0x1F)
+#define LZMA_PRESET_EXTREME (UINT32_C(1) << 31)
+extern LZMA_API(uint64_t) lzma_easy_encoder_memusage(uint32_t preset)
+lzma_nothrow lzma_attr_pure;
+extern LZMA_API(uint64_t) lzma_easy_decoder_memusage(uint32_t preset)
+lzma_nothrow lzma_attr_pure;
+extern LZMA_API(lzma_ret) lzma_easy_encoder(
+lzma_stream *strm, uint32_t preset, lzma_check check)
+lzma_nothrow lzma_attr_warn_unused_result;
+extern LZMA_API(lzma_ret) lzma_easy_buffer_encode(
+uint32_t preset, lzma_check check,
+lzma_allocator *allocator, const uint8_t *in, size_t in_size,
+uint8_t *out, size_t *out_pos, size_t out_size) lzma_nothrow;
+extern LZMA_API(lzma_ret) lzma_stream_encoder(lzma_stream *strm,
+const lzma_filter *filters, lzma_check check)
+lzma_nothrow lzma_attr_warn_unused_result;
+extern LZMA_API(lzma_ret) lzma_alone_encoder(
+lzma_stream *strm, const lzma_options_lzma *options)
+lzma_nothrow lzma_attr_warn_unused_result;
+extern LZMA_API(size_t) lzma_stream_buffer_bound(size_t uncompressed_size)
+lzma_nothrow;
+extern LZMA_API(lzma_ret) lzma_stream_buffer_encode(
+lzma_filter *filters, lzma_check check,
+lzma_allocator *allocator, const uint8_t *in, size_t in_size,
+uint8_t *out, size_t *out_pos, size_t out_size)
+lzma_nothrow lzma_attr_warn_unused_result;
+#define LZMA_TELL_NO_CHECK UINT32_C(0x01)
+#define LZMA_TELL_UNSUPPORTED_CHECK UINT32_C(0x02)
+#define LZMA_TELL_ANY_CHECK UINT32_C(0x04)
+#define LZMA_CONCATENATED UINT32_C(0x08)
+extern LZMA_API(lzma_ret) lzma_stream_decoder(
+lzma_stream *strm, uint64_t memlimit, uint32_t flags)
+lzma_nothrow lzma_attr_warn_unused_result;
+extern LZMA_API(lzma_ret) lzma_auto_decoder(
+lzma_stream *strm, uint64_t memlimit, uint32_t flags)
+lzma_nothrow lzma_attr_warn_unused_result;
+extern LZMA_API(lzma_ret) lzma_alone_decoder(
+lzma_stream *strm, uint64_t memlimit)
+lzma_nothrow lzma_attr_warn_unused_result;
+extern LZMA_API(lzma_ret) lzma_stream_buffer_decode(
+uint64_t *memlimit, uint32_t flags, lzma_allocator *allocator,
+const uint8_t *in, size_t *in_pos, size_t in_size,
+uint8_t *out, size_t *out_pos, size_t out_size)
+lzma_nothrow lzma_attr_warn_unused_result;

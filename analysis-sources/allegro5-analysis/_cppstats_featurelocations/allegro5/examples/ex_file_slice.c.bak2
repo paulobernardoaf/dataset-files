@@ -1,0 +1,87 @@
+
+
+
+
+
+
+
+
+
+#include "allegro5/allegro.h"
+
+#include "common.c"
+
+#define BUFFER_SIZE 1024
+
+static void pack_object(ALLEGRO_FILE *file, const void *object, size_t len)
+{
+   
+      
+   al_fwrite32le(file, len);
+   al_fwrite(file, object, len);
+}
+
+static ALLEGRO_FILE *get_next_chunk(ALLEGRO_FILE *file)
+{
+   
+ 
+   const uint32_t length = al_fread32le(file);
+   return !al_feof(file) ? al_fopen_slice(file, length, "rw") : NULL;
+}
+
+int main(int argc, const char *argv[])
+{
+   ALLEGRO_FILE *master, *slice;
+   ALLEGRO_PATH *tmp_path;
+
+   const char *first_string = "Hello, World!";
+   const char *second_string = "The quick brown fox jumps over the lazy dog.";
+   char buffer[BUFFER_SIZE];
+
+   (void) argc, (void) argv;
+
+   if (!al_init()) {
+      abort_example("Could not init Allegro.\n");
+   }
+
+   open_log();
+
+   master = al_make_temp_file("ex_file_slice_XXXX", &tmp_path);
+   if (!master) {
+      abort_example("Unable to create temporary file\n");
+   }
+
+   
+   pack_object(master, first_string, strlen(first_string));
+   pack_object(master, second_string, strlen(second_string));
+
+   
+   al_fseek(master, 0, ALLEGRO_SEEK_SET);
+
+   
+   while ((slice = get_next_chunk(master))) {
+      
+
+
+
+      if (al_fsize(slice) < BUFFER_SIZE) {
+         
+
+         al_fread(slice, buffer, al_fsize(slice));
+         buffer[al_fsize(slice)] = 0;
+         log_printf("Chunk of size %d: '%s'\n", (int) al_fsize(slice), buffer);
+      }
+
+      
+
+      al_fclose(slice);
+   }
+
+   al_fclose(master);
+
+   al_remove_filename(al_path_cstr(tmp_path, '/'));
+
+   close_log(true);
+
+   return 0;
+}

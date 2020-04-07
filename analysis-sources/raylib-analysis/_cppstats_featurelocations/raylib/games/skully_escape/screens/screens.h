@@ -1,0 +1,164 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#if !defined(SCREENS_H)
+#define SCREENS_H
+
+#define PLAYER_ANIM_FRAMES 7
+#define PLAYER_ANIM_SEQ 2
+
+
+
+
+typedef enum GameScreen { LOGO = 0, LOGO_RL, TITLE, ATTIC, AISLE01, AISLE02, BATHROOM, LIVINGROOM, KITCHEN, ARMORY, ENDING } GameScreen;
+
+typedef struct Door {
+Vector2 position;
+int facing;
+bool locked;
+bool selected;
+Rectangle frameRec;
+Rectangle bound;
+} Door;
+
+
+
+
+GameScreen currentScreen;
+Font font;
+
+Texture2D doors;
+Sound sndDoor;
+Sound sndScream;
+
+
+#if defined(__cplusplus)
+extern "C" { 
+#endif
+
+
+
+
+void InitLogoScreen(void);
+void UpdateLogoScreen(void);
+void DrawLogoScreen(void);
+void UnloadLogoScreen(void);
+int FinishLogoScreen(void);
+
+
+
+
+void rlInitLogoScreen(void);
+void rlUpdateLogoScreen(void);
+void rlDrawLogoScreen(void);
+void rlUnloadLogoScreen(void);
+int rlFinishLogoScreen(void);
+
+
+
+
+void InitTitleScreen(void);
+void UpdateTitleScreen(void);
+void DrawTitleScreen(void);
+void UnloadTitleScreen(void);
+int FinishTitleScreen(void);
+
+
+
+
+void InitAtticScreen(void);
+void UpdateAtticScreen(void);
+void DrawAtticScreen(void);
+void UnloadAtticScreen(void);
+int FinishAtticScreen(void);
+
+
+
+
+void InitAisle01Screen(void);
+void UpdateAisle01Screen(void);
+void DrawAisle01Screen(void);
+void UnloadAisle01Screen(void);
+int FinishAisle01Screen(void);
+
+
+
+
+void InitAisle02Screen(void);
+void UpdateAisle02Screen(void);
+void DrawAisle02Screen(void);
+void UnloadAisle02Screen(void);
+int FinishAisle02Screen(void);
+
+
+
+
+void InitBathroomScreen(void);
+void UpdateBathroomScreen(void);
+void DrawBathroomScreen(void);
+void UnloadBathroomScreen(void);
+int FinishBathroomScreen(void);
+
+
+
+
+void InitLivingroomScreen(void);
+void UpdateLivingroomScreen(void);
+void DrawLivingroomScreen(void);
+void UnloadLivingroomScreen(void);
+int FinishLivingroomScreen(void);
+
+
+
+
+void InitKitchenScreen(void);
+void UpdateKitchenScreen(void);
+void DrawKitchenScreen(void);
+void UnloadKitchenScreen(void);
+int FinishKitchenScreen(void);
+
+
+
+
+void InitArmoryScreen(void);
+void UpdateArmoryScreen(void);
+void DrawArmoryScreen(void);
+void UnloadArmoryScreen(void);
+int FinishArmoryScreen(void);
+
+
+
+
+void InitEndingScreen(void);
+void UpdateEndingScreen(void);
+void DrawEndingScreen(void);
+void UnloadEndingScreen(void);
+int FinishEndingScreen(void);
+
+#if defined(__cplusplus)
+}
+#endif
+
+#endif

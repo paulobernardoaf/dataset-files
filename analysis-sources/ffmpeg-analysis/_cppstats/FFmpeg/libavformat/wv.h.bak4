@@ -1,0 +1,56 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#if !defined(AVFORMAT_WV_H)
+#define AVFORMAT_WV_H
+
+#include <stdint.h>
+
+#define WV_HEADER_SIZE 32
+
+#define WV_FLAG_INITIAL_BLOCK (1 << 11)
+#define WV_FLAG_FINAL_BLOCK (1 << 12)
+
+
+#define WV_BLOCK_LIMIT 1048576
+
+typedef struct WvHeader {
+uint32_t blocksize; 
+uint16_t version; 
+uint32_t total_samples; 
+uint32_t block_idx; 
+uint32_t samples; 
+uint32_t flags;
+uint32_t crc;
+
+int initial, final;
+} WvHeader;
+
+
+
+
+
+
+
+
+
+int ff_wv_parse_header(WvHeader *wv, const uint8_t *data);
+
+#endif 

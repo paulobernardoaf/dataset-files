@@ -1,0 +1,1803 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" revision="1.0.0" language="C" filename="D:\Pesquisa\Projects\vlc-analysis\_cppstats\vlc\modules\hw\vaapi\filters.c"><cpp:if>#<cpp:directive>if</cpp:directive> <expr><call><name>defined</name><argument_list>(<argument><expr><name>HAVE_CONFIG_H</name></expr></argument>)</argument_list></call></expr></cpp:if>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;config.h&gt;</cpp:file></cpp:include>
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;assert.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;stdatomic.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;vlc_common.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;vlc_filter.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;vlc_plugin.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"filters.h"</cpp:file></cpp:include>
+
+<struct>struct <name>va_filter_desc</name>
+
+<block>{
+
+<decl_stmt><decl><type><name>vlc_decoder_device</name> <modifier>*</modifier></type><name>dec_device</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>VADisplay</name></type> <name>dpy</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>VAConfigID</name></type> <name>conf</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>VAContextID</name></type> <name>ctx</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>VABufferID</name></type> <name>buf</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>VASurfaceID</name> <modifier>*</modifier></type> <name>surface_ids</name></decl>;</decl_stmt>
+
+}</block>;</struct>
+
+<typedef>typedef <type><struct>struct
+
+<block>{
+
+<decl_stmt><decl><type><name><name>struct</name> <name>va_filter_desc</name></name></type> <name>va</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>picture_pool_t</name> <modifier>*</modifier></type> <name>dest_pics</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>bool</name></type> <name>b_pipeline_fast</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>void</name> <modifier>*</modifier></type> <name>p_data</name></decl>;</decl_stmt>
+
+}</block></struct></type> <name>filter_sys_t</name>;</typedef>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>DEST_PICS_POOL_SZ</name></cpp:macro> <cpp:value>3</cpp:value></cpp:define>
+
+<struct>struct <name>range</name>
+
+<block>{
+
+<decl_stmt><decl><type><name>float</name></type> <name>min_value</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>float</name></type> <name>max_value</name></decl>;</decl_stmt>
+
+}</block>;</struct>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>GET_DRV_SIGMA</name><parameter_list>(<parameter><type><name>vlc_sigma</name></type></parameter>, <parameter><type><name>vlc_range</name></type></parameter>, <parameter><type><name>drv_range</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>((vlc_sigma - (vlc_range).min_value) * ((drv_range).max_value - (drv_range).min_value) / ((vlc_range).max_value - (vlc_range).min_value) + (drv_range).min_value)</cpp:value></cpp:define>
+
+<enum>enum <block>{ <decl><name>ADJUST_CONT</name></decl>, <decl><name>ADJUST_LUM</name></decl>, <decl><name>ADJUST_HUE</name></decl>, <decl><name>ADJUST_SAT</name></decl>, <decl><name>NUM_ADJUST_MODES</name></decl> }</block>;</enum>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>VAProcColorBalanceType</name> <specifier>const</specifier></type> <name><name>va_adjust_modes</name><index>[<expr><name>NUM_ADJUST_MODES</name></expr>]</index></name> <init>=
+
+<expr><block>{
+
+<expr><index>[<expr><name>ADJUST_CONT</name></expr>]</index> <operator>=</operator> <name>VAProcColorBalanceContrast</name></expr>,
+
+<expr><index>[<expr><name>ADJUST_LUM</name></expr>]</index> <operator>=</operator> <name>VAProcColorBalanceBrightness</name></expr>,
+
+<expr><index>[<expr><name>ADJUST_HUE</name></expr>]</index> <operator>=</operator> <name>VAProcColorBalanceHue</name></expr>,
+
+<expr><index>[<expr><name>ADJUST_SAT</name></expr>]</index> <operator>=</operator> <name>VAProcColorBalanceSaturation</name></expr>
+
+}</block></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>char</name> <specifier>const</specifier></type> <name><name>adjust_params_names</name><index>[<expr><name>NUM_ADJUST_MODES</name></expr>]</index><index>[<expr><literal type="number">11</literal></expr>]</index></name> <init>=
+
+<expr><block>{
+
+<expr><index>[<expr><name>ADJUST_CONT</name></expr>]</index> <operator>=</operator> <literal type="string">"contrast"</literal></expr>,
+
+<expr><index>[<expr><name>ADJUST_LUM</name></expr>]</index> <operator>=</operator> <literal type="string">"brightness"</literal></expr>,
+
+<expr><index>[<expr><name>ADJUST_HUE</name></expr>]</index> <operator>=</operator> <literal type="string">"hue"</literal></expr>,
+
+<expr><index>[<expr><name>ADJUST_SAT</name></expr>]</index> <operator>=</operator> <literal type="string">"saturation"</literal></expr>
+
+}</block></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name><name>struct</name> <name>range</name></name> <specifier>const</specifier></type> <name><name>vlc_adjust_sigma_ranges</name><index>[<expr><name>NUM_ADJUST_MODES</name></expr>]</index></name> <init>=
+
+<expr><block>{
+
+<expr><index>[<expr><name>ADJUST_CONT</name></expr>]</index> <operator>=</operator> <block>{ <expr><literal type="number">.0f</literal></expr>, <expr><literal type="number">2.f</literal></expr> }</block></expr>,
+
+<expr><index>[<expr><name>ADJUST_LUM</name></expr>]</index> <operator>=</operator> <block>{ <expr><literal type="number">.0f</literal></expr>, <expr><literal type="number">2.f</literal></expr> }</block></expr>,
+
+<expr><index>[<expr><name>ADJUST_HUE</name></expr>]</index> <operator>=</operator> <block>{ <expr><operator>-</operator><literal type="number">180.f</literal></expr>, <expr><operator>+</operator><literal type="number">180.f</literal></expr> }</block></expr>,
+
+<expr><index>[<expr><name>ADJUST_SAT</name></expr>]</index> <operator>=</operator> <block>{ <expr><literal type="number">.0f</literal></expr>, <expr><literal type="number">3.f</literal></expr> }</block></expr>
+
+}</block></expr></init></decl>;</decl_stmt>
+
+<struct>struct <name>adjust_params</name>
+
+<block>{
+
+<struct>struct
+
+<block>{
+
+<decl_stmt><decl><type><specifier>_Atomic</specifier> <name>float</name></type> <name>drv_value</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>VAProcFilterValueRange</name></type> <name>drv_range</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>bool</name></type> <name>is_available</name></decl>;</decl_stmt>
+
+}</block> <decl><name><name>sigma</name><index>[<expr><name>NUM_ADJUST_MODES</name></expr>]</index></name></decl>;</struct>
+
+}</block>;</struct>
+
+<struct>struct <name>adjust_data</name>
+
+<block>{
+
+<decl_stmt><decl><type><name><name>struct</name> <name>adjust_params</name></name></type> <name>params</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>unsigned</name> <name>int</name></type> <name>num_available_modes</name></decl>;</decl_stmt>
+
+}</block>;</struct>
+
+<function><type><specifier>static</specifier> <name>float</name></type>
+
+<name>adapt_adjust_sigma</name><parameter_list>(<parameter><decl><type><name>char</name> <specifier>const</specifier> <modifier>*</modifier></type> <name>psz_var</name></decl></parameter>, <parameter><decl><type><name>float</name> <specifier>const</specifier></type> <name>sigma</name></decl></parameter>,
+
+<parameter><decl><type><name><name>struct</name> <name>range</name></name> <specifier>const</specifier> <modifier>*</modifier></type> <name>p_range</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>strcmp</name><argument_list>(<argument><expr><name>psz_var</name></expr></argument>, <argument><expr><literal type="string">"contrast"</literal></expr></argument>)</argument_list></call></expr>)</condition>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>range</name></name> <specifier>const</specifier></type> <name>adapt_range</name> <init>= <expr><block>{ <expr><literal type="number">.0f</literal></expr>, <expr><literal type="number">.35f</literal></expr> }</block></expr></init></decl>;</decl_stmt>
+
+<return>return <expr><call><name>GET_DRV_SIGMA</name><argument_list>(<argument><expr><name>sigma</name></expr></argument>, <argument><expr><operator>*</operator><name>p_range</name></expr></argument>, <argument><expr><name>adapt_range</name></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></if>
+
+<if type="elseif">else if <condition>(<expr><operator>!</operator><call><name>strcmp</name><argument_list>(<argument><expr><name>psz_var</name></expr></argument>, <argument><expr><literal type="string">"saturation"</literal></expr></argument>)</argument_list></call></expr>)</condition>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>range</name></name> <specifier>const</specifier></type> <name>adapt_range</name> <init>= <expr><block>{ <expr><literal type="number">.0f</literal></expr>, <expr><literal type="number">1.f</literal></expr> }</block></expr></init></decl>;</decl_stmt>
+
+<return>return <expr><call><name>GET_DRV_SIGMA</name><argument_list>(<argument><expr><name>sigma</name></expr></argument>, <argument><expr><operator>*</operator><name>p_range</name></expr></argument>, <argument><expr><name>adapt_range</name></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<return>return <expr><name>sigma</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name><name>struct</name> <name>range</name></name> <specifier>const</specifier></type> <name>vlc_denoise_sigma_range</name> <init>= <expr><block>{ <expr><literal type="number">.0f</literal></expr>, <expr><literal type="number">2.f</literal></expr> }</block></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name><name>struct</name> <name>range</name></name> <specifier>const</specifier></type> <name>vlc_sharpen_sigma_range</name> <init>= <expr><block>{ <expr><literal type="number">.0f</literal></expr>, <expr><literal type="number">2.f</literal></expr> }</block></expr></init></decl>;</decl_stmt>
+
+<struct>struct <name>basic_filter_data</name>
+
+<block>{
+
+<struct>struct
+
+<block>{
+
+<decl_stmt><decl><type><specifier>_Atomic</specifier> <name>float</name></type> <name>drv_value</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>VAProcFilterValueRange</name></type> <name>drv_range</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>range</name></name> <specifier>const</specifier> <modifier>*</modifier></type> <name>p_vlc_range</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type> <name>psz_name</name></decl>;</decl_stmt>
+
+}</block> <decl><name>sigma</name></decl>;</struct>
+
+<decl_stmt><decl><type><name>VAProcFilterType</name></type> <name>filter_type</name></decl>;</decl_stmt>
+
+}</block>;</struct>
+
+<struct>struct <name>deint_mode</name>
+
+<block>{
+
+<decl_stmt><decl><type><name>char</name></type> <name><name>name</name><index>[<expr><literal type="number">5</literal></expr>]</index></name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>VAProcDeinterlacingType</name></type> <name>type</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>bool</name></type> <name>b_double_rate</name></decl>;</decl_stmt>
+
+}</block>;</struct>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name><name>struct</name> <name>deint_mode</name></name> <specifier>const</specifier></type> <name><name>deint_modes</name><index>[]</index></name> <init>=
+
+<expr><block>{
+
+<expr><block>{ <expr><literal type="string">"x"</literal></expr>, <expr><name>VAProcDeinterlacingMotionAdaptive</name></expr>, <expr><name>true</name></expr> }</block></expr>,
+
+<expr><block>{ <expr><literal type="string">"x"</literal></expr>, <expr><name>VAProcDeinterlacingMotionCompensated</name></expr>, <expr><name>true</name></expr> }</block></expr>,
+
+<expr><block>{ <expr><literal type="string">"bob"</literal></expr>, <expr><name>VAProcDeinterlacingBob</name></expr>, <expr><name>true</name></expr> }</block></expr>,
+
+<expr><block>{ <expr><literal type="string">"mean"</literal></expr>, <expr><name>VAProcDeinterlacingWeave</name></expr>, <expr><name>false</name></expr> }</block></expr>
+
+}</block></expr></init></decl>;</decl_stmt>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>METADATA_SIZE</name></cpp:macro> <cpp:value>3</cpp:value></cpp:define>
+
+<struct>struct <name>deint_data</name>
+
+<block>{
+
+<struct>struct
+
+<block>{
+
+<decl_stmt><decl><type><name>picture_t</name> <modifier>*</modifier><modifier>*</modifier></type> <name>pp_pics</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>picture_t</name> <modifier>*</modifier><modifier>*</modifier></type> <name>pp_cur_pic</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>unsigned</name> <name>int</name></type> <name>num_pics</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>unsigned</name> <name>int</name></type> <name>sz</name></decl>;</decl_stmt>
+
+}</block> <decl><name>history</name></decl>;</struct>
+
+<struct>struct
+
+<block>{
+
+<decl_stmt><decl><type><name>VASurfaceID</name> <modifier>*</modifier></type> <name>surfaces</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>unsigned</name> <name>int</name></type> <name>sz</name></decl>;</decl_stmt>
+
+}</block> <decl><name>backward_refs</name></decl>, <decl><type ref="prev"/><name>forward_refs</name></decl>;</struct>
+
+<struct>struct
+
+<block>{
+
+<decl_stmt><decl><type><name>vlc_tick_t</name></type> <name>date</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>i_nb_fields</name></decl>;</decl_stmt>
+
+}</block> <decl><name><name>meta</name><index>[<expr><name>METADATA_SIZE</name></expr>]</index></name></decl>;</struct>
+
+<decl_stmt><decl><type><name>bool</name></type> <name>b_double_rate</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>unsigned</name> <name>int</name></type> <name>cur_frame</name></decl>;</decl_stmt>
+
+}</block>;</struct>
+
+<function><type><specifier>static</specifier> <name>picture_t</name> <modifier>*</modifier></type>
+
+<name>Filter</name><parameter_list>(<parameter><decl><type><name>filter_t</name> <modifier>*</modifier></type> <name>filter</name></decl></parameter>, <parameter><decl><type><name>picture_t</name> <modifier>*</modifier></type> <name>src</name></decl></parameter>,
+
+<parameter><function_decl><type><name>void</name></type> (<modifier>*</modifier><name>pf_update_va_filter_params</name>)<parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type></decl></parameter>, <parameter><decl><type><name>void</name> <modifier>*</modifier></type></decl></parameter>)</parameter_list></function_decl></parameter>,
+
+<parameter><function_decl><type><name>void</name></type> (<modifier>*</modifier><name>pf_prepare_render_surface</name>)<parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type></decl></parameter>)</parameter_list></function_decl></parameter>,
+
+<parameter><function_decl><type><name>void</name></type> (<modifier>*</modifier><name>pf_update_pipeline_params</name>)<parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type></decl></parameter>,
+
+<parameter><decl><type><name>VAProcPipelineParameterBuffer</name> <modifier>*</modifier></type></decl></parameter>)</parameter_list></function_decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>filter_sys_t</name> <modifier>*</modifier><specifier>const</specifier></type> <name>filter_sys</name> <init>= <expr><name><name>filter</name><operator>-&gt;</operator><name>p_sys</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>VABufferID</name></type> <name>pipeline_buf</name> <init>= <expr><name>VA_INVALID_ID</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>picture_t</name> <modifier>*</modifier><specifier>const</specifier></type> <name>dest</name> <init>= <expr><call><name>picture_pool_Wait</name><argument_list>(<argument><expr><name><name>filter_sys</name><operator>-&gt;</operator><name>dest_pics</name></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>dest</name></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>NULL</name></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>vlc_vaapi_PicAttachContext</name><argument_list>(<argument><expr><name>dest</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>picture_CopyProperties</name><argument_list>(<argument><expr><name>dest</name></expr></argument>, <argument><expr><name>src</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<decl_stmt><decl><type><name>void</name> <modifier>*</modifier></type> <name>p_va_params</name></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>vlc_vaapi_MapBuffer</name><argument_list>(<argument><expr><call><name>VLC_OBJECT</name><argument_list>(<argument><expr><name>filter</name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name><name>filter_sys</name><operator>-&gt;</operator><name>va</name><operator>.</operator><name>dpy</name></name></expr></argument>,
+
+<argument><expr><name><name>filter_sys</name><operator>-&gt;</operator><name>va</name><operator>.</operator><name>buf</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name>p_va_params</name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+
+<goto>goto <name>error</name>;</goto></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>pf_update_va_filter_params</name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>pf_update_va_filter_params</name><argument_list>(<argument><expr><name><name>filter_sys</name><operator>-&gt;</operator><name>p_data</name></name></expr></argument>, <argument><expr><name>p_va_params</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>vlc_vaapi_UnmapBuffer</name><argument_list>(<argument><expr><call><name>VLC_OBJECT</name><argument_list>(<argument><expr><name>filter</name></expr></argument>)</argument_list></call></expr></argument>,
+
+<argument><expr><name><name>filter_sys</name><operator>-&gt;</operator><name>va</name><operator>.</operator><name>dpy</name></name></expr></argument>, <argument><expr><name><name>filter_sys</name><operator>-&gt;</operator><name>va</name><operator>.</operator><name>buf</name></name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+
+<goto>goto <name>error</name>;</goto></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>vlc_vaapi_BeginPicture</name><argument_list>(<argument><expr><call><name>VLC_OBJECT</name><argument_list>(<argument><expr><name>filter</name></expr></argument>)</argument_list></call></expr></argument>,
+
+<argument><expr><name><name>filter_sys</name><operator>-&gt;</operator><name>va</name><operator>.</operator><name>dpy</name></name></expr></argument>, <argument><expr><name><name>filter_sys</name><operator>-&gt;</operator><name>va</name><operator>.</operator><name>ctx</name></name></expr></argument>,
+
+<argument><expr><call><name>vlc_vaapi_PicGetSurface</name><argument_list>(<argument><expr><name>dest</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+
+<goto>goto <name>error</name>;</goto></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>pf_prepare_render_surface</name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>pf_prepare_render_surface</name><argument_list>(<argument><expr><name><name>filter_sys</name><operator>-&gt;</operator><name>p_data</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<decl_stmt><decl><type><name>VAProcPipelineParameterBuffer</name> <modifier>*</modifier></type> <name>pipeline_params</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>pipeline_buf</name> <operator>=</operator>
+
+<call><name>vlc_vaapi_CreateBuffer</name><argument_list>(<argument><expr><call><name>VLC_OBJECT</name><argument_list>(<argument><expr><name>filter</name></expr></argument>)</argument_list></call></expr></argument>,
+
+<argument><expr><name><name>filter_sys</name><operator>-&gt;</operator><name>va</name><operator>.</operator><name>dpy</name></name></expr></argument>, <argument><expr><name><name>filter_sys</name><operator>-&gt;</operator><name>va</name><operator>.</operator><name>ctx</name></name></expr></argument>,
+
+<argument><expr><name>VAProcPipelineParameterBufferType</name></expr></argument>,
+
+<argument><expr><sizeof>sizeof<argument_list>(<argument><expr><operator>*</operator><name>pipeline_params</name></expr></argument>)</argument_list></sizeof></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>pipeline_buf</name> <operator>==</operator> <name>VA_INVALID_ID</name></expr>)</condition><block type="pseudo"><block_content>
+
+<goto>goto <name>error</name>;</goto></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>vlc_vaapi_MapBuffer</name><argument_list>(<argument><expr><call><name>VLC_OBJECT</name><argument_list>(<argument><expr><name>filter</name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name><name>filter_sys</name><operator>-&gt;</operator><name>va</name><operator>.</operator><name>dpy</name></name></expr></argument>,
+
+<argument><expr><name>pipeline_buf</name></expr></argument>, <argument><expr><operator>(</operator><name>void</name> <operator>*</operator><operator>*</operator><operator>)</operator><operator>&amp;</operator><name>pipeline_params</name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+
+<goto>goto <name>error</name>;</goto></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><operator>*</operator><name>pipeline_params</name> <operator>=</operator> <operator>(</operator><call><name>typeof</name><argument_list>(<argument><expr><operator>*</operator><name>pipeline_params</name></expr></argument>)</argument_list></call><operator>)</operator><block>{<expr><literal type="number">0</literal></expr>}</block></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>pipeline_params</name><operator>-&gt;</operator><name>surface</name></name> <operator>=</operator> <call><name>vlc_vaapi_PicGetSurface</name><argument_list>(<argument><expr><name>src</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>pipeline_params</name><operator>-&gt;</operator><name>filters</name></name> <operator>=</operator> <operator>&amp;</operator><name><name>filter_sys</name><operator>-&gt;</operator><name>va</name><operator>.</operator><name>buf</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>pipeline_params</name><operator>-&gt;</operator><name>num_filters</name></name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>filter_sys</name><operator>-&gt;</operator><name>b_pipeline_fast</name></name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name><name>pipeline_params</name><operator>-&gt;</operator><name>pipeline_flags</name></name> <operator>=</operator> <name>VA_PROC_PIPELINE_FAST</name></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>pf_update_pipeline_params</name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>pf_update_pipeline_params</name><argument_list>(<argument><expr><name><name>filter_sys</name><operator>-&gt;</operator><name>p_data</name></name></expr></argument>, <argument><expr><name>pipeline_params</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>vlc_vaapi_UnmapBuffer</name><argument_list>(<argument><expr><call><name>VLC_OBJECT</name><argument_list>(<argument><expr><name>filter</name></expr></argument>)</argument_list></call></expr></argument>,
+
+<argument><expr><name><name>filter_sys</name><operator>-&gt;</operator><name>va</name><operator>.</operator><name>dpy</name></name></expr></argument>, <argument><expr><name>pipeline_buf</name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+
+<goto>goto <name>error</name>;</goto></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>vlc_vaapi_RenderPicture</name><argument_list>(<argument><expr><call><name>VLC_OBJECT</name><argument_list>(<argument><expr><name>filter</name></expr></argument>)</argument_list></call></expr></argument>,
+
+<argument><expr><name><name>filter_sys</name><operator>-&gt;</operator><name>va</name><operator>.</operator><name>dpy</name></name></expr></argument>, <argument><expr><name><name>filter_sys</name><operator>-&gt;</operator><name>va</name><operator>.</operator><name>ctx</name></name></expr></argument>,
+
+<argument><expr><operator>&amp;</operator><name>pipeline_buf</name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+
+<goto>goto <name>error</name>;</goto></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>vlc_vaapi_EndPicture</name><argument_list>(<argument><expr><call><name>VLC_OBJECT</name><argument_list>(<argument><expr><name>filter</name></expr></argument>)</argument_list></call></expr></argument>,
+
+<argument><expr><name><name>filter_sys</name><operator>-&gt;</operator><name>va</name><operator>.</operator><name>dpy</name></name></expr></argument>, <argument><expr><name><name>filter_sys</name><operator>-&gt;</operator><name>va</name><operator>.</operator><name>ctx</name></name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+
+<goto>goto <name>error</name>;</goto></block_content></block></if></if_stmt>
+
+<return>return <expr><name>dest</name></expr>;</return>
+
+<label><name>error</name>:</label>
+
+<if_stmt><if>if <condition>(<expr><name>pipeline_buf</name> <operator>!=</operator> <name>VA_INVALID_ID</name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>vlc_vaapi_DestroyBuffer</name><argument_list>(<argument><expr><call><name>VLC_OBJECT</name><argument_list>(<argument><expr><name>filter</name></expr></argument>)</argument_list></call></expr></argument>,
+
+<argument><expr><name><name>filter_sys</name><operator>-&gt;</operator><name>va</name><operator>.</operator><name>dpy</name></name></expr></argument>, <argument><expr><name>pipeline_buf</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>dest</name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>picture_Release</name><argument_list>(<argument><expr><name>dest</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<return>return <expr><name>NULL</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type>
+
+<name>Open</name><parameter_list>(<parameter><decl><type><name>filter_t</name> <modifier>*</modifier></type> <name>filter</name></decl></parameter>,
+
+<parameter><decl><type><name>VAProcFilterType</name> <specifier>const</specifier></type> <name>filter_type</name></decl></parameter>,
+
+<parameter><decl><type><name>VAProcPipelineCaps</name> <modifier>*</modifier></type> <name>p_pipeline_caps</name></decl></parameter>,
+
+<parameter><decl><type><name>void</name> <modifier>*</modifier></type> <name>p_data</name></decl></parameter>,
+
+<parameter><function_decl><type><name>int</name></type> (<modifier>*</modifier><name>pf_init_filter_params</name>)<parameter_list>(<parameter><decl><type><name>filter_t</name> <modifier>*</modifier></type></decl></parameter>, <parameter><decl><type><name>void</name> <modifier>*</modifier></type></decl></parameter>, <parameter><decl><type><name>void</name> <modifier>*</modifier><modifier>*</modifier></type></decl></parameter>,
+
+<parameter><decl><type><name>unsigned</name> <name>int</name> <modifier>*</modifier></type></decl></parameter>, <parameter><decl><type><name>unsigned</name> <name>int</name> <modifier>*</modifier></type></decl></parameter>)</parameter_list></function_decl></parameter>,
+
+<parameter><function_decl><type><name>int</name></type> (<modifier>*</modifier><name>pf_use_pipeline_caps</name>)<parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type></decl></parameter>, <parameter><decl><type><name>VAProcPipelineCaps</name> <specifier>const</specifier> <modifier>*</modifier></type></decl></parameter>)</parameter_list></function_decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>filter_sys_t</name> <modifier>*</modifier></type> <name>filter_sys</name></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>filter</name><operator>-&gt;</operator><name>vctx_in</name></name> <operator>==</operator> <name>NULL</name> <operator>||</operator>
+
+<call><name>vlc_video_context_GetType</name><argument_list>(<argument><expr><name><name>filter</name><operator>-&gt;</operator><name>vctx_in</name></name></expr></argument>)</argument_list></call> <operator>!=</operator> <name>VLC_VIDEO_CONTEXT_VAAPI</name></expr>)</condition><block type="pseudo"><block_content>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>vlc_vaapi_IsChromaOpaque</name><argument_list>(<argument><expr><name><name>filter</name><operator>-&gt;</operator><name>fmt_out</name><operator>.</operator><name>video</name><operator>.</operator><name>i_chroma</name></name></expr></argument>)</argument_list></call> <operator>||</operator>
+
+<operator>!</operator><call><name>video_format_IsSimilar</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>filter</name><operator>-&gt;</operator><name>fmt_out</name><operator>.</operator><name>video</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>filter</name><operator>-&gt;</operator><name>fmt_in</name><operator>.</operator><name>video</name></name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>VLC_EGENERIC</name></expr>;</return></block_content></block></if></if_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>filter_sys</name> <operator>=</operator> <call><name>calloc</name><argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr><operator>*</operator><name>filter_sys</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>filter_sys</name></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>VLC_ENOMEM</name></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name><name>filter</name><operator>-&gt;</operator><name>p_sys</name></name> <operator>=</operator> <name>filter_sys</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>filter_sys</name><operator>-&gt;</operator><name>p_data</name></name> <operator>=</operator> <name>p_data</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>filter_sys</name><operator>-&gt;</operator><name>va</name><operator>.</operator><name>conf</name></name> <operator>=</operator> <name>VA_INVALID_ID</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>filter_sys</name><operator>-&gt;</operator><name>va</name><operator>.</operator><name>ctx</name></name> <operator>=</operator> <name>VA_INVALID_ID</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>filter_sys</name><operator>-&gt;</operator><name>va</name><operator>.</operator><name>buf</name></name> <operator>=</operator> <name>VA_INVALID_ID</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>filter_sys</name><operator>-&gt;</operator><name>va</name><operator>.</operator><name>dec_device</name></name> <operator>=</operator> <call><name>vlc_video_context_HoldDevice</name><argument_list>(<argument><expr><name><name>filter</name><operator>-&gt;</operator><name>vctx_in</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>filter_sys</name><operator>-&gt;</operator><name>va</name><operator>.</operator><name>dpy</name></name> <operator>=</operator> <name><name>filter_sys</name><operator>-&gt;</operator><name>va</name><operator>.</operator><name>dec_device</name><operator>-&gt;</operator><name>opaque</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>assert</name><argument_list>(<argument><expr><name><name>filter_sys</name><operator>-&gt;</operator><name>va</name><operator>.</operator><name>dec_device</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>filter_sys</name><operator>-&gt;</operator><name>dest_pics</name></name> <operator>=</operator>
+
+<call><name>vlc_vaapi_PoolNew</name><argument_list>(<argument><expr><call><name>VLC_OBJECT</name><argument_list>(<argument><expr><name>filter</name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name><name>filter</name><operator>-&gt;</operator><name>vctx_in</name></name></expr></argument>,
+
+<argument><expr><name><name>filter_sys</name><operator>-&gt;</operator><name>va</name><operator>.</operator><name>dpy</name></name></expr></argument>, <argument><expr><name>DEST_PICS_POOL_SZ</name></expr></argument>,
+
+<argument><expr><operator>&amp;</operator><name><name>filter_sys</name><operator>-&gt;</operator><name>va</name><operator>.</operator><name>surface_ids</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>filter</name><operator>-&gt;</operator><name>fmt_out</name><operator>.</operator><name>video</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>filter_sys</name><operator>-&gt;</operator><name>dest_pics</name></name></expr>)</condition><block type="pseudo"><block_content>
+
+<goto>goto <name>error</name>;</goto></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name><name>filter_sys</name><operator>-&gt;</operator><name>va</name><operator>.</operator><name>conf</name></name> <operator>=</operator>
+
+<call><name>vlc_vaapi_CreateConfigChecked</name><argument_list>(<argument><expr><call><name>VLC_OBJECT</name><argument_list>(<argument><expr><name>filter</name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name><name>filter_sys</name><operator>-&gt;</operator><name>va</name><operator>.</operator><name>dpy</name></name></expr></argument>,
+
+<argument><expr><name>VAProfileNone</name></expr></argument>, <argument><expr><name>VAEntrypointVideoProc</name></expr></argument>,
+
+<argument><expr><name><name>filter</name><operator>-&gt;</operator><name>fmt_out</name><operator>.</operator><name>video</name><operator>.</operator><name>i_chroma</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>filter_sys</name><operator>-&gt;</operator><name>va</name><operator>.</operator><name>conf</name></name> <operator>==</operator> <name>VA_INVALID_ID</name></expr>)</condition><block type="pseudo"><block_content>
+
+<goto>goto <name>error</name>;</goto></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name><name>filter_sys</name><operator>-&gt;</operator><name>va</name><operator>.</operator><name>ctx</name></name> <operator>=</operator>
+
+<call><name>vlc_vaapi_CreateContext</name><argument_list>(<argument><expr><call><name>VLC_OBJECT</name><argument_list>(<argument><expr><name>filter</name></expr></argument>)</argument_list></call></expr></argument>,
+
+<argument><expr><name><name>filter_sys</name><operator>-&gt;</operator><name>va</name><operator>.</operator><name>dpy</name></name></expr></argument>, <argument><expr><name><name>filter_sys</name><operator>-&gt;</operator><name>va</name><operator>.</operator><name>conf</name></name></expr></argument>,
+
+<argument><expr><name><name>filter</name><operator>-&gt;</operator><name>fmt_out</name><operator>.</operator><name>video</name><operator>.</operator><name>i_width</name></name></expr></argument>,
+
+<argument><expr><name><name>filter</name><operator>-&gt;</operator><name>fmt_out</name><operator>.</operator><name>video</name><operator>.</operator><name>i_height</name></name></expr></argument>,
+
+<argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><name><name>filter_sys</name><operator>-&gt;</operator><name>va</name><operator>.</operator><name>surface_ids</name></name></expr></argument>,
+
+<argument><expr><name>DEST_PICS_POOL_SZ</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>filter_sys</name><operator>-&gt;</operator><name>va</name><operator>.</operator><name>ctx</name></name> <operator>==</operator> <name>VA_INVALID_ID</name></expr>)</condition><block type="pseudo"><block_content>
+
+<goto>goto <name>error</name>;</goto></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>vlc_vaapi_IsVideoProcFilterAvailable</name><argument_list>(<argument><expr><call><name>VLC_OBJECT</name><argument_list>(<argument><expr><name>filter</name></expr></argument>)</argument_list></call></expr></argument>,
+
+<argument><expr><name><name>filter_sys</name><operator>-&gt;</operator><name>va</name><operator>.</operator><name>dpy</name></name></expr></argument>,
+
+<argument><expr><name><name>filter_sys</name><operator>-&gt;</operator><name>va</name><operator>.</operator><name>ctx</name></name></expr></argument>,
+
+<argument><expr><name>filter_type</name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+
+<goto>goto <name>error</name>;</goto></block_content></block></if></if_stmt>
+
+<decl_stmt><decl><type><name>void</name> <modifier>*</modifier></type> <name>p_va_params</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>uint32_t</name></type> <name>i_sz_param</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>uint32_t</name></type> <name>i_num_params</name></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>pf_init_filter_params</name><argument_list>(<argument><expr><name>filter</name></expr></argument>, <argument><expr><name>p_data</name></expr></argument>,
+
+<argument><expr><operator>&amp;</operator><name>p_va_params</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>i_sz_param</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>i_num_params</name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+
+<goto>goto <name>error</name>;</goto></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name><name>filter_sys</name><operator>-&gt;</operator><name>va</name><operator>.</operator><name>buf</name></name> <operator>=</operator>
+
+<call><name>vlc_vaapi_CreateBuffer</name><argument_list>(<argument><expr><call><name>VLC_OBJECT</name><argument_list>(<argument><expr><name>filter</name></expr></argument>)</argument_list></call></expr></argument>,
+
+<argument><expr><name><name>filter_sys</name><operator>-&gt;</operator><name>va</name><operator>.</operator><name>dpy</name></name></expr></argument>, <argument><expr><name><name>filter_sys</name><operator>-&gt;</operator><name>va</name><operator>.</operator><name>ctx</name></name></expr></argument>,
+
+<argument><expr><name>VAProcFilterParameterBufferType</name></expr></argument>,
+
+<argument><expr><name>i_sz_param</name></expr></argument>, <argument><expr><name>i_num_params</name></expr></argument>, <argument><expr><name>p_va_params</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>free</name><argument_list>(<argument><expr><name>p_va_params</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>filter_sys</name><operator>-&gt;</operator><name>va</name><operator>.</operator><name>buf</name></name> <operator>==</operator> <name>VA_INVALID_ID</name></expr>)</condition><block type="pseudo"><block_content>
+
+<goto>goto <name>error</name>;</goto></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>vlc_vaapi_QueryVideoProcPipelineCaps</name><argument_list>(<argument><expr><call><name>VLC_OBJECT</name><argument_list>(<argument><expr><name>filter</name></expr></argument>)</argument_list></call></expr></argument>,
+
+<argument><expr><name><name>filter_sys</name><operator>-&gt;</operator><name>va</name><operator>.</operator><name>dpy</name></name></expr></argument>,
+
+<argument><expr><name><name>filter_sys</name><operator>-&gt;</operator><name>va</name><operator>.</operator><name>ctx</name></name></expr></argument>,
+
+<argument><expr><operator>&amp;</operator><name><name>filter_sys</name><operator>-&gt;</operator><name>va</name><operator>.</operator><name>buf</name></name></expr></argument>,
+
+<argument><expr><literal type="number">1</literal></expr></argument>, <argument><expr><name>p_pipeline_caps</name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+
+<goto>goto <name>error</name>;</goto></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name><name>filter_sys</name><operator>-&gt;</operator><name>b_pipeline_fast</name></name> <operator>=</operator>
+
+<name><name>p_pipeline_caps</name><operator>-&gt;</operator><name>pipeline_flags</name></name> <operator>&amp;</operator> <name>VA_PROC_PIPELINE_FAST</name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>pf_use_pipeline_caps</name> <operator>&amp;&amp;</operator>
+
+<call><name>pf_use_pipeline_caps</name><argument_list>(<argument><expr><name>p_data</name></expr></argument>, <argument><expr><name>p_pipeline_caps</name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+
+<goto>goto <name>error</name>;</goto></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name><name>filter</name><operator>-&gt;</operator><name>vctx_out</name></name> <operator>=</operator> <call><name>vlc_video_context_Hold</name><argument_list>(<argument><expr><name><name>filter</name><operator>-&gt;</operator><name>vctx_in</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>VLC_SUCCESS</name></expr>;</return>
+
+<label><name>error</name>:</label>
+
+<if_stmt><if>if <condition>(<expr><name><name>filter_sys</name><operator>-&gt;</operator><name>va</name><operator>.</operator><name>buf</name></name> <operator>!=</operator> <name>VA_INVALID_ID</name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>vlc_vaapi_DestroyBuffer</name><argument_list>(<argument><expr><call><name>VLC_OBJECT</name><argument_list>(<argument><expr><name>filter</name></expr></argument>)</argument_list></call></expr></argument>,
+
+<argument><expr><name><name>filter_sys</name><operator>-&gt;</operator><name>va</name><operator>.</operator><name>dpy</name></name></expr></argument>, <argument><expr><name><name>filter_sys</name><operator>-&gt;</operator><name>va</name><operator>.</operator><name>buf</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>filter_sys</name><operator>-&gt;</operator><name>va</name><operator>.</operator><name>ctx</name></name> <operator>!=</operator> <name>VA_INVALID_ID</name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>vlc_vaapi_DestroyContext</name><argument_list>(<argument><expr><call><name>VLC_OBJECT</name><argument_list>(<argument><expr><name>filter</name></expr></argument>)</argument_list></call></expr></argument>,
+
+<argument><expr><name><name>filter_sys</name><operator>-&gt;</operator><name>va</name><operator>.</operator><name>dpy</name></name></expr></argument>, <argument><expr><name><name>filter_sys</name><operator>-&gt;</operator><name>va</name><operator>.</operator><name>ctx</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>filter_sys</name><operator>-&gt;</operator><name>va</name><operator>.</operator><name>conf</name></name> <operator>!=</operator> <name>VA_INVALID_ID</name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>vlc_vaapi_DestroyConfig</name><argument_list>(<argument><expr><call><name>VLC_OBJECT</name><argument_list>(<argument><expr><name>filter</name></expr></argument>)</argument_list></call></expr></argument>,
+
+<argument><expr><name><name>filter_sys</name><operator>-&gt;</operator><name>va</name><operator>.</operator><name>dpy</name></name></expr></argument>, <argument><expr><name><name>filter_sys</name><operator>-&gt;</operator><name>va</name><operator>.</operator><name>conf</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>filter_sys</name><operator>-&gt;</operator><name>dest_pics</name></name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>picture_pool_Release</name><argument_list>(<argument><expr><name><name>filter_sys</name><operator>-&gt;</operator><name>dest_pics</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>filter_sys</name><operator>-&gt;</operator><name>va</name><operator>.</operator><name>dec_device</name></name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>vlc_decoder_device_Release</name><argument_list>(<argument><expr><name><name>filter_sys</name><operator>-&gt;</operator><name>va</name><operator>.</operator><name>dec_device</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>free</name><argument_list>(<argument><expr><name>filter_sys</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>VLC_EGENERIC</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type>
+
+<name>Close</name><parameter_list>(<parameter><decl><type><name>filter_t</name> <modifier>*</modifier></type><name>filter</name></decl></parameter>, <parameter><decl><type><name>filter_sys_t</name> <modifier>*</modifier></type> <name>filter_sys</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>vlc_object_t</name> <modifier>*</modifier></type> <name>obj</name> <init>= <expr><call><name>VLC_OBJECT</name><argument_list>(<argument><expr><name>filter</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>picture_pool_Release</name><argument_list>(<argument><expr><name><name>filter_sys</name><operator>-&gt;</operator><name>dest_pics</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>vlc_vaapi_DestroyBuffer</name><argument_list>(<argument><expr><name>obj</name></expr></argument>, <argument><expr><name><name>filter_sys</name><operator>-&gt;</operator><name>va</name><operator>.</operator><name>dpy</name></name></expr></argument>, <argument><expr><name><name>filter_sys</name><operator>-&gt;</operator><name>va</name><operator>.</operator><name>buf</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>vlc_vaapi_DestroyContext</name><argument_list>(<argument><expr><name>obj</name></expr></argument>, <argument><expr><name><name>filter_sys</name><operator>-&gt;</operator><name>va</name><operator>.</operator><name>dpy</name></name></expr></argument>, <argument><expr><name><name>filter_sys</name><operator>-&gt;</operator><name>va</name><operator>.</operator><name>ctx</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>vlc_vaapi_DestroyConfig</name><argument_list>(<argument><expr><name>obj</name></expr></argument>, <argument><expr><name><name>filter_sys</name><operator>-&gt;</operator><name>va</name><operator>.</operator><name>dpy</name></name></expr></argument>, <argument><expr><name><name>filter_sys</name><operator>-&gt;</operator><name>va</name><operator>.</operator><name>conf</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>vlc_decoder_device_Release</name><argument_list>(<argument><expr><name><name>filter_sys</name><operator>-&gt;</operator><name>va</name><operator>.</operator><name>dec_device</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>vlc_video_context_Release</name><argument_list>(<argument><expr><name><name>filter</name><operator>-&gt;</operator><name>vctx_out</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>free</name><argument_list>(<argument><expr><name>filter_sys</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type>
+
+<name>FilterCallback</name><parameter_list>(<parameter><decl><type><name>vlc_object_t</name> <modifier>*</modifier></type> <name>obj</name></decl></parameter>, <parameter><decl><type><name>char</name> <specifier>const</specifier> <modifier>*</modifier></type> <name>psz_var</name></decl></parameter>,
+
+<parameter><decl><type><name>vlc_value_t</name></type> <name>oldval</name></decl></parameter>, <parameter><decl><type><name>vlc_value_t</name></type> <name>newval</name></decl></parameter>,
+
+<parameter><decl><type><name>void</name> <modifier>*</modifier></type> <name>p_data</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content> <expr_stmt><expr><call><name>VLC_UNUSED</name><argument_list>(<argument><expr><name>obj</name></expr></argument>)</argument_list></call></expr>;</expr_stmt> <expr_stmt><expr><call><name>VLC_UNUSED</name><argument_list>(<argument><expr><name>oldval</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>range</name></name> <specifier>const</specifier> <modifier>*</modifier></type> <name>p_vlc_range</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>VAProcFilterValueRange</name> <specifier>const</specifier> <modifier>*</modifier></type> <name>p_drv_range</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>_Atomic</specifier> <name>float</name> <modifier>*</modifier></type> <name>p_drv_value</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>bool</name></type> <name>b_found</name> <init>= <expr><name>false</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>bool</name></type> <name>b_adjust</name> <init>= <expr><name>false</name></expr></init></decl>;</decl_stmt>
+
+<for>for <control>(<init><decl><type><name>unsigned</name> <name>int</name></type> <name>i</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>NUM_ADJUST_MODES</name></expr>;</condition> <incr><expr><operator>++</operator><name>i</name></expr></incr>)</control><block type="pseudo"><block_content>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>strcmp</name><argument_list>(<argument><expr><name>psz_var</name></expr></argument>, <argument><expr><name><name>adjust_params_names</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>)</condition>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>adjust_data</name></name> <modifier>*</modifier><specifier>const</specifier></type> <name>p_adjust_data</name> <init>= <expr><name>p_data</name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>p_adjust_data</name><operator>-&gt;</operator><name>params</name><operator>.</operator><name>sigma</name><index>[<expr><name>i</name></expr>]</index></name><operator>.</operator><name>is_available</name></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>VLC_EGENERIC</name></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>p_vlc_range</name> <operator>=</operator> <name>vlc_adjust_sigma_ranges</name> <operator>+</operator> <name>i</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>p_drv_range</name> <operator>=</operator> <operator>&amp;</operator><name><name>p_adjust_data</name><operator>-&gt;</operator><name>params</name><operator>.</operator><name>sigma</name><index>[<expr><name>i</name></expr>]</index></name><operator>.</operator><name>drv_range</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>p_drv_value</name> <operator>=</operator> <operator>&amp;</operator><name><name>p_adjust_data</name><operator>-&gt;</operator><name>params</name><operator>.</operator><name>sigma</name><index>[<expr><name>i</name></expr>]</index></name><operator>.</operator><name>drv_value</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>b_adjust</name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>b_found</name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt></block_content></block></for>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>b_found</name></expr>)</condition><block type="pseudo"><block_content>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>strcmp</name><argument_list>(<argument><expr><name>psz_var</name></expr></argument>, <argument><expr><literal type="string">"denoise-sigma"</literal></expr></argument>)</argument_list></call> <operator>||</operator>
+
+<operator>!</operator><call><name>strcmp</name><argument_list>(<argument><expr><name>psz_var</name></expr></argument>, <argument><expr><literal type="string">"sharpen-sigma"</literal></expr></argument>)</argument_list></call></expr>)</condition>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>basic_filter_data</name></name> <modifier>*</modifier><specifier>const</specifier></type> <name>p_basic_filter_data</name> <init>= <expr><name>p_data</name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>p_vlc_range</name> <operator>=</operator> <name><name>p_basic_filter_data</name><operator>-&gt;</operator><name>sigma</name><operator>.</operator><name>p_vlc_range</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>p_drv_range</name> <operator>=</operator> <operator>&amp;</operator><name><name>p_basic_filter_data</name><operator>-&gt;</operator><name>sigma</name><operator>.</operator><name>drv_range</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>p_drv_value</name> <operator>=</operator> <operator>&amp;</operator><name><name>p_basic_filter_data</name><operator>-&gt;</operator><name>sigma</name><operator>.</operator><name>drv_value</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>b_found</name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>b_found</name></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>VLC_EGENERIC</name></expr>;</return></block_content></block></if></if_stmt>
+
+<decl_stmt><decl><type><name>float</name></type> <name>vlc_sigma</name> <init>= <expr><call><name>VLC_CLIP</name><argument_list>(<argument><expr><name><name>newval</name><operator>.</operator><name>f_float</name></name></expr></argument>,
+
+<argument><expr><name><name>p_vlc_range</name><operator>-&gt;</operator><name>min_value</name></name></expr></argument>,
+
+<argument><expr><name><name>p_vlc_range</name><operator>-&gt;</operator><name>max_value</name></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>b_adjust</name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name>vlc_sigma</name> <operator>=</operator> <call><name>adapt_adjust_sigma</name><argument_list>(<argument><expr><name>psz_var</name></expr></argument>, <argument><expr><name>vlc_sigma</name></expr></argument>, <argument><expr><name>p_vlc_range</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<decl_stmt><decl><type><name>float</name> <specifier>const</specifier></type> <name>drv_sigma</name> <init>= <expr><call><name>GET_DRV_SIGMA</name><argument_list>(<argument><expr><name>vlc_sigma</name></expr></argument>,
+
+<argument><expr><operator>*</operator><name>p_vlc_range</name></expr></argument>, <argument><expr><operator>*</operator><name>p_drv_range</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>atomic_store_explicit</name><argument_list>(<argument><expr><name>p_drv_value</name></expr></argument>, <argument><expr><name>drv_sigma</name></expr></argument>, <argument><expr><name>memory_order_relaxed</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>VLC_SUCCESS</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type>
+
+<name>Adjust_UpdateVAFilterParams</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type> <name>p_data</name></decl></parameter>, <parameter><decl><type><name>void</name> <modifier>*</modifier></type> <name>va_params</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name><name>struct</name> <name>adjust_data</name></name> <modifier>*</modifier><specifier>const</specifier></type> <name>p_adjust_data</name> <init>= <expr><name>p_data</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name><name>struct</name> <name>adjust_params</name></name> <modifier>*</modifier><specifier>const</specifier></type> <name>p_adjust_params</name> <init>= <expr><operator>&amp;</operator><name><name>p_adjust_data</name><operator>-&gt;</operator><name>params</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>VAProcFilterParameterBufferColorBalance</name> <modifier>*</modifier><specifier>const</specifier></type> <name>p_va_params</name> <init>= <expr><name>va_params</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>unsigned</name> <name>int</name></type> <name>i</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+
+<for>for <control>(<init><decl><type><name>unsigned</name> <name>int</name></type> <name>j</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>j</name> <operator>&lt;</operator> <name>NUM_ADJUST_MODES</name></expr>;</condition> <incr><expr><operator>++</operator><name>j</name></expr></incr>)</control><block type="pseudo"><block_content>
+
+<if_stmt><if>if <condition>(<expr><name><name>p_adjust_params</name><operator>-&gt;</operator><name>sigma</name><index>[<expr><name>j</name></expr>]</index></name><operator>.</operator><name>is_available</name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name><name>p_va_params</name><index>[<expr><name>i</name><operator>++</operator></expr>]</index></name><operator>.</operator><name>value</name> <operator>=</operator>
+
+<call><name>atomic_load_explicit</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>p_adjust_params</name><operator>-&gt;</operator><name>sigma</name><index>[<expr><name>j</name></expr>]</index></name><operator>.</operator><name>drv_value</name></expr></argument>,
+
+<argument><expr><name>memory_order_relaxed</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt></block_content></block></for>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>picture_t</name> <modifier>*</modifier></type>
+
+<name>Adjust</name><parameter_list>(<parameter><decl><type><name>filter_t</name> <modifier>*</modifier></type> <name>filter</name></decl></parameter>, <parameter><decl><type><name>picture_t</name> <modifier>*</modifier></type> <name>src</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>picture_t</name> <modifier>*</modifier><specifier>const</specifier></type> <name>dest</name> <init>=
+
+<expr><call><name>Filter</name><argument_list>(<argument><expr><name>filter</name></expr></argument>, <argument><expr><name>src</name></expr></argument>, <argument><expr><name>Adjust_UpdateVAFilterParams</name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>picture_Release</name><argument_list>(<argument><expr><name>src</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>dest</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type>
+
+<name>OpenAdjust_InitFilterParams</name><parameter_list>(<parameter><decl><type><name>filter_t</name> <modifier>*</modifier></type> <name>filter</name></decl></parameter>, <parameter><decl><type><name>void</name> <modifier>*</modifier></type> <name>p_data</name></decl></parameter>,
+
+<parameter><decl><type><name>void</name> <modifier>*</modifier><modifier>*</modifier></type> <name>pp_va_params</name></decl></parameter>,
+
+<parameter><decl><type><name>uint32_t</name> <modifier>*</modifier></type> <name>p_va_param_sz</name></decl></parameter>,
+
+<parameter><decl><type><name>uint32_t</name> <modifier>*</modifier></type> <name>p_num_va_params</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>adjust_data</name></name> <modifier>*</modifier><specifier>const</specifier></type> <name>p_adjust_data</name> <init>= <expr><name>p_data</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>adjust_params</name></name> <modifier>*</modifier><specifier>const</specifier></type> <name>p_adjust_params</name> <init>= <expr><operator>&amp;</operator><name><name>p_adjust_data</name><operator>-&gt;</operator><name>params</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>filter_sys_t</name> <modifier>*</modifier><specifier>const</specifier></type> <name>filter_sys</name> <init>= <expr><name><name>filter</name><operator>-&gt;</operator><name>p_sys</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>VAProcFilterCapColorBalance</name></type> <name><name>caps</name><index>[<expr><name>VAProcColorBalanceCount</name></expr>]</index></name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>unsigned</name> <name>int</name></type> <name>num_caps</name> <init>= <expr><name>VAProcColorBalanceCount</name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>vlc_vaapi_QueryVideoProcFilterCaps</name><argument_list>(<argument><expr><call><name>VLC_OBJECT</name><argument_list>(<argument><expr><name>filter</name></expr></argument>)</argument_list></call></expr></argument>,
+
+<argument><expr><name><name>filter_sys</name><operator>-&gt;</operator><name>va</name><operator>.</operator><name>dpy</name></name></expr></argument>,
+
+<argument><expr><name><name>filter_sys</name><operator>-&gt;</operator><name>va</name><operator>.</operator><name>ctx</name></name></expr></argument>,
+
+<argument><expr><name>VAProcFilterColorBalance</name></expr></argument>,
+
+<argument><expr><name>caps</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>num_caps</name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>VLC_EGENERIC</name></expr>;</return></block_content></block></if></if_stmt>
+
+<for>for <control>(<init><decl><type><name>unsigned</name> <name>int</name></type> <name>i</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>num_caps</name></expr>;</condition> <incr><expr><operator>++</operator><name>i</name></expr></incr>)</control>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>unsigned</name> <name>int</name></type> <name>j</name></decl>;</decl_stmt>
+
+<for>for <control>(<init><expr><name>j</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>j</name> <operator>&lt;</operator> <name>num_caps</name></expr>;</condition> <incr><expr><operator>++</operator><name>j</name></expr></incr>)</control><block type="pseudo"><block_content>
+
+<if_stmt><if>if <condition>(<expr><name><name>caps</name><index>[<expr><name>j</name></expr>]</index></name><operator>.</operator><name>type</name> <operator>==</operator> <name><name>va_adjust_modes</name><index>[<expr><name>i</name></expr>]</index></name></expr>)</condition>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>float</name></type> <name>vlc_sigma</name> <init>=
+
+<expr><call><name>VLC_CLIP</name><argument_list>(<argument><expr><call><name>var_InheritFloat</name><argument_list>(<argument><expr><name>filter</name></expr></argument>, <argument><expr><name><name>adjust_params_names</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>)</argument_list></call></expr></argument>,
+
+<argument><expr><name><name>vlc_adjust_sigma_ranges</name><index>[<expr><name>i</name></expr>]</index></name><operator>.</operator><name>min_value</name></expr></argument>,
+
+<argument><expr><name><name>vlc_adjust_sigma_ranges</name><index>[<expr><name>i</name></expr>]</index></name><operator>.</operator><name>max_value</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>vlc_sigma</name> <operator>=</operator>
+
+<call><name>adapt_adjust_sigma</name><argument_list>(<argument><expr><name><name>adjust_params_names</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>,
+
+<argument><expr><name>vlc_sigma</name></expr></argument>, <argument><expr><name>vlc_adjust_sigma_ranges</name> <operator>+</operator> <name>i</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>p_adjust_params</name><operator>-&gt;</operator><name>sigma</name><index>[<expr><name>i</name></expr>]</index></name><operator>.</operator><name>drv_range</name> <operator>=</operator> <name><name>caps</name><index>[<expr><name>j</name></expr>]</index></name><operator>.</operator><name>range</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>p_adjust_params</name><operator>-&gt;</operator><name>sigma</name><index>[<expr><name>i</name></expr>]</index></name><operator>.</operator><name>is_available</name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><operator>++</operator><name><name>p_adjust_data</name><operator>-&gt;</operator><name>num_available_modes</name></name></expr>;</expr_stmt>
+
+<decl_stmt><decl><type><name>float</name> <specifier>const</specifier></type> <name>drv_sigma</name> <init>=
+
+<expr><call><name>GET_DRV_SIGMA</name><argument_list>(<argument><expr><name>vlc_sigma</name></expr></argument>, <argument><expr><name><name>vlc_adjust_sigma_ranges</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>,
+
+<argument><expr><name><name>p_adjust_params</name><operator>-&gt;</operator><name>sigma</name><index>[<expr><name>i</name></expr>]</index></name><operator>.</operator><name>drv_range</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>atomic_init</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>p_adjust_params</name><operator>-&gt;</operator><name>sigma</name><index>[<expr><name>i</name></expr>]</index></name><operator>.</operator><name>drv_value</name></expr></argument>, <argument><expr><name>drv_sigma</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<break>break;</break>
+
+</block_content>}</block></if></if_stmt></block_content></block></for>
+
+</block_content>}</block></for>
+
+<decl_stmt><decl><type><name>VAProcFilterParameterBufferColorBalance</name> <modifier>*</modifier></type> <name>p_va_params</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><operator>*</operator><name>p_va_param_sz</name> <operator>=</operator> <sizeof>sizeof<argument_list>(<argument><expr><call><name>typeof</name><argument_list>(<argument><expr><operator>*</operator><name>p_va_params</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></sizeof></expr>;</expr_stmt>
+
+<expr_stmt><expr><operator>*</operator><name>p_num_va_params</name> <operator>=</operator> <name><name>p_adjust_data</name><operator>-&gt;</operator><name>num_available_modes</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>p_va_params</name> <operator>=</operator> <call><name>calloc</name><argument_list>(<argument><expr><operator>*</operator><name>p_num_va_params</name></expr></argument>, <argument><expr><operator>*</operator><name>p_va_param_sz</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>p_va_params</name></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>VLC_ENOMEM</name></expr>;</return></block_content></block></if></if_stmt>
+
+<decl_stmt><decl><type><name>unsigned</name> <name>int</name></type> <name>i</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+
+<for>for <control>(<init><decl><type><name>unsigned</name> <name>int</name></type> <name>j</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>j</name> <operator>&lt;</operator> <name>NUM_ADJUST_MODES</name></expr>;</condition> <incr><expr><operator>++</operator><name>j</name></expr></incr>)</control><block type="pseudo"><block_content>
+
+<if_stmt><if>if <condition>(<expr><name><name>p_adjust_params</name><operator>-&gt;</operator><name>sigma</name><index>[<expr><name>j</name></expr>]</index></name><operator>.</operator><name>is_available</name></expr>)</condition>
+
+<block>{<block_content>
+
+<expr_stmt><expr><name><name>p_va_params</name><index>[<expr><name>i</name></expr>]</index></name><operator>.</operator><name>type</name> <operator>=</operator> <name>VAProcFilterColorBalance</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>p_va_params</name><index>[<expr><name>i</name><operator>++</operator></expr>]</index></name><operator>.</operator><name>attrib</name> <operator>=</operator> <name><name>va_adjust_modes</name><index>[<expr><name>j</name></expr>]</index></name></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt></block_content></block></for>
+
+<expr_stmt><expr><operator>*</operator><name>pp_va_params</name> <operator>=</operator> <name>p_va_params</name></expr>;</expr_stmt>
+
+<return>return <expr><name>VLC_SUCCESS</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type>
+
+<name>OpenAdjust</name><parameter_list>(<parameter><decl><type><name>vlc_object_t</name> <modifier>*</modifier></type> <name>obj</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>VAProcPipelineCaps</name></type> <name>pipeline_caps</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>filter_t</name> <modifier>*</modifier><specifier>const</specifier></type> <name>filter</name> <init>= <expr><operator>(</operator><name>filter_t</name> <operator>*</operator><operator>)</operator><name>obj</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>adjust_data</name></name> <modifier>*</modifier><specifier>const</specifier></type> <name>p_data</name> <init>= <expr><call><name>calloc</name><argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr><operator>*</operator><name>p_data</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>p_data</name></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>VLC_ENOMEM</name></expr>;</return></block_content></block></if></if_stmt>
+
+<for>for <control>(<init><decl><type><name>unsigned</name> <name>int</name></type> <name>i</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>NUM_ADJUST_MODES</name></expr>;</condition> <incr><expr><operator>++</operator><name>i</name></expr></incr>)</control><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>var_Create</name><argument_list>(<argument><expr><name>obj</name></expr></argument>, <argument><expr><name><name>adjust_params_names</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>,
+
+<argument><expr><name>VLC_VAR_FLOAT</name> <operator>|</operator> <name>VLC_VAR_DOINHERIT</name> <operator>|</operator> <name>VLC_VAR_ISCOMMAND</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></for>
+
+<if_stmt><if>if <condition>(<expr><call><name>Open</name><argument_list>(<argument><expr><name>filter</name></expr></argument>, <argument><expr><name>VAProcFilterColorBalance</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>pipeline_caps</name></expr></argument>, <argument><expr><name>p_data</name></expr></argument>,
+
+<argument><expr><name>OpenAdjust_InitFilterParams</name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+
+<goto>goto <name>error</name>;</goto></block_content></block></if></if_stmt>
+
+<for>for <control>(<init><decl><type><name>unsigned</name> <name>int</name></type> <name>i</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>NUM_ADJUST_MODES</name></expr>;</condition> <incr><expr><operator>++</operator><name>i</name></expr></incr>)</control><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>var_AddCallback</name><argument_list>(<argument><expr><name>obj</name></expr></argument>, <argument><expr><name><name>adjust_params_names</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>, <argument><expr><name>FilterCallback</name></expr></argument>, <argument><expr><name>p_data</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></for>
+
+<expr_stmt><expr><name><name>filter</name><operator>-&gt;</operator><name>pf_video_filter</name></name> <operator>=</operator> <name>Adjust</name></expr>;</expr_stmt>
+
+<return>return <expr><name>VLC_SUCCESS</name></expr>;</return>
+
+<label><name>error</name>:</label>
+
+<for>for <control>(<init><decl><type><name>unsigned</name> <name>int</name></type> <name>i</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>NUM_ADJUST_MODES</name></expr>;</condition> <incr><expr><operator>++</operator><name>i</name></expr></incr>)</control><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>var_Destroy</name><argument_list>(<argument><expr><name>obj</name></expr></argument>, <argument><expr><name><name>adjust_params_names</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></for>
+
+<expr_stmt><expr><call><name>free</name><argument_list>(<argument><expr><name>p_data</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>VLC_EGENERIC</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type>
+
+<name>CloseAdjust</name><parameter_list>(<parameter><decl><type><name>vlc_object_t</name> <modifier>*</modifier></type> <name>obj</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>filter_t</name> <modifier>*</modifier><specifier>const</specifier></type> <name>filter</name> <init>= <expr><operator>(</operator><name>filter_t</name> <operator>*</operator><operator>)</operator><name>obj</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>filter_sys_t</name> <modifier>*</modifier><specifier>const</specifier></type> <name>filter_sys</name> <init>= <expr><name><name>filter</name><operator>-&gt;</operator><name>p_sys</name></name></expr></init></decl>;</decl_stmt>
+
+<for>for <control>(<init><decl><type><name>unsigned</name> <name>int</name></type> <name>i</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>NUM_ADJUST_MODES</name></expr>;</condition> <incr><expr><operator>++</operator><name>i</name></expr></incr>)</control>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>var_DelCallback</name><argument_list>(<argument><expr><name>obj</name></expr></argument>, <argument><expr><name><name>adjust_params_names</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>,
+
+<argument><expr><name>FilterCallback</name></expr></argument>, <argument><expr><name><name>filter_sys</name><operator>-&gt;</operator><name>p_data</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>var_Destroy</name><argument_list>(<argument><expr><name>obj</name></expr></argument>, <argument><expr><name><name>adjust_params_names</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></for>
+
+<expr_stmt><expr><call><name>free</name><argument_list>(<argument><expr><name><name>filter_sys</name><operator>-&gt;</operator><name>p_data</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>Close</name><argument_list>(<argument><expr><name>filter</name></expr></argument>, <argument><expr><name>filter_sys</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type>
+
+<name>BasicFilter_UpdateVAFilterParams</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type> <name>p_data</name></decl></parameter>, <parameter><decl><type><name>void</name> <modifier>*</modifier></type> <name>va_params</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name><name>struct</name> <name>basic_filter_data</name></name> <modifier>*</modifier><specifier>const</specifier></type> <name>p_basic_filter_data</name> <init>= <expr><name>p_data</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>const</specifier> <specifier>_Atomic</specifier> <name>float</name> <modifier>*</modifier></type><name>drv_value</name> <init>= <expr><operator>&amp;</operator><name><name>p_basic_filter_data</name><operator>-&gt;</operator><name>sigma</name><operator>.</operator><name>drv_value</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>VAProcFilterParameterBuffer</name> <modifier>*</modifier><specifier>const</specifier></type> <name>p_va_param</name> <init>= <expr><name>va_params</name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>p_va_param</name><operator>-&gt;</operator><name>value</name></name> <operator>=</operator> <call><name>atomic_load_explicit</name><argument_list>(<argument><expr><name>drv_value</name></expr></argument>, <argument><expr><name>memory_order_relaxed</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>picture_t</name> <modifier>*</modifier></type>
+
+<name>BasicFilter</name><parameter_list>(<parameter><decl><type><name>filter_t</name> <modifier>*</modifier></type> <name>filter</name></decl></parameter>, <parameter><decl><type><name>picture_t</name> <modifier>*</modifier></type> <name>src</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>picture_t</name> <modifier>*</modifier><specifier>const</specifier></type> <name>dest</name> <init>=
+
+<expr><call><name>Filter</name><argument_list>(<argument><expr><name>filter</name></expr></argument>, <argument><expr><name>src</name></expr></argument>, <argument><expr><name>BasicFilter_UpdateVAFilterParams</name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>picture_Release</name><argument_list>(<argument><expr><name>src</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>dest</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type>
+
+<name>OpenBasicFilter_InitFilterParams</name><parameter_list>(<parameter><decl><type><name>filter_t</name> <modifier>*</modifier></type> <name>filter</name></decl></parameter>, <parameter><decl><type><name>void</name> <modifier>*</modifier></type> <name>p_data</name></decl></parameter>,
+
+<parameter><decl><type><name>void</name> <modifier>*</modifier><modifier>*</modifier></type> <name>pp_va_params</name></decl></parameter>,
+
+<parameter><decl><type><name>uint32_t</name> <modifier>*</modifier></type> <name>p_va_param_sz</name></decl></parameter>,
+
+<parameter><decl><type><name>uint32_t</name> <modifier>*</modifier></type> <name>p_num_va_params</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>basic_filter_data</name></name> <modifier>*</modifier><specifier>const</specifier></type> <name>p_basic_filter_data</name> <init>= <expr><name>p_data</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>filter_sys_t</name> <modifier>*</modifier><specifier>const</specifier></type> <name>filter_sys</name> <init>= <expr><name><name>filter</name><operator>-&gt;</operator><name>p_sys</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>VAProcFilterCap</name></type> <name>caps</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>unsigned</name> <name>int</name></type> <name>num_caps</name> <init>= <expr><literal type="number">1</literal></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>vlc_vaapi_QueryVideoProcFilterCaps</name><argument_list>(<argument><expr><call><name>VLC_OBJECT</name><argument_list>(<argument><expr><name>filter</name></expr></argument>)</argument_list></call></expr></argument>,
+
+<argument><expr><name><name>filter_sys</name><operator>-&gt;</operator><name>va</name><operator>.</operator><name>dpy</name></name></expr></argument>,
+
+<argument><expr><name><name>filter_sys</name><operator>-&gt;</operator><name>va</name><operator>.</operator><name>buf</name></name></expr></argument>,
+
+<argument><expr><name><name>p_basic_filter_data</name><operator>-&gt;</operator><name>filter_type</name></name></expr></argument>,
+
+<argument><expr><operator>&amp;</operator><name>caps</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>num_caps</name></expr></argument>)</argument_list></call>
+
+<operator>||</operator> <operator>!</operator><name>num_caps</name></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>VLC_EGENERIC</name></expr>;</return></block_content></block></if></if_stmt>
+
+<decl_stmt><decl><type><name>float</name> <specifier>const</specifier></type> <name>vlc_sigma</name> <init>=
+
+<expr><call><name>VLC_CLIP</name><argument_list>(<argument><expr><call><name>var_InheritFloat</name><argument_list>(<argument><expr><name>filter</name></expr></argument>, <argument><expr><name><name>p_basic_filter_data</name><operator>-&gt;</operator><name>sigma</name><operator>.</operator><name>psz_name</name></name></expr></argument>)</argument_list></call></expr></argument>,
+
+<argument><expr><name><name>p_basic_filter_data</name><operator>-&gt;</operator><name>sigma</name><operator>.</operator><name>p_vlc_range</name><operator>-&gt;</operator><name>min_value</name></name></expr></argument>,
+
+<argument><expr><name><name>p_basic_filter_data</name><operator>-&gt;</operator><name>sigma</name><operator>.</operator><name>p_vlc_range</name><operator>-&gt;</operator><name>max_value</name></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>p_basic_filter_data</name><operator>-&gt;</operator><name>sigma</name><operator>.</operator><name>drv_range</name></name> <operator>=</operator> <name><name>caps</name><operator>.</operator><name>range</name></name></expr>;</expr_stmt>
+
+<decl_stmt><decl><type><name>float</name> <specifier>const</specifier></type> <name>drv_sigma</name> <init>=
+
+<expr><call><name>GET_DRV_SIGMA</name><argument_list>(<argument><expr><name>vlc_sigma</name></expr></argument>, <argument><expr><operator>*</operator><name><name>p_basic_filter_data</name><operator>-&gt;</operator><name>sigma</name><operator>.</operator><name>p_vlc_range</name></name></expr></argument>,
+
+<argument><expr><name><name>p_basic_filter_data</name><operator>-&gt;</operator><name>sigma</name><operator>.</operator><name>drv_range</name></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>atomic_init</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>p_basic_filter_data</name><operator>-&gt;</operator><name>sigma</name><operator>.</operator><name>drv_value</name></name></expr></argument>, <argument><expr><name>drv_sigma</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<decl_stmt><decl><type><name>VAProcFilterParameterBuffer</name> <modifier>*</modifier></type> <name>p_va_param</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><operator>*</operator><name>p_va_param_sz</name> <operator>=</operator> <sizeof>sizeof<argument_list>(<argument><expr><operator>*</operator><name>p_va_param</name></expr></argument>)</argument_list></sizeof></expr>;</expr_stmt>
+
+<expr_stmt><expr><operator>*</operator><name>p_num_va_params</name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>p_va_param</name> <operator>=</operator> <call><name>calloc</name><argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr><operator>*</operator><name>p_va_param</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>p_va_param</name></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>VLC_ENOMEM</name></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name><name>p_va_param</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name><name>p_basic_filter_data</name><operator>-&gt;</operator><name>filter_type</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><operator>*</operator><name>pp_va_params</name> <operator>=</operator> <name>p_va_param</name></expr>;</expr_stmt>
+
+<return>return <expr><name>VLC_SUCCESS</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type>
+
+<name>OpenBasicFilter</name><parameter_list>(<parameter><decl><type><name>vlc_object_t</name> <modifier>*</modifier></type> <name>obj</name></decl></parameter>, <parameter><decl><type><name>VAProcFilterType</name></type> <name>filter_type</name></decl></parameter>,
+
+<parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>psz_sigma_name</name></decl></parameter>, <parameter><decl><type><name><name>struct</name> <name>range</name></name> <specifier>const</specifier> <modifier>*</modifier></type><name>p_vlc_range</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>VAProcPipelineCaps</name></type> <name>pipeline_caps</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>filter_t</name> <modifier>*</modifier><specifier>const</specifier></type> <name>filter</name> <init>= <expr><operator>(</operator><name>filter_t</name> <operator>*</operator><operator>)</operator><name>obj</name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>assert</name><argument_list>(<argument><expr><name><name>filter</name><operator>-&gt;</operator><name>psz_name</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>basic_filter_data</name></name> <modifier>*</modifier><specifier>const</specifier></type> <name>p_data</name> <init>= <expr><call><name>calloc</name><argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr><operator>*</operator><name>p_data</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>p_data</name></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>VLC_ENOMEM</name></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name><name>p_data</name><operator>-&gt;</operator><name>filter_type</name></name> <operator>=</operator> <name>filter_type</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>p_data</name><operator>-&gt;</operator><name>sigma</name><operator>.</operator><name>psz_name</name></name> <operator>=</operator> <name>psz_sigma_name</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>p_data</name><operator>-&gt;</operator><name>sigma</name><operator>.</operator><name>p_vlc_range</name></name> <operator>=</operator> <name>p_vlc_range</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>var_Create</name><argument_list>(<argument><expr><name>obj</name></expr></argument>, <argument><expr><name><name>p_data</name><operator>-&gt;</operator><name>sigma</name><operator>.</operator><name>psz_name</name></name></expr></argument>,
+
+<argument><expr><name>VLC_VAR_FLOAT</name> <operator>|</operator> <name>VLC_VAR_DOINHERIT</name> <operator>|</operator> <name>VLC_VAR_ISCOMMAND</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>Open</name><argument_list>(<argument><expr><name>filter</name></expr></argument>, <argument><expr><name><name>p_data</name><operator>-&gt;</operator><name>filter_type</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name>pipeline_caps</name></expr></argument>, <argument><expr><name>p_data</name></expr></argument>,
+
+<argument><expr><name>OpenBasicFilter_InitFilterParams</name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+
+<goto>goto <name>error</name>;</goto></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>var_AddCallback</name><argument_list>(<argument><expr><name>obj</name></expr></argument>, <argument><expr><name><name>p_data</name><operator>-&gt;</operator><name>sigma</name><operator>.</operator><name>psz_name</name></name></expr></argument>, <argument><expr><name>FilterCallback</name></expr></argument>, <argument><expr><name>p_data</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>filter</name><operator>-&gt;</operator><name>pf_video_filter</name></name> <operator>=</operator> <name>BasicFilter</name></expr>;</expr_stmt>
+
+<return>return <expr><name>VLC_SUCCESS</name></expr>;</return>
+
+<label><name>error</name>:</label>
+
+<expr_stmt><expr><call><name>var_Destroy</name><argument_list>(<argument><expr><name>obj</name></expr></argument>, <argument><expr><name><name>p_data</name><operator>-&gt;</operator><name>sigma</name><operator>.</operator><name>psz_name</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>free</name><argument_list>(<argument><expr><name>p_data</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>VLC_EGENERIC</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type>
+
+<name>OpenDenoiseFilter</name><parameter_list>(<parameter><decl><type><name>vlc_object_t</name> <modifier>*</modifier></type> <name>obj</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<return>return <expr><call><name>OpenBasicFilter</name><argument_list>(<argument><expr><name>obj</name></expr></argument>, <argument><expr><name>VAProcFilterNoiseReduction</name></expr></argument>, <argument><expr><literal type="string">"denoise-sigma"</literal></expr></argument>,
+
+<argument><expr><operator>&amp;</operator><name>vlc_denoise_sigma_range</name></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type>
+
+<name>OpenSharpenFilter</name><parameter_list>(<parameter><decl><type><name>vlc_object_t</name> <modifier>*</modifier></type> <name>obj</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<return>return <expr><call><name>OpenBasicFilter</name><argument_list>(<argument><expr><name>obj</name></expr></argument>, <argument><expr><name>VAProcFilterSharpening</name></expr></argument>, <argument><expr><literal type="string">"sharpen-sigma"</literal></expr></argument>,
+
+<argument><expr><operator>&amp;</operator><name>vlc_sharpen_sigma_range</name></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type>
+
+<name>CloseBasicFilter</name><parameter_list>(<parameter><decl><type><name>vlc_object_t</name> <modifier>*</modifier></type> <name>obj</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>filter_t</name> <modifier>*</modifier><specifier>const</specifier></type> <name>filter</name> <init>= <expr><operator>(</operator><name>filter_t</name> <operator>*</operator><operator>)</operator><name>obj</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>filter_sys_t</name> <modifier>*</modifier><specifier>const</specifier></type> <name>filter_sys</name> <init>= <expr><name><name>filter</name><operator>-&gt;</operator><name>p_sys</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>basic_filter_data</name></name> <modifier>*</modifier><specifier>const</specifier></type> <name>p_data</name> <init>= <expr><name><name>filter_sys</name><operator>-&gt;</operator><name>p_data</name></name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>var_DelCallback</name><argument_list>(<argument><expr><name>obj</name></expr></argument>, <argument><expr><name><name>p_data</name><operator>-&gt;</operator><name>sigma</name><operator>.</operator><name>psz_name</name></name></expr></argument>, <argument><expr><name>FilterCallback</name></expr></argument>, <argument><expr><name>p_data</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>var_Destroy</name><argument_list>(<argument><expr><name>obj</name></expr></argument>, <argument><expr><name><name>p_data</name><operator>-&gt;</operator><name>sigma</name><operator>.</operator><name>psz_name</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>free</name><argument_list>(<argument><expr><name>p_data</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>Close</name><argument_list>(<argument><expr><name>filter</name></expr></argument>, <argument><expr><name>filter_sys</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>picture_t</name> <modifier>*</modifier></type>
+
+<name>Deinterlace_UpdateHistory</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>deint_data</name></name> <modifier>*</modifier></type> <name>p_deint_data</name></decl></parameter>, <parameter><decl><type><name>picture_t</name> <modifier>*</modifier></type> <name>src</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><name><name>p_deint_data</name><operator>-&gt;</operator><name>history</name><operator>.</operator><name>num_pics</name></name> <operator>==</operator> <name><name>p_deint_data</name><operator>-&gt;</operator><name>history</name><operator>.</operator><name>sz</name></name></expr>)</condition>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>picture_Release</name><argument_list>(<argument><expr><operator>*</operator><name><name>p_deint_data</name><operator>-&gt;</operator><name>history</name><operator>.</operator><name>pp_pics</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>memmove</name><argument_list>(<argument><expr><name><name>p_deint_data</name><operator>-&gt;</operator><name>history</name><operator>.</operator><name>pp_pics</name></name></expr></argument>, <argument><expr><name><name>p_deint_data</name><operator>-&gt;</operator><name>history</name><operator>.</operator><name>pp_pics</name></name> <operator>+</operator> <literal type="number">1</literal></expr></argument>,
+
+<argument><expr><operator>--</operator><name><name>p_deint_data</name><operator>-&gt;</operator><name>history</name><operator>.</operator><name>num_pics</name></name> <operator>*</operator> <sizeof>sizeof<argument_list>(<argument><expr><name>picture_t</name> <operator>*</operator></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>p_deint_data</name><operator>-&gt;</operator><name>history</name><operator>.</operator><name>pp_pics</name><index>[<expr><name><name>p_deint_data</name><operator>-&gt;</operator><name>history</name><operator>.</operator><name>num_pics</name></name><operator>++</operator></expr>]</index></name> <operator>=</operator> <name>src</name></expr>;</expr_stmt>
+
+<return>return <expr><operator>*</operator><name><name>p_deint_data</name><operator>-&gt;</operator><name>history</name><operator>.</operator><name>pp_cur_pic</name></name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type>
+
+<name>Deinterlace_UpdateFilterParams</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type> <name>p_data</name></decl></parameter>, <parameter><decl><type><name>void</name> <modifier>*</modifier></type> <name>va_params</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>deint_data</name></name> <modifier>*</modifier><specifier>const</specifier></type> <name>p_deint_data</name> <init>= <expr><name>p_data</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>VAProcFilterParameterBufferDeinterlacing</name> <modifier>*</modifier><specifier>const</specifier></type> <name>p_va_params</name> <init>= <expr><name>va_params</name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>p_va_params</name><operator>-&gt;</operator><name>flags</name></name> <operator>=</operator>
+
+<ternary><condition><expr><name><name>p_deint_data</name><operator>-&gt;</operator><name>history</name><operator>.</operator><name>pp_cur_pic</name><index>[<expr><literal type="number">0</literal></expr>]</index></name><operator>-&gt;</operator><name>b_top_field_first</name></expr> ?</condition><then>
+
+<expr><literal type="number">0</literal></expr> </then><else>: <expr><name>VA_DEINTERLACING_BOTTOM_FIELD_FIRST</name></expr></else></ternary></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>p_deint_data</name><operator>-&gt;</operator><name>cur_frame</name></name> <operator>==</operator>
+
+<operator>(</operator><ternary><condition><expr><name><name>p_deint_data</name><operator>-&gt;</operator><name>history</name><operator>.</operator><name>pp_cur_pic</name><index>[<expr><literal type="number">0</literal></expr>]</index></name><operator>-&gt;</operator><name>b_top_field_first</name></expr> ?</condition><then> <expr><literal type="number">1</literal></expr> </then><else>: <expr><literal type="number">0</literal></expr></else></ternary><operator>)</operator></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name><name>p_va_params</name><operator>-&gt;</operator><name>flags</name></name> <operator>|=</operator> <name>VA_DEINTERLACING_BOTTOM_FIELD</name></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type>
+
+<name>Deinterlace_UpdateReferenceFrames</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type> <name>p_data</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>deint_data</name></name> <modifier>*</modifier><specifier>const</specifier></type> <name>p_deint_data</name> <init>= <expr><name>p_data</name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>p_deint_data</name><operator>-&gt;</operator><name>backward_refs</name><operator>.</operator><name>sz</name></name></expr>)</condition><block type="pseudo"><block_content>
+
+<for>for <control>(<init><decl><type><name>unsigned</name> <name>int</name></type> <name>i</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name><name>p_deint_data</name><operator>-&gt;</operator><name>backward_refs</name><operator>.</operator><name>sz</name></name></expr>;</condition> <incr><expr><operator>++</operator><name>i</name></expr></incr>)</control>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>unsigned</name> <name>int</name> <specifier>const</specifier></type> <name>idx</name> <init>= <expr><name><name>p_deint_data</name><operator>-&gt;</operator><name>forward_refs</name><operator>.</operator><name>sz</name></name> <operator>+</operator> <literal type="number">1</literal> <operator>+</operator> <name>i</name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>p_deint_data</name><operator>-&gt;</operator><name>backward_refs</name><operator>.</operator><name>surfaces</name><index>[<expr><name>i</name></expr>]</index></name> <operator>=</operator>
+
+<call><name>vlc_vaapi_PicGetSurface</name><argument_list>(<argument><expr><name><name>p_deint_data</name><operator>-&gt;</operator><name>history</name><operator>.</operator><name>pp_pics</name><index>[<expr><name>idx</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></for></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>p_deint_data</name><operator>-&gt;</operator><name>forward_refs</name><operator>.</operator><name>sz</name></name></expr>)</condition><block type="pseudo"><block_content>
+
+<for>for <control>(<init><decl><type><name>unsigned</name> <name>int</name></type> <name>i</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name><name>p_deint_data</name><operator>-&gt;</operator><name>forward_refs</name><operator>.</operator><name>sz</name></name></expr>;</condition> <incr><expr><operator>++</operator><name>i</name></expr></incr>)</control>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>unsigned</name> <name>int</name> <specifier>const</specifier></type> <name>idx</name> <init>= <expr><name><name>p_deint_data</name><operator>-&gt;</operator><name>forward_refs</name><operator>.</operator><name>sz</name></name> <operator>-</operator> <literal type="number">1</literal> <operator>-</operator> <name>i</name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>p_deint_data</name><operator>-&gt;</operator><name>forward_refs</name><operator>.</operator><name>surfaces</name><index>[<expr><name>i</name></expr>]</index></name> <operator>=</operator>
+
+<call><name>vlc_vaapi_PicGetSurface</name><argument_list>(<argument><expr><name><name>p_deint_data</name><operator>-&gt;</operator><name>history</name><operator>.</operator><name>pp_pics</name><index>[<expr><name>idx</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></for></block_content></block></if></if_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type>
+
+<name>Deinterlace_UpdatePipelineParams</name>
+
+<parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type> <name>p_data</name></decl></parameter>, <parameter><decl><type><name>VAProcPipelineParameterBuffer</name> <modifier>*</modifier></type> <name>pipeline_param</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>deint_data</name></name> <modifier>*</modifier><specifier>const</specifier></type> <name>p_deint_data</name> <init>= <expr><name>p_data</name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>pipeline_param</name><operator>-&gt;</operator><name>backward_references</name></name> <operator>=</operator> <name><name>p_deint_data</name><operator>-&gt;</operator><name>backward_refs</name><operator>.</operator><name>surfaces</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>pipeline_param</name><operator>-&gt;</operator><name>forward_references</name></name> <operator>=</operator> <name><name>p_deint_data</name><operator>-&gt;</operator><name>forward_refs</name><operator>.</operator><name>surfaces</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>pipeline_param</name><operator>-&gt;</operator><name>num_backward_references</name></name> <operator>=</operator> <name><name>p_deint_data</name><operator>-&gt;</operator><name>backward_refs</name><operator>.</operator><name>sz</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>pipeline_param</name><operator>-&gt;</operator><name>num_forward_references</name></name> <operator>=</operator> <name><name>p_deint_data</name><operator>-&gt;</operator><name>forward_refs</name><operator>.</operator><name>sz</name></name></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>picture_t</name> <modifier>*</modifier></type>
+
+<name>Deinterlace</name><parameter_list>(<parameter><decl><type><name>filter_t</name> <modifier>*</modifier></type> <name>filter</name></decl></parameter>, <parameter><decl><type><name>picture_t</name> <modifier>*</modifier></type> <name>src</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>filter_sys_t</name> <modifier>*</modifier><specifier>const</specifier></type> <name>filter_sys</name> <init>= <expr><name><name>filter</name><operator>-&gt;</operator><name>p_sys</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>deint_data</name></name> <modifier>*</modifier><specifier>const</specifier></type> <name>p_deint_data</name> <init>= <expr><name><name>filter_sys</name><operator>-&gt;</operator><name>p_data</name></name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>src</name> <operator>=</operator> <call><name>Deinterlace_UpdateHistory</name><argument_list>(<argument><expr><name>p_deint_data</name></expr></argument>, <argument><expr><name>src</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>p_deint_data</name><operator>-&gt;</operator><name>history</name><operator>.</operator><name>num_pics</name></name> <operator>&lt;</operator> <name><name>p_deint_data</name><operator>-&gt;</operator><name>history</name><operator>.</operator><name>sz</name></name></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>NULL</name></expr>;</return></block_content></block></if></if_stmt>
+
+<decl_stmt><decl><type><name>picture_t</name> <modifier>*</modifier><specifier>const</specifier></type> <name>dest</name> <init>=
+
+<expr><call><name>Filter</name><argument_list>(<argument><expr><name>filter</name></expr></argument>, <argument><expr><name>src</name></expr></argument>,
+
+<argument><expr><name>Deinterlace_UpdateFilterParams</name></expr></argument>,
+
+<argument><expr><name>Deinterlace_UpdateReferenceFrames</name></expr></argument>,
+
+<argument><expr><name>Deinterlace_UpdatePipelineParams</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>dest</name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name><name>dest</name><operator>-&gt;</operator><name>b_progressive</name></name> <operator>=</operator> <name>true</name></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<return>return <expr><name>dest</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>picture_t</name> <modifier>*</modifier></type>
+
+<name>DeinterlaceX2</name><parameter_list>(<parameter><decl><type><name>filter_t</name> <modifier>*</modifier></type> <name>filter</name></decl></parameter>, <parameter><decl><type><name>picture_t</name> <modifier>*</modifier></type> <name>src</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>filter_sys_t</name> <modifier>*</modifier><specifier>const</specifier></type> <name>filter_sys</name> <init>= <expr><name><name>filter</name><operator>-&gt;</operator><name>p_sys</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>deint_data</name></name> <modifier>*</modifier><specifier>const</specifier></type> <name>p_deint_data</name> <init>= <expr><name><name>filter_sys</name><operator>-&gt;</operator><name>p_data</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>video_format_t</name> <modifier>*</modifier></type> <name>fmt</name> <init>= <expr><operator>&amp;</operator><name><name>filter</name><operator>-&gt;</operator><name>fmt_out</name><operator>.</operator><name>video</name></name></expr></init></decl>;</decl_stmt>
+
+<for>for <control>(<init><decl><type><name>unsigned</name> <name>int</name></type> <name>i</name> <init>= <expr><literal type="number">1</literal></expr></init></decl>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>METADATA_SIZE</name></expr>;</condition> <incr><expr><operator>++</operator><name>i</name></expr></incr>)</control><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name><name>p_deint_data</name><operator>-&gt;</operator><name>meta</name><index>[<expr><name>i</name><operator>-</operator><literal type="number">1</literal></expr>]</index></name> <operator>=</operator> <name><name>p_deint_data</name><operator>-&gt;</operator><name>meta</name><index>[<expr><name>i</name></expr>]</index></name></expr>;</expr_stmt></block_content></block></for>
+
+<expr_stmt><expr><name><name>p_deint_data</name><operator>-&gt;</operator><name>meta</name><index>[<expr><name>METADATA_SIZE</name><operator>-</operator><literal type="number">1</literal></expr>]</index></name><operator>.</operator><name>date</name> <operator>=</operator> <name><name>src</name><operator>-&gt;</operator><name>date</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>p_deint_data</name><operator>-&gt;</operator><name>meta</name><index>[<expr><name>METADATA_SIZE</name><operator>-</operator><literal type="number">1</literal></expr>]</index></name><operator>.</operator><name>i_nb_fields</name> <operator>=</operator> <name><name>src</name><operator>-&gt;</operator><name>i_nb_fields</name></name></expr>;</expr_stmt>
+
+<decl_stmt><decl><type><name>picture_t</name> <modifier>*</modifier></type> <name>cur</name> <init>= <expr><call><name>Deinterlace_UpdateHistory</name><argument_list>(<argument><expr><name>p_deint_data</name></expr></argument>, <argument><expr><name>src</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>p_deint_data</name><operator>-&gt;</operator><name>history</name><operator>.</operator><name>num_pics</name></name> <operator>&lt;</operator> <name><name>p_deint_data</name><operator>-&gt;</operator><name>history</name><operator>.</operator><name>sz</name></name></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>NULL</name></expr>;</return></block_content></block></if></if_stmt>
+
+<decl_stmt><decl><type><name>vlc_tick_t</name></type> <name>i_field_dur</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>unsigned</name> <name>int</name></type> <name>i</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+
+<for>for <control>( <init>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>METADATA_SIZE</name><operator>-</operator><literal type="number">1</literal></expr>;</condition> <incr><expr><name>i</name> <operator>++</operator></expr></incr>)</control><block type="pseudo"><block_content>
+
+<if_stmt><if>if <condition>(<expr><name><name>p_deint_data</name><operator>-&gt;</operator><name>meta</name><index>[<expr><name>i</name></expr>]</index></name><operator>.</operator><name>date</name> <operator>!=</operator> <name>VLC_TICK_INVALID</name></expr>)</condition><block type="pseudo"><block_content>
+
+<break>break;</break></block_content></block></if></if_stmt></block_content></block></for>
+
+<if_stmt><if>if <condition>(<expr><name>i</name> <operator>&lt;</operator> <name>METADATA_SIZE</name><operator>-</operator><literal type="number">1</literal></expr>)</condition> <block>{<block_content>
+
+<decl_stmt><decl><type><name>unsigned</name> <name>int</name></type> <name>i_fields_total</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+
+<for>for <control>(<init><decl><type><name>unsigned</name> <name>int</name></type> <name>j</name> <init>= <expr><name>i</name></expr></init></decl>;</init> <condition><expr><name>j</name> <operator>&lt;</operator> <name>METADATA_SIZE</name><operator>-</operator><literal type="number">1</literal></expr>;</condition> <incr><expr><operator>++</operator><name>j</name></expr></incr>)</control><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name>i_fields_total</name> <operator>+=</operator> <name><name>p_deint_data</name><operator>-&gt;</operator><name>meta</name><index>[<expr><name>j</name></expr>]</index></name><operator>.</operator><name>i_nb_fields</name></expr>;</expr_stmt></block_content></block></for>
+
+<expr_stmt><expr><name>i_field_dur</name> <operator>=</operator> <operator>(</operator><name><name>src</name><operator>-&gt;</operator><name>date</name></name> <operator>-</operator> <name><name>p_deint_data</name><operator>-&gt;</operator><name>meta</name><index>[<expr><name>i</name></expr>]</index></name><operator>.</operator><name>date</name><operator>)</operator> <operator>/</operator> <name>i_fields_total</name></expr>;</expr_stmt>
+
+</block_content>}</block></if>
+
+<if type="elseif">else if <condition>(<expr><name><name>fmt</name><operator>-&gt;</operator><name>i_frame_rate_base</name></name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name>i_field_dur</name> <operator>=</operator> <call><name>vlc_tick_from_samples</name><argument_list>(<argument><expr><name><name>fmt</name><operator>-&gt;</operator><name>i_frame_rate_base</name></name></expr></argument>, <argument><expr><name><name>fmt</name><operator>-&gt;</operator><name>i_frame_rate</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<decl_stmt><decl><type><name>picture_t</name> <modifier>*</modifier></type><name><name>dest</name><index>[<expr><literal type="number">2</literal></expr>]</index></name> <init>= <expr><block>{<expr><name>NULL</name></expr>, <expr><name>NULL</name></expr>}</block></expr></init></decl>;</decl_stmt>
+
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <literal type="number">2</literal></expr>;</condition> <incr><expr><operator>++</operator><name>i</name></expr></incr>)</control>
+
+<block>{<block_content>
+
+<expr_stmt><expr><name><name>p_deint_data</name><operator>-&gt;</operator><name>cur_frame</name></name> <operator>=</operator> <name>i</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>dest</name><index>[<expr><name>i</name></expr>]</index></name> <operator>=</operator> <call><name>Filter</name><argument_list>(<argument><expr><name>filter</name></expr></argument>, <argument><expr><name>cur</name></expr></argument>,
+
+<argument><expr><name>Deinterlace_UpdateFilterParams</name></expr></argument>,
+
+<argument><expr><name>Deinterlace_UpdateReferenceFrames</name></expr></argument>,
+
+<argument><expr><name>Deinterlace_UpdatePipelineParams</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>dest</name><index>[<expr><name>i</name></expr>]</index></name></expr>)</condition><block type="pseudo"><block_content>
+
+<goto>goto <name>error</name>;</goto></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name><name>dest</name><index>[<expr><name>i</name></expr>]</index></name><operator>-&gt;</operator><name>b_progressive</name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>dest</name><index>[<expr><name>i</name></expr>]</index></name><operator>-&gt;</operator><name>i_nb_fields</name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+
+</block_content>}</block></for>
+
+<expr_stmt><expr><name><name>dest</name><index>[<expr><literal type="number">0</literal></expr>]</index></name><operator>-&gt;</operator><name>p_next</name> <operator>=</operator> <name><name>dest</name><index>[<expr><literal type="number">1</literal></expr>]</index></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>dest</name><index>[<expr><literal type="number">0</literal></expr>]</index></name><operator>-&gt;</operator><name>date</name> <operator>=</operator> <name><name>cur</name><operator>-&gt;</operator><name>date</name></name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>dest</name><index>[<expr><literal type="number">0</literal></expr>]</index></name><operator>-&gt;</operator><name>date</name> <operator>!=</operator> <name>VLC_TICK_INVALID</name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name><name>dest</name><index>[<expr><literal type="number">1</literal></expr>]</index></name><operator>-&gt;</operator><name>date</name> <operator>=</operator> <name><name>dest</name><index>[<expr><literal type="number">0</literal></expr>]</index></name><operator>-&gt;</operator><name>date</name> <operator>+</operator> <name>i_field_dur</name></expr>;</expr_stmt></block_content></block></if>
+
+<else>else<block type="pseudo"><block_content>
+
+<expr_stmt><expr><name><name>dest</name><index>[<expr><literal type="number">1</literal></expr>]</index></name><operator>-&gt;</operator><name>date</name> <operator>=</operator> <name>VLC_TICK_INVALID</name></expr>;</expr_stmt></block_content></block></else></if_stmt>
+
+<return>return <expr><name><name>dest</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr>;</return>
+
+<label><name>error</name>:</label>
+
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <literal type="number">2</literal></expr>;</condition> <incr><expr><operator>++</operator><name>i</name></expr></incr>)</control><block type="pseudo"><block_content>
+
+<if_stmt><if>if <condition>(<expr><name><name>dest</name><index>[<expr><name>i</name></expr>]</index></name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>picture_Release</name><argument_list>(<argument><expr><name><name>dest</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt></block_content></block></for>
+
+<return>return <expr><name>NULL</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type>
+
+<name>Deinterlace_Flush</name><parameter_list>(<parameter><decl><type><name>filter_t</name> <modifier>*</modifier></type><name>filter</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>filter_sys_t</name> <modifier>*</modifier></type><name>p_sys</name> <init>= <expr><name><name>filter</name><operator>-&gt;</operator><name>p_sys</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>deint_data</name></name> <modifier>*</modifier><specifier>const</specifier></type> <name>p_deint_data</name> <init>= <expr><name><name>p_sys</name><operator>-&gt;</operator><name>p_data</name></name></expr></init></decl>;</decl_stmt>
+
+<while>while <condition>(<expr><name><name>p_deint_data</name><operator>-&gt;</operator><name>history</name><operator>.</operator><name>num_pics</name></name></expr>)</condition>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>picture_t</name> <modifier>*</modifier></type> <name>pic</name> <init>=
+
+<expr><name><name>p_deint_data</name><operator>-&gt;</operator><name>history</name><operator>.</operator><name>pp_pics</name><index>[<expr><operator>--</operator><name><name>p_deint_data</name><operator>-&gt;</operator><name>history</name><operator>.</operator><name>num_pics</name></name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>picture_Release</name><argument_list>(<argument><expr><name>pic</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></while>
+
+<for>for <control>(<init><decl><type><name>unsigned</name> <name>int</name></type> <name>i</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>METADATA_SIZE</name></expr>;</condition> <incr><expr><operator>++</operator><name>i</name></expr></incr>)</control>
+
+<block>{<block_content>
+
+<expr_stmt><expr><name><name>p_deint_data</name><operator>-&gt;</operator><name>meta</name><index>[<expr><name>i</name></expr>]</index></name><operator>.</operator><name>date</name> <operator>=</operator> <name>VLC_TICK_INVALID</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>p_deint_data</name><operator>-&gt;</operator><name>meta</name><index>[<expr><name>i</name></expr>]</index></name><operator>.</operator><name>i_nb_fields</name> <operator>=</operator> <literal type="number">2</literal></expr>;</expr_stmt>
+
+</block_content>}</block></for>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <specifier>inline</specifier> <name>bool</name></type>
+
+<name>OpenDeinterlace_IsValidType</name><parameter_list>(<parameter><decl><type><name>filter_t</name> <modifier>*</modifier></type> <name>filter</name></decl></parameter>,
+
+<parameter><decl><type><name>VAProcFilterCapDeinterlacing</name> <specifier>const</specifier></type> <name><name>caps</name><index>[]</index></name></decl></parameter>,
+
+<parameter><decl><type><name>unsigned</name> <name>int</name></type> <name>num_caps</name></decl></parameter>,
+
+<parameter><decl><type><name><name>struct</name> <name>deint_mode</name></name> <specifier>const</specifier> <modifier>*</modifier></type> <name>deint_mode</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><operator>(</operator><name>void</name><operator>)</operator> <name>filter</name></expr>;</expr_stmt>
+
+<for>for <control>(<init><decl><type><name>unsigned</name> <name>int</name></type> <name>j</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>j</name> <operator>&lt;</operator> <name>num_caps</name></expr>;</condition> <incr><expr><operator>++</operator><name>j</name></expr></incr>)</control><block type="pseudo"><block_content>
+
+<if_stmt><if>if <condition>(<expr><name><name>caps</name><index>[<expr><name>j</name></expr>]</index></name><operator>.</operator><name>type</name> <operator>==</operator> <name><name>deint_mode</name><operator>-&gt;</operator><name>type</name></name></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>true</name></expr>;</return></block_content></block></if></if_stmt></block_content></block></for>
+
+<return>return <expr><name>false</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <specifier>inline</specifier> <name>int</name></type>
+
+<name>OpenDeinterlace_GetMode</name><parameter_list>(<parameter><decl><type><name>filter_t</name> <modifier>*</modifier></type> <name>filter</name></decl></parameter>, <parameter><decl><type><name>char</name> <specifier>const</specifier> <modifier>*</modifier></type> <name>deint_mode</name></decl></parameter>,
+
+<parameter><decl><type><name><name>struct</name> <name>deint_mode</name></name> <modifier>*</modifier></type> <name>p_deint_mode</name></decl></parameter>,
+
+<parameter><decl><type><name>VAProcFilterCapDeinterlacing</name> <specifier>const</specifier></type> <name><name>caps</name><index>[]</index></name></decl></parameter>,
+
+<parameter><decl><type><name>unsigned</name> <name>int</name></type> <name>num_caps</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>bool</name></type> <name>fallback</name> <init>= <expr><name>false</name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>deint_mode</name> <operator>&amp;&amp;</operator> <call><name>strcmp</name><argument_list>(<argument><expr><name>deint_mode</name></expr></argument>, <argument><expr><literal type="string">"auto"</literal></expr></argument>)</argument_list></call></expr>)</condition>
+
+<block>{<block_content>
+
+<for>for <control>(<init><decl><type><name>unsigned</name> <name>int</name></type> <name>i</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <call><name>ARRAY_SIZE</name><argument_list>(<argument><expr><name>deint_modes</name></expr></argument>)</argument_list></call></expr>;</condition> <incr><expr><operator>++</operator><name>i</name></expr></incr>)</control>
+
+<block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>strcmp</name><argument_list>(<argument><expr><name>deint_mode</name></expr></argument>, <argument><expr><name><name>deint_modes</name><index>[<expr><name>i</name></expr>]</index></name><operator>.</operator><name>name</name></expr></argument>)</argument_list></call></expr>)</condition>
+
+<block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><call><name>OpenDeinterlace_IsValidType</name><argument_list>(<argument><expr><name>filter</name></expr></argument>, <argument><expr><name>caps</name></expr></argument>, <argument><expr><name>num_caps</name></expr></argument>,
+
+<argument><expr><name>deint_modes</name> <operator>+</operator> <name>i</name></expr></argument>)</argument_list></call></expr>)</condition>
+
+<block>{<block_content>
+
+<expr_stmt><expr><operator>*</operator><name>p_deint_mode</name> <operator>=</operator> <name><name>deint_modes</name><index>[<expr><name>i</name></expr>]</index></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>msg_Dbg</name><argument_list>(<argument><expr><name>filter</name></expr></argument>, <argument><expr><literal type="string">"using %s deinterlace method"</literal></expr></argument>,
+
+<argument><expr><name><name>deint_modes</name><index>[<expr><name>i</name></expr>]</index></name><operator>.</operator><name>name</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>VLC_SUCCESS</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></for>
+
+<expr_stmt><expr><name>fallback</name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<for>for <control>(<init><decl><type><name>unsigned</name> <name>int</name></type> <name>i</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <call><name>ARRAY_SIZE</name><argument_list>(<argument><expr><name>deint_modes</name></expr></argument>)</argument_list></call></expr>;</condition> <incr><expr><operator>++</operator><name>i</name></expr></incr>)</control><block type="pseudo"><block_content>
+
+<if_stmt><if>if <condition>(<expr><call><name>OpenDeinterlace_IsValidType</name><argument_list>(<argument><expr><name>filter</name></expr></argument>, <argument><expr><name>caps</name></expr></argument>, <argument><expr><name>num_caps</name></expr></argument>,
+
+<argument><expr><name>deint_modes</name> <operator>+</operator> <name>i</name></expr></argument>)</argument_list></call></expr>)</condition>
+
+<block>{<block_content>
+
+<expr_stmt><expr><operator>*</operator><name>p_deint_mode</name> <operator>=</operator> <name><name>deint_modes</name><index>[<expr><name>i</name></expr>]</index></name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>fallback</name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>msg_Info</name><argument_list>(<argument><expr><name>filter</name></expr></argument>, <argument><expr><literal type="string">"%s algorithm not available, falling back to "</literal>
+
+<literal type="string">"%s algorithm"</literal></expr></argument>, <argument><expr><name>deint_mode</name></expr></argument>, <argument><expr><name><name>deint_modes</name><index>[<expr><name>i</name></expr>]</index></name><operator>.</operator><name>name</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if>
+
+<else>else<block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>msg_Dbg</name><argument_list>(<argument><expr><name>filter</name></expr></argument>, <argument><expr><literal type="string">"using %s deinterlace method"</literal></expr></argument>,
+
+<argument><expr><name><name>deint_modes</name><index>[<expr><name>i</name></expr>]</index></name><operator>.</operator><name>name</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></else></if_stmt>
+
+<return>return <expr><name>VLC_SUCCESS</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt></block_content></block></for>
+
+<expr_stmt><expr><call><name>msg_Err</name><argument_list>(<argument><expr><name>filter</name></expr></argument>, <argument><expr><literal type="string">"no algorithm available"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>VLC_EGENERIC</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type>
+
+<name>OpenDeinterlace_InitFilterParams</name><parameter_list>(<parameter><decl><type><name>filter_t</name> <modifier>*</modifier></type> <name>filter</name></decl></parameter>, <parameter><decl><type><name>void</name> <modifier>*</modifier></type> <name>p_data</name></decl></parameter>,
+
+<parameter><decl><type><name>void</name> <modifier>*</modifier><modifier>*</modifier></type> <name>pp_va_params</name></decl></parameter>,
+
+<parameter><decl><type><name>uint32_t</name> <modifier>*</modifier></type> <name>p_va_param_sz</name></decl></parameter>,
+
+<parameter><decl><type><name>uint32_t</name> <modifier>*</modifier></type> <name>p_num_va_params</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>deint_data</name></name> <modifier>*</modifier><specifier>const</specifier></type> <name>p_deint_data</name> <init>= <expr><name>p_data</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>filter_sys_t</name> <modifier>*</modifier><specifier>const</specifier></type> <name>filter_sys</name> <init>= <expr><name><name>filter</name><operator>-&gt;</operator><name>p_sys</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>VAProcFilterCapDeinterlacing</name></type>
+
+<name><name>caps</name><index>[<expr><name>VAProcDeinterlacingCount</name></expr>]</index></name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>unsigned</name> <name>int</name></type> <name>num_caps</name> <init>= <expr><name>VAProcDeinterlacingCount</name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>vlc_vaapi_QueryVideoProcFilterCaps</name><argument_list>(<argument><expr><call><name>VLC_OBJECT</name><argument_list>(<argument><expr><name>filter</name></expr></argument>)</argument_list></call></expr></argument>,
+
+<argument><expr><name><name>filter_sys</name><operator>-&gt;</operator><name>va</name><operator>.</operator><name>dpy</name></name></expr></argument>,
+
+<argument><expr><name><name>filter_sys</name><operator>-&gt;</operator><name>va</name><operator>.</operator><name>buf</name></name></expr></argument>,
+
+<argument><expr><name>VAProcFilterDeinterlacing</name></expr></argument>,
+
+<argument><expr><operator>&amp;</operator><name>caps</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>num_caps</name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>VLC_EGENERIC</name></expr>;</return></block_content></block></if></if_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>deint_mode</name></name></type> <name>deint_mode</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>char</name> <modifier>*</modifier><specifier>const</specifier></type> <name>psz_deint_mode</name> <init>=
+
+<expr><call><name>var_InheritString</name><argument_list>(<argument><expr><name>filter</name></expr></argument>, <argument><expr><literal type="string">"deinterlace-mode"</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>ret</name> <init>= <expr><call><name>OpenDeinterlace_GetMode</name><argument_list>(<argument><expr><name>filter</name></expr></argument>, <argument><expr><name>psz_deint_mode</name></expr></argument>,
+
+<argument><expr><operator>&amp;</operator><name>deint_mode</name></expr></argument>, <argument><expr><name>caps</name></expr></argument>, <argument><expr><name>num_caps</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>free</name><argument_list>(<argument><expr><name>psz_deint_mode</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>ret</name></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>VLC_EGENERIC</name></expr>;</return></block_content></block></if></if_stmt>
+
+<decl_stmt><decl><type><name>VAProcFilterParameterBufferDeinterlacing</name> <modifier>*</modifier></type> <name>p_va_param</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><operator>*</operator><name>p_va_param_sz</name> <operator>=</operator> <sizeof>sizeof<argument_list>(<argument><expr><operator>*</operator><name>p_va_param</name></expr></argument>)</argument_list></sizeof></expr>;</expr_stmt>
+
+<expr_stmt><expr><operator>*</operator><name>p_num_va_params</name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>p_va_param</name> <operator>=</operator> <call><name>calloc</name><argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr><operator>*</operator><name>p_va_param</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>p_va_param</name></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>VLC_ENOMEM</name></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name><name>p_va_param</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>VAProcFilterDeinterlacing</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>p_va_param</name><operator>-&gt;</operator><name>algorithm</name></name> <operator>=</operator> <name><name>deint_mode</name><operator>.</operator><name>type</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><operator>*</operator><name>pp_va_params</name> <operator>=</operator> <name>p_va_param</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>p_deint_data</name><operator>-&gt;</operator><name>b_double_rate</name></name> <operator>=</operator> <name><name>deint_mode</name><operator>.</operator><name>b_double_rate</name></name></expr>;</expr_stmt>
+
+<return>return <expr><name>VLC_SUCCESS</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type>
+
+<name>OpenDeinterlace_InitHistory</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type> <name>p_data</name></decl></parameter>, <parameter><decl><type><name>VAProcPipelineCaps</name> <specifier>const</specifier> <modifier>*</modifier></type> <name>pipeline_caps</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>deint_data</name></name> <modifier>*</modifier><specifier>const</specifier></type> <name>p_deint_data</name> <init>= <expr><name>p_data</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>unsigned</name> <name>int</name> <specifier>const</specifier></type> <name>sz_backward_refs</name> <init>=
+
+<expr><name><name>pipeline_caps</name><operator>-&gt;</operator><name>num_backward_references</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>unsigned</name> <name>int</name> <specifier>const</specifier></type> <name>sz_forward_refs</name> <init>=
+
+<expr><name><name>pipeline_caps</name><operator>-&gt;</operator><name>num_forward_references</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>unsigned</name> <name>int</name> <specifier>const</specifier></type> <name>history_sz</name> <init>=
+
+<expr><name>sz_backward_refs</name> <operator>+</operator> <literal type="number">1</literal> <operator>+</operator> <name>sz_forward_refs</name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>p_deint_data</name><operator>-&gt;</operator><name>history</name><operator>.</operator><name>pp_pics</name></name> <operator>=</operator> <call><name>calloc</name><argument_list>(<argument><expr><name>history_sz</name></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr><name>picture_t</name> <operator>*</operator></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>p_deint_data</name><operator>-&gt;</operator><name>history</name><operator>.</operator><name>pp_pics</name></name></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>VLC_ENOMEM</name></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name><name>p_deint_data</name><operator>-&gt;</operator><name>history</name><operator>.</operator><name>pp_cur_pic</name></name> <operator>=</operator>
+
+<name><name>p_deint_data</name><operator>-&gt;</operator><name>history</name><operator>.</operator><name>pp_pics</name></name> <operator>+</operator> <name>sz_forward_refs</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>p_deint_data</name><operator>-&gt;</operator><name>history</name><operator>.</operator><name>num_pics</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>p_deint_data</name><operator>-&gt;</operator><name>history</name><operator>.</operator><name>sz</name></name> <operator>=</operator> <name>history_sz</name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>history_sz</name> <operator>-</operator> <literal type="number">1</literal></expr>)</condition>
+
+<block>{<block_content>
+
+<expr_stmt><expr><name><name>p_deint_data</name><operator>-&gt;</operator><name>forward_refs</name><operator>.</operator><name>surfaces</name></name> <operator>=</operator>
+
+<call><name>vlc_alloc</name><argument_list>(<argument><expr><name>history_sz</name> <operator>-</operator> <literal type="number">1</literal></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr><name>VASurfaceID</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>p_deint_data</name><operator>-&gt;</operator><name>forward_refs</name><operator>.</operator><name>surfaces</name></name></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>VLC_ENOMEM</name></expr>;</return></block_content></block></if></if_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>p_deint_data</name><operator>-&gt;</operator><name>backward_refs</name><operator>.</operator><name>surfaces</name></name> <operator>=</operator>
+
+<name><name>p_deint_data</name><operator>-&gt;</operator><name>forward_refs</name><operator>.</operator><name>surfaces</name></name> <operator>+</operator> <name>sz_forward_refs</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>p_deint_data</name><operator>-&gt;</operator><name>backward_refs</name><operator>.</operator><name>sz</name></name> <operator>=</operator> <name>sz_backward_refs</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>p_deint_data</name><operator>-&gt;</operator><name>forward_refs</name><operator>.</operator><name>sz</name></name> <operator>=</operator> <name>sz_forward_refs</name></expr>;</expr_stmt>
+
+<return>return <expr><name>VLC_SUCCESS</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type>
+
+<name>OpenDeinterlace</name><parameter_list>(<parameter><decl><type><name>vlc_object_t</name> <modifier>*</modifier></type> <name>obj</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>VAProcPipelineCaps</name></type> <name>pipeline_caps</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>filter_t</name> <modifier>*</modifier><specifier>const</specifier></type> <name>filter</name> <init>= <expr><operator>(</operator><name>filter_t</name> <operator>*</operator><operator>)</operator><name>obj</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>deint_data</name></name> <modifier>*</modifier><specifier>const</specifier></type> <name>p_data</name> <init>= <expr><call><name>calloc</name><argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr><operator>*</operator><name>p_data</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>p_data</name></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>VLC_ENOMEM</name></expr>;</return></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>Open</name><argument_list>(<argument><expr><name>filter</name></expr></argument>, <argument><expr><name>VAProcFilterDeinterlacing</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>pipeline_caps</name></expr></argument>, <argument><expr><name>p_data</name></expr></argument>,
+
+<argument><expr><name>OpenDeinterlace_InitFilterParams</name></expr></argument>, <argument><expr><name>OpenDeinterlace_InitHistory</name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+
+<goto>goto <name>error</name>;</goto></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>p_data</name><operator>-&gt;</operator><name>b_double_rate</name></name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name><name>filter</name><operator>-&gt;</operator><name>pf_video_filter</name></name> <operator>=</operator> <name>DeinterlaceX2</name></expr>;</expr_stmt></block_content></block></if>
+
+<else>else<block type="pseudo"><block_content>
+
+<expr_stmt><expr><name><name>filter</name><operator>-&gt;</operator><name>pf_video_filter</name></name> <operator>=</operator> <name>Deinterlace</name></expr>;</expr_stmt></block_content></block></else></if_stmt>
+
+<expr_stmt><expr><name><name>filter</name><operator>-&gt;</operator><name>pf_flush</name></name> <operator>=</operator> <name>Deinterlace_Flush</name></expr>;</expr_stmt>
+
+<for>for <control>(<init><decl><type><name>unsigned</name> <name>int</name></type> <name>i</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>METADATA_SIZE</name></expr>;</condition> <incr><expr><operator>++</operator><name>i</name></expr></incr>)</control>
+
+<block>{<block_content>
+
+<expr_stmt><expr><name><name>p_data</name><operator>-&gt;</operator><name>meta</name><index>[<expr><name>i</name></expr>]</index></name><operator>.</operator><name>date</name> <operator>=</operator> <name>VLC_TICK_INVALID</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>p_data</name><operator>-&gt;</operator><name>meta</name><index>[<expr><name>i</name></expr>]</index></name><operator>.</operator><name>i_nb_fields</name> <operator>=</operator> <literal type="number">2</literal></expr>;</expr_stmt>
+
+</block_content>}</block></for>
+
+<return>return <expr><name>VLC_SUCCESS</name></expr>;</return>
+
+<label><name>error</name>:</label>
+
+<if_stmt><if>if <condition>(<expr><name><name>p_data</name><operator>-&gt;</operator><name>forward_refs</name><operator>.</operator><name>surfaces</name></name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>free</name><argument_list>(<argument><expr><name><name>p_data</name><operator>-&gt;</operator><name>forward_refs</name><operator>.</operator><name>surfaces</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>p_data</name><operator>-&gt;</operator><name>history</name><operator>.</operator><name>pp_pics</name></name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>free</name><argument_list>(<argument><expr><name><name>p_data</name><operator>-&gt;</operator><name>history</name><operator>.</operator><name>pp_pics</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>free</name><argument_list>(<argument><expr><name>p_data</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>VLC_EGENERIC</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type>
+
+<name>CloseDeinterlace</name><parameter_list>(<parameter><decl><type><name>vlc_object_t</name> <modifier>*</modifier></type> <name>obj</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>filter_t</name> <modifier>*</modifier><specifier>const</specifier></type> <name>filter</name> <init>= <expr><operator>(</operator><name>filter_t</name> <operator>*</operator><operator>)</operator><name>obj</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>filter_sys_t</name> <modifier>*</modifier><specifier>const</specifier></type> <name>filter_sys</name> <init>= <expr><name><name>filter</name><operator>-&gt;</operator><name>p_sys</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>deint_data</name></name> <modifier>*</modifier><specifier>const</specifier></type> <name>p_data</name> <init>= <expr><name><name>filter_sys</name><operator>-&gt;</operator><name>p_data</name></name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>p_data</name><operator>-&gt;</operator><name>forward_refs</name><operator>.</operator><name>surfaces</name></name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>free</name><argument_list>(<argument><expr><name><name>p_data</name><operator>-&gt;</operator><name>forward_refs</name><operator>.</operator><name>surfaces</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>p_data</name><operator>-&gt;</operator><name>history</name><operator>.</operator><name>pp_pics</name></name></expr>)</condition>
+
+<block>{<block_content>
+
+<while>while <condition>(<expr><name><name>p_data</name><operator>-&gt;</operator><name>history</name><operator>.</operator><name>num_pics</name></name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>picture_Release</name><argument_list>(<argument><expr><name><name>p_data</name><operator>-&gt;</operator><name>history</name><operator>.</operator><name>pp_pics</name><index>[<expr><operator>--</operator><name><name>p_data</name><operator>-&gt;</operator><name>history</name><operator>.</operator><name>num_pics</name></name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></while>
+
+<expr_stmt><expr><call><name>free</name><argument_list>(<argument><expr><name><name>p_data</name><operator>-&gt;</operator><name>history</name><operator>.</operator><name>pp_pics</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>free</name><argument_list>(<argument><expr><name>p_data</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>Close</name><argument_list>(<argument><expr><name>filter</name></expr></argument>, <argument><expr><name>filter_sys</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<macro><name>vlc_module_begin</name><argument_list>()</argument_list></macro>
+
+<macro><name>set_shortname</name><argument_list>(<argument>N_(<literal type="string">"VAAPI filters"</literal>)</argument>)</argument_list></macro>
+
+<macro><name>set_description</name><argument_list>(<argument>N_(<literal type="string">"Video Accelerated API filters"</literal>)</argument>)</argument_list></macro>
+
+<macro><name>set_category</name><argument_list>(<argument>CAT_VIDEO</argument>)</argument_list></macro>
+
+<macro><name>set_subcategory</name><argument_list>(<argument>SUBCAT_VIDEO_VFILTER</argument>)</argument_list></macro>
+
+<macro><name>set_capability</name><argument_list>(<argument><literal type="string">"video filter"</literal></argument>, <argument><literal type="number">0</literal></argument>)</argument_list></macro>
+
+<macro><name>add_submodule</name><argument_list>()</argument_list></macro>
+
+<macro><name>set_callbacks</name><argument_list>(<argument>OpenAdjust</argument>, <argument>CloseAdjust</argument>)</argument_list></macro>
+
+<macro><name>add_shortcut</name><argument_list>(<argument><literal type="string">"adjust"</literal></argument>)</argument_list></macro>
+
+<macro><name>add_submodule</name><argument_list>()</argument_list></macro>
+
+<macro><name>set_callbacks</name><argument_list>(<argument>OpenDeinterlace</argument>, <argument>CloseDeinterlace</argument>)</argument_list></macro>
+
+<macro><name>add_shortcut</name><argument_list>(<argument><literal type="string">"deinterlace"</literal></argument>)</argument_list></macro>
+
+<macro><name>add_submodule</name><argument_list>()</argument_list></macro>
+
+<macro><name>set_callbacks</name><argument_list>(<argument>OpenDenoiseFilter</argument>, <argument>CloseBasicFilter</argument>)</argument_list></macro>
+
+<macro><name>add_float_with_range</name><argument_list>(<argument><literal type="string">"denoise-sigma"</literal></argument>, <argument><literal type="number">1.f</literal></argument>, <argument><literal type="number">.0f</literal></argument>, <argument><literal type="number">.0f</literal></argument>,
+
+<argument><literal type="string">"Denoise strength (0-2)"</literal></argument>,
+
+<argument><literal type="string">"Set the Denoise strength, between 0 and 2. "</literal>
+
+<literal type="string">"Defaults to 1."</literal></argument>,
+
+<argument>false</argument>)</argument_list></macro>
+
+<macro><name>add_shortcut</name><argument_list>(<argument><literal type="string">"denoise"</literal></argument>)</argument_list></macro>
+
+<macro><name>add_submodule</name><argument_list>()</argument_list></macro>
+
+<macro><name>set_callbacks</name><argument_list>(<argument>OpenSharpenFilter</argument>, <argument>CloseBasicFilter</argument>)</argument_list></macro>
+
+<macro><name>add_shortcut</name><argument_list>(<argument><literal type="string">"sharpen"</literal></argument>)</argument_list></macro>
+
+<macro><name>add_submodule</name><argument_list>()</argument_list></macro>
+
+<macro><name>set_capability</name><argument_list>(<argument><literal type="string">"video converter"</literal></argument>, <argument><literal type="number">10</literal></argument>)</argument_list></macro>
+
+<macro><name>set_callbacks</name><argument_list>(<argument>vlc_vaapi_OpenChroma</argument>, <argument>vlc_vaapi_CloseChroma</argument>)</argument_list></macro>
+
+<macro><name>vlc_module_end</name><argument_list>()</argument_list></macro>
+
+</unit>

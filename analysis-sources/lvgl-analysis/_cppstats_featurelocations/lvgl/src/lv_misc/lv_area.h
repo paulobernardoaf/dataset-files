@@ -1,0 +1,186 @@
+
+
+
+
+
+#if !defined(LV_AREA_H)
+#define LV_AREA_H
+
+#if defined(__cplusplus)
+extern "C" {
+#endif
+
+
+
+
+#include <string.h>
+#include <stdbool.h>
+#include <stdint.h>
+#if defined(LV_CONF_INCLUDE_SIMPLE)
+#include "lv_conf.h"
+#else
+#include "../../../lv_conf.h"
+#endif
+
+
+
+
+
+#define LV_COORD_MAX ((lv_coord_t)((uint32_t)((uint32_t)1 << (8 * sizeof(lv_coord_t) - 1)) - 1000))
+#define LV_COORD_MIN (-LV_COORD_MAX)
+
+LV_EXPORT_CONST_INT(LV_COORD_MAX);
+LV_EXPORT_CONST_INT(LV_COORD_MIN);
+
+
+
+
+
+
+
+
+typedef struct
+{
+lv_coord_t x;
+lv_coord_t y;
+} lv_point_t;
+
+
+typedef struct
+{
+lv_coord_t x1;
+lv_coord_t y1;
+lv_coord_t x2;
+lv_coord_t y2;
+} lv_area_t;
+
+
+
+
+
+
+
+
+
+
+
+
+
+void lv_area_set(lv_area_t * area_p, lv_coord_t x1, lv_coord_t y1, lv_coord_t x2, lv_coord_t y2);
+
+
+
+
+
+
+inline static void lv_area_copy(lv_area_t * dest, const lv_area_t * src)
+{
+memcpy(dest, src, sizeof(lv_area_t));
+}
+
+
+
+
+
+
+static inline lv_coord_t lv_area_get_width(const lv_area_t * area_p)
+{
+return (lv_coord_t)(area_p->x2 - area_p->x1 + 1);
+}
+
+
+
+
+
+
+static inline lv_coord_t lv_area_get_height(const lv_area_t * area_p)
+{
+return (lv_coord_t)(area_p->y2 - area_p->y1 + 1);
+}
+
+
+
+
+
+
+void lv_area_set_width(lv_area_t * area_p, lv_coord_t w);
+
+
+
+
+
+
+void lv_area_set_height(lv_area_t * area_p, lv_coord_t h);
+
+
+
+
+
+
+
+void lv_area_set_pos(lv_area_t * area_p, lv_coord_t x, lv_coord_t y);
+
+
+
+
+
+
+uint32_t lv_area_get_size(const lv_area_t * area_p);
+
+
+
+
+
+
+
+
+bool lv_area_intersect(lv_area_t * res_p, const lv_area_t * a1_p, const lv_area_t * a2_p);
+
+
+
+
+
+
+
+void lv_area_join(lv_area_t * a_res_p, const lv_area_t * a1_p, const lv_area_t * a2_p);
+
+
+
+
+
+
+
+bool lv_area_is_point_on(const lv_area_t * a_p, const lv_point_t * p_p);
+
+
+
+
+
+
+
+bool lv_area_is_on(const lv_area_t * a1_p, const lv_area_t * a2_p);
+
+
+
+
+
+
+
+bool lv_area_is_in(const lv_area_t * ain_p, const lv_area_t * aholder_p);
+
+
+
+
+
+
+void lv_area_increment(lv_area_t * a_p, const lv_coord_t amount);
+
+
+
+
+
+#if defined(__cplusplus)
+} 
+#endif
+
+#endif

@@ -1,0 +1,4 @@
+extern const char * const Curl_wkday[7];
+extern const char * const Curl_month[12];
+CURLcode Curl_gmtime(time_t intime, struct tm *store);
+time_t Curl_getdate_capped(const char *p);

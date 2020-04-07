@@ -1,0 +1,221 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#include "curlcheck.h"
+
+#include "llist.h"
+
+static struct curl_llist llist;
+
+static struct curl_llist llist_destination;
+
+static void test_curl_llist_dtor(void *key, void *value)
+{
+
+(void)key;
+(void)value;
+}
+
+static CURLcode unit_setup(void)
+{
+Curl_llist_init(&llist, test_curl_llist_dtor);
+Curl_llist_init(&llist_destination, test_curl_llist_dtor);
+return CURLE_OK;
+}
+
+static void unit_stop(void)
+{
+}
+
+UNITTEST_START
+{
+int unusedData_case1 = 1;
+int unusedData_case2 = 2;
+int unusedData_case3 = 3;
+struct curl_llist_element case1_list;
+struct curl_llist_element case2_list;
+struct curl_llist_element case3_list;
+struct curl_llist_element case4_list;
+struct curl_llist_element *head;
+struct curl_llist_element *element_next;
+struct curl_llist_element *element_prev;
+struct curl_llist_element *to_remove;
+size_t llist_size = Curl_llist_count(&llist);
+
+
+
+
+
+
+
+
+
+
+
+
+fail_unless(llist.size == 0, "list initial size should be zero");
+fail_unless(llist.head == NULL, "list head should initiate to NULL");
+fail_unless(llist.tail == NULL, "list tail should intiate to NULL");
+fail_unless(llist.dtor == test_curl_llist_dtor,
+"list dtor should initiate to test_curl_llist_dtor");
+
+
+
+
+
+
+
+
+
+
+
+Curl_llist_insert_next(&llist, llist.head, &unusedData_case1, &case1_list);
+
+fail_unless(Curl_llist_count(&llist) == 1,
+"List size should be 1 after adding a new element");
+
+fail_unless(llist.head->ptr == &unusedData_case1,
+"head ptr should be first entry");
+
+fail_unless(llist.tail == llist.head,
+"tail and head should be the same");
+
+
+
+
+
+
+
+
+
+
+Curl_llist_insert_next(&llist, llist.head,
+&unusedData_case3, &case3_list);
+fail_unless(llist.head->next->ptr == &unusedData_case3,
+"the node next to head is not getting set correctly");
+fail_unless(llist.tail->ptr == &unusedData_case3,
+"the list tail is not getting set correctly");
+
+
+
+
+
+
+
+
+
+
+Curl_llist_insert_next(&llist, llist.head,
+&unusedData_case2, &case2_list);
+fail_unless(llist.head->next->ptr == &unusedData_case2,
+"the node next to head is not getting set correctly");
+
+fail_unless(llist.tail->ptr != &unusedData_case2,
+"the list tail is not getting set correctly");
+
+
+
+
+
+
+
+
+
+
+
+
+head = llist.head;
+abort_unless(head, "llist.head is NULL");
+element_next = head->next;
+llist_size = Curl_llist_count(&llist);
+
+Curl_llist_remove(&llist, llist.head, NULL);
+
+fail_unless(Curl_llist_count(&llist) == (llist_size-1),
+"llist size not decremented as expected");
+fail_unless(llist.head == element_next,
+"llist new head not modified properly");
+abort_unless(llist.head, "llist.head is NULL");
+fail_unless(llist.head->prev == NULL,
+"new head previous not set to null");
+
+
+
+
+
+
+
+
+
+
+
+Curl_llist_insert_next(&llist, llist.head, &unusedData_case3,
+&case4_list);
+llist_size = Curl_llist_count(&llist);
+fail_unless(llist_size == 3, "should be 3 list members");
+
+to_remove = llist.head->next;
+abort_unless(to_remove, "to_remove is NULL");
+element_next = to_remove->next;
+element_prev = to_remove->prev;
+Curl_llist_remove(&llist, to_remove, NULL);
+fail_unless(element_prev->next == element_next,
+"element previous->next is not being adjusted");
+abort_unless(element_next, "element_next is NULL");
+fail_unless(element_next->prev == element_prev,
+"element next->previous is not being adjusted");
+
+
+
+
+
+
+
+
+
+
+
+to_remove = llist.tail;
+element_prev = to_remove->prev;
+Curl_llist_remove(&llist, to_remove, NULL);
+fail_unless(llist.tail == element_prev,
+"llist tail is not being adjusted when removing tail");
+
+
+
+
+
+
+
+
+
+
+to_remove = llist.head;
+Curl_llist_remove(&llist, to_remove, NULL);
+fail_unless(llist.head == NULL,
+"llist head is not NULL while the llist is empty");
+fail_unless(llist.tail == NULL,
+"llist tail is not NULL while the llist is empty");
+
+Curl_llist_destroy(&llist, NULL);
+Curl_llist_destroy(&llist_destination, NULL);
+}
+UNITTEST_STOP

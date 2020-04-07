@@ -1,0 +1,86 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#include "pthread.h"
+#include "implement.h"
+
+
+int
+pthread_attr_getdetachstate (const pthread_attr_t * attr, int *detachstate)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+{
+if (ptw32_is_attr (attr) != 0 || detachstate == NULL)
+{
+return EINVAL;
+}
+
+*detachstate = (*attr)->detachstate;
+return 0;
+}

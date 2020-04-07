@@ -1,0 +1,1790 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" revision="1.0.0" language="C" filename="D:\Pesquisa\Projects\obs-analysis\_cppstats\obs-studio\plugins\obs-outputs\ftl-stream.c"><cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;obs-module.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;obs-avc.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;util/platform.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;util/circlebuf.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;util/dstr.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;util/threading.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;inttypes.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"ftl.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"flv-mux.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"net-if.h"</cpp:file></cpp:include>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><call><name>defined</name><argument_list>(<argument><expr><name>_WIN32</name></expr></argument>)</argument_list></call></expr></cpp:if>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;Iphlpapi.h&gt;</cpp:file></cpp:include>
+
+<cpp:else>#<cpp:directive>else</cpp:directive></cpp:else>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;sys/ioctl.h&gt;</cpp:file></cpp:include>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>INFINITE</name></cpp:macro> <cpp:value>0xFFFFFFFF</cpp:value></cpp:define>
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>do_log</name><parameter_list>(<parameter><type><name>level</name></type></parameter>, <parameter><type><name>format</name></type></parameter>, <parameter><type><modifier>...</modifier></type></parameter>)</parameter_list></cpp:macro> <cpp:value>blog(level, "[ftl stream: '%s'] " format, obs_output_get_name(stream-&gt;output), ##__VA_ARGS__)</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>warn</name><parameter_list>(<parameter><type><name>format</name></type></parameter>, <parameter><type><modifier>...</modifier></type></parameter>)</parameter_list></cpp:macro> <cpp:value>do_log(LOG_WARNING, format, ##__VA_ARGS__)</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>info</name><parameter_list>(<parameter><type><name>format</name></type></parameter>, <parameter><type><modifier>...</modifier></type></parameter>)</parameter_list></cpp:macro> <cpp:value>do_log(LOG_INFO, format, ##__VA_ARGS__)</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>debug</name><parameter_list>(<parameter><type><name>format</name></type></parameter>, <parameter><type><modifier>...</modifier></type></parameter>)</parameter_list></cpp:macro> <cpp:value>do_log(LOG_DEBUG, format, ##__VA_ARGS__)</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>OPT_DROP_THRESHOLD</name></cpp:macro> <cpp:value>"drop_threshold_ms"</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>OPT_MAX_SHUTDOWN_TIME_SEC</name></cpp:macro> <cpp:value>"max_shutdown_time_sec"</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>OPT_BIND_IP</name></cpp:macro> <cpp:value>"bind_ip"</cpp:value></cpp:define>
+
+<typedef>typedef <type><struct>struct <name>_nalu_t</name> <block>{
+
+<decl_stmt><decl><type><name>int</name></type> <name>len</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>dts_usec</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>send_marker_bit</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>uint8_t</name> <modifier>*</modifier></type><name>data</name></decl>;</decl_stmt>
+
+}</block></struct></type> <name>nalu_t</name>;</typedef>
+
+<typedef>typedef <type><struct>struct <name>_frame_of_nalus_t</name> <block>{
+
+<decl_stmt><decl><type><name>nalu_t</name></type> <name><name>nalus</name><index>[<expr><literal type="number">100</literal></expr>]</index></name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>total</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>complete_frame</name></decl>;</decl_stmt>
+
+}</block></struct></type> <name>frame_of_nalus_t</name>;</typedef>
+
+<struct>struct <name>ftl_stream</name> <block>{
+
+<decl_stmt><decl><type><name>obs_output_t</name> <modifier>*</modifier></type><name>output</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>pthread_mutex_t</name></type> <name>packets_mutex</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>circlebuf</name></name></type> <name>packets</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>bool</name></type> <name>sent_headers</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int64_t</name></type> <name>frames_sent</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>volatile</specifier> <name>bool</name></type> <name>connecting</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>pthread_t</name></type> <name>connect_thread</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>pthread_t</name></type> <name>status_thread</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>volatile</specifier> <name>bool</name></type> <name>active</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>volatile</specifier> <name>bool</name></type> <name>disconnected</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>volatile</specifier> <name>bool</name></type> <name>encode_error</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>pthread_t</name></type> <name>send_thread</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>max_shutdown_time_sec</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>os_sem_t</name> <modifier>*</modifier></type><name>send_sem</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>os_event_t</name> <modifier>*</modifier></type><name>stop_event</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>uint64_t</name></type> <name>stop_ts</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>uint64_t</name></type> <name>shutdown_timeout_ts</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>dstr</name></name></type> <name>path</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>uint32_t</name></type> <name>channel_id</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>dstr</name></name></type> <name>username</name></decl>, <decl><type ref="prev"/><name>password</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>dstr</name></name></type> <name>encoder_name</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>dstr</name></name></type> <name>bind_ip</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int64_t</name></type> <name>drop_threshold_usec</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int64_t</name></type> <name>pframe_drop_threshold_usec</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>min_priority</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>float</name></type> <name>congestion</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int64_t</name></type> <name>last_dts_usec</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>uint64_t</name></type> <name>total_bytes_sent</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>uint64_t</name></type> <name>dropped_frames</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>uint64_t</name></type> <name>last_nack_count</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>ftl_handle_t</name></type> <name>ftl_handle</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>ftl_ingest_params_t</name></type> <name>params</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>peak_kbps</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>uint32_t</name></type> <name>scale_width</name></decl>, <decl><type ref="prev"/><name>scale_height</name></decl>, <decl><type ref="prev"/><name>width</name></decl>, <decl><type ref="prev"/><name>height</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>frame_of_nalus_t</name></type> <name>coded_pic_buffer</name></decl>;</decl_stmt>
+
+}</block>;</struct>
+
+<function_decl><type><specifier>static</specifier> <name>void</name></type> <name>log_libftl_messages</name><parameter_list>(<parameter><decl><type><name>ftl_log_severity_t</name></type> <name>log_level</name></decl></parameter>,
+
+<parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>message</name></decl></parameter>)</parameter_list>;</function_decl>
+
+<function_decl><type><specifier>static</specifier> <name>int</name></type> <name>init_connect</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>ftl_stream</name></name> <modifier>*</modifier></type><name>stream</name></decl></parameter>)</parameter_list>;</function_decl>
+
+<function_decl><type><specifier>static</specifier> <name>void</name> <modifier>*</modifier></type><name>connect_thread</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>)</parameter_list>;</function_decl>
+
+<function_decl><type><specifier>static</specifier> <name>void</name> <modifier>*</modifier></type><name>status_thread</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>)</parameter_list>;</function_decl>
+
+<function_decl><type><specifier>static</specifier> <name>int</name></type> <name>_ftl_error_to_obs_error</name><parameter_list>(<parameter><decl><type><name>int</name></type> <name>status</name></decl></parameter>)</parameter_list>;</function_decl>
+
+<function><type><specifier>static</specifier> <specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>ftl_stream_getname</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>unused</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>UNUSED_PARAMETER</name><argument_list>(<argument><expr><name>unused</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><call><name>obs_module_text</name><argument_list>(<argument><expr><literal type="string">"FTLStream"</literal></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>log_ftl</name><parameter_list>(<parameter><decl><type><name>int</name></type> <name>level</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>format</name></decl></parameter>, <parameter><decl><type><name>va_list</name></type> <name>args</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>blogva</name><argument_list>(<argument><expr><name>LOG_INFO</name></expr></argument>, <argument><expr><name>format</name></expr></argument>, <argument><expr><name>args</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>UNUSED_PARAMETER</name><argument_list>(<argument><expr><name>level</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function_decl><type><specifier>static</specifier> <specifier>inline</specifier> <name>size_t</name></type> <name>num_buffered_packets</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>ftl_stream</name></name> <modifier>*</modifier></type><name>stream</name></decl></parameter>)</parameter_list>;</function_decl>
+
+<function><type><specifier>static</specifier> <specifier>inline</specifier> <name>void</name></type> <name>free_packets</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>ftl_stream</name></name> <modifier>*</modifier></type><name>stream</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>size_t</name></type> <name>num_packets</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_lock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>stream</name><operator>-&gt;</operator><name>packets_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>num_packets</name> <operator>=</operator> <call><name>num_buffered_packets</name><argument_list>(<argument><expr><name>stream</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>num_packets</name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>info</name><argument_list>(<argument><expr><literal type="string">"Freeing %d remaining packets"</literal></expr></argument>, <argument><expr><operator>(</operator><name>int</name><operator>)</operator><name>num_packets</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<while>while <condition>(<expr><name><name>stream</name><operator>-&gt;</operator><name>packets</name><operator>.</operator><name>size</name></name></expr>)</condition> <block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>encoder_packet</name></name></type> <name>packet</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>circlebuf_pop_front</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>stream</name><operator>-&gt;</operator><name>packets</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name>packet</name></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr><name>packet</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_encoder_packet_release</name><argument_list>(<argument><expr><operator>&amp;</operator><name>packet</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></while>
+
+<expr_stmt><expr><call><name>pthread_mutex_unlock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>stream</name><operator>-&gt;</operator><name>packets_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <specifier>inline</specifier> <name>bool</name></type> <name>stopping</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>ftl_stream</name></name> <modifier>*</modifier></type><name>stream</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<return>return <expr><call><name>os_event_try</name><argument_list>(<argument><expr><name><name>stream</name><operator>-&gt;</operator><name>stop_event</name></name></expr></argument>)</argument_list></call> <operator>!=</operator> <name>EAGAIN</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <specifier>inline</specifier> <name>bool</name></type> <name>connecting</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>ftl_stream</name></name> <modifier>*</modifier></type><name>stream</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<return>return <expr><call><name>os_atomic_load_bool</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>stream</name><operator>-&gt;</operator><name>connecting</name></name></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <specifier>inline</specifier> <name>bool</name></type> <name>active</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>ftl_stream</name></name> <modifier>*</modifier></type><name>stream</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<return>return <expr><call><name>os_atomic_load_bool</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>stream</name><operator>-&gt;</operator><name>active</name></name></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <specifier>inline</specifier> <name>bool</name></type> <name>disconnected</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>ftl_stream</name></name> <modifier>*</modifier></type><name>stream</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<return>return <expr><call><name>os_atomic_load_bool</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>stream</name><operator>-&gt;</operator><name>disconnected</name></name></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>ftl_stream_destroy</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>ftl_stream</name></name> <modifier>*</modifier></type><name>stream</name> <init>= <expr><name>data</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>ftl_status_t</name></type> <name>status_code</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>info</name><argument_list>(<argument><expr><literal type="string">"ftl_stream_destroy"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>stopping</name><argument_list>(<argument><expr><name>stream</name></expr></argument>)</argument_list></call> <operator>&amp;&amp;</operator> <operator>!</operator><call><name>connecting</name><argument_list>(<argument><expr><name>stream</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>pthread_join</name><argument_list>(<argument><expr><name><name>stream</name><operator>-&gt;</operator><name>send_thread</name></name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if> <if type="elseif">else if <condition>(<expr><call><name>connecting</name><argument_list>(<argument><expr><name>stream</name></expr></argument>)</argument_list></call> <operator>||</operator> <call><name>active</name><argument_list>(<argument><expr><name>stream</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><name><name>stream</name><operator>-&gt;</operator><name>connecting</name></name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>info</name><argument_list>(<argument><expr><literal type="string">"wait for connect_thread to terminate"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>pthread_join</name><argument_list>(<argument><expr><name><name>stream</name><operator>-&gt;</operator><name>status_thread</name></name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>pthread_join</name><argument_list>(<argument><expr><name><name>stream</name><operator>-&gt;</operator><name>connect_thread</name></name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>info</name><argument_list>(<argument><expr><literal type="string">"wait for connect_thread to terminate: done"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>stream</name><operator>-&gt;</operator><name>stop_ts</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>os_event_signal</name><argument_list>(<argument><expr><name><name>stream</name><operator>-&gt;</operator><name>stop_event</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>active</name><argument_list>(<argument><expr><name>stream</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>os_sem_post</name><argument_list>(<argument><expr><name><name>stream</name><operator>-&gt;</operator><name>send_sem</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_output_end_data_capture</name><argument_list>(<argument><expr><name><name>stream</name><operator>-&gt;</operator><name>output</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>pthread_join</name><argument_list>(<argument><expr><name><name>stream</name><operator>-&gt;</operator><name>send_thread</name></name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>info</name><argument_list>(<argument><expr><literal type="string">"ingest destroy"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>status_code</name> <operator>=</operator> <call><name>ftl_ingest_destroy</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>stream</name><operator>-&gt;</operator><name>ftl_handle</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>status_code</name> <operator>!=</operator> <name>FTL_SUCCESS</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>info</name><argument_list>(<argument><expr><literal type="string">"Failed to destroy from ingest %d"</literal></expr></argument>, <argument><expr><name>status_code</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>stream</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>free_packets</name><argument_list>(<argument><expr><name>stream</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>dstr_free</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>stream</name><operator>-&gt;</operator><name>path</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>dstr_free</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>stream</name><operator>-&gt;</operator><name>username</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>dstr_free</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>stream</name><operator>-&gt;</operator><name>password</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>dstr_free</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>stream</name><operator>-&gt;</operator><name>encoder_name</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>dstr_free</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>stream</name><operator>-&gt;</operator><name>bind_ip</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>os_event_destroy</name><argument_list>(<argument><expr><name><name>stream</name><operator>-&gt;</operator><name>stop_event</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>os_sem_destroy</name><argument_list>(<argument><expr><name><name>stream</name><operator>-&gt;</operator><name>send_sem</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_destroy</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>stream</name><operator>-&gt;</operator><name>packets_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>circlebuf_free</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>stream</name><operator>-&gt;</operator><name>packets</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>bfree</name><argument_list>(<argument><expr><name>stream</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name> <modifier>*</modifier></type><name>ftl_stream_create</name><parameter_list>(<parameter><decl><type><name>obs_data_t</name> <modifier>*</modifier></type><name>settings</name></decl></parameter>, <parameter><decl><type><name>obs_output_t</name> <modifier>*</modifier></type><name>output</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>ftl_stream</name></name> <modifier>*</modifier></type><name>stream</name> <init>= <expr><call><name>bzalloc</name><argument_list>(<argument><expr><sizeof>sizeof<argument_list>(<argument><expr>struct <name>ftl_stream</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>info</name><argument_list>(<argument><expr><literal type="string">"ftl_stream_create"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>stream</name><operator>-&gt;</operator><name>output</name></name> <operator>=</operator> <name>output</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_init_value</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>stream</name><operator>-&gt;</operator><name>packets_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>stream</name><operator>-&gt;</operator><name>peak_kbps</name></name> <operator>=</operator> <operator>-</operator><literal type="number">1</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>ftl_init</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>pthread_mutex_init</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>stream</name><operator>-&gt;</operator><name>packets_mutex</name></name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call> <operator>!=</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<goto>goto <name>fail</name>;</goto>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>os_event_init</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>stream</name><operator>-&gt;</operator><name>stop_event</name></name></expr></argument>, <argument><expr><name>OS_EVENT_TYPE_MANUAL</name></expr></argument>)</argument_list></call> <operator>!=</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<goto>goto <name>fail</name>;</goto>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>stream</name><operator>-&gt;</operator><name>coded_pic_buffer</name><operator>.</operator><name>total</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>stream</name><operator>-&gt;</operator><name>coded_pic_buffer</name><operator>.</operator><name>complete_frame</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>UNUSED_PARAMETER</name><argument_list>(<argument><expr><name>settings</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>stream</name></expr>;</return>
+
+<label><name>fail</name>:</label>
+
+<return>return <expr><name>NULL</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>ftl_stream_stop</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>, <parameter><decl><type><name>uint64_t</name></type> <name>ts</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>ftl_stream</name></name> <modifier>*</modifier></type><name>stream</name> <init>= <expr><name>data</name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>info</name><argument_list>(<argument><expr><literal type="string">"ftl_stream_stop"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>stopping</name><argument_list>(<argument><expr><name>stream</name></expr></argument>)</argument_list></call> <operator>&amp;&amp;</operator> <name>ts</name> <operator>!=</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<return>return;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>connecting</name><argument_list>(<argument><expr><name>stream</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>pthread_join</name><argument_list>(<argument><expr><name><name>stream</name><operator>-&gt;</operator><name>status_thread</name></name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>pthread_join</name><argument_list>(<argument><expr><name><name>stream</name><operator>-&gt;</operator><name>connect_thread</name></name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>stream</name><operator>-&gt;</operator><name>stop_ts</name></name> <operator>=</operator> <name>ts</name> <operator>/</operator> <literal type="number">1000ULL</literal></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>ts</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name><name>stream</name><operator>-&gt;</operator><name>shutdown_timeout_ts</name></name> <operator>=</operator>
+
+<name>ts</name> <operator>+</operator>
+
+<operator>(</operator><name>uint64_t</name><operator>)</operator><name><name>stream</name><operator>-&gt;</operator><name>max_shutdown_time_sec</name></name> <operator>*</operator> <literal type="number">1000000000ULL</literal></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>active</name><argument_list>(<argument><expr><name>stream</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>os_event_signal</name><argument_list>(<argument><expr><name><name>stream</name><operator>-&gt;</operator><name>stop_event</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>stream</name><operator>-&gt;</operator><name>stop_ts</name></name> <operator>==</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>os_sem_post</name><argument_list>(<argument><expr><name><name>stream</name><operator>-&gt;</operator><name>send_sem</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<expr_stmt><expr><call><name>obs_output_signal_stop</name><argument_list>(<argument><expr><name><name>stream</name><operator>-&gt;</operator><name>output</name></name></expr></argument>, <argument><expr><name>OBS_OUTPUT_SUCCESS</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <specifier>inline</specifier> <name>bool</name></type> <name>get_next_packet</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>ftl_stream</name></name> <modifier>*</modifier></type><name>stream</name></decl></parameter>,
+
+<parameter><decl><type><name><name>struct</name> <name>encoder_packet</name></name> <modifier>*</modifier></type><name>packet</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>bool</name></type> <name>new_packet</name> <init>= <expr><name>false</name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_lock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>stream</name><operator>-&gt;</operator><name>packets_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>stream</name><operator>-&gt;</operator><name>packets</name><operator>.</operator><name>size</name></name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>circlebuf_pop_front</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>stream</name><operator>-&gt;</operator><name>packets</name></name></expr></argument>, <argument><expr><name>packet</name></expr></argument>,
+
+<argument><expr><sizeof>sizeof<argument_list>(<argument><expr>struct <name>encoder_packet</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>new_packet</name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_unlock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>stream</name><operator>-&gt;</operator><name>packets_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>new_packet</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>avc_get_video_frame</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>ftl_stream</name></name> <modifier>*</modifier></type><name>stream</name></decl></parameter>,
+
+<parameter><decl><type><name><name>struct</name> <name>encoder_packet</name></name> <modifier>*</modifier></type><name>packet</name></decl></parameter>, <parameter><decl><type><name>bool</name></type> <name>is_header</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>int</name></type> <name>consumed</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>len</name> <init>= <expr><operator>(</operator><name>int</name><operator>)</operator><name><name>packet</name><operator>-&gt;</operator><name>size</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>nalu_t</name> <modifier>*</modifier></type><name>nalu</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>unsigned</name> <name>char</name> <modifier>*</modifier></type><name>video_stream</name> <init>= <expr><name><name>packet</name><operator>-&gt;</operator><name>data</name></name></expr></init></decl>;</decl_stmt>
+
+<while>while <condition>(<expr><operator>(</operator><name>size_t</name><operator>)</operator><name>consumed</name> <operator>&lt;</operator> <name><name>packet</name><operator>-&gt;</operator><name>size</name></name></expr>)</condition> <block>{<block_content>
+
+<decl_stmt><decl><type><name>size_t</name></type> <name>total_max</name> <init>= <expr><sizeof>sizeof<argument_list>(<argument><expr><name><name>stream</name><operator>-&gt;</operator><name>coded_pic_buffer</name><operator>.</operator><name>nalus</name></name></expr></argument>)</argument_list></sizeof> <operator>/</operator>
+
+<sizeof>sizeof<argument_list>(<argument><expr><name><name>stream</name><operator>-&gt;</operator><name>coded_pic_buffer</name><operator>.</operator><name>nalus</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>)</argument_list></sizeof></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>(</operator><name>size_t</name><operator>)</operator><name><name>stream</name><operator>-&gt;</operator><name>coded_pic_buffer</name><operator>.</operator><name>total</name></name> <operator>&gt;=</operator> <name>total_max</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>warn</name><argument_list>(<argument><expr><literal type="string">"ERROR: cannot continue, nalu buffers are full"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><operator>-</operator><literal type="number">1</literal></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name>nalu</name> <operator>=</operator> <operator>&amp;</operator><name><name>stream</name><operator>-&gt;</operator><name>coded_pic_buffer</name>
+
+<operator>.</operator><name>nalus</name><index>[<expr><name><name>stream</name><operator>-&gt;</operator><name>coded_pic_buffer</name><operator>.</operator><name>total</name></name></expr>]</index></name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>is_header</name></expr>)</condition> <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><name>consumed</name> <operator>==</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>video_stream</name> <operator>+=</operator> <literal type="number">6</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>consumed</name> <operator>+=</operator> <literal type="number">6</literal></expr>;</expr_stmt>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<expr_stmt><expr><name>video_stream</name> <operator>+=</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>consumed</name> <operator>+=</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+<expr_stmt><expr><name>len</name> <operator>=</operator> <name><name>video_stream</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>&lt;&lt;</operator> <literal type="number">8</literal> <operator>|</operator> <name><name>video_stream</name><index>[<expr><literal type="number">1</literal></expr>]</index></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>video_stream</name> <operator>+=</operator> <literal type="number">2</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>consumed</name> <operator>+=</operator> <literal type="number">2</literal></expr>;</expr_stmt>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<expr_stmt><expr><name>len</name> <operator>=</operator> <name><name>video_stream</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>&lt;&lt;</operator> <literal type="number">24</literal> <operator>|</operator> <name><name>video_stream</name><index>[<expr><literal type="number">1</literal></expr>]</index></name> <operator>&lt;&lt;</operator> <literal type="number">16</literal> <operator>|</operator>
+
+<name><name>video_stream</name><index>[<expr><literal type="number">2</literal></expr>]</index></name> <operator>&lt;&lt;</operator> <literal type="number">8</literal> <operator>|</operator> <name><name>video_stream</name><index>[<expr><literal type="number">3</literal></expr>]</index></name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>(</operator><name>size_t</name><operator>)</operator><name>len</name> <operator>&gt;</operator> <operator>(</operator><name><name>packet</name><operator>-&gt;</operator><name>size</name></name> <operator>-</operator> <operator>(</operator><name>size_t</name><operator>)</operator><name>consumed</name><operator>)</operator></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>warn</name><argument_list>(<argument><expr><literal type="string">"ERROR: got len of %d but packet only "</literal>
+
+<literal type="string">"has %d left"</literal></expr></argument>,
+
+<argument><expr><name>len</name></expr></argument>, <argument><expr><operator>(</operator><name>int</name><operator>)</operator><operator>(</operator><name><name>packet</name><operator>-&gt;</operator><name>size</name></name> <operator>-</operator> <name>consumed</name><operator>)</operator></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name>consumed</name> <operator>+=</operator> <literal type="number">4</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>video_stream</name> <operator>+=</operator> <literal type="number">4</literal></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+<expr_stmt><expr><name>consumed</name> <operator>+=</operator> <name>len</name></expr>;</expr_stmt>
+
+<decl_stmt><decl><type><name>uint8_t</name></type> <name>nalu_type</name> <init>= <expr><name><name>video_stream</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>&amp;</operator> <literal type="number">0x1F</literal></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>uint8_t</name></type> <name>nri</name> <init>= <expr><operator>(</operator><name><name>video_stream</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>&gt;&gt;</operator> <literal type="number">5</literal><operator>)</operator> <operator>&amp;</operator> <literal type="number">0x3</literal></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>(</operator><name>nalu_type</name> <operator>!=</operator> <literal type="number">12</literal> <operator>&amp;&amp;</operator> <name>nalu_type</name> <operator>!=</operator> <literal type="number">6</literal> <operator>&amp;&amp;</operator> <name>nalu_type</name> <operator>!=</operator> <literal type="number">9</literal><operator>)</operator> <operator>||</operator>
+
+<name>nri</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name><name>nalu</name><operator>-&gt;</operator><name>data</name></name> <operator>=</operator> <name>video_stream</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>nalu</name><operator>-&gt;</operator><name>len</name></name> <operator>=</operator> <name>len</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>nalu</name><operator>-&gt;</operator><name>send_marker_bit</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>stream</name><operator>-&gt;</operator><name>coded_pic_buffer</name><operator>.</operator><name>total</name></name><operator>++</operator></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name>video_stream</name> <operator>+=</operator> <name>len</name></expr>;</expr_stmt>
+
+</block_content>}</block></while>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>is_header</name></expr>)</condition> <block>{<block_content>
+
+<decl_stmt><decl><type><name>size_t</name></type> <name>idx</name> <init>= <expr><name><name>stream</name><operator>-&gt;</operator><name>coded_pic_buffer</name><operator>.</operator><name>total</name></name> <operator>-</operator> <literal type="number">1</literal></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>stream</name><operator>-&gt;</operator><name>coded_pic_buffer</name><operator>.</operator><name>nalus</name><index>[<expr><name>idx</name></expr>]</index></name><operator>.</operator><name>send_marker_bit</name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>send_packet</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>ftl_stream</name></name> <modifier>*</modifier></type><name>stream</name></decl></parameter>, <parameter><decl><type><name><name>struct</name> <name>encoder_packet</name></name> <modifier>*</modifier></type><name>packet</name></decl></parameter>,
+
+<parameter><decl><type><name>bool</name></type> <name>is_header</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>int</name></type> <name>bytes_sent</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>ret</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>packet</name><operator>-&gt;</operator><name>type</name></name> <operator>==</operator> <name>OBS_ENCODER_VIDEO</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name><name>stream</name><operator>-&gt;</operator><name>coded_pic_buffer</name><operator>.</operator><name>total</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>avc_get_video_frame</name><argument_list>(<argument><expr><name>stream</name></expr></argument>, <argument><expr><name>packet</name></expr></argument>, <argument><expr><name>is_header</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>i</name></decl>;</decl_stmt>
+
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name><name>stream</name><operator>-&gt;</operator><name>coded_pic_buffer</name><operator>.</operator><name>total</name></name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+
+<decl_stmt><decl><type><name>nalu_t</name> <modifier>*</modifier></type><name>nalu</name> <init>= <expr><operator>&amp;</operator><name><name>stream</name><operator>-&gt;</operator><name>coded_pic_buffer</name><operator>.</operator><name>nalus</name><index>[<expr><name>i</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>bytes_sent</name> <operator>+=</operator> <call><name>ftl_ingest_send_media_dts</name><argument_list>(
+
+<argument><expr><operator>&amp;</operator><name><name>stream</name><operator>-&gt;</operator><name>ftl_handle</name></name></expr></argument>, <argument><expr><name>FTL_VIDEO_DATA</name></expr></argument>,
+
+<argument><expr><name><name>packet</name><operator>-&gt;</operator><name>dts_usec</name></name></expr></argument>, <argument><expr><name><name>nalu</name><operator>-&gt;</operator><name>data</name></name></expr></argument>, <argument><expr><name><name>nalu</name><operator>-&gt;</operator><name>len</name></name></expr></argument>,
+
+<argument><expr><name><name>nalu</name><operator>-&gt;</operator><name>send_marker_bit</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>nalu</name><operator>-&gt;</operator><name>send_marker_bit</name></name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name><name>stream</name><operator>-&gt;</operator><name>frames_sent</name></name><operator>++</operator></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></for>
+
+</block_content>}</block></if> <if type="elseif">else if <condition>(<expr><name><name>packet</name><operator>-&gt;</operator><name>type</name></name> <operator>==</operator> <name>OBS_ENCODER_AUDIO</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>bytes_sent</name> <operator>+=</operator> <call><name>ftl_ingest_send_media_dts</name><argument_list>(
+
+<argument><expr><operator>&amp;</operator><name><name>stream</name><operator>-&gt;</operator><name>ftl_handle</name></name></expr></argument>, <argument><expr><name>FTL_AUDIO_DATA</name></expr></argument>, <argument><expr><name><name>packet</name><operator>-&gt;</operator><name>dts_usec</name></name></expr></argument>,
+
+<argument><expr><name><name>packet</name><operator>-&gt;</operator><name>data</name></name></expr></argument>, <argument><expr><operator>(</operator><name>int</name><operator>)</operator><name><name>packet</name><operator>-&gt;</operator><name>size</name></name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<expr_stmt><expr><call><name>warn</name><argument_list>(<argument><expr><literal type="string">"Got packet type %d"</literal></expr></argument>, <argument><expr><name><name>packet</name><operator>-&gt;</operator><name>type</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>is_header</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>bfree</name><argument_list>(<argument><expr><name><name>packet</name><operator>-&gt;</operator><name>data</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<expr_stmt><expr><call><name>obs_encoder_packet_release</name><argument_list>(<argument><expr><name>packet</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+<expr_stmt><expr><name><name>stream</name><operator>-&gt;</operator><name>total_bytes_sent</name></name> <operator>+=</operator> <name>bytes_sent</name></expr>;</expr_stmt>
+
+<return>return <expr><name>ret</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>set_peak_bitrate</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>ftl_stream</name></name> <modifier>*</modifier></type><name>stream</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>int</name></type> <name>speedtest_kbps</name> <init>= <expr><literal type="number">15000</literal></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>speedtest_duration</name> <init>= <expr><literal type="number">1000</literal></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>speed_test_t</name></type> <name>results</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>ftl_status_t</name></type> <name>status_code</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>status_code</name> <operator>=</operator> <call><name>ftl_ingest_speed_test_ex</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>stream</name><operator>-&gt;</operator><name>ftl_handle</name></name></expr></argument>,
+
+<argument><expr><name>speedtest_kbps</name></expr></argument>,
+
+<argument><expr><name>speedtest_duration</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>results</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<decl_stmt><decl><type><name>float</name></type> <name>percent_lost</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>status_code</name> <operator>==</operator> <name>FTL_SUCCESS</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>percent_lost</name> <operator>=</operator> <operator>(</operator><name>float</name><operator>)</operator><name><name>results</name><operator>.</operator><name>lost_pkts</name></name> <operator>*</operator> <literal type="number">100.f</literal> <operator>/</operator>
+
+<operator>(</operator><name>float</name><operator>)</operator><name><name>results</name><operator>.</operator><name>pkts_sent</name></name></expr>;</expr_stmt>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<expr_stmt><expr><call><name>warn</name><argument_list>(<argument><expr><literal type="string">"Speed test failed with: %s"</literal></expr></argument>,
+
+<argument><expr><call><name>ftl_status_code_to_string</name><argument_list>(<argument><expr><name>status_code</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+<decl_stmt><decl><type><name>obs_encoder_t</name> <modifier>*</modifier></type><name>video_encoder</name> <init>=
+
+<expr><call><name>obs_output_get_video_encoder</name><argument_list>(<argument><expr><name><name>stream</name><operator>-&gt;</operator><name>output</name></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>obs_data_t</name> <modifier>*</modifier></type><name>video_settings</name> <init>= <expr><call><name>obs_encoder_get_settings</name><argument_list>(<argument><expr><name>video_encoder</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>user_desired_bitrate</name> <init>=
+
+<expr><operator>(</operator><name>int</name><operator>)</operator><call><name>obs_data_get_int</name><argument_list>(<argument><expr><name>video_settings</name></expr></argument>, <argument><expr><literal type="string">"bitrate"</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>obs_data_release</name><argument_list>(<argument><expr><name>video_settings</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>info</name><argument_list>(<argument><expr><literal type="string">"Speed test completed: User desired bitrate %d, Peak kbps %d, "</literal>
+
+<literal type="string">"initial rtt %d, "</literal>
+
+<literal type="string">"final rtt %d, %3.2f lost packets"</literal></expr></argument>,
+
+<argument><expr><name>user_desired_bitrate</name></expr></argument>, <argument><expr><name><name>results</name><operator>.</operator><name>peak_kbps</name></name></expr></argument>, <argument><expr><name><name>results</name><operator>.</operator><name>starting_rtt</name></name></expr></argument>,
+
+<argument><expr><name><name>results</name><operator>.</operator><name>ending_rtt</name></name></expr></argument>, <argument><expr><name>percent_lost</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>stream</name><operator>-&gt;</operator><name>peak_kbps</name></name> <operator>=</operator> <name><name>stream</name><operator>-&gt;</operator><name>params</name><operator>.</operator><name>peak_kbps</name></name> <operator>=</operator>
+
+<name>user_desired_bitrate</name> <operator>*</operator> <literal type="number">12</literal> <operator>/</operator> <literal type="number">10</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>ftl_ingest_update_params</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>stream</name><operator>-&gt;</operator><name>ftl_handle</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>stream</name><operator>-&gt;</operator><name>params</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function_decl><type><specifier>static</specifier> <specifier>inline</specifier> <name>bool</name></type> <name>send_headers</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>ftl_stream</name></name> <modifier>*</modifier></type><name>stream</name></decl></parameter>, <parameter><decl><type><name>int64_t</name></type> <name>dts_usec</name></decl></parameter>)</parameter_list>;</function_decl>
+
+<function><type><specifier>static</specifier> <specifier>inline</specifier> <name>bool</name></type> <name>can_shutdown_stream</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>ftl_stream</name></name> <modifier>*</modifier></type><name>stream</name></decl></parameter>,
+
+<parameter><decl><type><name><name>struct</name> <name>encoder_packet</name></name> <modifier>*</modifier></type><name>packet</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>uint64_t</name></type> <name>cur_time</name> <init>= <expr><call><name>os_gettime_ns</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>bool</name></type> <name>timeout</name> <init>= <expr><name>cur_time</name> <operator>&gt;=</operator> <name><name>stream</name><operator>-&gt;</operator><name>shutdown_timeout_ts</name></name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>timeout</name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>info</name><argument_list>(<argument><expr><literal type="string">"Stream shutdown timeout reached (%d second(s))"</literal></expr></argument>,
+
+<argument><expr><name><name>stream</name><operator>-&gt;</operator><name>max_shutdown_time_sec</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<return>return <expr><name>timeout</name> <operator>||</operator> <name><name>packet</name><operator>-&gt;</operator><name>sys_dts_usec</name></name> <operator>&gt;=</operator> <operator>(</operator><name>int64_t</name><operator>)</operator><name><name>stream</name><operator>-&gt;</operator><name>stop_ts</name></name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name> <modifier>*</modifier></type><name>send_thread</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>ftl_stream</name></name> <modifier>*</modifier></type><name>stream</name> <init>= <expr><name>data</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>ftl_status_t</name></type> <name>status_code</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>os_set_thread_name</name><argument_list>(<argument><expr><literal type="string">"ftl-stream: send_thread"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<while>while <condition>(<expr><call><name>os_sem_wait</name><argument_list>(<argument><expr><name><name>stream</name><operator>-&gt;</operator><name>send_sem</name></name></expr></argument>)</argument_list></call> <operator>==</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>encoder_packet</name></name></type> <name>packet</name></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>stopping</name><argument_list>(<argument><expr><name>stream</name></expr></argument>)</argument_list></call> <operator>&amp;&amp;</operator> <name><name>stream</name><operator>-&gt;</operator><name>stop_ts</name></name> <operator>==</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<break>break;</break>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>get_next_packet</name><argument_list>(<argument><expr><name>stream</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>packet</name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+
+<continue>continue;</continue></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>stopping</name><argument_list>(<argument><expr><name>stream</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><call><name>can_shutdown_stream</name><argument_list>(<argument><expr><name>stream</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>packet</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>obs_encoder_packet_release</name><argument_list>(<argument><expr><operator>&amp;</operator><name>packet</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<break>break;</break>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>packet</name><operator>.</operator><name>keyframe</name></name></expr>)</condition> <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>send_headers</name><argument_list>(<argument><expr><name>stream</name></expr></argument>, <argument><expr><name><name>packet</name><operator>.</operator><name>dts_usec</name></name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>os_atomic_set_bool</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>stream</name><operator>-&gt;</operator><name>disconnected</name></name></expr></argument>, <argument><expr><name>true</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<break>break;</break>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>send_packet</name><argument_list>(<argument><expr><name>stream</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>packet</name></expr></argument>, <argument><expr><name>false</name></expr></argument>)</argument_list></call> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>os_atomic_set_bool</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>stream</name><operator>-&gt;</operator><name>disconnected</name></name></expr></argument>, <argument><expr><name>true</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<break>break;</break>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></while>
+
+<decl_stmt><decl><type><name>bool</name></type> <name>encode_error</name> <init>= <expr><call><name>os_atomic_load_bool</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>stream</name><operator>-&gt;</operator><name>encode_error</name></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>disconnected</name><argument_list>(<argument><expr><name>stream</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>info</name><argument_list>(<argument><expr><literal type="string">"Disconnected from %s"</literal></expr></argument>, <argument><expr><name><name>stream</name><operator>-&gt;</operator><name>path</name><operator>.</operator><name>array</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if> <if type="elseif">else if <condition>(<expr><name>encode_error</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>info</name><argument_list>(<argument><expr><literal type="string">"Encoder error, disconnecting"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<expr_stmt><expr><call><name>info</name><argument_list>(<argument><expr><literal type="string">"User stopped the stream"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>stopping</name><argument_list>(<argument><expr><name>stream</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>pthread_detach</name><argument_list>(<argument><expr><name><name>stream</name><operator>-&gt;</operator><name>send_thread</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_output_signal_stop</name><argument_list>(<argument><expr><name><name>stream</name><operator>-&gt;</operator><name>output</name></name></expr></argument>, <argument><expr><name>OBS_OUTPUT_DISCONNECTED</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if> <if type="elseif">else if <condition>(<expr><name>encode_error</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>obs_output_signal_stop</name><argument_list>(<argument><expr><name><name>stream</name><operator>-&gt;</operator><name>output</name></name></expr></argument>, <argument><expr><name>OBS_OUTPUT_ENCODE_ERROR</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<expr_stmt><expr><call><name>obs_output_end_data_capture</name><argument_list>(<argument><expr><name><name>stream</name><operator>-&gt;</operator><name>output</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+<expr_stmt><expr><call><name>info</name><argument_list>(<argument><expr><literal type="string">"ingest disconnect"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>status_code</name> <operator>=</operator> <call><name>ftl_ingest_disconnect</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>stream</name><operator>-&gt;</operator><name>ftl_handle</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>status_code</name> <operator>!=</operator> <name>FTL_SUCCESS</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>printf</name><argument_list>(<argument><expr><literal type="string">"Failed to disconnect from ingest %d"</literal></expr></argument>, <argument><expr><name>status_code</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>free_packets</name><argument_list>(<argument><expr><name>stream</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>os_event_reset</name><argument_list>(<argument><expr><name><name>stream</name><operator>-&gt;</operator><name>stop_event</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>os_atomic_set_bool</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>stream</name><operator>-&gt;</operator><name>active</name></name></expr></argument>, <argument><expr><name>false</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>stream</name><operator>-&gt;</operator><name>sent_headers</name></name> <operator>=</operator> <name>false</name></expr>;</expr_stmt>
+
+<return>return <expr><name>NULL</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>bool</name></type> <name>send_video_header</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>ftl_stream</name></name> <modifier>*</modifier></type><name>stream</name></decl></parameter>, <parameter><decl><type><name>int64_t</name></type> <name>dts_usec</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>obs_output_t</name> <modifier>*</modifier></type><name>context</name> <init>= <expr><name><name>stream</name><operator>-&gt;</operator><name>output</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>obs_encoder_t</name> <modifier>*</modifier></type><name>vencoder</name> <init>= <expr><call><name>obs_output_get_video_encoder</name><argument_list>(<argument><expr><name>context</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>uint8_t</name> <modifier>*</modifier></type><name>header</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>size_t</name></type> <name>size</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>encoder_packet</name></name></type> <name>packet</name> <init>= <expr><block>{<expr><operator>.</operator><name>type</name> <operator>=</operator> <name>OBS_ENCODER_VIDEO</name></expr>,
+
+<expr><operator>.</operator><name>timebase_den</name> <operator>=</operator> <literal type="number">1</literal></expr>,
+
+<expr><operator>.</operator><name>keyframe</name> <operator>=</operator> <name>true</name></expr>,
+
+<expr><operator>.</operator><name>dts_usec</name> <operator>=</operator> <name>dts_usec</name></expr>}</block></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>obs_encoder_get_extra_data</name><argument_list>(<argument><expr><name>vencoder</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>header</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>size</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>packet</name><operator>.</operator><name>size</name></name> <operator>=</operator> <call><name>obs_parse_avc_header</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>packet</name><operator>.</operator><name>data</name></name></expr></argument>, <argument><expr><name>header</name></expr></argument>, <argument><expr><name>size</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><call><name>send_packet</name><argument_list>(<argument><expr><name>stream</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>packet</name></expr></argument>, <argument><expr><name>true</name></expr></argument>)</argument_list></call> <operator>&gt;=</operator> <literal type="number">0</literal></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <specifier>inline</specifier> <name>bool</name></type> <name>send_headers</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>ftl_stream</name></name> <modifier>*</modifier></type><name>stream</name></decl></parameter>, <parameter><decl><type><name>int64_t</name></type> <name>dts_usec</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><name><name>stream</name><operator>-&gt;</operator><name>sent_headers</name></name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>send_video_header</name><argument_list>(<argument><expr><name>stream</name></expr></argument>, <argument><expr><name>dts_usec</name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>false</name></expr>;</return></block_content></block></if></if_stmt>
+
+<return>return <expr><name>true</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <specifier>inline</specifier> <name>bool</name></type> <name>reset_semaphore</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>ftl_stream</name></name> <modifier>*</modifier></type><name>stream</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>os_sem_destroy</name><argument_list>(<argument><expr><name><name>stream</name><operator>-&gt;</operator><name>send_sem</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><call><name>os_sem_init</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>stream</name><operator>-&gt;</operator><name>send_sem</name></name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call> <operator>==</operator> <literal type="number">0</literal></expr>;</return>
+
+</block_content>}</block></function>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><call><name>defined</name><argument_list>(<argument><expr><name>_WIN32</name></expr></argument>)</argument_list></call></expr></cpp:if>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>socklen_t</name></cpp:macro> <cpp:value>int</cpp:value></cpp:define>
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>init_send</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>ftl_stream</name></name> <modifier>*</modifier></type><name>stream</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>int</name></type> <name>ret</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>reset_semaphore</name><argument_list>(<argument><expr><name>stream</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <call><name>pthread_create</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>stream</name><operator>-&gt;</operator><name>send_thread</name></name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>, <argument><expr><name>send_thread</name></expr></argument>, <argument><expr><name>stream</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>ret</name> <operator>!=</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>warn</name><argument_list>(<argument><expr><literal type="string">"Failed to create send thread"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>OBS_OUTPUT_ERROR</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>os_atomic_set_bool</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>stream</name><operator>-&gt;</operator><name>active</name></name></expr></argument>, <argument><expr><name>true</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_output_begin_data_capture</name><argument_list>(<argument><expr><name><name>stream</name><operator>-&gt;</operator><name>output</name></name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>OBS_OUTPUT_SUCCESS</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>try_connect</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>ftl_stream</name></name> <modifier>*</modifier></type><name>stream</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>ftl_status_t</name></type> <name>status_code</name></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>dstr_is_empty</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>stream</name><operator>-&gt;</operator><name>path</name></name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>warn</name><argument_list>(<argument><expr><literal type="string">"URL is empty"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>OBS_OUTPUT_BAD_PATH</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>info</name><argument_list>(<argument><expr><literal type="string">"Connecting to FTL Ingest URL %s..."</literal></expr></argument>, <argument><expr><name><name>stream</name><operator>-&gt;</operator><name>path</name><operator>.</operator><name>array</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>stream</name><operator>-&gt;</operator><name>width</name></name> <operator>=</operator> <operator>(</operator><name>int</name><operator>)</operator><call><name>obs_output_get_width</name><argument_list>(<argument><expr><name><name>stream</name><operator>-&gt;</operator><name>output</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>stream</name><operator>-&gt;</operator><name>height</name></name> <operator>=</operator> <operator>(</operator><name>int</name><operator>)</operator><call><name>obs_output_get_height</name><argument_list>(<argument><expr><name><name>stream</name><operator>-&gt;</operator><name>output</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>status_code</name> <operator>=</operator> <call><name>ftl_ingest_connect</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>stream</name><operator>-&gt;</operator><name>ftl_handle</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>status_code</name> <operator>!=</operator> <name>FTL_SUCCESS</name></expr>)</condition> <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><name>status_code</name> <operator>==</operator> <name>FTL_BAD_OR_INVALID_STREAM_KEY</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>blog</name><argument_list>(<argument><expr><name>LOG_ERROR</name></expr></argument>, <argument><expr><literal type="string">"Invalid Key (%s)"</literal></expr></argument>,
+
+<argument><expr><call><name>ftl_status_code_to_string</name><argument_list>(<argument><expr><name>status_code</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>OBS_OUTPUT_INVALID_STREAM</name></expr>;</return>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<expr_stmt><expr><call><name>warn</name><argument_list>(<argument><expr><literal type="string">"Ingest connect failed with: %s (%d)"</literal></expr></argument>,
+
+<argument><expr><call><name>ftl_status_code_to_string</name><argument_list>(<argument><expr><name>status_code</name></expr></argument>)</argument_list></call></expr></argument>,
+
+<argument><expr><name>status_code</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><call><name>_ftl_error_to_obs_error</name><argument_list>(<argument><expr><name>status_code</name></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></else></if_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>info</name><argument_list>(<argument><expr><literal type="string">"Connection to %s successful"</literal></expr></argument>, <argument><expr><name><name>stream</name><operator>-&gt;</operator><name>path</name><operator>.</operator><name>array</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>set_peak_bitrate</name><argument_list>(<argument><expr><name>stream</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>pthread_create</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>stream</name><operator>-&gt;</operator><name>status_thread</name></name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>, <argument><expr><name>status_thread</name></expr></argument>, <argument><expr><name>stream</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><call><name>init_send</name><argument_list>(<argument><expr><name>stream</name></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>bool</name></type> <name>ftl_stream_start</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>ftl_stream</name></name> <modifier>*</modifier></type><name>stream</name> <init>= <expr><name>data</name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>info</name><argument_list>(<argument><expr><literal type="string">"ftl_stream_start"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<decl_stmt><decl><type><name>obs_encoder_t</name> <modifier>*</modifier></type><name>video_encoder</name> <init>=
+
+<expr><call><name>obs_output_get_video_encoder</name><argument_list>(<argument><expr><name><name>stream</name><operator>-&gt;</operator><name>output</name></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>obs_data_t</name> <modifier>*</modifier></type><name>video_settings</name> <init>= <expr><call><name>obs_encoder_get_settings</name><argument_list>(<argument><expr><name>video_encoder</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>obs_data_set_int</name><argument_list>(<argument><expr><name>video_settings</name></expr></argument>, <argument><expr><literal type="string">"bf"</literal></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_data_release</name><argument_list>(<argument><expr><name>video_settings</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>obs_output_can_begin_data_capture</name><argument_list>(<argument><expr><name><name>stream</name><operator>-&gt;</operator><name>output</name></name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<return>return <expr><name>false</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>obs_output_initialize_encoders</name><argument_list>(<argument><expr><name><name>stream</name><operator>-&gt;</operator><name>output</name></name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<return>return <expr><name>false</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>stream</name><operator>-&gt;</operator><name>frames_sent</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>os_atomic_set_bool</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>stream</name><operator>-&gt;</operator><name>connecting</name></name></expr></argument>, <argument><expr><name>true</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><call><name>pthread_create</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>stream</name><operator>-&gt;</operator><name>connect_thread</name></name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>, <argument><expr><name>connect_thread</name></expr></argument>,
+
+<argument><expr><name>stream</name></expr></argument>)</argument_list></call> <operator>==</operator> <literal type="number">0</literal></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <specifier>inline</specifier> <name>bool</name></type> <name>add_packet</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>ftl_stream</name></name> <modifier>*</modifier></type><name>stream</name></decl></parameter>,
+
+<parameter><decl><type><name><name>struct</name> <name>encoder_packet</name></name> <modifier>*</modifier></type><name>packet</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>circlebuf_push_back</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>stream</name><operator>-&gt;</operator><name>packets</name></name></expr></argument>, <argument><expr><name>packet</name></expr></argument>,
+
+<argument><expr><sizeof>sizeof<argument_list>(<argument><expr>struct <name>encoder_packet</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>true</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <specifier>inline</specifier> <name>size_t</name></type> <name>num_buffered_packets</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>ftl_stream</name></name> <modifier>*</modifier></type><name>stream</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<return>return <expr><name><name>stream</name><operator>-&gt;</operator><name>packets</name><operator>.</operator><name>size</name></name> <operator>/</operator> <sizeof>sizeof<argument_list>(<argument><expr>struct <name>encoder_packet</name></expr></argument>)</argument_list></sizeof></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>drop_frames</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>ftl_stream</name></name> <modifier>*</modifier></type><name>stream</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>name</name></decl></parameter>,
+
+<parameter><decl><type><name>int</name></type> <name>highest_priority</name></decl></parameter>, <parameter><decl><type><name>bool</name></type> <name>pframes</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>UNUSED_PARAMETER</name><argument_list>(<argument><expr><name>pframes</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>circlebuf</name></name></type> <name>new_buf</name> <init>= <expr><block>{<expr><literal type="number">0</literal></expr>}</block></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>num_frames_dropped</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><call><name>defined</name><argument_list>(<argument><expr><name>_DEBUG</name></expr></argument>)</argument_list></call></expr></cpp:if>
+<decl_stmt><decl><type><name>int</name></type> <name>start_packets</name> <init>= <expr><operator>(</operator><name>int</name><operator>)</operator><call><name>num_buffered_packets</name><argument_list>(<argument><expr><name>stream</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<cpp:else>#<cpp:directive>else</cpp:directive></cpp:else>
+
+<expr_stmt><expr><call><name>UNUSED_PARAMETER</name><argument_list>(<argument><expr><name>name</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+<expr_stmt><expr><call><name>circlebuf_reserve</name><argument_list>(<argument><expr><operator>&amp;</operator><name>new_buf</name></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr>struct <name>encoder_packet</name></expr></argument>)</argument_list></sizeof> <operator>*</operator> <literal type="number">8</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<while>while <condition>(<expr><name><name>stream</name><operator>-&gt;</operator><name>packets</name><operator>.</operator><name>size</name></name></expr>)</condition> <block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>encoder_packet</name></name></type> <name>packet</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>circlebuf_pop_front</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>stream</name><operator>-&gt;</operator><name>packets</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name>packet</name></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr><name>packet</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>packet</name><operator>.</operator><name>type</name></name> <operator>==</operator> <name>OBS_ENCODER_AUDIO</name> <operator>||</operator>
+
+<name><name>packet</name><operator>.</operator><name>drop_priority</name></name> <operator>&gt;=</operator> <name>highest_priority</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>circlebuf_push_back</name><argument_list>(<argument><expr><operator>&amp;</operator><name>new_buf</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>packet</name></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr><name>packet</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<expr_stmt><expr><name>num_frames_dropped</name><operator>++</operator></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_encoder_packet_release</name><argument_list>(<argument><expr><operator>&amp;</operator><name>packet</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+</block_content>}</block></while>
+
+<expr_stmt><expr><call><name>circlebuf_free</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>stream</name><operator>-&gt;</operator><name>packets</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>stream</name><operator>-&gt;</operator><name>packets</name></name> <operator>=</operator> <name>new_buf</name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>stream</name><operator>-&gt;</operator><name>min_priority</name></name> <operator>&lt;</operator> <name>highest_priority</name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name><name>stream</name><operator>-&gt;</operator><name>min_priority</name></name> <operator>=</operator> <name>highest_priority</name></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>num_frames_dropped</name></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name><name>stream</name><operator>-&gt;</operator><name>dropped_frames</name></name> <operator>+=</operator> <name>num_frames_dropped</name></expr>;</expr_stmt>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><call><name>defined</name><argument_list>(<argument><expr><name>_DEBUG</name></expr></argument>)</argument_list></call></expr></cpp:if>
+<expr_stmt><expr><call><name>debug</name><argument_list>(<argument><expr><literal type="string">"Dropped %s, prev packet count: %d, new packet count: %d"</literal></expr></argument>, <argument><expr><name>name</name></expr></argument>,
+
+<argument><expr><name>start_packets</name></expr></argument>, <argument><expr><operator>(</operator><name>int</name><operator>)</operator><call><name>num_buffered_packets</name><argument_list>(<argument><expr><name>stream</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>bool</name></type> <name>find_first_video_packet</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>ftl_stream</name></name> <modifier>*</modifier></type><name>stream</name></decl></parameter>,
+
+<parameter><decl><type><name><name>struct</name> <name>encoder_packet</name></name> <modifier>*</modifier></type><name>first</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>size_t</name></type> <name>count</name> <init>= <expr><name><name>stream</name><operator>-&gt;</operator><name>packets</name><operator>.</operator><name>size</name></name> <operator>/</operator> <sizeof>sizeof<argument_list>(<argument><expr><operator>*</operator><name>first</name></expr></argument>)</argument_list></sizeof></expr></init></decl>;</decl_stmt>
+
+<for>for <control>(<init><decl><type><name>size_t</name></type> <name>i</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>count</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>encoder_packet</name></name> <modifier>*</modifier></type><name>cur</name> <init>=
+
+<expr><call><name>circlebuf_data</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>stream</name><operator>-&gt;</operator><name>packets</name></name></expr></argument>, <argument><expr><name>i</name> <operator>*</operator> <sizeof>sizeof<argument_list>(<argument><expr><operator>*</operator><name>first</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>cur</name><operator>-&gt;</operator><name>type</name></name> <operator>==</operator> <name>OBS_ENCODER_VIDEO</name> <operator>&amp;&amp;</operator> <operator>!</operator><name><name>cur</name><operator>-&gt;</operator><name>keyframe</name></name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><operator>*</operator><name>first</name> <operator>=</operator> <operator>*</operator><name>cur</name></expr>;</expr_stmt>
+
+<return>return <expr><name>true</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></for>
+
+<return>return <expr><name>false</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>check_to_drop_frames</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>ftl_stream</name></name> <modifier>*</modifier></type><name>stream</name></decl></parameter>, <parameter><decl><type><name>bool</name></type> <name>pframes</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>encoder_packet</name></name></type> <name>first</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int64_t</name></type> <name>buffer_duration_usec</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>size_t</name></type> <name>num_packets</name> <init>= <expr><call><name>num_buffered_packets</name><argument_list>(<argument><expr><name>stream</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>name</name> <init>= <expr><ternary><condition><expr><name>pframes</name></expr> ?</condition><then> <expr><literal type="string">"p-frames"</literal></expr> </then><else>: <expr><literal type="string">"b-frames"</literal></expr></else></ternary></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>priority</name> <init>= <expr><ternary><condition><expr><name>pframes</name></expr> ?</condition><then> <expr><name>OBS_NAL_PRIORITY_HIGHEST</name></expr>
+
+</then><else>: <expr><name>OBS_NAL_PRIORITY_HIGH</name></expr></else></ternary></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int64_t</name></type> <name>drop_threshold</name> <init>= <expr><ternary><condition><expr><name>pframes</name></expr> ?</condition><then> <expr><name><name>stream</name><operator>-&gt;</operator><name>pframe_drop_threshold_usec</name></name></expr>
+
+</then><else>: <expr><name><name>stream</name><operator>-&gt;</operator><name>drop_threshold_usec</name></name></expr></else></ternary></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>num_packets</name> <operator>&lt;</operator> <literal type="number">5</literal></expr>)</condition> <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>pframes</name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name><name>stream</name><operator>-&gt;</operator><name>congestion</name></name> <operator>=</operator> <literal type="number">0.0f</literal></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<return>return;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>find_first_video_packet</name><argument_list>(<argument><expr><name>stream</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>first</name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>buffer_duration_usec</name> <operator>=</operator> <name><name>stream</name><operator>-&gt;</operator><name>last_dts_usec</name></name> <operator>-</operator> <name><name>first</name><operator>.</operator><name>dts_usec</name></name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>pframes</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name><name>stream</name><operator>-&gt;</operator><name>congestion</name></name> <operator>=</operator>
+
+<operator>(</operator><name>float</name><operator>)</operator><name>buffer_duration_usec</name> <operator>/</operator> <operator>(</operator><name>float</name><operator>)</operator><name>drop_threshold</name></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>buffer_duration_usec</name> <operator>&gt;</operator> <name>drop_threshold</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>debug</name><argument_list>(<argument><expr><literal type="string">"buffer_duration_usec: %"</literal> <name>PRId64</name></expr></argument>, <argument><expr><name>buffer_duration_usec</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>drop_frames</name><argument_list>(<argument><expr><name>stream</name></expr></argument>, <argument><expr><name>name</name></expr></argument>, <argument><expr><name>priority</name></expr></argument>, <argument><expr><name>pframes</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>bool</name></type> <name>add_video_packet</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>ftl_stream</name></name> <modifier>*</modifier></type><name>stream</name></decl></parameter>,
+
+<parameter><decl><type><name><name>struct</name> <name>encoder_packet</name></name> <modifier>*</modifier></type><name>packet</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>check_to_drop_frames</name><argument_list>(<argument><expr><name>stream</name></expr></argument>, <argument><expr><name>false</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>check_to_drop_frames</name><argument_list>(<argument><expr><name>stream</name></expr></argument>, <argument><expr><name>true</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>packet</name><operator>-&gt;</operator><name>priority</name></name> <operator>&lt;</operator> <name><name>stream</name><operator>-&gt;</operator><name>min_priority</name></name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name><name>stream</name><operator>-&gt;</operator><name>dropped_frames</name></name><operator>++</operator></expr>;</expr_stmt>
+
+<return>return <expr><name>false</name></expr>;</return>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<expr_stmt><expr><name><name>stream</name><operator>-&gt;</operator><name>min_priority</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+<expr_stmt><expr><name><name>stream</name><operator>-&gt;</operator><name>last_dts_usec</name></name> <operator>=</operator> <name><name>packet</name><operator>-&gt;</operator><name>dts_usec</name></name></expr>;</expr_stmt>
+
+<return>return <expr><call><name>add_packet</name><argument_list>(<argument><expr><name>stream</name></expr></argument>, <argument><expr><name>packet</name></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>ftl_stream_data</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>, <parameter><decl><type><name><name>struct</name> <name>encoder_packet</name></name> <modifier>*</modifier></type><name>packet</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>ftl_stream</name></name> <modifier>*</modifier></type><name>stream</name> <init>= <expr><name>data</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>encoder_packet</name></name></type> <name>new_packet</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>bool</name></type> <name>added_packet</name> <init>= <expr><name>false</name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>disconnected</name><argument_list>(<argument><expr><name>stream</name></expr></argument>)</argument_list></call> <operator>||</operator> <operator>!</operator><call><name>active</name><argument_list>(<argument><expr><name>stream</name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return;</return></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>packet</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>os_atomic_set_bool</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>stream</name><operator>-&gt;</operator><name>encode_error</name></name></expr></argument>, <argument><expr><name>true</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>os_sem_post</name><argument_list>(<argument><expr><name><name>stream</name><operator>-&gt;</operator><name>send_sem</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>packet</name><operator>-&gt;</operator><name>type</name></name> <operator>==</operator> <name>OBS_ENCODER_VIDEO</name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>obs_parse_avc_packet</name><argument_list>(<argument><expr><operator>&amp;</operator><name>new_packet</name></expr></argument>, <argument><expr><name>packet</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if>
+
+<else>else<block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>obs_encoder_packet_ref</name><argument_list>(<argument><expr><operator>&amp;</operator><name>new_packet</name></expr></argument>, <argument><expr><name>packet</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></else></if_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_lock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>stream</name><operator>-&gt;</operator><name>packets_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>disconnected</name><argument_list>(<argument><expr><name>stream</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>added_packet</name> <operator>=</operator> <ternary><condition><expr><operator>(</operator><name><name>packet</name><operator>-&gt;</operator><name>type</name></name> <operator>==</operator> <name>OBS_ENCODER_VIDEO</name><operator>)</operator></expr>
+
+?</condition><then> <expr><call><name>add_video_packet</name><argument_list>(<argument><expr><name>stream</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>new_packet</name></expr></argument>)</argument_list></call></expr>
+
+</then><else>: <expr><call><name>add_packet</name><argument_list>(<argument><expr><name>stream</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>new_packet</name></expr></argument>)</argument_list></call></expr></else></ternary></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_unlock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>stream</name><operator>-&gt;</operator><name>packets_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>added_packet</name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>os_sem_post</name><argument_list>(<argument><expr><name><name>stream</name><operator>-&gt;</operator><name>send_sem</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if>
+
+<else>else<block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>obs_encoder_packet_release</name><argument_list>(<argument><expr><operator>&amp;</operator><name>new_packet</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></else></if_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>ftl_stream_defaults</name><parameter_list>(<parameter><decl><type><name>obs_data_t</name> <modifier>*</modifier></type><name>defaults</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>UNUSED_PARAMETER</name><argument_list>(<argument><expr><name>defaults</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>obs_properties_t</name> <modifier>*</modifier></type><name>ftl_stream_properties</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>unused</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>UNUSED_PARAMETER</name><argument_list>(<argument><expr><name>unused</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<decl_stmt><decl><type><name>obs_properties_t</name> <modifier>*</modifier></type><name>props</name> <init>= <expr><call><name>obs_properties_create</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>obs_properties_add_int</name><argument_list>(<argument><expr><name>props</name></expr></argument>, <argument><expr><literal type="string">"peak_bitrate_kbps"</literal></expr></argument>,
+
+<argument><expr><call><name>obs_module_text</name><argument_list>(<argument><expr><literal type="string">"FTLStream.PeakBitrate"</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><literal type="number">1000</literal></expr></argument>,
+
+<argument><expr><literal type="number">10000</literal></expr></argument>, <argument><expr><literal type="number">500</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>props</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>uint64_t</name></type> <name>ftl_stream_total_bytes_sent</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>ftl_stream</name></name> <modifier>*</modifier></type><name>stream</name> <init>= <expr><name>data</name></expr></init></decl>;</decl_stmt>
+
+<return>return <expr><name><name>stream</name><operator>-&gt;</operator><name>total_bytes_sent</name></name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>ftl_stream_dropped_frames</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>ftl_stream</name></name> <modifier>*</modifier></type><name>stream</name> <init>= <expr><name>data</name></expr></init></decl>;</decl_stmt>
+
+<return>return <expr><operator>(</operator><name>int</name><operator>)</operator><name><name>stream</name><operator>-&gt;</operator><name>dropped_frames</name></name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>float</name></type> <name>ftl_stream_congestion</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>ftl_stream</name></name> <modifier>*</modifier></type><name>stream</name> <init>= <expr><name>data</name></expr></init></decl>;</decl_stmt>
+
+<return>return <expr><ternary><condition><expr><name><name>stream</name><operator>-&gt;</operator><name>min_priority</name></name> <operator>&gt;</operator> <literal type="number">0</literal></expr> ?</condition><then> <expr><literal type="number">1.0f</literal></expr> </then><else>: <expr><name><name>stream</name><operator>-&gt;</operator><name>congestion</name></name></expr></else></ternary></expr>;</return>
+
+</block_content>}</block></function>
+
+<enum>enum <name>ret_type</name> <block>{
+
+<decl><name>RET_CONTINUE</name></decl>,
+
+<decl><name>RET_BREAK</name></decl>,
+
+<decl><name>RET_EXIT</name></decl>,
+
+}</block>;</enum>
+
+<function><type><specifier>static</specifier> <name><name>enum</name> <name>ret_type</name></name></type> <name>ftl_event</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>ftl_stream</name></name> <modifier>*</modifier></type><name>stream</name></decl></parameter>,
+
+<parameter><decl><type><name>ftl_status_msg_t</name></type> <name>status</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><name><name>status</name><operator>.</operator><name>msg</name><operator>.</operator><name>event</name><operator>.</operator><name>type</name></name> <operator>!=</operator> <name>FTL_STATUS_EVENT_TYPE_DISCONNECTED</name></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>RET_CONTINUE</name></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>info</name><argument_list>(<argument><expr><literal type="string">"Disconnected from ingest with reason: %s"</literal></expr></argument>,
+
+<argument><expr><call><name>ftl_status_code_to_string</name><argument_list>(<argument><expr><name><name>status</name><operator>.</operator><name>msg</name><operator>.</operator><name>event</name><operator>.</operator><name>error_code</name></name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>status</name><operator>.</operator><name>msg</name><operator>.</operator><name>event</name><operator>.</operator><name>reason</name></name> <operator>==</operator> <name>FTL_STATUS_EVENT_REASON_API_REQUEST</name></expr>)</condition> <block>{<block_content>
+
+<return>return <expr><name>RET_BREAK</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>blog</name><argument_list>(<argument><expr><name>LOG_WARNING</name></expr></argument>, <argument><expr><literal type="string">"Reconnecting to Ingest"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_output_signal_stop</name><argument_list>(<argument><expr><name><name>stream</name><operator>-&gt;</operator><name>output</name></name></expr></argument>, <argument><expr><name>OBS_OUTPUT_DISCONNECTED</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>RET_EXIT</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name> <modifier>*</modifier></type><name>status_thread</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>ftl_stream</name></name> <modifier>*</modifier></type><name>stream</name> <init>= <expr><name>data</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>ftl_status_msg_t</name></type> <name>status</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>ftl_status_t</name></type> <name>status_code</name></decl>;</decl_stmt>
+
+<while>while <condition>(<expr><operator>!</operator><call><name>disconnected</name><argument_list>(<argument><expr><name>stream</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>status_code</name> <operator>=</operator> <call><name>ftl_ingest_get_status</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>stream</name><operator>-&gt;</operator><name>ftl_handle</name></name></expr></argument>,
+
+<argument><expr><operator>&amp;</operator><name>status</name></expr></argument>, <argument><expr><literal type="number">1000</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>status_code</name> <operator>==</operator> <name>FTL_STATUS_TIMEOUT</name> <operator>||</operator>
+
+<name>status_code</name> <operator>==</operator> <name>FTL_QUEUE_EMPTY</name></expr>)</condition> <block>{<block_content>
+
+<continue>continue;</continue>
+
+</block_content>}</block></if> <if type="elseif">else if <condition>(<expr><name>status_code</name> <operator>==</operator> <name>FTL_NOT_INITIALIZED</name></expr>)</condition> <block>{<block_content>
+
+<break>break;</break>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>status</name><operator>.</operator><name>type</name></name> <operator>==</operator> <name>FTL_STATUS_EVENT</name></expr>)</condition> <block>{<block_content>
+
+<decl_stmt><decl><type><name><name>enum</name> <name>ret_type</name></name></type> <name>ret_type</name> <init>= <expr><call><name>ftl_event</name><argument_list>(<argument><expr><name>stream</name></expr></argument>, <argument><expr><name>status</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>ret_type</name> <operator>==</operator> <name>RET_EXIT</name></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>NULL</name></expr>;</return></block_content></block></if>
+
+<if type="elseif">else if <condition>(<expr><name>ret_type</name> <operator>==</operator> <name>RET_BREAK</name></expr>)</condition><block type="pseudo"><block_content>
+
+<break>break;</break></block_content></block></if></if_stmt>
+
+</block_content>}</block></if> <if type="elseif">else if <condition>(<expr><name><name>status</name><operator>.</operator><name>type</name></name> <operator>==</operator> <name>FTL_STATUS_LOG</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>blog</name><argument_list>(<argument><expr><name>LOG_INFO</name></expr></argument>, <argument><expr><literal type="string">"[%d] %s"</literal></expr></argument>, <argument><expr><name><name>status</name><operator>.</operator><name>msg</name><operator>.</operator><name>log</name><operator>.</operator><name>log_level</name></name></expr></argument>,
+
+<argument><expr><name><name>status</name><operator>.</operator><name>msg</name><operator>.</operator><name>log</name><operator>.</operator><name>string</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if> <if type="elseif">else if <condition>(<expr><name><name>status</name><operator>.</operator><name>type</name></name> <operator>==</operator> <name>FTL_STATUS_VIDEO_PACKETS</name></expr>)</condition> <block>{<block_content>
+
+<decl_stmt><decl><type><name>ftl_packet_stats_msg_t</name> <modifier>*</modifier></type><name>p</name> <init>= <expr><operator>&amp;</operator><name><name>status</name><operator>.</operator><name>msg</name><operator>.</operator><name>pkt_stats</name></name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>stream</name><operator>-&gt;</operator><name>dropped_frames</name></name> <operator>+=</operator>
+
+<name><name>p</name><operator>-&gt;</operator><name>nack_reqs</name></name> <operator>-</operator> <name><name>stream</name><operator>-&gt;</operator><name>last_nack_count</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>stream</name><operator>-&gt;</operator><name>last_nack_count</name></name> <operator>=</operator> <name><name>p</name><operator>-&gt;</operator><name>nack_reqs</name></name></expr>;</expr_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>log_level</name> <init>= <expr><ternary><condition><expr><name><name>p</name><operator>-&gt;</operator><name>nack_reqs</name></name> <operator>&gt;</operator> <literal type="number">0</literal></expr> ?</condition><then> <expr><name>LOG_INFO</name></expr> </then><else>: <expr><name>LOG_DEBUG</name></expr></else></ternary></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>blog</name><argument_list>(<argument><expr><name>log_level</name></expr></argument>,
+
+<argument><expr><literal type="string">"Avg packet send per second %3.1f, "</literal>
+
+<literal type="string">"total nack requests %d"</literal></expr></argument>,
+
+<argument><expr><operator>(</operator><name>float</name><operator>)</operator><name><name>p</name><operator>-&gt;</operator><name>sent</name></name> <operator>*</operator> <literal type="number">1000.f</literal> <operator>/</operator> <name><name>p</name><operator>-&gt;</operator><name>period</name></name></expr></argument>,
+
+<argument><expr><operator>(</operator><name>int</name><operator>)</operator><name><name>p</name><operator>-&gt;</operator><name>nack_reqs</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if> <if type="elseif">else if <condition>(<expr><name><name>status</name><operator>.</operator><name>type</name></name> <operator>==</operator> <name>FTL_STATUS_VIDEO_PACKETS_INSTANT</name></expr>)</condition> <block>{<block_content>
+
+<decl_stmt><decl><type><name>ftl_packet_stats_instant_msg_t</name> <modifier>*</modifier></type><name>p</name> <init>=
+
+<expr><operator>&amp;</operator><name><name>status</name><operator>.</operator><name>msg</name><operator>.</operator><name>ipkt_stats</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>log_level</name> <init>= <expr><ternary><condition><expr><name><name>p</name><operator>-&gt;</operator><name>avg_rtt</name></name> <operator>&gt;</operator> <literal type="number">20</literal></expr> ?</condition><then> <expr><name>LOG_INFO</name></expr> </then><else>: <expr><name>LOG_DEBUG</name></expr></else></ternary></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>blog</name><argument_list>(<argument><expr><name>log_level</name></expr></argument>,
+
+<argument><expr><literal type="string">"avg transmit delay %dms "</literal>
+
+<literal type="string">"(min: %d, max: %d), "</literal>
+
+<literal type="string">"avg rtt %dms (min: %d, max: %d)"</literal></expr></argument>,
+
+<argument><expr><name><name>p</name><operator>-&gt;</operator><name>avg_xmit_delay</name></name></expr></argument>, <argument><expr><name><name>p</name><operator>-&gt;</operator><name>min_xmit_delay</name></name></expr></argument>,
+
+<argument><expr><name><name>p</name><operator>-&gt;</operator><name>max_xmit_delay</name></name></expr></argument>, <argument><expr><name><name>p</name><operator>-&gt;</operator><name>avg_rtt</name></name></expr></argument>, <argument><expr><name><name>p</name><operator>-&gt;</operator><name>min_rtt</name></name></expr></argument>,
+
+<argument><expr><name><name>p</name><operator>-&gt;</operator><name>max_rtt</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if> <if type="elseif">else if <condition>(<expr><name><name>status</name><operator>.</operator><name>type</name></name> <operator>==</operator> <name>FTL_STATUS_VIDEO</name></expr>)</condition> <block>{<block_content>
+
+<decl_stmt><decl><type><name>ftl_video_frame_stats_msg_t</name> <modifier>*</modifier></type><name>v</name> <init>=
+
+<expr><operator>&amp;</operator><name><name>status</name><operator>.</operator><name>msg</name><operator>.</operator><name>video_stats</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>log_level</name> <init>= <expr><ternary><condition><expr><name><name>v</name><operator>-&gt;</operator><name>queue_fullness</name></name> <operator>&gt;</operator> <literal type="number">0</literal></expr> ?</condition><then> <expr><name>LOG_INFO</name></expr>
+
+</then><else>: <expr><name>LOG_DEBUG</name></expr></else></ternary></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>blog</name><argument_list>(<argument><expr><name>log_level</name></expr></argument>,
+
+<argument><expr><literal type="string">"Queue an average of %3.2f fps "</literal>
+
+<literal type="string">"(%3.1f kbps), "</literal>
+
+<literal type="string">"sent an average of %3.2f fps "</literal>
+
+<literal type="string">"(%3.1f kbps), "</literal>
+
+<literal type="string">"queue fullness %d, "</literal>
+
+<literal type="string">"max frame size %d"</literal></expr></argument>,
+
+<argument><expr><operator>(</operator><name>float</name><operator>)</operator><name><name>v</name><operator>-&gt;</operator><name>frames_queued</name></name> <operator>*</operator> <literal type="number">1000.f</literal> <operator>/</operator> <name><name>v</name><operator>-&gt;</operator><name>period</name></name></expr></argument>,
+
+<argument><expr><operator>(</operator><name>float</name><operator>)</operator><name><name>v</name><operator>-&gt;</operator><name>bytes_queued</name></name> <operator>/</operator> <name><name>v</name><operator>-&gt;</operator><name>period</name></name> <operator>*</operator> <literal type="number">8</literal></expr></argument>,
+
+<argument><expr><operator>(</operator><name>float</name><operator>)</operator><name><name>v</name><operator>-&gt;</operator><name>frames_sent</name></name> <operator>*</operator> <literal type="number">1000.f</literal> <operator>/</operator> <name><name>v</name><operator>-&gt;</operator><name>period</name></name></expr></argument>,
+
+<argument><expr><operator>(</operator><name>float</name><operator>)</operator><name><name>v</name><operator>-&gt;</operator><name>bytes_sent</name></name> <operator>/</operator> <name><name>v</name><operator>-&gt;</operator><name>period</name></name> <operator>*</operator> <literal type="number">8</literal></expr></argument>,
+
+<argument><expr><name><name>v</name><operator>-&gt;</operator><name>queue_fullness</name></name></expr></argument>, <argument><expr><name><name>v</name><operator>-&gt;</operator><name>max_frame_size</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<expr_stmt><expr><call><name>blog</name><argument_list>(<argument><expr><name>LOG_DEBUG</name></expr></argument>,
+
+<argument><expr><literal type="string">"Status: Got Status message of type "</literal>
+
+<literal type="string">"%d"</literal></expr></argument>,
+
+<argument><expr><name><name>status</name><operator>.</operator><name>type</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+</block_content>}</block></while>
+
+<expr_stmt><expr><call><name>blog</name><argument_list>(<argument><expr><name>LOG_DEBUG</name></expr></argument>, <argument><expr><literal type="string">"status_thread: Exited"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>pthread_detach</name><argument_list>(<argument><expr><name><name>stream</name><operator>-&gt;</operator><name>status_thread</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>NULL</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name> <modifier>*</modifier></type><name>connect_thread</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>ftl_stream</name></name> <modifier>*</modifier></type><name>stream</name> <init>= <expr><name>data</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>ret</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>os_set_thread_name</name><argument_list>(<argument><expr><literal type="string">"ftl-stream: connect_thread"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>blog</name><argument_list>(<argument><expr><name>LOG_WARNING</name></expr></argument>, <argument><expr><literal type="string">"ftl-stream: connect thread"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <call><name>init_connect</name><argument_list>(<argument><expr><name>stream</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>ret</name> <operator>!=</operator> <name>OBS_OUTPUT_SUCCESS</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>obs_output_signal_stop</name><argument_list>(<argument><expr><name><name>stream</name><operator>-&gt;</operator><name>output</name></name></expr></argument>, <argument><expr><name>ret</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>NULL</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <call><name>try_connect</name><argument_list>(<argument><expr><name>stream</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>ret</name> <operator>!=</operator> <name>OBS_OUTPUT_SUCCESS</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>obs_output_signal_stop</name><argument_list>(<argument><expr><name><name>stream</name><operator>-&gt;</operator><name>output</name></name></expr></argument>, <argument><expr><name>ret</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>info</name><argument_list>(<argument><expr><literal type="string">"Connection to %s failed: %d"</literal></expr></argument>, <argument><expr><name><name>stream</name><operator>-&gt;</operator><name>path</name><operator>.</operator><name>array</name></name></expr></argument>, <argument><expr><name>ret</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>stopping</name><argument_list>(<argument><expr><name>stream</name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>pthread_detach</name><argument_list>(<argument><expr><name><name>stream</name><operator>-&gt;</operator><name>connect_thread</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>os_atomic_set_bool</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>stream</name><operator>-&gt;</operator><name>connecting</name></name></expr></argument>, <argument><expr><name>false</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>NULL</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>log_libftl_messages</name><parameter_list>(<parameter><decl><type><name>ftl_log_severity_t</name></type> <name>log_level</name></decl></parameter>,
+
+<parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>message</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>UNUSED_PARAMETER</name><argument_list>(<argument><expr><name>log_level</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>blog</name><argument_list>(<argument><expr><name>LOG_WARNING</name></expr></argument>, <argument><expr><literal type="string">"[libftl] %s"</literal></expr></argument>, <argument><expr><name>message</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>init_connect</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>ftl_stream</name></name> <modifier>*</modifier></type><name>stream</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>obs_service_t</name> <modifier>*</modifier></type><name>service</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>obs_data_t</name> <modifier>*</modifier></type><name>settings</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>bind_ip</name></decl>, <decl><type ref="prev"><modifier>*</modifier></type><name>key</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>ftl_status_t</name></type> <name>status_code</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>info</name><argument_list>(<argument><expr><literal type="string">"init_connect"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>stopping</name><argument_list>(<argument><expr><name>stream</name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>pthread_join</name><argument_list>(<argument><expr><name><name>stream</name><operator>-&gt;</operator><name>send_thread</name></name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>free_packets</name><argument_list>(<argument><expr><name>stream</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>service</name> <operator>=</operator> <call><name>obs_output_get_service</name><argument_list>(<argument><expr><name><name>stream</name><operator>-&gt;</operator><name>output</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>service</name></expr>)</condition> <block>{<block_content>
+
+<return>return <expr><name>OBS_OUTPUT_ERROR</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>os_atomic_set_bool</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>stream</name><operator>-&gt;</operator><name>disconnected</name></name></expr></argument>, <argument><expr><name>false</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>os_atomic_set_bool</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>stream</name><operator>-&gt;</operator><name>encode_error</name></name></expr></argument>, <argument><expr><name>false</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>stream</name><operator>-&gt;</operator><name>total_bytes_sent</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>stream</name><operator>-&gt;</operator><name>dropped_frames</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>stream</name><operator>-&gt;</operator><name>min_priority</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>settings</name> <operator>=</operator> <call><name>obs_output_get_settings</name><argument_list>(<argument><expr><name><name>stream</name><operator>-&gt;</operator><name>output</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<decl_stmt><decl><type><name>obs_encoder_t</name> <modifier>*</modifier></type><name>video_encoder</name> <init>=
+
+<expr><call><name>obs_output_get_video_encoder</name><argument_list>(<argument><expr><name><name>stream</name><operator>-&gt;</operator><name>output</name></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>obs_data_t</name> <modifier>*</modifier></type><name>video_settings</name> <init>= <expr><call><name>obs_encoder_get_settings</name><argument_list>(<argument><expr><name>video_encoder</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>dstr_copy</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>stream</name><operator>-&gt;</operator><name>path</name></name></expr></argument>, <argument><expr><call><name>obs_service_get_url</name><argument_list>(<argument><expr><name>service</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>key</name> <operator>=</operator> <call><name>obs_service_get_key</name><argument_list>(<argument><expr><name>service</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>target_bitrate</name> <init>= <expr><operator>(</operator><name>int</name><operator>)</operator><call><name>obs_data_get_int</name><argument_list>(<argument><expr><name>video_settings</name></expr></argument>, <argument><expr><literal type="string">"bitrate"</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>peak_bitrate</name> <init>= <expr><operator>(</operator><name>int</name><operator>)</operator><operator>(</operator><operator>(</operator><name>float</name><operator>)</operator><name>target_bitrate</name> <operator>*</operator> <literal type="number">1.1f</literal><operator>)</operator></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>peak_bitrate</name> <operator>&lt;</operator> <name>target_bitrate</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>peak_bitrate</name> <operator>=</operator> <name>target_bitrate</name></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>stream</name><operator>-&gt;</operator><name>params</name><operator>.</operator><name>stream_key</name></name> <operator>=</operator> <operator>(</operator><name>char</name> <operator>*</operator><operator>)</operator><name>key</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>stream</name><operator>-&gt;</operator><name>params</name><operator>.</operator><name>video_codec</name></name> <operator>=</operator> <name>FTL_VIDEO_H264</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>stream</name><operator>-&gt;</operator><name>params</name><operator>.</operator><name>audio_codec</name></name> <operator>=</operator> <name>FTL_AUDIO_OPUS</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>stream</name><operator>-&gt;</operator><name>params</name><operator>.</operator><name>ingest_hostname</name></name> <operator>=</operator> <name><name>stream</name><operator>-&gt;</operator><name>path</name><operator>.</operator><name>array</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>stream</name><operator>-&gt;</operator><name>params</name><operator>.</operator><name>vendor_name</name></name> <operator>=</operator> <literal type="string">"OBS Studio"</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>stream</name><operator>-&gt;</operator><name>params</name><operator>.</operator><name>vendor_version</name></name> <operator>=</operator> <name>OBS_VERSION</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>stream</name><operator>-&gt;</operator><name>params</name><operator>.</operator><name>peak_kbps</name></name> <operator>=</operator> <ternary><condition><expr><name><name>stream</name><operator>-&gt;</operator><name>peak_kbps</name></name> <operator>&lt;</operator> <literal type="number">0</literal></expr> ?</condition><then> <expr><literal type="number">0</literal></expr>
+
+</then><else>: <expr><name><name>stream</name><operator>-&gt;</operator><name>peak_kbps</name></name></expr></else></ternary></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>stream</name><operator>-&gt;</operator><name>params</name><operator>.</operator><name>fps_num</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>stream</name><operator>-&gt;</operator><name>params</name><operator>.</operator><name>fps_den</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>status_code</name> <operator>=</operator> <call><name>ftl_ingest_create</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>stream</name><operator>-&gt;</operator><name>ftl_handle</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>stream</name><operator>-&gt;</operator><name>params</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>status_code</name> <operator>!=</operator> <name>FTL_SUCCESS</name></expr>)</condition> <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><name>status_code</name> <operator>==</operator> <name>FTL_BAD_OR_INVALID_STREAM_KEY</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>blog</name><argument_list>(<argument><expr><name>LOG_ERROR</name></expr></argument>, <argument><expr><literal type="string">"Invalid Key (%s)"</literal></expr></argument>,
+
+<argument><expr><call><name>ftl_status_code_to_string</name><argument_list>(<argument><expr><name>status_code</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>OBS_OUTPUT_INVALID_STREAM</name></expr>;</return>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<expr_stmt><expr><call><name>blog</name><argument_list>(<argument><expr><name>LOG_ERROR</name></expr></argument>, <argument><expr><literal type="string">"Failed to create ingest handle (%s)"</literal></expr></argument>,
+
+<argument><expr><call><name>ftl_status_code_to_string</name><argument_list>(<argument><expr><name>status_code</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>OBS_OUTPUT_ERROR</name></expr>;</return>
+
+</block_content>}</block></else></if_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>dstr_copy</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>stream</name><operator>-&gt;</operator><name>username</name></name></expr></argument>, <argument><expr><call><name>obs_service_get_username</name><argument_list>(<argument><expr><name>service</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>dstr_copy</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>stream</name><operator>-&gt;</operator><name>password</name></name></expr></argument>, <argument><expr><call><name>obs_service_get_password</name><argument_list>(<argument><expr><name>service</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>dstr_depad</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>stream</name><operator>-&gt;</operator><name>path</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>stream</name><operator>-&gt;</operator><name>drop_threshold_usec</name></name> <operator>=</operator>
+
+<operator>(</operator><name>int64_t</name><operator>)</operator><call><name>obs_data_get_int</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><name>OPT_DROP_THRESHOLD</name></expr></argument>)</argument_list></call> <operator>*</operator> <literal type="number">1000</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>stream</name><operator>-&gt;</operator><name>max_shutdown_time_sec</name></name> <operator>=</operator>
+
+<operator>(</operator><name>int</name><operator>)</operator><call><name>obs_data_get_int</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><name>OPT_MAX_SHUTDOWN_TIME_SEC</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>bind_ip</name> <operator>=</operator> <call><name>obs_data_get_string</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><name>OPT_BIND_IP</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>dstr_copy</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>stream</name><operator>-&gt;</operator><name>bind_ip</name></name></expr></argument>, <argument><expr><name>bind_ip</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_data_release</name><argument_list>(<argument><expr><name>settings</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_data_release</name><argument_list>(<argument><expr><name>video_settings</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>OBS_OUTPUT_SUCCESS</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>_ftl_error_to_obs_error</name><parameter_list>(<parameter><decl><type><name>int</name></type> <name>status</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<switch>switch <condition>(<expr><name>status</name></expr>)</condition> <block>{<block_content>
+
+<case>case <expr><name>FTL_SUCCESS</name></expr>:</case>
+
+<return>return <expr><name>OBS_OUTPUT_SUCCESS</name></expr>;</return>
+
+<case>case <expr><name>FTL_SOCKET_NOT_CONNECTED</name></expr>:</case>
+
+<case>case <expr><name>FTL_MALLOC_FAILURE</name></expr>:</case>
+
+<case>case <expr><name>FTL_INTERNAL_ERROR</name></expr>:</case>
+
+<case>case <expr><name>FTL_CONFIG_ERROR</name></expr>:</case>
+
+<case>case <expr><name>FTL_NOT_ACTIVE_STREAM</name></expr>:</case>
+
+<case>case <expr><name>FTL_NOT_CONNECTED</name></expr>:</case>
+
+<case>case <expr><name>FTL_ALREADY_CONNECTED</name></expr>:</case>
+
+<case>case <expr><name>FTL_STATUS_TIMEOUT</name></expr>:</case>
+
+<case>case <expr><name>FTL_QUEUE_FULL</name></expr>:</case>
+
+<case>case <expr><name>FTL_STATUS_WAITING_FOR_KEY_FRAME</name></expr>:</case>
+
+<case>case <expr><name>FTL_QUEUE_EMPTY</name></expr>:</case>
+
+<case>case <expr><name>FTL_NOT_INITIALIZED</name></expr>:</case>
+
+<return>return <expr><name>OBS_OUTPUT_ERROR</name></expr>;</return>
+
+<case>case <expr><name>FTL_BAD_REQUEST</name></expr>:</case>
+
+<case>case <expr><name>FTL_DNS_FAILURE</name></expr>:</case>
+
+<case>case <expr><name>FTL_CONNECT_ERROR</name></expr>:</case>
+
+<case>case <expr><name>FTL_UNSUPPORTED_MEDIA_TYPE</name></expr>:</case>
+
+<case>case <expr><name>FTL_OLD_VERSION</name></expr>:</case>
+
+<case>case <expr><name>FTL_UNAUTHORIZED</name></expr>:</case>
+
+<case>case <expr><name>FTL_AUDIO_SSRC_COLLISION</name></expr>:</case>
+
+<case>case <expr><name>FTL_VIDEO_SSRC_COLLISION</name></expr>:</case>
+
+<case>case <expr><name>FTL_STREAM_REJECTED</name></expr>:</case>
+
+<case>case <expr><name>FTL_BAD_OR_INVALID_STREAM_KEY</name></expr>:</case>
+
+<case>case <expr><name>FTL_CHANNEL_IN_USE</name></expr>:</case>
+
+<case>case <expr><name>FTL_REGION_UNSUPPORTED</name></expr>:</case>
+
+<case>case <expr><name>FTL_GAME_BLOCKED</name></expr>:</case>
+
+<return>return <expr><name>OBS_OUTPUT_CONNECT_FAILED</name></expr>;</return>
+
+<case>case <expr><name>FTL_NO_MEDIA_TIMEOUT</name></expr>:</case>
+
+<return>return <expr><name>OBS_OUTPUT_DISCONNECTED</name></expr>;</return>
+
+<case>case <expr><name>FTL_USER_DISCONNECT</name></expr>:</case>
+
+<return>return <expr><name>OBS_OUTPUT_SUCCESS</name></expr>;</return>
+
+<case>case <expr><name>FTL_UNKNOWN_ERROR_CODE</name></expr>:</case>
+
+<default>default:</default>
+
+<return>return <expr><name>OBS_OUTPUT_ERROR</name></expr>;</return>
+
+</block_content>}</block></switch>
+
+</block_content>}</block></function>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>obs_output_info</name></name></type> <name>ftl_output_info</name> <init>= <expr><block>{
+
+<expr><operator>.</operator><name>id</name> <operator>=</operator> <literal type="string">"ftl_output"</literal></expr>,
+
+<expr><operator>.</operator><name>flags</name> <operator>=</operator> <name>OBS_OUTPUT_AV</name> <operator>|</operator> <name>OBS_OUTPUT_ENCODED</name> <operator>|</operator> <name>OBS_OUTPUT_SERVICE</name></expr>,
+
+<expr><operator>.</operator><name>encoded_video_codecs</name> <operator>=</operator> <literal type="string">"h264"</literal></expr>,
+
+<expr><operator>.</operator><name>encoded_audio_codecs</name> <operator>=</operator> <literal type="string">"opus"</literal></expr>,
+
+<expr><operator>.</operator><name>get_name</name> <operator>=</operator> <name>ftl_stream_getname</name></expr>,
+
+<expr><operator>.</operator><name>create</name> <operator>=</operator> <name>ftl_stream_create</name></expr>,
+
+<expr><operator>.</operator><name>destroy</name> <operator>=</operator> <name>ftl_stream_destroy</name></expr>,
+
+<expr><operator>.</operator><name>start</name> <operator>=</operator> <name>ftl_stream_start</name></expr>,
+
+<expr><operator>.</operator><name>stop</name> <operator>=</operator> <name>ftl_stream_stop</name></expr>,
+
+<expr><operator>.</operator><name>encoded_packet</name> <operator>=</operator> <name>ftl_stream_data</name></expr>,
+
+<expr><operator>.</operator><name>get_defaults</name> <operator>=</operator> <name>ftl_stream_defaults</name></expr>,
+
+<expr><operator>.</operator><name>get_properties</name> <operator>=</operator> <name>ftl_stream_properties</name></expr>,
+
+<expr><operator>.</operator><name>get_total_bytes</name> <operator>=</operator> <name>ftl_stream_total_bytes_sent</name></expr>,
+
+<expr><operator>.</operator><name>get_congestion</name> <operator>=</operator> <name>ftl_stream_congestion</name></expr>,
+
+<expr><operator>.</operator><name>get_dropped_frames</name> <operator>=</operator> <name>ftl_stream_dropped_frames</name></expr>,
+
+}</block></expr></init></decl>;</decl_stmt>
+
+</unit>

@@ -1,0 +1,36 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#if !defined(AVUTIL_HWCONTEXT_MEDIACODEC_H)
+#define AVUTIL_HWCONTEXT_MEDIACODEC_H
+
+
+
+
+
+
+typedef struct AVMediaCodecDeviceContext {
+
+
+
+
+
+void *surface;
+} AVMediaCodecDeviceContext;
+
+#endif 

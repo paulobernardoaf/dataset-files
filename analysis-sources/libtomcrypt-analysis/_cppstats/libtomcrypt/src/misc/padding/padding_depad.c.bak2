@@ -1,0 +1,94 @@
+
+
+
+
+
+
+
+
+#include "tomcrypt_private.h"
+
+#ifdef LTC_PADDING
+
+
+
+
+
+
+
+
+
+
+
+int padding_depad(const unsigned char *data, unsigned long *length, unsigned long mode)
+{
+   unsigned long padded_length, unpadded_length, n;
+   unsigned char pad;
+   enum padding_type type;
+
+   LTC_ARGCHK(data   != NULL);
+   LTC_ARGCHK(length != NULL);
+
+   padded_length = *length;
+
+   type = mode & LTC_PAD_MASK;
+
+   if (type < LTC_PAD_ONE_AND_ZERO) {
+      pad = data[padded_length - 1];
+
+      if (pad > padded_length || pad == 0) return CRYPT_INVALID_ARG;
+
+      unpadded_length = padded_length - pad;
+   } else {
+      
+      pad = 0x0;
+      unpadded_length = padded_length;
+   }
+
+   switch (type) {
+      case LTC_PAD_ANSI_X923:
+         pad = 0x0;
+         
+      case LTC_PAD_PKCS7:
+         for (n = unpadded_length; n < padded_length - 1; ++n) {
+            if (data[n] != pad) return CRYPT_INVALID_PACKET;
+         }
+         break;
+#ifdef LTC_RNG_GET_BYTES
+      case LTC_PAD_ISO_10126:
+         
+         break;
+#endif
+      case LTC_PAD_ONE_AND_ZERO:
+         while (unpadded_length > 0 && data[unpadded_length - 1] != 0x80) {
+            if (data[unpadded_length - 1] != 0x0) return CRYPT_INVALID_PACKET;
+            unpadded_length--;
+         }
+         if (unpadded_length == 0) return CRYPT_INVALID_PACKET;
+         unpadded_length--;
+         if (data[unpadded_length] != 0x80) return CRYPT_INVALID_PACKET;
+         break;
+      case LTC_PAD_ZERO:
+      case LTC_PAD_ZERO_ALWAYS:
+         while (unpadded_length > 0 && data[unpadded_length - 1] == 0x0) {
+            unpadded_length--;
+         }
+         if (type == LTC_PAD_ZERO_ALWAYS) {
+            if (unpadded_length == padded_length) return CRYPT_INVALID_PACKET;
+            if (data[unpadded_length] != 0x0) return CRYPT_INVALID_PACKET;
+         }
+         break;
+      default:
+         return CRYPT_INVALID_ARG;
+   }
+
+   *length = unpadded_length;
+
+   return CRYPT_OK;
+}
+
+#endif
+
+
+
+

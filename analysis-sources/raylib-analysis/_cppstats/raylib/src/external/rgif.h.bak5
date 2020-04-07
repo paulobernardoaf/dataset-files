@@ -1,0 +1,930 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#include <stdio.h> 
+
+
+#if defined(RGIF_STATIC)
+#define RGIFDEF static 
+#else
+#if defined(__cplusplus)
+#define RGIFDEF extern "C" 
+#else
+#define RGIFDEF extern 
+#endif
+#endif
+
+
+
+
+
+
+RGIFDEF bool GifBegin(const char *filename, unsigned int width, unsigned int height, unsigned int delay, unsigned int bitDepth, bool dither);
+RGIFDEF bool GifWriteFrame(const unsigned char *image, unsigned int width, unsigned int height, unsigned int delay, int bitDepth, bool dither);
+RGIFDEF bool GifEnd();
+
+
+
+
+
+
+
+
+
+
+#if defined(RGIF_IMPLEMENTATION)
+
+#include <stdio.h> 
+#include <string.h> 
+
+
+
+
+#if !defined(RGIF_MALLOC)
+#include <stdlib.h> 
+
+#define RGIF_MALLOC(size) malloc(size)
+#define RGIF_FREE(ptr) free(ptr)
+#endif
+
+
+
+
+#define GIFMIN(a, b) (((a)<(b))?(a):(b))
+#define GIFMAX(a, b) (((a)>(b))?(a):(b))
+#define GIFABS(x) ((x)<0?-(x):(x))
+
+
+
+
+
+
+typedef struct GifPalette {
+int bitDepth;
+
+unsigned char r[256];
+unsigned char g[256];
+unsigned char b[256];
+
+
+
+
+unsigned char treeSplitElt[255];
+unsigned char treeSplit[255];
+} GifPalette;
+
+
+
+
+typedef struct GifBitStatus {
+unsigned char bitIndex; 
+unsigned char byte; 
+
+unsigned int chunkIndex;
+unsigned char chunk[256]; 
+} GifBitStatus;
+
+
+
+typedef struct GifLzwNode {
+unsigned short m_next[256];
+} GifLzwNode;
+
+
+
+
+const int gifTransparentIndex = 0; 
+
+static FILE *gifFile = NULL;
+unsigned char *gifFrame;
+
+
+
+
+static void GifGetClosestPaletteColor(GifPalette *pPal, int r, int g, int b, int *bestInd, int *bestDiff, int treeRoot);
+static void GifSwapPixels(unsigned char *image, int pixA, int pixB);
+static int GifPartition(unsigned char *image, const int left, const int right, const int elt, int pivotIndex);
+static void GifPartitionByMedian(unsigned char *image, int left, int right, int com, int neededCenter);
+static void GifSplitPalette(unsigned char *image, int numPixels, int firstElt, int lastElt, int splitElt, int splitDist, int treeNode, bool buildForDither, GifPalette *pal);
+static int GifPickChangedPixels(const unsigned char *lastFrame, unsigned char *frame, int numPixels);
+static void GifMakePalette(const unsigned char *lastFrame, const unsigned char *nextFrame, unsigned int width, unsigned int height, int bitDepth, bool buildForDither, GifPalette *pPal);
+static void GifDitherImage(const unsigned char *lastFrame, const unsigned char *nextFrame, unsigned char *outFrame, unsigned int width, unsigned int height, GifPalette *pPal);
+static void GifThresholdImage(const unsigned char *lastFrame, const unsigned char *nextFrame, unsigned char *outFrame, unsigned int width, unsigned int height, GifPalette *pPal);
+static void GifWriteBit(GifBitStatus *stat, unsigned int bit);
+
+static void GifWriteChunk(FILE *f, GifBitStatus *stat);
+static void GifWritePalette(FILE *f, const GifPalette *pPal);
+static void GifWriteCode(FILE *f, GifBitStatus *stat, unsigned int code, unsigned int length);
+static void GifWriteLzwImage(FILE *f, unsigned char *image, unsigned int left, unsigned int top, unsigned int width, unsigned int height, unsigned int delay, GifPalette *pPal);
+
+
+
+
+
+
+
+
+RGIFDEF bool GifBegin(const char *filename, unsigned int width, unsigned int height, unsigned int delay, unsigned int bitDepth, bool dither)
+{
+#if _MSC_VER >= 1400
+gifFile = 0;
+fopen_s(&gifFile, filename, "wb");
+#else
+gifFile = fopen(filename, "wb");
+#endif
+
+if (!gifFile) return false;
+
+
+gifFrame = (unsigned char *)RGIF_MALLOC(width*height*4);
+
+
+fputs("GIF89a",gifFile);
+
+
+
+
+fputc(width & 0xff, gifFile);
+fputc((width >> 8) & 0xff, gifFile); 
+fputc(height & 0xff, gifFile);
+fputc((height >> 8) & 0xff, gifFile); 
+
+fputc(0xf0, gifFile); 
+fputc(0, gifFile); 
+fputc(0, gifFile); 
+
+
+
+fputc(0, gifFile);
+fputc(0, gifFile); 
+fputc(0, gifFile);
+
+fputc(0, gifFile);
+fputc(0, gifFile);
+fputc(0, gifFile);
+
+if (delay != 0)
+{
+
+fputc(0x21, gifFile); 
+fputc(0xff, gifFile); 
+fputc(11, gifFile); 
+fputs("NETSCAPE2.0", gifFile); 
+
+fputc(0x03, gifFile); 
+fputc(0x01, gifFile); 
+fputc(0x00, gifFile); 
+fputc(0x00, gifFile); 
+
+fputc(0x00, gifFile); 
+}
+
+return true;
+}
+
+
+
+
+
+RGIFDEF bool GifWriteFrame(const unsigned char *image, unsigned int width, unsigned int height, unsigned int delay, int bitDepth, bool dither)
+{
+if (!gifFile) return false;
+
+const unsigned char *oldImage = gifFrame;
+
+GifPalette pal;
+GifMakePalette((dither ? NULL : oldImage), image, width, height, bitDepth, dither, &pal);
+
+if (dither) GifDitherImage(oldImage, image, gifFrame, width, height, &pal);
+else GifThresholdImage(oldImage, image, gifFrame, width, height, &pal);
+
+GifWriteLzwImage(gifFile, gifFrame, 0, 0, width, height, delay, &pal);
+
+return true;
+}
+
+
+
+
+RGIFDEF bool GifEnd()
+{
+if (!gifFile) return false;
+
+fputc(0x3b, gifFile); 
+fclose(gifFile);
+
+RGIF_FREE(gifFrame);
+
+gifFile = NULL;
+gifFrame = NULL;
+
+return true;
+}
+
+
+
+
+
+
+
+
+static void GifGetClosestPaletteColor(GifPalette *pPal, int r, int g, int b, int *bestInd, int *bestDiff, int treeRoot)
+{
+
+if (treeRoot > (1<<pPal->bitDepth)-1)
+{
+int ind = treeRoot-(1<<pPal->bitDepth);
+if (ind == gifTransparentIndex) return;
+
+
+int r_err = r - ((int)pPal->r[ind]);
+int g_err = g - ((int)pPal->g[ind]);
+int b_err = b - ((int)pPal->b[ind]);
+int diff = GIFABS(r_err)+GIFABS(g_err)+GIFABS(b_err);
+
+if (diff < *bestDiff)
+{
+*bestInd = ind;
+*bestDiff = diff;
+}
+
+return;
+}
+
+
+int comps[3]; comps[0] = r; comps[1] = g; comps[2] = b;
+int splitComp = comps[pPal->treeSplitElt[treeRoot]];
+
+int splitPos = pPal->treeSplit[treeRoot];
+if (splitPos > splitComp)
+{
+
+GifGetClosestPaletteColor(pPal, r, g, b, bestInd, bestDiff, treeRoot*2);
+
+if (*bestDiff > (splitPos - splitComp))
+{
+
+GifGetClosestPaletteColor(pPal, r, g, b, bestInd, bestDiff, treeRoot*2 + 1);
+}
+}
+else
+{
+GifGetClosestPaletteColor(pPal, r, g, b, bestInd, bestDiff, treeRoot*2 + 1);
+
+if (*bestDiff > splitComp - splitPos)
+{
+GifGetClosestPaletteColor(pPal, r, g, b, bestInd, bestDiff, treeRoot*2);
+}
+}
+}
+
+static void GifSwapPixels(unsigned char *image, int pixA, int pixB)
+{
+unsigned char rA = image[pixA*4];
+unsigned char gA = image[pixA*4 + 1];
+unsigned char bA = image[pixA*4+2];
+unsigned char aA = image[pixA*4+3];
+
+unsigned char rB = image[pixB*4];
+unsigned char gB = image[pixB*4 + 1];
+unsigned char bB = image[pixB*4+2];
+unsigned char aB = image[pixA*4+3];
+
+image[pixA*4] = rB;
+image[pixA*4 + 1] = gB;
+image[pixA*4+2] = bB;
+image[pixA*4+3] = aB;
+
+image[pixB*4] = rA;
+image[pixB*4 + 1] = gA;
+image[pixB*4+2] = bA;
+image[pixB*4+3] = aA;
+}
+
+
+static int GifPartition(unsigned char *image, const int left, const int right, const int elt, int pivotIndex)
+{
+const int pivotValue = image[(pivotIndex)*4+elt];
+GifSwapPixels(image, pivotIndex, right-1);
+int storeIndex = left;
+bool split = 0;
+for (int ii=left; ii<right-1; ++ii)
+{
+int arrayVal = image[ii*4+elt];
+if (arrayVal < pivotValue)
+{
+GifSwapPixels(image, ii, storeIndex);
+++storeIndex;
+}
+else if (arrayVal == pivotValue)
+{
+if (split)
+{
+GifSwapPixels(image, ii, storeIndex);
+++storeIndex;
+}
+split = !split;
+}
+}
+GifSwapPixels(image, storeIndex, right-1);
+return storeIndex;
+}
+
+
+static void GifPartitionByMedian(unsigned char *image, int left, int right, int com, int neededCenter)
+{
+if (left < right-1)
+{
+int pivotIndex = left + (right-left)/2;
+
+pivotIndex = GifPartition(image, left, right, com, pivotIndex);
+
+
+if (pivotIndex > neededCenter)
+GifPartitionByMedian(image, left, pivotIndex, com, neededCenter);
+
+if (pivotIndex < neededCenter)
+GifPartitionByMedian(image, pivotIndex + 1, right, com, neededCenter);
+}
+}
+
+
+static void GifSplitPalette(unsigned char *image, int numPixels, int firstElt, int lastElt, int splitElt, int splitDist, 
+int treeNode, bool buildForDither, GifPalette *pal)
+{
+if (lastElt <= firstElt || numPixels == 0)
+return;
+
+
+if (lastElt == firstElt + 1)
+{
+if (buildForDither)
+{
+
+
+
+if (firstElt == 1)
+{
+
+unsigned int r=255, g=255, b=255;
+for (int ii=0; ii<numPixels; ++ii)
+{
+r = GIFMIN(r, image[ii*4+0]);
+g = GIFMIN(g, image[ii*4 + 1]);
+b = GIFMIN(b, image[ii*4+2]);
+}
+
+pal->r[firstElt] = r;
+pal->g[firstElt] = g;
+pal->b[firstElt] = b;
+
+return;
+}
+
+if (firstElt == (1 << pal->bitDepth)-1)
+{
+
+unsigned int r=0, g=0, b=0;
+for (int ii=0; ii<numPixels; ++ii)
+{
+r = GIFMAX(r, image[ii*4+0]);
+g = GIFMAX(g, image[ii*4 + 1]);
+b = GIFMAX(b, image[ii*4+2]);
+}
+
+pal->r[firstElt] = r;
+pal->g[firstElt] = g;
+pal->b[firstElt] = b;
+
+return;
+}
+}
+
+
+unsigned long long r=0, g=0, b=0;
+for (int ii=0; ii<numPixels; ++ii)
+{
+r += image[ii*4+0];
+g += image[ii*4 + 1];
+b += image[ii*4+2];
+}
+
+r += numPixels / 2; 
+g += numPixels / 2;
+b += numPixels / 2;
+
+r /= numPixels;
+g /= numPixels;
+b /= numPixels;
+
+pal->r[firstElt] = (unsigned char)r;
+pal->g[firstElt] = (unsigned char)g;
+pal->b[firstElt] = (unsigned char)b;
+
+return;
+}
+
+
+int minR = 255, maxR = 0;
+int minG = 255, maxG = 0;
+int minB = 255, maxB = 0;
+for (int ii=0; ii<numPixels; ++ii)
+{
+int r = image[ii*4+0];
+int g = image[ii*4 + 1];
+int b = image[ii*4+2];
+
+if (r > maxR) maxR = r;
+if (r < minR) minR = r;
+
+if (g > maxG) maxG = g;
+if (g < minG) minG = g;
+
+if (b > maxB) maxB = b;
+if (b < minB) minB = b;
+}
+
+int rRange = maxR - minR;
+int gRange = maxG - minG;
+int bRange = maxB - minB;
+
+
+int splitCom = 1;
+if (bRange > gRange) splitCom = 2;
+if (rRange > bRange && rRange > gRange) splitCom = 0;
+
+int subPixelsA = numPixels *(splitElt - firstElt) / (lastElt - firstElt);
+int subPixelsB = numPixels-subPixelsA;
+
+GifPartitionByMedian(image, 0, numPixels, splitCom, subPixelsA);
+
+pal->treeSplitElt[treeNode] = splitCom;
+pal->treeSplit[treeNode] = image[subPixelsA*4+splitCom];
+
+GifSplitPalette(image, subPixelsA, firstElt, splitElt, splitElt-splitDist, splitDist/2, treeNode*2, buildForDither, pal);
+GifSplitPalette(image+subPixelsA*4, subPixelsB, splitElt, lastElt, splitElt+splitDist, splitDist/2, treeNode*2 + 1, buildForDither, pal);
+}
+
+
+
+
+
+static int GifPickChangedPixels(const unsigned char *lastFrame, unsigned char *frame, int numPixels)
+{
+int numChanged = 0;
+unsigned char *writeIter = frame;
+
+for (int ii=0; ii<numPixels; ++ii)
+{
+if (lastFrame[0] != frame[0] ||
+lastFrame[1] != frame[1] ||
+lastFrame[2] != frame[2])
+{
+writeIter[0] = frame[0];
+writeIter[1] = frame[1];
+writeIter[2] = frame[2];
+++numChanged;
+writeIter += 4;
+}
+lastFrame += 4;
+frame += 4;
+}
+
+return numChanged;
+}
+
+
+
+static void GifMakePalette(const unsigned char *lastFrame, const unsigned char *nextFrame, unsigned int width, unsigned int height, int bitDepth, bool buildForDither, GifPalette *pPal)
+{
+pPal->bitDepth = bitDepth;
+
+
+
+int imageSize = width*height*4*sizeof(unsigned char);
+unsigned char *destroyableImage = (unsigned char*)RGIF_MALLOC(imageSize);
+memcpy(destroyableImage, nextFrame, imageSize);
+
+int numPixels = width*height;
+if (lastFrame)
+numPixels = GifPickChangedPixels(lastFrame, destroyableImage, numPixels);
+
+const int lastElt = 1 << bitDepth;
+const int splitElt = lastElt/2;
+const int splitDist = splitElt/2;
+
+GifSplitPalette(destroyableImage, numPixels, 1, lastElt, splitElt, splitDist, 1, buildForDither, pPal);
+
+RGIF_FREE(destroyableImage);
+
+
+pPal->treeSplit[1 << (bitDepth-1)] = 0;
+pPal->treeSplitElt[1 << (bitDepth-1)] = 0;
+
+pPal->r[0] = pPal->g[0] = pPal->b[0] = 0;
+}
+
+
+static void GifDitherImage(const unsigned char *lastFrame, const unsigned char *nextFrame, unsigned char *outFrame, unsigned int width, unsigned int height, GifPalette *pPal)
+{
+int numPixels = width*height;
+
+
+
+
+int *quantPixels = (int*)RGIF_MALLOC(sizeof(int)*numPixels*4);
+
+for (int ii=0; ii<numPixels*4; ++ii)
+{
+unsigned char pix = nextFrame[ii];
+int pix16 = (int)pix*256;
+quantPixels[ii] = pix16;
+}
+
+for (unsigned int yy=0; yy<height; ++yy)
+{
+for (unsigned int xx=0; xx<width; ++xx)
+{
+int *nextPix = quantPixels + 4*(yy*width+xx);
+const unsigned char *lastPix = lastFrame? lastFrame + 4*(yy*width+xx) : NULL;
+
+
+int rr = (nextPix[0] + 127) / 256;
+int gg = (nextPix[1] + 127) / 256;
+int bb = (nextPix[2] + 127) / 256;
+
+
+
+if (lastFrame &&
+lastPix[0] == rr &&
+lastPix[1] == gg &&
+lastPix[2] == bb)
+{
+nextPix[0] = rr;
+nextPix[1] = gg;
+nextPix[2] = bb;
+nextPix[3] = gifTransparentIndex;
+continue;
+}
+
+int bestDiff = 1000000;
+int bestInd = gifTransparentIndex;
+
+
+GifGetClosestPaletteColor(pPal, rr, gg, bb, &bestInd, &bestDiff, 1);
+
+
+int r_err = nextPix[0] - (int)(pPal->r[bestInd])*256;
+int g_err = nextPix[1] - (int)(pPal->g[bestInd])*256;
+int b_err = nextPix[2] - (int)(pPal->b[bestInd])*256;
+
+nextPix[0] = pPal->r[bestInd];
+nextPix[1] = pPal->g[bestInd];
+nextPix[2] = pPal->b[bestInd];
+nextPix[3] = bestInd;
+
+
+
+int quantloc_7 = (yy*width+xx + 1);
+int quantloc_3 = (yy*width+width+xx-1);
+int quantloc_5 = (yy*width+width+xx);
+int quantloc_1 = (yy*width+width+xx + 1);
+
+if (quantloc_7 < numPixels)
+{
+int *pix7 = quantPixels+4*quantloc_7;
+pix7[0] += GIFMAX(-pix7[0], r_err*7 / 16);
+pix7[1] += GIFMAX(-pix7[1], g_err*7 / 16);
+pix7[2] += GIFMAX(-pix7[2], b_err*7 / 16);
+}
+
+if (quantloc_3 < numPixels)
+{
+int *pix3 = quantPixels+4*quantloc_3;
+pix3[0] += GIFMAX(-pix3[0], r_err*3 / 16);
+pix3[1] += GIFMAX(-pix3[1], g_err*3 / 16);
+pix3[2] += GIFMAX(-pix3[2], b_err*3 / 16);
+}
+
+if (quantloc_5 < numPixels)
+{
+int *pix5 = quantPixels+4*quantloc_5;
+pix5[0] += GIFMAX(-pix5[0], r_err*5 / 16);
+pix5[1] += GIFMAX(-pix5[1], g_err*5 / 16);
+pix5[2] += GIFMAX(-pix5[2], b_err*5 / 16);
+}
+
+if (quantloc_1 < numPixels)
+{
+int *pix1 = quantPixels+4*quantloc_1;
+pix1[0] += GIFMAX(-pix1[0], r_err / 16);
+pix1[1] += GIFMAX(-pix1[1], g_err / 16);
+pix1[2] += GIFMAX(-pix1[2], b_err / 16);
+}
+}
+}
+
+
+for (int ii=0; ii<numPixels*4; ++ii)
+{
+outFrame[ii] = quantPixels[ii];
+}
+
+RGIF_FREE(quantPixels);
+}
+
+
+static void GifThresholdImage(const unsigned char *lastFrame, const unsigned char *nextFrame, unsigned char *outFrame, unsigned int width, unsigned int height, GifPalette *pPal)
+{
+unsigned int numPixels = width*height;
+for (unsigned int ii=0; ii<numPixels; ++ii)
+{
+
+
+if (lastFrame &&
+lastFrame[0] == nextFrame[0] &&
+lastFrame[1] == nextFrame[1] &&
+lastFrame[2] == nextFrame[2])
+{
+outFrame[0] = lastFrame[0];
+outFrame[1] = lastFrame[1];
+outFrame[2] = lastFrame[2];
+outFrame[3] = gifTransparentIndex;
+}
+else
+{
+
+int bestDiff = 1000000;
+int bestInd = 1;
+GifGetClosestPaletteColor(pPal, nextFrame[0], nextFrame[1], nextFrame[2], &bestInd, &bestDiff, 1);
+
+
+outFrame[0] = pPal->r[bestInd];
+outFrame[1] = pPal->g[bestInd];
+outFrame[2] = pPal->b[bestInd];
+outFrame[3] = bestInd;
+}
+
+if (lastFrame) lastFrame += 4;
+outFrame += 4;
+nextFrame += 4;
+}
+}
+
+
+
+static void GifWriteBit(GifBitStatus *stat, unsigned int bit)
+{
+bit = bit & 1;
+bit = bit << stat->bitIndex;
+stat->byte |= bit;
+
+++stat->bitIndex;
+if (stat->bitIndex > 7)
+{
+
+stat->chunk[stat->chunkIndex++] = stat->byte;
+
+stat->bitIndex = 0;
+stat->byte = 0;
+}
+}
+
+
+static void GifWriteChunk(FILE *f, GifBitStatus *stat)
+{
+fputc(stat->chunkIndex, f);
+fwrite(stat->chunk, 1, stat->chunkIndex, f);
+
+stat->bitIndex = 0;
+stat->byte = 0;
+stat->chunkIndex = 0;
+}
+
+static void GifWriteCode(FILE *f, GifBitStatus *stat, unsigned int code, unsigned int length)
+{
+for (unsigned int ii=0; ii<length; ++ii)
+{
+GifWriteBit(stat, code);
+code = code >> 1;
+
+if (stat->chunkIndex == 255)
+{
+GifWriteChunk(f, stat);
+}
+}
+}
+
+
+static void GifWritePalette(FILE *f, const GifPalette *pPal)
+{
+fputc(0, f); 
+fputc(0, f);
+fputc(0, f);
+
+for (int ii=1; ii<(1 << pPal->bitDepth); ++ii)
+{
+unsigned int r = pPal->r[ii];
+unsigned int g = pPal->g[ii];
+unsigned int b = pPal->b[ii];
+
+fputc(r, f);
+fputc(g, f);
+fputc(b, f);
+}
+}
+
+
+static void GifWriteLzwImage(FILE *f, unsigned char *image, unsigned int left, unsigned int top, unsigned int width, unsigned int height, unsigned int delay, GifPalette *pPal)
+{
+
+fputc(0x21, f);
+fputc(0xf9, f);
+fputc(0x04, f);
+fputc(0x05, f); 
+fputc(delay & 0xff, f);
+fputc((delay >> 8) & 0xff, f);
+fputc(gifTransparentIndex, f); 
+fputc(0, f);
+
+fputc(0x2c, f); 
+
+fputc(left & 0xff, f); 
+fputc((left >> 8) & 0xff, f);
+fputc(top & 0xff, f);
+fputc((top >> 8) & 0xff, f);
+
+fputc(width & 0xff, f); 
+fputc((width >> 8) & 0xff, f);
+fputc(height & 0xff, f);
+fputc((height >> 8) & 0xff, f);
+
+
+
+
+fputc(0x80 + pPal->bitDepth-1, f); 
+GifWritePalette(f, pPal);
+
+const int minCodeSize = pPal->bitDepth;
+const unsigned int clearCode = 1 << pPal->bitDepth;
+
+fputc(minCodeSize, f); 
+
+GifLzwNode *codetree = (GifLzwNode *)RGIF_MALLOC(sizeof(GifLzwNode)*4096);
+
+memset(codetree, 0, sizeof(GifLzwNode)*4096);
+int curCode = -1;
+unsigned int codeSize = minCodeSize + 1;
+unsigned int maxCode = clearCode + 1;
+
+GifBitStatus stat;
+stat.byte = 0;
+stat.bitIndex = 0;
+stat.chunkIndex = 0;
+
+GifWriteCode(f, &stat, clearCode, codeSize); 
+
+for (unsigned int yy=0; yy<height; ++yy)
+{
+for (unsigned int xx=0; xx<width; ++xx)
+{
+unsigned char nextValue = image[(yy*width+xx)*4+3];
+
+
+
+
+
+if (curCode < 0)
+{
+
+curCode = nextValue;
+}
+else if (codetree[curCode].m_next[nextValue])
+{
+
+curCode = codetree[curCode].m_next[nextValue];
+}
+else
+{
+
+GifWriteCode(f, &stat, curCode, codeSize);
+
+
+codetree[curCode].m_next[nextValue] = ++maxCode;
+
+if (maxCode >= (1ul << codeSize))
+{
+
+
+codeSize++;
+}
+if (maxCode == 4095)
+{
+
+GifWriteCode(f, &stat, clearCode, codeSize); 
+
+memset(codetree, 0, sizeof(GifLzwNode)*4096);
+codeSize = minCodeSize + 1;
+maxCode = clearCode + 1;
+}
+
+curCode = nextValue;
+}
+}
+}
+
+
+GifWriteCode(f, &stat, curCode, codeSize);
+GifWriteCode(f, &stat, clearCode, codeSize);
+GifWriteCode(f, &stat, clearCode + 1, minCodeSize + 1);
+
+
+while (stat.bitIndex) GifWriteBit(&stat, 0);
+if (stat.chunkIndex) GifWriteChunk(f, &stat);
+
+fputc(0, f); 
+
+RGIF_FREE(codetree);
+}
+
+#endif 

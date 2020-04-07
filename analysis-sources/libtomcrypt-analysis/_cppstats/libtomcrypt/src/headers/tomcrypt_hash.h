@@ -1,0 +1,413 @@
+#if defined(LTC_SHA3) || defined(LTC_KECCAK)
+struct sha3_state {
+ulong64 saved; 
+ulong64 s[25];
+unsigned char sb[25 * 8]; 
+unsigned short byte_index; 
+unsigned short word_index; 
+unsigned short capacity_words; 
+unsigned short xof_flag;
+};
+#endif
+#if defined(LTC_SHA512)
+struct sha512_state {
+ulong64 length, state[8];
+unsigned long curlen;
+unsigned char buf[128];
+};
+#endif
+#if defined(LTC_SHA256)
+struct sha256_state {
+ulong64 length;
+ulong32 state[8], curlen;
+unsigned char buf[64];
+};
+#endif
+#if defined(LTC_SHA1)
+struct sha1_state {
+ulong64 length;
+ulong32 state[5], curlen;
+unsigned char buf[64];
+};
+#endif
+#if defined(LTC_MD5)
+struct md5_state {
+ulong64 length;
+ulong32 state[4], curlen;
+unsigned char buf[64];
+};
+#endif
+#if defined(LTC_MD4)
+struct md4_state {
+ulong64 length;
+ulong32 state[4], curlen;
+unsigned char buf[64];
+};
+#endif
+#if defined(LTC_TIGER)
+struct tiger_state {
+ulong64 state[3], length;
+unsigned long curlen;
+unsigned char buf[64];
+};
+#endif
+#if defined(LTC_MD2)
+struct md2_state {
+unsigned char chksum[16], X[48], buf[16];
+unsigned long curlen;
+};
+#endif
+#if defined(LTC_RIPEMD128)
+struct rmd128_state {
+ulong64 length;
+unsigned char buf[64];
+ulong32 curlen, state[4];
+};
+#endif
+#if defined(LTC_RIPEMD160)
+struct rmd160_state {
+ulong64 length;
+unsigned char buf[64];
+ulong32 curlen, state[5];
+};
+#endif
+#if defined(LTC_RIPEMD256)
+struct rmd256_state {
+ulong64 length;
+unsigned char buf[64];
+ulong32 curlen, state[8];
+};
+#endif
+#if defined(LTC_RIPEMD320)
+struct rmd320_state {
+ulong64 length;
+unsigned char buf[64];
+ulong32 curlen, state[10];
+};
+#endif
+#if defined(LTC_WHIRLPOOL)
+struct whirlpool_state {
+ulong64 length, state[8];
+unsigned char buf[64];
+ulong32 curlen;
+};
+#endif
+#if defined(LTC_CHC_HASH)
+struct chc_state {
+ulong64 length;
+unsigned char state[MAXBLOCKSIZE], buf[MAXBLOCKSIZE];
+ulong32 curlen;
+};
+#endif
+#if defined(LTC_BLAKE2S)
+struct blake2s_state {
+ulong32 h[8];
+ulong32 t[2];
+ulong32 f[2];
+unsigned char buf[64];
+unsigned long curlen;
+unsigned long outlen;
+unsigned char last_node;
+};
+#endif
+#if defined(LTC_BLAKE2B)
+struct blake2b_state {
+ulong64 h[8];
+ulong64 t[2];
+ulong64 f[2];
+unsigned char buf[128];
+unsigned long curlen;
+unsigned long outlen;
+unsigned char last_node;
+};
+#endif
+typedef union Hash_state {
+char dummy[1];
+#if defined(LTC_CHC_HASH)
+struct chc_state chc;
+#endif
+#if defined(LTC_WHIRLPOOL)
+struct whirlpool_state whirlpool;
+#endif
+#if defined(LTC_SHA3) || defined(LTC_KECCAK)
+struct sha3_state sha3;
+#endif
+#if defined(LTC_SHA512)
+struct sha512_state sha512;
+#endif
+#if defined(LTC_SHA256)
+struct sha256_state sha256;
+#endif
+#if defined(LTC_SHA1)
+struct sha1_state sha1;
+#endif
+#if defined(LTC_MD5)
+struct md5_state md5;
+#endif
+#if defined(LTC_MD4)
+struct md4_state md4;
+#endif
+#if defined(LTC_MD2)
+struct md2_state md2;
+#endif
+#if defined(LTC_TIGER)
+struct tiger_state tiger;
+#endif
+#if defined(LTC_RIPEMD128)
+struct rmd128_state rmd128;
+#endif
+#if defined(LTC_RIPEMD160)
+struct rmd160_state rmd160;
+#endif
+#if defined(LTC_RIPEMD256)
+struct rmd256_state rmd256;
+#endif
+#if defined(LTC_RIPEMD320)
+struct rmd320_state rmd320;
+#endif
+#if defined(LTC_BLAKE2S)
+struct blake2s_state blake2s;
+#endif
+#if defined(LTC_BLAKE2B)
+struct blake2b_state blake2b;
+#endif
+void *data;
+} hash_state;
+extern struct ltc_hash_descriptor {
+const char *name;
+unsigned char ID;
+unsigned long hashsize;
+unsigned long blocksize;
+unsigned long OID[16];
+unsigned long OIDlen;
+int (*init)(hash_state *hash);
+int (*process)(hash_state *hash, const unsigned char *in, unsigned long inlen);
+int (*done)(hash_state *hash, unsigned char *out);
+int (*test)(void);
+int (*hmac_block)(const unsigned char *key, unsigned long keylen,
+const unsigned char *in, unsigned long inlen,
+unsigned char *out, unsigned long *outlen);
+} hash_descriptor[];
+#if defined(LTC_CHC_HASH)
+int chc_register(int cipher);
+int chc_init(hash_state * md);
+int chc_process(hash_state * md, const unsigned char *in, unsigned long inlen);
+int chc_done(hash_state * md, unsigned char *out);
+int chc_test(void);
+extern const struct ltc_hash_descriptor chc_desc;
+#endif
+#if defined(LTC_WHIRLPOOL)
+int whirlpool_init(hash_state * md);
+int whirlpool_process(hash_state * md, const unsigned char *in, unsigned long inlen);
+int whirlpool_done(hash_state * md, unsigned char *out);
+int whirlpool_test(void);
+extern const struct ltc_hash_descriptor whirlpool_desc;
+#endif
+#if defined(LTC_SHA3) || defined(LTC_KECCAK)
+int sha3_512_init(hash_state * md);
+int sha3_384_init(hash_state * md);
+int sha3_256_init(hash_state * md);
+int sha3_224_init(hash_state * md);
+int sha3_process(hash_state * md, const unsigned char *in, unsigned long inlen);
+#endif
+#if defined(LTC_SHA3)
+int sha3_512_test(void);
+extern const struct ltc_hash_descriptor sha3_512_desc;
+int sha3_384_test(void);
+extern const struct ltc_hash_descriptor sha3_384_desc;
+int sha3_256_test(void);
+extern const struct ltc_hash_descriptor sha3_256_desc;
+int sha3_224_test(void);
+extern const struct ltc_hash_descriptor sha3_224_desc;
+int sha3_done(hash_state *md, unsigned char *out);
+int sha3_shake_init(hash_state *md, int num);
+#define sha3_shake_process(a,b,c) sha3_process(a,b,c)
+int sha3_shake_done(hash_state *md, unsigned char *out, unsigned long outlen);
+int sha3_shake_test(void);
+int sha3_shake_memory(int num, const unsigned char *in, unsigned long inlen, unsigned char *out, const unsigned long *outlen);
+#endif
+#if defined(LTC_KECCAK)
+#define keccak_512_init(a) sha3_512_init(a)
+#define keccak_384_init(a) sha3_384_init(a)
+#define keccak_256_init(a) sha3_256_init(a)
+#define keccak_224_init(a) sha3_224_init(a)
+#define keccak_process(a,b,c) sha3_process(a,b,c)
+extern const struct ltc_hash_descriptor keccak_512_desc;
+int keccak_512_test(void);
+extern const struct ltc_hash_descriptor keccak_384_desc;
+int keccak_384_test(void);
+extern const struct ltc_hash_descriptor keccak_256_desc;
+int keccak_256_test(void);
+extern const struct ltc_hash_descriptor keccak_224_desc;
+int keccak_224_test(void);
+int keccak_done(hash_state *md, unsigned char *out);
+#endif
+#if defined(LTC_SHA512)
+int sha512_init(hash_state * md);
+int sha512_process(hash_state * md, const unsigned char *in, unsigned long inlen);
+int sha512_done(hash_state * md, unsigned char *out);
+int sha512_test(void);
+extern const struct ltc_hash_descriptor sha512_desc;
+#endif
+#if defined(LTC_SHA384)
+#if !defined(LTC_SHA512)
+#error LTC_SHA512 is required for LTC_SHA384
+#endif
+int sha384_init(hash_state * md);
+#define sha384_process sha512_process
+int sha384_done(hash_state * md, unsigned char *out);
+int sha384_test(void);
+extern const struct ltc_hash_descriptor sha384_desc;
+#endif
+#if defined(LTC_SHA512_256)
+#if !defined(LTC_SHA512)
+#error LTC_SHA512 is required for LTC_SHA512_256
+#endif
+int sha512_256_init(hash_state * md);
+#define sha512_256_process sha512_process
+int sha512_256_done(hash_state * md, unsigned char *out);
+int sha512_256_test(void);
+extern const struct ltc_hash_descriptor sha512_256_desc;
+#endif
+#if defined(LTC_SHA512_224)
+#if !defined(LTC_SHA512)
+#error LTC_SHA512 is required for LTC_SHA512_224
+#endif
+int sha512_224_init(hash_state * md);
+#define sha512_224_process sha512_process
+int sha512_224_done(hash_state * md, unsigned char *out);
+int sha512_224_test(void);
+extern const struct ltc_hash_descriptor sha512_224_desc;
+#endif
+#if defined(LTC_SHA256)
+int sha256_init(hash_state * md);
+int sha256_process(hash_state * md, const unsigned char *in, unsigned long inlen);
+int sha256_done(hash_state * md, unsigned char *out);
+int sha256_test(void);
+extern const struct ltc_hash_descriptor sha256_desc;
+#if defined(LTC_SHA224)
+#if !defined(LTC_SHA256)
+#error LTC_SHA256 is required for LTC_SHA224
+#endif
+int sha224_init(hash_state * md);
+#define sha224_process sha256_process
+int sha224_done(hash_state * md, unsigned char *out);
+int sha224_test(void);
+extern const struct ltc_hash_descriptor sha224_desc;
+#endif
+#endif
+#if defined(LTC_SHA1)
+int sha1_init(hash_state * md);
+int sha1_process(hash_state * md, const unsigned char *in, unsigned long inlen);
+int sha1_done(hash_state * md, unsigned char *out);
+int sha1_test(void);
+extern const struct ltc_hash_descriptor sha1_desc;
+#endif
+#if defined(LTC_BLAKE2S)
+extern const struct ltc_hash_descriptor blake2s_256_desc;
+int blake2s_256_init(hash_state * md);
+int blake2s_256_test(void);
+extern const struct ltc_hash_descriptor blake2s_224_desc;
+int blake2s_224_init(hash_state * md);
+int blake2s_224_test(void);
+extern const struct ltc_hash_descriptor blake2s_160_desc;
+int blake2s_160_init(hash_state * md);
+int blake2s_160_test(void);
+extern const struct ltc_hash_descriptor blake2s_128_desc;
+int blake2s_128_init(hash_state * md);
+int blake2s_128_test(void);
+int blake2s_init(hash_state * md, unsigned long outlen, const unsigned char *key, unsigned long keylen);
+int blake2s_process(hash_state * md, const unsigned char *in, unsigned long inlen);
+int blake2s_done(hash_state * md, unsigned char *out);
+#endif
+#if defined(LTC_BLAKE2B)
+extern const struct ltc_hash_descriptor blake2b_512_desc;
+int blake2b_512_init(hash_state * md);
+int blake2b_512_test(void);
+extern const struct ltc_hash_descriptor blake2b_384_desc;
+int blake2b_384_init(hash_state * md);
+int blake2b_384_test(void);
+extern const struct ltc_hash_descriptor blake2b_256_desc;
+int blake2b_256_init(hash_state * md);
+int blake2b_256_test(void);
+extern const struct ltc_hash_descriptor blake2b_160_desc;
+int blake2b_160_init(hash_state * md);
+int blake2b_160_test(void);
+int blake2b_init(hash_state * md, unsigned long outlen, const unsigned char *key, unsigned long keylen);
+int blake2b_process(hash_state * md, const unsigned char *in, unsigned long inlen);
+int blake2b_done(hash_state * md, unsigned char *out);
+#endif
+#if defined(LTC_MD5)
+int md5_init(hash_state * md);
+int md5_process(hash_state * md, const unsigned char *in, unsigned long inlen);
+int md5_done(hash_state * md, unsigned char *out);
+int md5_test(void);
+extern const struct ltc_hash_descriptor md5_desc;
+#endif
+#if defined(LTC_MD4)
+int md4_init(hash_state * md);
+int md4_process(hash_state * md, const unsigned char *in, unsigned long inlen);
+int md4_done(hash_state * md, unsigned char *out);
+int md4_test(void);
+extern const struct ltc_hash_descriptor md4_desc;
+#endif
+#if defined(LTC_MD2)
+int md2_init(hash_state * md);
+int md2_process(hash_state * md, const unsigned char *in, unsigned long inlen);
+int md2_done(hash_state * md, unsigned char *out);
+int md2_test(void);
+extern const struct ltc_hash_descriptor md2_desc;
+#endif
+#if defined(LTC_TIGER)
+int tiger_init(hash_state * md);
+int tiger_process(hash_state * md, const unsigned char *in, unsigned long inlen);
+int tiger_done(hash_state * md, unsigned char *out);
+int tiger_test(void);
+extern const struct ltc_hash_descriptor tiger_desc;
+#endif
+#if defined(LTC_RIPEMD128)
+int rmd128_init(hash_state * md);
+int rmd128_process(hash_state * md, const unsigned char *in, unsigned long inlen);
+int rmd128_done(hash_state * md, unsigned char *out);
+int rmd128_test(void);
+extern const struct ltc_hash_descriptor rmd128_desc;
+#endif
+#if defined(LTC_RIPEMD160)
+int rmd160_init(hash_state * md);
+int rmd160_process(hash_state * md, const unsigned char *in, unsigned long inlen);
+int rmd160_done(hash_state * md, unsigned char *out);
+int rmd160_test(void);
+extern const struct ltc_hash_descriptor rmd160_desc;
+#endif
+#if defined(LTC_RIPEMD256)
+int rmd256_init(hash_state * md);
+int rmd256_process(hash_state * md, const unsigned char *in, unsigned long inlen);
+int rmd256_done(hash_state * md, unsigned char *out);
+int rmd256_test(void);
+extern const struct ltc_hash_descriptor rmd256_desc;
+#endif
+#if defined(LTC_RIPEMD320)
+int rmd320_init(hash_state * md);
+int rmd320_process(hash_state * md, const unsigned char *in, unsigned long inlen);
+int rmd320_done(hash_state * md, unsigned char *out);
+int rmd320_test(void);
+extern const struct ltc_hash_descriptor rmd320_desc;
+#endif
+int find_hash(const char *name);
+int find_hash_id(unsigned char ID);
+int find_hash_oid(const unsigned long *ID, unsigned long IDlen);
+int find_hash_any(const char *name, int digestlen);
+int register_hash(const struct ltc_hash_descriptor *hash);
+int unregister_hash(const struct ltc_hash_descriptor *hash);
+int register_all_hashes(void);
+int hash_is_valid(int idx);
+LTC_MUTEX_PROTO(ltc_hash_mutex)
+int hash_memory(int hash,
+const unsigned char *in, unsigned long inlen,
+unsigned char *out, unsigned long *outlen);
+int hash_memory_multi(int hash, unsigned char *out, unsigned long *outlen,
+const unsigned char *in, unsigned long inlen, ...);
+#if !defined(LTC_NO_FILE)
+int hash_filehandle(int hash, FILE *in, unsigned char *out, unsigned long *outlen);
+int hash_file(int hash, const char *fname, unsigned char *out, unsigned long *outlen);
+#endif

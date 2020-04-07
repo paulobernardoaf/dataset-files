@@ -1,0 +1,95 @@
+#include <va/va.h>
+#if !defined(VA_RT_FORMAT_YUV420_10BPP)
+#define VA_RT_FORMAT_YUV420_10BPP 0x00000100
+#endif
+#if !defined(VA_FOURCC_P010)
+#define VA_FOURCC_P010 0x30313050
+#endif
+#include <vlc_common.h>
+#include <vlc_codec.h>
+#include <vlc_fourcc.h>
+#include <vlc_picture_pool.h>
+VAContextID
+vlc_vaapi_CreateContext(vlc_object_t *o, VADisplay dpy, VAConfigID conf,
+int pic_w, int pic_h, int flag,
+VASurfaceID *render_targets, int num_render_targets);
+VABufferID
+vlc_vaapi_CreateBuffer(vlc_object_t *o, VADisplay dpy, VAContextID ctx,
+VABufferType type, unsigned int size,
+unsigned int num_elements, void *data);
+int
+vlc_vaapi_DeriveImage(vlc_object_t *o, VADisplay dpy,
+VASurfaceID surface, VAImage *image);
+int
+vlc_vaapi_CreateImage(vlc_object_t *o, VADisplay dpy, VAImageFormat *format,
+int width, int height, VAImage *image);
+int
+vlc_vaapi_DestroyConfig(vlc_object_t *o, VADisplay dpy, VAConfigID conf);
+int
+vlc_vaapi_DestroyContext(vlc_object_t *o, VADisplay dpy, VAContextID ctx);
+int
+vlc_vaapi_DestroyBuffer(vlc_object_t *o, VADisplay dpy, VABufferID buf);
+int
+vlc_vaapi_DestroyImage(vlc_object_t *o, VADisplay dpy, VAImageID image);
+int
+vlc_vaapi_MapBuffer(vlc_object_t *o, VADisplay dpy,
+VABufferID buf_id, void **p_buf);
+int
+vlc_vaapi_UnmapBuffer(vlc_object_t *o, VADisplay dpy, VABufferID buf_id);
+int
+vlc_vaapi_AcquireBufferHandle(vlc_object_t *o, VADisplay dpy, VABufferID buf_id,
+VABufferInfo *buf_info);
+int
+vlc_vaapi_ReleaseBufferHandle(vlc_object_t *o, VADisplay dpy, VABufferID buf_id);
+int
+vlc_vaapi_IsVideoProcFilterAvailable(vlc_object_t *o,
+VADisplay dpy, VAContextID ctx,
+VAProcFilterType filter);
+int
+vlc_vaapi_QueryVideoProcFilterCaps(vlc_object_t *o, VADisplay dpy,
+VAContextID ctx,
+VAProcFilterType filter, void *caps,
+unsigned int *p_num_caps);
+int
+vlc_vaapi_QueryVideoProcPipelineCaps(vlc_object_t *o, VADisplay dpy,
+VAContextID ctx, VABufferID *filters,
+unsigned int num_filters,
+VAProcPipelineCaps *pipeline_caps);
+int
+vlc_vaapi_BeginPicture(vlc_object_t *o, VADisplay dpy,
+VAContextID ctx, VASurfaceID surface);
+int
+vlc_vaapi_RenderPicture(vlc_object_t *o, VADisplay dpy, VAContextID ctx,
+VABufferID *buffers, int num_buffers);
+int
+vlc_vaapi_EndPicture(vlc_object_t *o, VADisplay dpy, VAContextID ctx);
+struct vaapi_pic_context
+{
+picture_context_t s;
+VASurfaceID surface;
+VADisplay va_dpy;
+};
+VAConfigID
+vlc_vaapi_CreateConfigChecked(vlc_object_t *o, VADisplay dpy,
+VAProfile i_profile, VAEntrypoint entrypoint,
+int i_force_vlc_chroma);
+picture_pool_t *
+vlc_vaapi_PoolNew(vlc_object_t *o, vlc_video_context *vctx,
+VADisplay dpy, unsigned count, VASurfaceID **render_targets,
+const video_format_t *restrict fmt);
+void
+vlc_vaapi_PicAttachContext(picture_t *pic);
+void
+vlc_vaapi_PicSetContext(picture_t *pic, struct vaapi_pic_context *);
+VASurfaceID
+vlc_vaapi_PicGetSurface(picture_t *pic);
+VADisplay
+vlc_vaapi_PicGetDisplay(picture_t *pic);
+static inline bool
+vlc_vaapi_IsChromaOpaque(int i_vlc_chroma)
+{
+return i_vlc_chroma == VLC_CODEC_VAAPI_420
+|| i_vlc_chroma == VLC_CODEC_VAAPI_420_10BPP;
+}
+void vlc_chroma_to_vaapi(int i_vlc_chroma, unsigned *va_rt_format, int *va_fourcc);
+#define VA_CALL(o, f, args...) do { VAStatus s = f(args); if (s != VA_STATUS_SUCCESS) { msg_Err(o, "%s: %s", #f, vaErrorStr(s)); goto error; } } while (0)

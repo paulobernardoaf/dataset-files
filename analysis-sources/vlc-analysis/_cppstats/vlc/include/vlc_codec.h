@@ -1,0 +1,217 @@
+#include <assert.h>
+#include <vlc_block.h>
+#include <vlc_es.h>
+#include <vlc_vout_window.h>
+#include <vlc_picture.h>
+#include <vlc_subpicture.h>
+typedef struct decoder_cc_desc_t decoder_cc_desc_t;
+struct decoder_owner_callbacks
+{
+union
+{
+struct
+{
+vlc_decoder_device * (*get_device)( decoder_t * );
+int (*format_update)( decoder_t *, vlc_video_context * );
+picture_t* (*buffer_new)( decoder_t * );
+void (*abort_pictures)( decoder_t *, bool b_abort );
+void (*queue)( decoder_t *, picture_t * );
+void (*queue_cc)( decoder_t *, block_t *,
+const decoder_cc_desc_t * );
+vlc_tick_t (*get_display_date)( decoder_t *, vlc_tick_t, vlc_tick_t );
+float (*get_display_rate)( decoder_t * );
+} video;
+struct
+{
+int (*format_update)( decoder_t * );
+void (*queue)( decoder_t *, block_t * );
+} audio;
+struct
+{
+subpicture_t* (*buffer_new)( decoder_t *,
+const subpicture_updater_t * );
+void (*queue)( decoder_t *, subpicture_t *);
+} spu;
+};
+int (*get_attachments)( decoder_t *p_dec,
+input_attachment_t ***ppp_attachment,
+int *pi_attachment );
+};
+struct decoder_t
+{
+struct vlc_object_t obj;
+module_t * p_module;
+void *p_sys;
+es_format_t fmt_in;
+es_format_t fmt_out;
+bool b_frame_drop_allowed;
+int i_extra_picture_buffers;
+union
+{
+#define VLCDEC_SUCCESS VLC_SUCCESS
+#define VLCDEC_ECRITICAL VLC_EGENERIC
+#define VLCDEC_RELOAD (-100)
+int ( * pf_decode ) ( decoder_t *, block_t *p_block );
+block_t * ( * pf_packetize )( decoder_t *, block_t **pp_block );
+};
+void ( * pf_flush ) ( decoder_t * );
+block_t * ( * pf_get_cc ) ( decoder_t *, decoder_cc_desc_t * );
+vlc_meta_t *p_description;
+const struct decoder_owner_callbacks *cbs;
+};
+struct decoder_cc_desc_t
+{
+uint8_t i_608_channels; 
+uint64_t i_708_channels; 
+int i_reorder_depth; 
+};
+struct encoder_owner_callbacks
+{
+struct
+{
+vlc_decoder_device *(*get_device)( encoder_t * );
+} video;
+};
+VLC_API vlc_decoder_device *vlc_encoder_GetDecoderDevice( encoder_t * );
+struct encoder_t
+{
+struct vlc_object_t obj;
+module_t * p_module;
+void *p_sys;
+es_format_t fmt_in;
+vlc_video_context *vctx_in; 
+es_format_t fmt_out;
+block_t * ( * pf_encode_video )( encoder_t *, picture_t * );
+block_t * ( * pf_encode_audio )( encoder_t *, block_t * );
+block_t * ( * pf_encode_sub )( encoder_t *, subpicture_t * );
+int i_threads; 
+int i_iframes; 
+int i_bframes; 
+int i_tolerance; 
+config_chain_t *p_cfg;
+const struct encoder_owner_callbacks *cbs;
+};
+static inline vlc_decoder_device * decoder_GetDecoderDevice( decoder_t *dec )
+{
+vlc_assert( dec->fmt_in.i_cat == VIDEO_ES && dec->cbs != NULL );
+if ( unlikely(dec->fmt_in.i_cat != VIDEO_ES || dec->cbs == NULL ) )
+return NULL;
+vlc_assert(dec->cbs->video.get_device != NULL);
+return dec->cbs->video.get_device( dec );
+}
+VLC_API int decoder_UpdateVideoOutput( decoder_t *dec, vlc_video_context *vctx_out );
+VLC_API int decoder_UpdateVideoFormat( decoder_t *dec );
+VLC_API picture_t *decoder_NewPicture( decoder_t *dec );
+VLC_API void decoder_AbortPictures( decoder_t *dec, bool b_abort );
+VLC_API void decoder_Init( decoder_t *dec, const es_format_t * );
+VLC_API void decoder_Destroy( decoder_t *p_dec );
+VLC_API void decoder_Clean( decoder_t *p_dec );
+static inline void decoder_QueueVideo( decoder_t *dec, picture_t *p_pic )
+{
+vlc_assert( dec->fmt_in.i_cat == VIDEO_ES && dec->cbs != NULL );
+vlc_assert( p_pic->p_next == NULL );
+vlc_assert( dec->cbs->video.queue != NULL );
+dec->cbs->video.queue( dec, p_pic );
+}
+static inline void decoder_QueueCc( decoder_t *dec, block_t *p_cc,
+const decoder_cc_desc_t *p_desc )
+{
+vlc_assert( dec->fmt_in.i_cat == VIDEO_ES && dec->cbs != NULL );
+if( dec->cbs->video.queue_cc == NULL )
+block_Release( p_cc );
+else
+dec->cbs->video.queue_cc( dec, p_cc, p_desc );
+}
+static inline void decoder_QueueAudio( decoder_t *dec, block_t *p_aout_buf )
+{
+vlc_assert( dec->fmt_in.i_cat == AUDIO_ES && dec->cbs != NULL );
+vlc_assert( p_aout_buf->p_next == NULL );
+vlc_assert( dec->cbs->audio.queue != NULL );
+dec->cbs->audio.queue( dec, p_aout_buf );
+}
+static inline void decoder_QueueSub( decoder_t *dec, subpicture_t *p_spu )
+{
+vlc_assert( dec->fmt_in.i_cat == SPU_ES && dec->cbs != NULL );
+vlc_assert( p_spu->p_next == NULL );
+vlc_assert( dec->cbs->spu.queue != NULL );
+dec->cbs->spu.queue( dec, p_spu );
+}
+VLC_USED
+static inline int decoder_UpdateAudioFormat( decoder_t *dec )
+{
+vlc_assert( dec->fmt_in.i_cat == AUDIO_ES && dec->cbs != NULL );
+if( dec->fmt_in.i_cat == AUDIO_ES && dec->cbs->audio.format_update != NULL )
+return dec->cbs->audio.format_update( dec );
+else
+return -1;
+}
+VLC_API block_t * decoder_NewAudioBuffer( decoder_t *, int i_nb_samples ) VLC_USED;
+VLC_USED
+static inline subpicture_t *decoder_NewSubpicture( decoder_t *dec,
+const subpicture_updater_t *p_dyn )
+{
+vlc_assert( dec->fmt_in.i_cat == SPU_ES && dec->cbs != NULL );
+subpicture_t *p_subpicture = dec->cbs->spu.buffer_new( dec, p_dyn );
+if( !p_subpicture )
+msg_Warn( dec, "can't get output subpicture" );
+return p_subpicture;
+}
+static inline int decoder_GetInputAttachments( decoder_t *dec,
+input_attachment_t ***ppp_attachment,
+int *pi_attachment )
+{
+vlc_assert( dec->cbs != NULL );
+if( !dec->cbs->get_attachments )
+return VLC_EGENERIC;
+return dec->cbs->get_attachments( dec, ppp_attachment, pi_attachment );
+}
+VLC_USED
+static inline vlc_tick_t decoder_GetDisplayDate( decoder_t *dec,
+vlc_tick_t system_now,
+vlc_tick_t i_ts )
+{
+vlc_assert( dec->fmt_in.i_cat == VIDEO_ES && dec->cbs != NULL );
+if( !dec->cbs->video.get_display_date )
+return VLC_TICK_INVALID;
+return dec->cbs->video.get_display_date( dec, system_now, i_ts );
+}
+VLC_USED
+static inline float decoder_GetDisplayRate( decoder_t *dec )
+{
+vlc_assert( dec->fmt_in.i_cat == VIDEO_ES && dec->cbs != NULL );
+if( !dec->cbs->video.get_display_rate )
+return 1.f;
+return dec->cbs->video.get_display_rate( dec );
+}
+enum vlc_decoder_device_type
+{
+VLC_DECODER_DEVICE_VAAPI,
+VLC_DECODER_DEVICE_VDPAU,
+VLC_DECODER_DEVICE_DXVA2,
+VLC_DECODER_DEVICE_D3D11VA,
+VLC_DECODER_DEVICE_VIDEOTOOLBOX,
+VLC_DECODER_DEVICE_AWINDOW,
+VLC_DECODER_DEVICE_NVDEC,
+VLC_DECODER_DEVICE_MMAL,
+};
+struct vlc_decoder_device_operations
+{
+void (*close)(struct vlc_decoder_device *);
+};
+typedef struct vlc_decoder_device
+{
+struct vlc_object_t obj;
+const struct vlc_decoder_device_operations *ops;
+void *sys;
+enum vlc_decoder_device_type type;
+void *opaque;
+} vlc_decoder_device;
+typedef int (*vlc_decoder_device_Open)(vlc_decoder_device *device,
+vout_window_t *window);
+#define set_callback_dec_device(activate, priority) { vlc_decoder_device_Open open__ = activate; (void) open__; set_callback(activate) } set_capability( "decoder device", priority )
+VLC_API vlc_decoder_device *
+vlc_decoder_device_Create(vlc_object_t *, vout_window_t *window) VLC_USED;
+VLC_API vlc_decoder_device *
+vlc_decoder_device_Hold(vlc_decoder_device *device);
+VLC_API void
+vlc_decoder_device_Release(vlc_decoder_device *device);

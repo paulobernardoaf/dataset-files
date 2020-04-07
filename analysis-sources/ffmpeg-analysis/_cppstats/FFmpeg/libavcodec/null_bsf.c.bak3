@@ -1,0 +1,35 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#include "avcodec.h"
+#include "bsf.h"
+
+static int null_filter(AVBSFContext *ctx, AVPacket *pkt)
+{
+return ff_bsf_get_packet_ref(ctx, pkt);
+}
+
+const AVBitStreamFilter ff_null_bsf = {
+.name = "null",
+.filter = null_filter,
+};

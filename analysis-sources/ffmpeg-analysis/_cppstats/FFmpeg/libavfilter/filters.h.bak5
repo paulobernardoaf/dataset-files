@@ -1,0 +1,261 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#include "avfilter.h"
+#include "internal.h"
+
+
+
+
+#define FFERROR_NOT_READY FFERRTAG('N','R','D','Y')
+
+
+
+
+
+
+
+
+
+
+
+void ff_filter_set_ready(AVFilterContext *filter, unsigned priority);
+
+
+
+
+
+
+int ff_inlink_process_commands(AVFilterLink *link, const AVFrame *frame);
+
+
+
+
+
+
+
+int ff_inlink_evaluate_timeline_at_frame(AVFilterLink *link, const AVFrame *frame);
+
+
+
+
+
+size_t ff_inlink_queued_frames(AVFilterLink *link);
+
+
+
+
+
+int ff_inlink_check_available_frame(AVFilterLink *link);
+
+
+
+
+
+
+int ff_inlink_queued_samples(AVFilterLink *link);
+
+
+
+
+
+
+int ff_inlink_check_available_samples(AVFilterLink *link, unsigned min);
+
+
+
+
+
+
+
+
+
+
+
+
+
+int ff_inlink_consume_frame(AVFilterLink *link, AVFrame **rframe);
+
+
+
+
+
+
+
+
+
+
+
+
+
+int ff_inlink_consume_samples(AVFilterLink *link, unsigned min, unsigned max,
+AVFrame **rframe);
+
+
+
+
+
+
+AVFrame *ff_inlink_peek_frame(AVFilterLink *link, size_t idx);
+
+
+
+
+
+
+int ff_inlink_make_frame_writable(AVFilterLink *link, AVFrame **rframe);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+int ff_inlink_acknowledge_status(AVFilterLink *link, int *rstatus, int64_t *rpts);
+
+
+
+
+
+
+
+void ff_inlink_request_frame(AVFilterLink *link);
+
+
+
+
+
+void ff_inlink_set_status(AVFilterLink *link, int status);
+
+
+
+
+static inline int ff_outlink_frame_wanted(AVFilterLink *link)
+{
+return link->frame_wanted_out;
+}
+
+
+
+
+int ff_outlink_get_status(AVFilterLink *link);
+
+
+
+
+
+
+
+
+static inline void ff_outlink_set_status(AVFilterLink *link, int status, int64_t pts)
+{
+ff_avfilter_link_set_in_status(link, status, pts);
+}
+
+
+
+
+
+
+#define FF_FILTER_FORWARD_STATUS_BACK(outlink, inlink) do { int ret = ff_outlink_get_status(outlink); if (ret) { ff_inlink_set_status(inlink, ret); return 0; } } while (0)
+
+
+
+
+
+
+
+
+
+
+
+
+#define FF_FILTER_FORWARD_STATUS_BACK_ALL(outlink, filter) do { int ret = ff_outlink_get_status(outlink); if (ret) { unsigned i; for (i = 0; i < filter->nb_inputs; i++) ff_inlink_set_status(filter->inputs[i], ret); return 0; } } while (0)
+
+
+
+
+
+
+
+
+
+
+
+
+
+#define FF_FILTER_FORWARD_STATUS(inlink, outlink) do { int status; int64_t pts; if (ff_inlink_acknowledge_status(inlink, &status, &pts)) { ff_outlink_set_status(outlink, status, pts); return 0; } } while (0)
+
+
+
+
+
+
+
+
+
+
+
+
+#define FF_FILTER_FORWARD_STATUS_ALL(inlink, filter) do { int status; int64_t pts; if (ff_inlink_acknowledge_status(inlink, &status, &pts)) { unsigned i; for (i = 0; i < filter->nb_outputs; i++) ff_outlink_set_status(filter->outputs[i], status, pts); return 0; } } while (0)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#define FF_FILTER_FORWARD_WANTED(outlink, inlink) do { if (ff_outlink_frame_wanted(outlink)) { ff_inlink_request_frame(inlink); return 0; } } while (0)
+
+
+
+
+
+
+

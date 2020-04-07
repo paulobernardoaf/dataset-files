@@ -1,0 +1,205 @@
+#include "cache.h"
+#include "pack-revindex.h"
+#include "object-store.h"
+#include "packfile.h"
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+static void sort_revindex(struct revindex_entry *entries, unsigned n, off_t max)
+{
+	
+
+
+
+
+#define DIGIT_SIZE (16)
+#define BUCKETS (1 << DIGIT_SIZE)
+	
+
+
+
+#define BUCKET_FOR(a, i, bits) (((a)[(i)].offset >> (bits)) & (BUCKETS-1))
+
+	
+
+
+
+
+
+
+	struct revindex_entry *tmp, *from, *to;
+	int bits;
+	unsigned *pos;
+
+	ALLOC_ARRAY(pos, BUCKETS);
+	ALLOC_ARRAY(tmp, n);
+	from = entries;
+	to = tmp;
+
+	
+
+
+
+
+	for (bits = 0; max >> bits; bits += DIGIT_SIZE) {
+		unsigned i;
+
+		memset(pos, 0, BUCKETS * sizeof(*pos));
+
+		
+
+
+
+
+
+
+
+		for (i = 0; i < n; i++)
+			pos[BUCKET_FOR(from, i, bits)]++;
+		for (i = 1; i < BUCKETS; i++)
+			pos[i] += pos[i-1];
+
+		
+
+
+
+
+
+
+
+
+
+
+
+
+		for (i = n - 1; i != UINT_MAX; i--)
+			to[--pos[BUCKET_FOR(from, i, bits)]] = from[i];
+
+		
+
+
+
+		SWAP(from, to);
+	}
+
+	
+
+
+
+	if (from != entries)
+		COPY_ARRAY(entries, tmp, n);
+	free(tmp);
+	free(pos);
+
+#undef BUCKET_FOR
+#undef BUCKETS
+#undef DIGIT_SIZE
+}
+
+
+
+
+static void create_pack_revindex(struct packed_git *p)
+{
+	const unsigned num_ent = p->num_objects;
+	unsigned i;
+	const char *index = p->index_data;
+	const unsigned hashsz = the_hash_algo->rawsz;
+
+	ALLOC_ARRAY(p->revindex, num_ent + 1);
+	index += 4 * 256;
+
+	if (p->index_version > 1) {
+		const uint32_t *off_32 =
+			(uint32_t *)(index + 8 + p->num_objects * (hashsz + 4));
+		const uint32_t *off_64 = off_32 + p->num_objects;
+		for (i = 0; i < num_ent; i++) {
+			const uint32_t off = ntohl(*off_32++);
+			if (!(off & 0x80000000)) {
+				p->revindex[i].offset = off;
+			} else {
+				p->revindex[i].offset = get_be64(off_64);
+				off_64 += 2;
+			}
+			p->revindex[i].nr = i;
+		}
+	} else {
+		for (i = 0; i < num_ent; i++) {
+			const uint32_t hl = *((uint32_t *)(index + (hashsz + 4) * i));
+			p->revindex[i].offset = ntohl(hl);
+			p->revindex[i].nr = i;
+		}
+	}
+
+	
+
+
+
+	p->revindex[num_ent].offset = p->pack_size - hashsz;
+	p->revindex[num_ent].nr = -1;
+	sort_revindex(p->revindex, num_ent, p->pack_size);
+}
+
+int load_pack_revindex(struct packed_git *p)
+{
+	if (!p->revindex) {
+		if (open_pack_index(p))
+			return -1;
+		create_pack_revindex(p);
+	}
+	return 0;
+}
+
+int find_revindex_position(struct packed_git *p, off_t ofs)
+{
+	int lo = 0;
+	int hi = p->num_objects + 1;
+	const struct revindex_entry *revindex = p->revindex;
+
+	do {
+		const unsigned mi = lo + (hi - lo) / 2;
+		if (revindex[mi].offset == ofs) {
+			return mi;
+		} else if (ofs < revindex[mi].offset)
+			hi = mi;
+		else
+			lo = mi + 1;
+	} while (lo < hi);
+
+	error("bad offset for revindex");
+	return -1;
+}
+
+struct revindex_entry *find_pack_revindex(struct packed_git *p, off_t ofs)
+{
+	int pos;
+
+	if (load_pack_revindex(p))
+		return NULL;
+
+	pos = find_revindex_position(p, ofs);
+
+	if (pos < 0)
+		return NULL;
+
+	return p->revindex + pos;
+}

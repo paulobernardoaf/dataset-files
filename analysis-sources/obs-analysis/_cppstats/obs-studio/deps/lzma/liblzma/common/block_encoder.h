@@ -1,0 +1,4 @@
+#include "common.h"
+#define COMPRESSED_SIZE_MAX ((LZMA_VLI_MAX - LZMA_BLOCK_HEADER_SIZE_MAX - LZMA_CHECK_SIZE_MAX) & ~LZMA_VLI_C(3))
+extern lzma_ret lzma_block_encoder_init(lzma_next_coder *next,
+lzma_allocator *allocator, lzma_block *block);

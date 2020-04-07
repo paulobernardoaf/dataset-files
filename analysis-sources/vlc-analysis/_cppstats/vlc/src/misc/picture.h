@@ -1,0 +1,15 @@
+#include <stdatomic.h>
+#include <stddef.h>
+#include <vlc_picture.h>
+typedef struct
+{
+picture_t picture;
+struct
+{
+void (*destroy)(picture_t *);
+void *opaque;
+} gc;
+} picture_priv_t;
+void *picture_Allocate(int *, size_t);
+void picture_Deallocate(int, void *, size_t);
+picture_t * picture_InternalClone(picture_t *, void (*pf_destroy)(picture_t *), void *);

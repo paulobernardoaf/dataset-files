@@ -1,0 +1,502 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" revision="1.0.0" language="C" filename="D:\Pesquisa\Projects\radare2-analysis\_cppstats\radare2\shlr\gdb\src\packet.c"><cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"packet.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"utils.h"</cpp:file></cpp:include>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>READ_TIMEOUT</name></cpp:macro> <cpp:value>(250 * 1000)</cpp:value></cpp:define>
+
+<enum>enum <block>{
+
+<decl><name>HEADER</name> <init>= <expr><literal type="number">1</literal> <operator>&lt;&lt;</operator> <literal type="number">0</literal></expr></init></decl>,
+
+<decl><name>CHKSUM</name> <init>= <expr><literal type="number">1</literal> <operator>&lt;&lt;</operator> <literal type="number">1</literal></expr></init></decl>,
+
+<decl><name>DUP</name> <init>= <expr><literal type="number">1</literal> <operator>&lt;&lt;</operator> <literal type="number">2</literal></expr></init></decl>,
+
+<decl><name>ESC</name> <init>= <expr><literal type="number">1</literal> <operator>&lt;&lt;</operator> <literal type="number">3</literal></expr></init></decl>,
+
+}</block>;</enum>
+
+<struct>struct <name>parse_ctx</name> <block>{
+
+<decl_stmt><decl><type><name>ut32</name></type> <name>flags</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>ut8</name></type> <name>last</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>ut8</name></type> <name>sum</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>chksum_nibble</name></decl>;</decl_stmt>
+
+}</block>;</struct>
+
+<function><type><specifier>static</specifier> <name>bool</name></type> <name>append</name><parameter_list>(<parameter><decl><type><name>libgdbr_t</name> <modifier>*</modifier></type><name>g</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>char</name></type> <name>ch</name></decl></parameter>)</parameter_list> <block>{<block_content>
+
+<decl_stmt><decl><type><name>char</name> <modifier>*</modifier></type><name>ptr</name></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>g</name><operator>-&gt;</operator><name>data_len</name></name> <operator>==</operator> <name><name>g</name><operator>-&gt;</operator><name>data_max</name></name> <operator>-</operator> <literal type="number">1</literal></expr>)</condition> <block>{<block_content>
+
+<decl_stmt><decl><type><name>int</name></type> <name>newsize</name> <init>= <expr><name><name>g</name><operator>-&gt;</operator><name>data_max</name></name> <operator>*</operator> <literal type="number">2</literal></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>newsize</name> <operator>&lt;</operator> <literal type="number">1</literal></expr>)</condition> <block>{<block_content>
+
+<return>return <expr><name>false</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name>ptr</name> <operator>=</operator> <call><name>realloc</name> <argument_list>(<argument><expr><name><name>g</name><operator>-&gt;</operator><name>data</name></name></expr></argument>, <argument><expr><name>newsize</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>ptr</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>eprintf</name> <argument_list>(<argument><expr><literal type="string">"%s: Failed to reallocate buffer\n"</literal></expr></argument>,
+
+<argument><expr><name>__func__</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>false</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>g</name><operator>-&gt;</operator><name>data</name></name> <operator>=</operator> <name>ptr</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>g</name><operator>-&gt;</operator><name>data_max</name></name> <operator>=</operator> <name>newsize</name></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>g</name><operator>-&gt;</operator><name>data</name><index>[<expr><name><name>g</name><operator>-&gt;</operator><name>data_len</name></name><operator>++</operator></expr>]</index></name> <operator>=</operator> <name>ch</name></expr>;</expr_stmt>
+
+<return>return <expr><name>true</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>unpack</name><parameter_list>(<parameter><decl><type><name>libgdbr_t</name> <modifier>*</modifier></type><name>g</name></decl></parameter>, <parameter><decl><type><name><name>struct</name> <name>parse_ctx</name></name> <modifier>*</modifier></type><name>ctx</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>len</name></decl></parameter>)</parameter_list> <block>{<block_content>
+
+<decl_stmt><decl><type><name>int</name></type> <name>i</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>j</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>bool</name></type> <name>first</name> <init>= <expr><name>true</name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>g</name><operator>-&gt;</operator><name>read_buff</name><index>[<expr><name>len</name></expr>]</index></name> <operator>=</operator> <literal type="char">'\0'</literal></expr>;</expr_stmt>
+
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>len</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+
+<decl_stmt><decl><type><name>char</name></type> <name>cur</name> <init>= <expr><name><name>g</name><operator>-&gt;</operator><name>read_buff</name><index>[<expr><name>i</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>ctx</name><operator>-&gt;</operator><name>flags</name></name> <operator>&amp;</operator> <name>CHKSUM</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name><name>ctx</name><operator>-&gt;</operator><name>sum</name></name> <operator>-=</operator> <call><name>hex2int</name> <argument_list>(<argument><expr><name>cur</name></expr></argument>)</argument_list></call> <operator>&lt;&lt;</operator> <operator>(</operator><name><name>ctx</name><operator>-&gt;</operator><name>chksum_nibble</name></name> <operator>*</operator> <literal type="number">4</literal><operator>)</operator></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><operator>--</operator><name><name>ctx</name><operator>-&gt;</operator><name>chksum_nibble</name></name></expr>)</condition> <block>{<block_content>
+
+<continue>continue;</continue>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>ctx</name><operator>-&gt;</operator><name>sum</name></name> <operator>!=</operator> <literal type="char">'#'</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>eprintf</name> <argument_list>(<argument><expr><literal type="string">"%s: Invalid checksum\n"</literal></expr></argument>, <argument><expr><name>__func__</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><operator>-</operator><literal type="number">1</literal></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>i</name> <operator>!=</operator> <name>len</name> <operator>-</operator> <literal type="number">1</literal></expr>)</condition> <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><name><name>g</name><operator>-&gt;</operator><name>read_buff</name><index>[<expr><name>i</name> <operator>+</operator> <literal type="number">1</literal></expr>]</index></name> <operator>==</operator> <literal type="char">'$'</literal> <operator>||</operator>
+
+<operator>(</operator><name><name>g</name><operator>-&gt;</operator><name>read_buff</name><index>[<expr><name>i</name> <operator>+</operator> <literal type="number">1</literal></expr>]</index></name> <operator>==</operator> <literal type="char">'+'</literal> <operator>&amp;&amp;</operator> <name><name>g</name><operator>-&gt;</operator><name>read_buff</name><index>[<expr><name>i</name> <operator>+</operator> <literal type="number">2</literal></expr>]</index></name> <operator>==</operator> <literal type="char">'$'</literal><operator>)</operator></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name><name>g</name><operator>-&gt;</operator><name>read_len</name></name> <operator>=</operator> <name>len</name> <operator>-</operator> <name>i</name> <operator>-</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>memcpy</name> <argument_list>(<argument><expr><name><name>g</name><operator>-&gt;</operator><name>read_buff</name></name></expr></argument>, <argument><expr><name><name>g</name><operator>-&gt;</operator><name>read_buff</name></name> <operator>+</operator> <name>i</name> <operator>+</operator> <literal type="number">1</literal></expr></argument>, <argument><expr><name><name>g</name><operator>-&gt;</operator><name>read_len</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>g</name><operator>-&gt;</operator><name>read_buff</name><index>[<expr><name><name>g</name><operator>-&gt;</operator><name>read_len</name></name></expr>]</index></name> <operator>=</operator> <literal type="char">'\0'</literal></expr>;</expr_stmt>
+
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>eprintf</name> <argument_list>(<argument><expr><literal type="string">"%s: Garbage at end of packet: %s (%s)\n"</literal></expr></argument>,
+
+<argument><expr><name>__func__</name></expr></argument>, <argument><expr><name><name>g</name><operator>-&gt;</operator><name>read_buff</name></name> <operator>+</operator> <name>i</name> <operator>+</operator> <literal type="number">1</literal></expr></argument>, <argument><expr><name><name>g</name><operator>-&gt;</operator><name>read_buff</name></name> <operator>+</operator> <name>i</name> <operator>+</operator> <literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>g</name><operator>-&gt;</operator><name>read_len</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>ctx</name><operator>-&gt;</operator><name>sum</name></name> <operator>+=</operator> <name>cur</name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>ctx</name><operator>-&gt;</operator><name>flags</name></name> <operator>&amp;</operator> <name>ESC</name></expr>)</condition> <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>append</name> <argument_list>(<argument><expr><name>g</name></expr></argument>, <argument><expr><name>cur</name> <operator>^</operator> <literal type="number">0x20</literal></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<return>return <expr><operator>-</operator><literal type="number">1</literal></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>ctx</name><operator>-&gt;</operator><name>flags</name></name> <operator>&amp;=</operator> <operator>~</operator><name>ESC</name></expr>;</expr_stmt>
+
+<continue>continue;</continue>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>ctx</name><operator>-&gt;</operator><name>flags</name></name> <operator>&amp;</operator> <name>DUP</name></expr>)</condition> <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><name><name>cur</name> <argument_list type="generic">&lt; <argument><expr><literal type="number">32</literal> <operator>||</operator> <name>cur</name></expr></argument> &gt;</argument_list></name> <literal type="number">126</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>eprintf</name> <argument_list>(<argument><expr><literal type="string">"%s: Invalid repeat count: %d\n"</literal></expr></argument>,
+
+<argument><expr><name>__func__</name></expr></argument>, <argument><expr><name>cur</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><operator>-</operator><literal type="number">1</literal></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<for>for <control>(<init><expr><name>j</name> <operator>=</operator> <name>cur</name> <operator>-</operator> <literal type="number">29</literal></expr>;</init> <condition><expr><name>j</name> <operator>&gt;</operator> <literal type="number">0</literal></expr>;</condition> <incr><expr><name>j</name><operator>--</operator></expr></incr>)</control> <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>append</name> <argument_list>(<argument><expr><name>g</name></expr></argument>, <argument><expr><name><name>ctx</name><operator>-&gt;</operator><name>last</name></name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<return>return <expr><operator>-</operator><literal type="number">1</literal></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></for>
+
+<expr_stmt><expr><name><name>ctx</name><operator>-&gt;</operator><name>last</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>ctx</name><operator>-&gt;</operator><name>flags</name></name> <operator>&amp;=</operator> <operator>~</operator><name>DUP</name></expr>;</expr_stmt>
+
+<continue>continue;</continue>
+
+</block_content>}</block></if></if_stmt>
+
+<switch>switch <condition>(<expr><name>cur</name></expr>)</condition> <block>{<block_content>
+
+<case>case <expr><literal type="char">'$'</literal></expr>:</case>
+
+<if_stmt><if>if <condition>(<expr><name><name>ctx</name><operator>-&gt;</operator><name>flags</name></name> <operator>&amp;</operator> <name>HEADER</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>eprintf</name> <argument_list>(<argument><expr><literal type="string">"%s: More than one $\n"</literal></expr></argument>, <argument><expr><name>__func__</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><operator>-</operator><literal type="number">1</literal></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>ctx</name><operator>-&gt;</operator><name>flags</name></name> <operator>|=</operator> <name>HEADER</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>ctx</name><operator>-&gt;</operator><name>sum</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<break>break;</break>
+
+<case>case <expr><literal type="char">'#'</literal></expr>:</case>
+
+<expr_stmt><expr><name><name>ctx</name><operator>-&gt;</operator><name>flags</name></name> <operator>|=</operator> <name>CHKSUM</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>ctx</name><operator>-&gt;</operator><name>chksum_nibble</name></name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+
+<break>break;</break>
+
+<case>case <expr><literal type="char">'}'</literal></expr>:</case>
+
+<expr_stmt><expr><name><name>ctx</name><operator>-&gt;</operator><name>flags</name></name> <operator>|=</operator> <name>ESC</name></expr>;</expr_stmt>
+
+<break>break;</break>
+
+<case>case <expr><literal type="char">'*'</literal></expr>:</case>
+
+<if_stmt><if>if <condition>(<expr><name>first</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>eprintf</name> <argument_list>(<argument><expr><literal type="string">"%s: Invalid repeat\n"</literal></expr></argument>, <argument><expr><name>__func__</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><operator>-</operator><literal type="number">1</literal></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>ctx</name><operator>-&gt;</operator><name>flags</name></name> <operator>|=</operator> <name>DUP</name></expr>;</expr_stmt>
+
+<break>break;</break>
+
+<case>case <expr><literal type="char">'+'</literal></expr>:</case>
+
+<case>case <expr><literal type="char">'-'</literal></expr>:</case>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><operator>(</operator><name><name>ctx</name><operator>-&gt;</operator><name>flags</name></name> <operator>&amp;</operator> <name>HEADER</name><operator>)</operator></expr>)</condition> <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><name><name>g</name><operator>-&gt;</operator><name>server_debug</name></name> <operator>&amp;&amp;</operator> <operator>!</operator><name><name>g</name><operator>-&gt;</operator><name>no_ack</name></name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>eprintf</name> <argument_list>(<argument><expr><literal type="string">"[received '%c' (0x%x)]\n"</literal></expr></argument>, <argument><expr><name>cur</name></expr></argument>,
+
+<argument><expr><operator>(</operator><name>int</name><operator>)</operator> <name>cur</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<break>break;</break>
+
+</block_content>}</block></if></if_stmt>
+
+<default>default:</default>
+
+<expr_stmt><expr><name>first</name> <operator>=</operator> <name>false</name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>append</name> <argument_list>(<argument><expr><name>g</name></expr></argument>, <argument><expr><name>cur</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<return>return <expr><operator>-</operator><literal type="number">1</literal></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>ctx</name><operator>-&gt;</operator><name>last</name></name> <operator>=</operator> <name>cur</name></expr>;</expr_stmt>
+
+</block_content>}</block></switch>
+
+</block_content>}</block></for>
+
+<return>return <expr><literal type="number">1</literal></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><name>int</name></type> <name>read_packet</name><parameter_list>(<parameter><decl><type><name>libgdbr_t</name> <modifier>*</modifier></type><name>g</name></decl></parameter>, <parameter><decl><type><name>bool</name></type> <name>vcont</name></decl></parameter>)</parameter_list> <block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>parse_ctx</name></name></type> <name>ctx</name> <init>= <expr><block>{ <expr><literal type="number">0</literal></expr> }</block></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>ret</name></decl>, <decl><type ref="prev"/><name>i</name></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>g</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>eprintf</name> <argument_list>(<argument><expr><literal type="string">"Initialize libgdbr_t first\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><operator>-</operator><literal type="number">1</literal></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>g</name><operator>-&gt;</operator><name>data_len</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>g</name><operator>-&gt;</operator><name>read_len</name></name> <operator>&gt;</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><call><name>unpack</name> <argument_list>(<argument><expr><name>g</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>ctx</name></expr></argument>, <argument><expr><name><name>g</name><operator>-&gt;</operator><name>read_len</name></name></expr></argument>)</argument_list></call> <operator>==</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name><name>g</name><operator>-&gt;</operator><name>data</name><index>[<expr><name><name>g</name><operator>-&gt;</operator><name>data_len</name></name></expr>]</index></name> <operator>=</operator> <literal type="char">'\0'</literal></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>g</name><operator>-&gt;</operator><name>server_debug</name></name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>eprintf</name> <argument_list>(<argument><expr><literal type="string">"getpkt (\"%s\"); %s\n"</literal></expr></argument>, <argument><expr><name><name>g</name><operator>-&gt;</operator><name>data</name></name></expr></argument>,
+
+<argument><expr><ternary><condition><expr><name><name>g</name><operator>-&gt;</operator><name>no_ack</name></name></expr> ?</condition><then> <expr><literal type="string">"[no ack sent]"</literal></expr> </then><else>: <expr><literal type="string">"[sending ack]"</literal></expr></else></ternary></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>g</name><operator>-&gt;</operator><name>data_len</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name><name>g</name><operator>-&gt;</operator><name>num_retries</name></name> <operator>&amp;&amp;</operator> <operator>!</operator><name><name>g</name><operator>-&gt;</operator><name>isbreaked</name></name></expr>;</condition> <incr><expr><ternary><condition><expr><name>vcont</name></expr> ?</condition><then> <expr><literal type="number">0</literal></expr> </then><else>: <expr><name>i</name><operator>++</operator></expr></else></ternary></expr></incr>)</control> <block>{<block_content>
+
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <call><name>r_socket_ready</name> <argument_list>(<argument><expr><name><name>g</name><operator>-&gt;</operator><name>sock</name></name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><name>READ_TIMEOUT</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>ret</name> <operator>==</operator> <literal type="number">0</literal> <operator>&amp;&amp;</operator> <operator>!</operator><name>vcont</name></expr>)</condition> <block>{<block_content>
+
+<continue>continue;</continue>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>ret</name> <operator>&lt;=</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<return>return <expr><operator>-</operator><literal type="number">1</literal></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>sz</name> <init>= <expr><call><name>r_socket_read</name> <argument_list>(<argument><expr><name><name>g</name><operator>-&gt;</operator><name>sock</name></name></expr></argument>, <argument><expr><operator>(</operator><name>void</name> <operator>*</operator><operator>)</operator><name><name>g</name><operator>-&gt;</operator><name>read_buff</name></name></expr></argument>, <argument><expr><name><name>g</name><operator>-&gt;</operator><name>read_max</name></name> <operator>-</operator> <literal type="number">1</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>sz</name> <operator>&lt;=</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>eprintf</name> <argument_list>(<argument><expr><literal type="string">"%s: read failed\n"</literal></expr></argument>, <argument><expr><name>__func__</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><operator>-</operator><literal type="number">1</literal></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <call><name>unpack</name> <argument_list>(<argument><expr><name>g</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>ctx</name></expr></argument>, <argument><expr><name>sz</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>ret</name> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>eprintf</name> <argument_list>(<argument><expr><literal type="string">"%s: unpack failed\n"</literal></expr></argument>, <argument><expr><name>__func__</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><operator>-</operator><literal type="number">1</literal></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>ret</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name><name>g</name><operator>-&gt;</operator><name>data</name><index>[<expr><name><name>g</name><operator>-&gt;</operator><name>data_len</name></name></expr>]</index></name> <operator>=</operator> <literal type="char">'\0'</literal></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>g</name><operator>-&gt;</operator><name>server_debug</name></name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>eprintf</name> <argument_list>(<argument><expr><literal type="string">"getpkt (\"%s\"); %s\n"</literal></expr></argument>, <argument><expr><name><name>g</name><operator>-&gt;</operator><name>data</name></name></expr></argument>,
+
+<argument><expr><ternary><condition><expr><name><name>g</name><operator>-&gt;</operator><name>no_ack</name></name></expr> ?</condition><then> <expr><literal type="string">"[no ack sent]"</literal></expr> </then><else>: <expr><literal type="string">"[sending ack]"</literal></expr></else></ternary></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></for>
+
+<return>return <expr><operator>-</operator><literal type="number">1</literal></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><name>int</name></type> <name>send_packet</name><parameter_list>(<parameter><decl><type><name>libgdbr_t</name> <modifier>*</modifier></type><name>g</name></decl></parameter>)</parameter_list> <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>g</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>eprintf</name> <argument_list>(<argument><expr><literal type="string">"Initialize libgdbr_t first\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><operator>-</operator><literal type="number">1</literal></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>g</name><operator>-&gt;</operator><name>server_debug</name></name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name><name>g</name><operator>-&gt;</operator><name>send_buff</name><index>[<expr><name><name>g</name><operator>-&gt;</operator><name>send_len</name></name></expr>]</index></name> <operator>=</operator> <literal type="char">'\0'</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>eprintf</name> <argument_list>(<argument><expr><literal type="string">"putpkt (\"%s\"); %s\n"</literal></expr></argument>, <argument><expr><name><name>g</name><operator>-&gt;</operator><name>send_buff</name></name></expr></argument>,
+
+<argument><expr><ternary><condition><expr><name><name>g</name><operator>-&gt;</operator><name>no_ack</name></name></expr> ?</condition><then> <expr><literal type="string">"[noack mode]"</literal></expr> </then><else>: <expr><literal type="string">"[looking for ack]"</literal></expr></else></ternary></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<return>return <expr><call><name>r_socket_write</name> <argument_list>(<argument><expr><name><name>g</name><operator>-&gt;</operator><name>sock</name></name></expr></argument>, <argument><expr><name><name>g</name><operator>-&gt;</operator><name>send_buff</name></name></expr></argument>, <argument><expr><name><name>g</name><operator>-&gt;</operator><name>send_len</name></name></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><name>int</name></type> <name>pack</name><parameter_list>(<parameter><decl><type><name>libgdbr_t</name> <modifier>*</modifier></type><name>g</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>msg</name></decl></parameter>)</parameter_list> <block>{<block_content>
+
+<decl_stmt><decl><type><name>int</name></type> <name>run_len</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>size_t</name></type> <name>msg_len</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>src</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>char</name></type> <name>prev</name></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>g</name> <operator>||</operator> <operator>!</operator><name>msg</name></expr>)</condition> <block>{<block_content>
+
+<return>return <expr><operator>-</operator><literal type="number">1</literal></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name>msg_len</name> <operator>=</operator> <call><name>strlen</name> <argument_list>(<argument><expr><name>msg</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>msg_len</name> <operator>&gt;</operator> <name><name>g</name><operator>-&gt;</operator><name>send_max</name></name> <operator>+</operator> <literal type="number">5</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>eprintf</name> <argument_list>(<argument><expr><literal type="string">"%s: message too long: %s"</literal></expr></argument>, <argument><expr><name>__func__</name></expr></argument>, <argument><expr><name>msg</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><operator>-</operator><literal type="number">1</literal></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>g</name><operator>-&gt;</operator><name>send_buff</name></name></expr>)</condition> <block>{<block_content>
+
+<return>return <expr><operator>-</operator><literal type="number">1</literal></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>g</name><operator>-&gt;</operator><name>send_buff</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>=</operator> <literal type="char">'$'</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>g</name><operator>-&gt;</operator><name>send_len</name></name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>src</name> <operator>=</operator> <name>msg</name></expr>;</expr_stmt>
+
+<while>while <condition>(<expr><operator>*</operator><name>src</name></expr>)</condition> <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><operator>*</operator><name>src</name> <operator>==</operator> <literal type="char">'#'</literal> <operator>||</operator> <operator>*</operator><name>src</name> <operator>==</operator> <literal type="char">'$'</literal> <operator>||</operator> <operator>*</operator><name>src</name> <operator>==</operator> <literal type="char">'}'</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>msg_len</name> <operator>+=</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>msg_len</name> <operator>&gt;</operator> <name><name>g</name><operator>-&gt;</operator><name>send_max</name></name> <operator>+</operator> <literal type="number">5</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>eprintf</name> <argument_list>(<argument><expr><literal type="string">"%s: message too long: %s"</literal></expr></argument>, <argument><expr><name>__func__</name></expr></argument>, <argument><expr><name>msg</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><operator>-</operator><literal type="number">1</literal></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>g</name><operator>-&gt;</operator><name>send_buff</name><index>[<expr><name><name>g</name><operator>-&gt;</operator><name>send_len</name></name><operator>++</operator></expr>]</index></name> <operator>=</operator> <literal type="char">'}'</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>g</name><operator>-&gt;</operator><name>send_buff</name><index>[<expr><name><name>g</name><operator>-&gt;</operator><name>send_len</name></name><operator>++</operator></expr>]</index></name> <operator>=</operator> <operator>*</operator><name>src</name><operator>++</operator> <operator>^</operator> <literal type="number">0x20</literal></expr>;</expr_stmt>
+
+<continue>continue;</continue>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>g</name><operator>-&gt;</operator><name>send_buff</name><index>[<expr><name><name>g</name><operator>-&gt;</operator><name>send_len</name></name><operator>++</operator></expr>]</index></name> <operator>=</operator> <operator>*</operator><name>src</name><operator>++</operator></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>g</name><operator>-&gt;</operator><name>is_server</name></name></expr>)</condition> <block>{<block_content>
+
+<continue>continue;</continue>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name>prev</name> <operator>=</operator> <operator>*</operator><operator>(</operator><name>src</name> <operator>-</operator> <literal type="number">1</literal><operator>)</operator></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>run_len</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<while>while <condition>(<expr><name><name>src</name><index>[<expr><name>run_len</name></expr>]</index></name> <operator>==</operator> <name>prev</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>run_len</name><operator>++</operator></expr>;</expr_stmt>
+
+</block_content>}</block></while>
+
+<if_stmt><if>if <condition>(<expr><name>run_len</name> <operator>&lt;</operator> <literal type="number">3</literal></expr>)</condition> <block>{<block_content> 
+
+<while>while <condition>(<expr><name>run_len</name><operator>--</operator></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name><name>g</name><operator>-&gt;</operator><name>send_buff</name><index>[<expr><name><name>g</name><operator>-&gt;</operator><name>send_len</name></name><operator>++</operator></expr>]</index></name> <operator>=</operator> <operator>*</operator><name>src</name><operator>++</operator></expr>;</expr_stmt>
+
+</block_content>}</block></while>
+
+<continue>continue;</continue>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name>run_len</name> <operator>+=</operator> <literal type="number">29</literal></expr>;</expr_stmt> 
+
+<if_stmt><if>if <condition>(<expr><name>run_len</name> <operator>==</operator> <literal type="number">35</literal> <operator>||</operator> <name>run_len</name> <operator>==</operator> <literal type="number">36</literal></expr>)</condition> <block>{<block_content> 
+
+<expr_stmt><expr><name>run_len</name> <operator>=</operator> <literal type="number">34</literal></expr>;</expr_stmt>
+
+</block_content>}</block></if> <if type="elseif">else if <condition>(<expr><name>run_len</name> <operator>&gt;</operator> <literal type="number">126</literal></expr>)</condition> <block>{<block_content> 
+
+<expr_stmt><expr><name>run_len</name> <operator>=</operator> <literal type="number">126</literal></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>g</name><operator>-&gt;</operator><name>send_buff</name><index>[<expr><name><name>g</name><operator>-&gt;</operator><name>send_len</name></name><operator>++</operator></expr>]</index></name> <operator>=</operator> <literal type="char">'*'</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>g</name><operator>-&gt;</operator><name>send_buff</name><index>[<expr><name><name>g</name><operator>-&gt;</operator><name>send_len</name></name><operator>++</operator></expr>]</index></name> <operator>=</operator> <name>run_len</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>msg_len</name> <operator>-=</operator> <name>run_len</name> <operator>-</operator> <literal type="number">27</literal></expr>;</expr_stmt> 
+
+<expr_stmt><expr><name>src</name> <operator>+=</operator> <name>run_len</name> <operator>-</operator> <literal type="number">29</literal></expr>;</expr_stmt>
+
+</block_content>}</block></while>
+
+<expr_stmt><expr><name><name>g</name><operator>-&gt;</operator><name>send_buff</name><index>[<expr><name><name>g</name><operator>-&gt;</operator><name>send_len</name></name></expr>]</index></name> <operator>=</operator> <literal type="char">'\0'</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>snprintf</name> <argument_list>(<argument><expr><name><name>g</name><operator>-&gt;</operator><name>send_buff</name></name> <operator>+</operator> <name><name>g</name><operator>-&gt;</operator><name>send_len</name></name></expr></argument>, <argument><expr><literal type="number">4</literal></expr></argument>, <argument><expr><literal type="string">"#%.2x"</literal></expr></argument>, <argument><expr><call><name>cmd_checksum</name><argument_list>(<argument><expr><name><name>g</name><operator>-&gt;</operator><name>send_buff</name></name> <operator>+</operator> <literal type="number">1</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>g</name><operator>-&gt;</operator><name>send_len</name></name> <operator>+=</operator> <literal type="number">3</literal></expr>;</expr_stmt>
+
+<return>return <expr><name><name>g</name><operator>-&gt;</operator><name>send_len</name></name></expr>;</return>
+
+</block_content>}</block></function>
+
+</unit>

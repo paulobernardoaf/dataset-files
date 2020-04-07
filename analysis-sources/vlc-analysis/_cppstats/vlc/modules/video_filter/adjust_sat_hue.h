@@ -1,0 +1,14 @@
+#include <vlc_common.h>
+#include <vlc_cpu.h>
+int planar_sat_hue_clip_C( picture_t * p_pic, picture_t * p_outpic,
+int i_sin, int i_cos, int i_sat, int i_x, int i_y );
+int planar_sat_hue_C( picture_t * p_pic, picture_t * p_outpic,
+int i_sin, int i_cos, int i_sat, int i_x, int i_y );
+int planar_sat_hue_clip_C_16( picture_t * p_pic, picture_t * p_outpic,
+int i_sin, int i_cos, int i_sat, int i_x, int i_y );
+int planar_sat_hue_C_16( picture_t * p_pic, picture_t * p_outpic,
+int i_sin, int i_cos, int i_sat, int i_x, int i_y );
+int packed_sat_hue_clip_C( picture_t * p_pic, picture_t * p_outpic,
+int i_sin, int i_cos, int i_sat, int i_x, int i_y );
+int packed_sat_hue_C( picture_t * p_pic, picture_t * p_outpic,
+int i_sin, int i_cos, int i_sat, int i_x, int i_y );

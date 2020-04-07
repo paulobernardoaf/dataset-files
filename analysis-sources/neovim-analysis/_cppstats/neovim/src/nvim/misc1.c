@@ -1,0 +1,765 @@
+#include <assert.h>
+#include <inttypes.h>
+#include <stdbool.h>
+#include <string.h>
+#include <limits.h>
+#include "nvim/vim.h"
+#include "nvim/ascii.h"
+#include "nvim/misc1.h"
+#include "nvim/charset.h"
+#include "nvim/cursor.h"
+#include "nvim/diff.h"
+#include "nvim/edit.h"
+#include "nvim/eval.h"
+#include "nvim/ex_cmds.h"
+#include "nvim/ex_docmd.h"
+#include "nvim/ex_getln.h"
+#include "nvim/fileio.h"
+#include "nvim/func_attr.h"
+#include "nvim/fold.h"
+#include "nvim/getchar.h"
+#include "nvim/indent.h"
+#include "nvim/indent_c.h"
+#include "nvim/buffer_updates.h"
+#include "nvim/main.h"
+#include "nvim/mbyte.h"
+#include "nvim/memline.h"
+#include "nvim/memory.h"
+#include "nvim/message.h"
+#include "nvim/garray.h"
+#include "nvim/move.h"
+#include "nvim/mouse.h"
+#include "nvim/option.h"
+#include "nvim/os_unix.h"
+#include "nvim/quickfix.h"
+#include "nvim/regexp.h"
+#include "nvim/screen.h"
+#include "nvim/search.h"
+#include "nvim/state.h"
+#include "nvim/strings.h"
+#include "nvim/tag.h"
+#include "nvim/ui.h"
+#include "nvim/undo.h"
+#include "nvim/window.h"
+#include "nvim/os/os.h"
+#include "nvim/os/shell.h"
+#include "nvim/os/signal.h"
+#include "nvim/os/input.h"
+#include "nvim/os/time.h"
+#include "nvim/event/stream.h"
+#include "nvim/buffer.h"
+#if defined(INCLUDE_GENERATED_DECLARATIONS)
+#include "misc1.c.generated.h"
+#endif
+static garray_T ga_users = GA_EMPTY_INIT_VALUE;
+int get_leader_len(char_u *line, char_u **flags, int backward, int include_space)
+{
+int i, j;
+int result;
+int got_com = FALSE;
+int found_one;
+char_u part_buf[COM_MAX_LEN]; 
+char_u *string; 
+char_u *list;
+int middle_match_len = 0;
+char_u *prev_list;
+char_u *saved_flags = NULL;
+result = i = 0;
+while (ascii_iswhite(line[i])) 
+++i;
+while (line[i] != NUL) {
+found_one = FALSE;
+for (list = curbuf->b_p_com; *list; ) {
+if (!got_com && flags != NULL)
+*flags = list; 
+prev_list = list;
+(void)copy_option_part(&list, part_buf, COM_MAX_LEN, ",");
+string = vim_strchr(part_buf, ':');
+if (string == NULL) 
+continue;
+*string++ = NUL; 
+if (middle_match_len != 0
+&& vim_strchr(part_buf, COM_MIDDLE) == NULL
+&& vim_strchr(part_buf, COM_END) == NULL)
+break;
+if (got_com && vim_strchr(part_buf, COM_NEST) == NULL)
+continue;
+if (backward && vim_strchr(part_buf, COM_NOBACK) != NULL)
+continue;
+if (ascii_iswhite(string[0])) {
+if (i == 0 || !ascii_iswhite(line[i - 1]))
+continue; 
+while (ascii_iswhite(string[0]))
+++string;
+}
+for (j = 0; string[j] != NUL && string[j] == line[i + j]; ++j)
+;
+if (string[j] != NUL)
+continue; 
+if (vim_strchr(part_buf, COM_BLANK) != NULL
+&& !ascii_iswhite(line[i + j]) && line[i + j] != NUL)
+continue;
+if (vim_strchr(part_buf, COM_MIDDLE) != NULL) {
+if (middle_match_len == 0) {
+middle_match_len = j;
+saved_flags = prev_list;
+}
+continue;
+}
+if (middle_match_len != 0 && j > middle_match_len)
+middle_match_len = 0;
+if (middle_match_len == 0)
+i += j;
+found_one = TRUE;
+break;
+}
+if (middle_match_len != 0) {
+if (!got_com && flags != NULL)
+*flags = saved_flags;
+i += middle_match_len;
+found_one = TRUE;
+}
+if (!found_one)
+break;
+result = i;
+while (ascii_iswhite(line[i]))
+++i;
+if (include_space)
+result = i;
+got_com = TRUE;
+if (vim_strchr(part_buf, COM_NEST) == NULL)
+break;
+}
+return result;
+}
+int get_last_leader_offset(char_u *line, char_u **flags)
+{
+int result = -1;
+int i, j;
+int lower_check_bound = 0;
+char_u *string;
+char_u *com_leader;
+char_u *com_flags;
+char_u *list;
+int found_one;
+char_u part_buf[COM_MAX_LEN]; 
+i = (int)STRLEN(line);
+while (--i >= lower_check_bound) {
+found_one = FALSE;
+for (list = curbuf->b_p_com; *list; ) {
+char_u *flags_save = list;
+(void)copy_option_part(&list, part_buf, COM_MAX_LEN, ",");
+string = vim_strchr(part_buf, ':');
+if (string == NULL) { 
+continue;
+}
+*string++ = NUL; 
+com_leader = string;
+if (ascii_iswhite(string[0])) {
+if (i == 0 || !ascii_iswhite(line[i - 1]))
+continue;
+while (ascii_iswhite(*string)) {
+string++;
+}
+}
+for (j = 0; string[j] != NUL && string[j] == line[i + j]; ++j)
+;
+if (string[j] != NUL)
+continue;
+if (vim_strchr(part_buf, COM_BLANK) != NULL
+&& !ascii_iswhite(line[i + j]) && line[i + j] != NUL) {
+continue;
+}
+if (vim_strchr(part_buf, COM_MIDDLE) != NULL) {
+for (j = 0; j <= i && ascii_iswhite(line[j]); j++) {
+}
+if (j < i) {
+continue;
+}
+}
+found_one = TRUE;
+if (flags)
+*flags = flags_save;
+com_flags = flags_save;
+break;
+}
+if (found_one) {
+char_u part_buf2[COM_MAX_LEN]; 
+int len1, len2, off;
+result = i;
+if (vim_strchr(part_buf, COM_NEST) != NULL)
+continue;
+lower_check_bound = i;
+while (ascii_iswhite(*com_leader))
+++com_leader;
+len1 = (int)STRLEN(com_leader);
+for (list = curbuf->b_p_com; *list; ) {
+char_u *flags_save = list;
+(void)copy_option_part(&list, part_buf2, COM_MAX_LEN, ",");
+if (flags_save == com_flags)
+continue;
+string = vim_strchr(part_buf2, ':');
+++string;
+while (ascii_iswhite(*string))
+++string;
+len2 = (int)STRLEN(string);
+if (len2 == 0)
+continue;
+for (off = (len2 > i ? i : len2); off > 0 && off + len1 > len2; ) {
+--off;
+if (!STRNCMP(string + off, com_leader, len2 - off)) {
+if (i - off < lower_check_bound)
+lower_check_bound = i - off;
+}
+}
+}
+}
+}
+return result;
+}
+int plines(const linenr_T lnum)
+{
+return plines_win(curwin, lnum, true);
+}
+int plines_win(
+win_T *const wp,
+const linenr_T lnum,
+const bool winheight 
+)
+{
+return plines_win_nofill(wp, lnum, winheight) + diff_check_fill(wp, lnum);
+}
+int plines_nofill(const linenr_T lnum)
+{
+return plines_win_nofill(curwin, lnum, true);
+}
+int plines_win_nofill(
+win_T *const wp,
+const linenr_T lnum,
+const bool winheight 
+)
+{
+if (!wp->w_p_wrap) {
+return 1;
+}
+if (wp->w_width_inner == 0) {
+return 1;
+}
+if (lineFolded(wp, lnum)) {
+return 1;
+}
+const int lines = plines_win_nofold(wp, lnum);
+if (winheight && lines > wp->w_height_inner) {
+return wp->w_height_inner;
+}
+return lines;
+}
+int plines_win_nofold(win_T *wp, linenr_T lnum)
+{
+char_u *s;
+unsigned int col;
+int width;
+s = ml_get_buf(wp->w_buffer, lnum, FALSE);
+if (*s == NUL) 
+return 1;
+col = win_linetabsize(wp, s, (colnr_T)MAXCOL);
+if (wp->w_p_list && wp->w_p_lcs_chars.eol != NUL) {
+col += 1;
+}
+width = wp->w_width_inner - win_col_off(wp);
+if (width <= 0 || col > 32000) {
+return 32000; 
+}
+if (col <= (unsigned int)width) {
+return 1;
+}
+col -= (unsigned int)width;
+width += win_col_off2(wp);
+assert(col <= INT_MAX && (int)col < INT_MAX - (width -1));
+return ((int)col + (width - 1)) / width + 1;
+}
+int plines_win_col(win_T *wp, linenr_T lnum, long column)
+{
+int lines = diff_check_fill(wp, lnum);
+if (!wp->w_p_wrap)
+return lines + 1;
+if (wp->w_width_inner == 0) {
+return lines + 1;
+}
+char_u *line = ml_get_buf(wp->w_buffer, lnum, false);
+char_u *s = line;
+colnr_T col = 0;
+while (*s != NUL && --column >= 0) {
+col += win_lbr_chartabsize(wp, line, s, col, NULL);
+MB_PTR_ADV(s);
+}
+if (*s == TAB && (State & NORMAL)
+&& (!wp->w_p_list || wp->w_p_lcs_chars.tab1)) {
+col += win_lbr_chartabsize(wp, line, s, col, NULL) - 1;
+}
+int width = wp->w_width_inner - win_col_off(wp);
+if (width <= 0) {
+return 9999;
+}
+lines += 1;
+if (col > width)
+lines += (col - width) / (width + win_col_off2(wp)) + 1;
+return lines;
+}
+int plines_win_full(win_T *wp, linenr_T lnum, linenr_T *const nextp,
+bool *const foldedp, const bool cache)
+{
+bool folded = hasFoldingWin(wp, lnum, NULL, nextp, cache, NULL);
+if (foldedp) {
+*foldedp = folded;
+}
+if (folded) {
+return 1;
+} else if (lnum == wp->w_topline) {
+return plines_win_nofill(wp, lnum, true) + wp->w_topfill;
+}
+return plines_win(wp, lnum, true);
+}
+int plines_m_win(win_T *wp, linenr_T first, linenr_T last)
+{
+int count = 0;
+while (first <= last) {
+linenr_T next = first;
+count += plines_win_full(wp, first, &next, NULL, false);
+first = next + 1;
+}
+return count;
+}
+int gchar_pos(pos_T *pos)
+FUNC_ATTR_NONNULL_ARG(1)
+{
+if (pos->col == MAXCOL) {
+return NUL;
+}
+return utf_ptr2char(ml_get_pos(pos));
+}
+void check_status(buf_T *buf)
+{
+FOR_ALL_WINDOWS_IN_TAB(wp, curtab) {
+if (wp->w_buffer == buf && wp->w_status_height) {
+wp->w_redr_status = TRUE;
+if (must_redraw < VALID) {
+must_redraw = VALID;
+}
+}
+}
+}
+int ask_yesno(const char *const str, const bool direct)
+{
+const int save_State = State;
+no_wait_return++;
+State = CONFIRM; 
+setmouse(); 
+no_mapping++;
+int r = ' ';
+while (r != 'y' && r != 'n') {
+smsg_attr(HL_ATTR(HLF_R), "%s (y/n)?", str);
+if (direct) {
+r = get_keystroke(NULL);
+} else {
+r = plain_vgetc();
+}
+if (r == Ctrl_C || r == ESC) {
+r = 'n';
+}
+msg_putchar(r); 
+ui_flush();
+}
+no_wait_return--;
+State = save_State;
+setmouse();
+no_mapping--;
+return r;
+}
+int is_mouse_key(int c)
+{
+return c == K_LEFTMOUSE
+|| c == K_LEFTMOUSE_NM
+|| c == K_LEFTDRAG
+|| c == K_LEFTRELEASE
+|| c == K_LEFTRELEASE_NM
+|| c == K_MIDDLEMOUSE
+|| c == K_MIDDLEDRAG
+|| c == K_MIDDLERELEASE
+|| c == K_RIGHTMOUSE
+|| c == K_RIGHTDRAG
+|| c == K_RIGHTRELEASE
+|| c == K_MOUSEDOWN
+|| c == K_MOUSEUP
+|| c == K_MOUSELEFT
+|| c == K_MOUSERIGHT
+|| c == K_X1MOUSE
+|| c == K_X1DRAG
+|| c == K_X1RELEASE
+|| c == K_X2MOUSE
+|| c == K_X2DRAG
+|| c == K_X2RELEASE;
+}
+int get_keystroke(MultiQueue *events)
+{
+char_u *buf = NULL;
+int buflen = 150;
+int maxlen;
+int len = 0;
+int n;
+int save_mapped_ctrl_c = mapped_ctrl_c;
+int waited = 0;
+mapped_ctrl_c = 0; 
+for (;; ) {
+ui_flush();
+maxlen = (buflen - 6 - len) / 3;
+if (buf == NULL) {
+buf = xmalloc((size_t)buflen);
+} else if (maxlen < 10) {
+buflen += 100;
+buf = xrealloc(buf, (size_t)buflen);
+maxlen = (buflen - 6 - len) / 3;
+}
+n = os_inchar(buf + len, maxlen, len == 0 ? -1L : 100L, 0, events);
+if (n > 0) {
+n = fix_input_buffer(buf + len, n);
+len += n;
+waited = 0;
+} else if (len > 0)
+++waited; 
+if (n > 0) { 
+len = n;
+}
+if (len == 0) { 
+continue;
+}
+n = buf[0];
+if (n == K_SPECIAL) {
+n = TO_SPECIAL(buf[1], buf[2]);
+if (buf[1] == KS_MODIFIER
+|| n == K_IGNORE
+|| (is_mouse_key(n) && n != K_LEFTMOUSE)
+) {
+if (buf[1] == KS_MODIFIER)
+mod_mask = buf[2];
+len -= 3;
+if (len > 0)
+memmove(buf, buf + 3, (size_t)len);
+continue;
+}
+break;
+}
+if (MB_BYTE2LEN(n) > len) {
+continue;
+}
+buf[len >= buflen ? buflen - 1 : len] = NUL;
+n = utf_ptr2char(buf);
+break;
+}
+xfree(buf);
+mapped_ctrl_c = save_mapped_ctrl_c;
+return n;
+}
+int 
+get_number (
+int colon, 
+int *mouse_used
+)
+{
+int n = 0;
+int c;
+int typed = 0;
+if (mouse_used != NULL)
+*mouse_used = FALSE;
+if (msg_silent != 0)
+return 0;
+no_mapping++;
+for (;; ) {
+ui_cursor_goto(msg_row, msg_col);
+c = safe_vgetc();
+if (ascii_isdigit(c)) {
+n = n * 10 + c - '0';
+msg_putchar(c);
+++typed;
+} else if (c == K_DEL || c == K_KDEL || c == K_BS || c == Ctrl_H) {
+if (typed > 0) {
+MSG_PUTS("\b \b");
+--typed;
+}
+n /= 10;
+} else if (mouse_used != NULL && c == K_LEFTMOUSE) {
+*mouse_used = TRUE;
+n = mouse_row + 1;
+break;
+} else if (n == 0 && c == ':' && colon) {
+stuffcharReadbuff(':');
+if (!exmode_active)
+cmdline_row = msg_row;
+skip_redraw = TRUE; 
+do_redraw = FALSE;
+break;
+} else if (c == CAR || c == NL || c == Ctrl_C || c == ESC)
+break;
+}
+no_mapping--;
+return n;
+}
+int prompt_for_number(int *mouse_used)
+{
+int i;
+int save_cmdline_row;
+int save_State;
+if (mouse_used != NULL)
+MSG_PUTS(_("Type number and <Enter> or click with mouse (empty cancels): "));
+else
+MSG_PUTS(_("Type number and <Enter> (empty cancels): "));
+save_cmdline_row = cmdline_row;
+cmdline_row = 0;
+save_State = State;
+State = ASKMORE; 
+setmouse();
+i = get_number(TRUE, mouse_used);
+if (KeyTyped) {
+if (msg_row > 0) {
+cmdline_row = msg_row - 1;
+}
+need_wait_return = false;
+msg_didany = false;
+msg_didout = false;
+} else {
+cmdline_row = save_cmdline_row;
+}
+State = save_State;
+setmouse();
+return i;
+}
+void msgmore(long n)
+{
+long pn;
+if (global_busy 
+|| !messaging()) 
+return;
+if (keep_msg != NULL && !keep_msg_more)
+return;
+if (n > 0)
+pn = n;
+else
+pn = -n;
+if (pn > p_report) {
+if (pn == 1) {
+if (n > 0)
+STRLCPY(msg_buf, _("1 more line"), MSG_BUF_LEN);
+else
+STRLCPY(msg_buf, _("1 line less"), MSG_BUF_LEN);
+} else {
+if (n > 0)
+vim_snprintf((char *)msg_buf, MSG_BUF_LEN,
+_("%" PRId64 " more lines"), (int64_t)pn);
+else
+vim_snprintf((char *)msg_buf, MSG_BUF_LEN,
+_("%" PRId64 " fewer lines"), (int64_t)pn);
+}
+if (got_int) {
+xstrlcat((char *)msg_buf, _(" (Interrupted)"), MSG_BUF_LEN);
+}
+if (msg(msg_buf)) {
+set_keep_msg(msg_buf, 0);
+keep_msg_more = TRUE;
+}
+}
+}
+void beep_flush(void)
+{
+if (emsg_silent == 0) {
+flush_buffers(FLUSH_MINIMAL);
+vim_beep(BO_ERROR);
+}
+}
+void vim_beep(unsigned val)
+{
+called_vim_beep = true;
+if (emsg_silent == 0) {
+if (!((bo_flags & val) || (bo_flags & BO_ALL))) {
+static int beeps = 0;
+static uint64_t start_time = 0;
+if (start_time == 0 || os_hrtime() - start_time > 500000000u) {
+beeps = 0;
+start_time = os_hrtime();
+}
+beeps++;
+if (beeps <= 3) {
+if (p_vb) {
+ui_call_visual_bell();
+} else {
+ui_call_bell();
+}
+}
+}
+if (vim_strchr(p_debug, 'e') != NULL) {
+msg_source(HL_ATTR(HLF_W));
+msg_attr(_("Beep!"), HL_ATTR(HLF_W));
+}
+}
+}
+#if defined(EXITFREE)
+void free_users(void)
+{
+ga_clear_strings(&ga_users);
+}
+#endif
+static void init_users(void)
+{
+static int lazy_init_done = FALSE;
+if (lazy_init_done) {
+return;
+}
+lazy_init_done = TRUE;
+os_get_usernames(&ga_users);
+}
+char_u *get_users(expand_T *xp, int idx)
+{
+init_users();
+if (idx < ga_users.ga_len)
+return ((char_u **)ga_users.ga_data)[idx];
+return NULL;
+}
+int match_user(char_u *name)
+{
+int n = (int)STRLEN(name);
+int result = 0;
+init_users();
+for (int i = 0; i < ga_users.ga_len; i++) {
+if (STRCMP(((char_u **)ga_users.ga_data)[i], name) == 0)
+return 2; 
+if (STRNCMP(((char_u **)ga_users.ga_data)[i], name, n) == 0)
+result = 1; 
+}
+return result;
+}
+void preserve_exit(void)
+FUNC_ATTR_NORETURN
+{
+static bool really_exiting = false;
+if (really_exiting) {
+if (input_global_fd() >= 0) {
+stream_set_blocking(input_global_fd(), true);
+}
+exit(2);
+}
+really_exiting = true;
+signal_reject_deadly();
+mch_errmsg(IObuff);
+mch_errmsg("\n");
+ui_flush();
+ml_close_notmod(); 
+FOR_ALL_BUFFERS(buf) {
+if (buf->b_ml.ml_mfp != NULL && buf->b_ml.ml_mfp->mf_fname != NULL) {
+mch_errmsg((uint8_t *)"Vim: preserving files...\n");
+ui_flush();
+ml_sync_all(false, false, true); 
+break;
+}
+}
+ml_close_all(false); 
+mch_errmsg("Vim: Finished.\n");
+getout(1);
+}
+#if !defined(BREAKCHECK_SKIP)
+#define BREAKCHECK_SKIP 1000
+#endif
+static int breakcheck_count = 0;
+void line_breakcheck(void)
+{
+if (++breakcheck_count >= BREAKCHECK_SKIP) {
+breakcheck_count = 0;
+os_breakcheck();
+}
+}
+void fast_breakcheck(void)
+{
+if (++breakcheck_count >= BREAKCHECK_SKIP * 10) {
+breakcheck_count = 0;
+os_breakcheck();
+}
+}
+int call_shell(char_u *cmd, ShellOpts opts, char_u *extra_shell_arg)
+{
+int retval;
+proftime_T wait_time;
+if (p_verbose > 3) {
+verbose_enter();
+smsg(_("Executing command: \"%s\""), cmd == NULL ? p_sh : cmd);
+msg_putchar('\n');
+verbose_leave();
+}
+if (do_profiling == PROF_YES) {
+prof_child_enter(&wait_time);
+}
+if (*p_sh == NUL) {
+EMSG(_(e_shellempty));
+retval = -1;
+} else {
+tag_freematch();
+retval = os_call_shell(cmd, opts, extra_shell_arg);
+}
+set_vim_var_nr(VV_SHELL_ERROR, (varnumber_T)retval);
+if (do_profiling == PROF_YES) {
+prof_child_exit(&wait_time);
+}
+return retval;
+}
+char_u *get_cmd_output(char_u *cmd, char_u *infile, ShellOpts flags,
+size_t *ret_len)
+{
+char_u *buffer = NULL;
+if (check_restricted() || check_secure())
+return NULL;
+char_u *tempname = vim_tempname();
+if (tempname == NULL) {
+EMSG(_(e_notmp));
+return NULL;
+}
+char_u *command = make_filter_cmd(cmd, infile, tempname);
+++no_check_timestamps;
+call_shell(command, kShellOptDoOut | kShellOptExpand | flags, NULL);
+--no_check_timestamps;
+xfree(command);
+FILE *fd = os_fopen((char *)tempname, READBIN);
+if (fd == NULL) {
+EMSG2(_(e_notopen), tempname);
+goto done;
+}
+fseek(fd, 0L, SEEK_END);
+size_t len = (size_t)ftell(fd); 
+fseek(fd, 0L, SEEK_SET);
+buffer = xmalloc(len + 1);
+size_t i = fread((char *)buffer, 1, len, fd);
+fclose(fd);
+os_remove((char *)tempname);
+if (i != len) {
+EMSG2(_(e_notread), tempname);
+XFREE_CLEAR(buffer);
+} else if (ret_len == NULL) {
+for (i = 0; i < len; ++i)
+if (buffer[i] == NUL)
+buffer[i] = 1;
+buffer[len] = NUL; 
+} else {
+*ret_len = len;
+}
+done:
+xfree(tempname);
+return buffer;
+}
+void FreeWild(int count, char_u **files)
+{
+if (count <= 0 || files == NULL)
+return;
+while (count--)
+xfree(files[count]);
+xfree(files);
+}
+int goto_im(void)
+{
+return p_im && stuff_empty() && typebuf_typed();
+}

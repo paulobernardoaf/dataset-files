@@ -1,0 +1,14 @@
+typedef enum EDemanglerErr {
+eDemanglerErrOK = 0, 
+eDemanglerErrMemoryAllocation, 
+eDemanglerErrUnsupportedMangling, 
+eDemanglerErrUnkown, 
+eDemanglerErrUncorrectMangledSymbol, 
+eDemanglerErrMax
+} EDemanglerErr;
+struct SDemangler;
+typedef EDemanglerErr (*demangle_func)(struct SDemangler *, char **res);
+typedef struct SDemangler {
+char *symbol; 
+demangle_func demangle; 
+} SDemangler;

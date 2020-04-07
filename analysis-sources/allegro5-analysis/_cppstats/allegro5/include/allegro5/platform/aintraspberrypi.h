@@ -1,0 +1,9 @@
+#if defined(__cplusplus)
+extern "C" {
+#endif
+#include "allegro5/platform/aintunix.h"
+#include "allegro5/internal/aintern_keyboard.h"
+ALLEGRO_KEYBOARD_DRIVER *_al_xwin_keyboard_driver(void);
+#if defined(__cplusplus)
+}
+#endif

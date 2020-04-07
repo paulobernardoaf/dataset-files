@@ -1,0 +1,105 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#include "test.h"
+
+#include "memdebug.h"
+
+
+static char data[]="this is a short string.\n";
+
+static size_t data_size = sizeof(data) / sizeof(char);
+
+static int progress_callback(void *clientp, double dltotal, double dlnow,
+double ultotal, double ulnow)
+{
+FILE *moo = fopen(libtest_arg2, "wb");
+
+(void)clientp; 
+(void)dltotal; 
+(void)dlnow; 
+
+if(moo) {
+if((size_t)ultotal == data_size && (size_t)ulnow == data_size)
+fprintf(moo, "PASSED, UL data matched data size\n");
+else
+fprintf(moo, "Progress callback called with UL %f out of %f\n",
+ulnow, ultotal);
+fclose(moo);
+}
+return 0;
+}
+
+int test(char *URL)
+{
+CURL *curl;
+CURLcode res = CURLE_OK;
+
+if(curl_global_init(CURL_GLOBAL_ALL) != CURLE_OK) {
+fprintf(stderr, "curl_global_init() failed\n");
+return TEST_ERR_MAJOR_BAD;
+}
+
+curl = curl_easy_init();
+if(!curl) {
+fprintf(stderr, "curl_easy_init() failed\n");
+curl_global_cleanup();
+return TEST_ERR_MAJOR_BAD;
+}
+
+
+test_setopt(curl, CURLOPT_URL, URL);
+
+
+test_setopt(curl, CURLOPT_POST, 1L);
+
+#if defined(CURL_DOES_CONVERSIONS)
+
+test_setopt(curl, CURLOPT_TRANSFERTEXT, 1L);
+#endif
+
+
+test_setopt(curl, CURLOPT_POSTFIELDSIZE, (long)data_size);
+test_setopt(curl, CURLOPT_POSTFIELDS, data);
+
+
+test_setopt(curl, CURLOPT_NOPROGRESS, 0L);
+test_setopt(curl, CURLOPT_PROGRESSFUNCTION, progress_callback);
+
+
+
+
+test_setopt(curl, CURLOPT_VERBOSE, 1L);
+
+
+test_setopt(curl, CURLOPT_HEADER, 1L);
+
+
+res = curl_easy_perform(curl);
+
+test_cleanup:
+
+
+curl_easy_cleanup(curl);
+curl_global_cleanup();
+
+return res;
+}

@@ -1,0 +1,1529 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" revision="1.0.0" language="C" filename="D:\Pesquisa\Projects\ruby-analysis\_cppstats\ruby\transient_heap.c"><cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"debug_counter.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"gc.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"internal.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"internal/gc.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"internal/hash.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"internal/sanitizers.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"internal/static_assert.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"internal/struct.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"internal/variable.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"ruby/debug.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"ruby/ruby.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"ruby_assert.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"transient_heap.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"vm_debug.h"</cpp:file></cpp:include>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><name>USE_TRANSIENT_HEAP</name></expr></cpp:if> 
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><operator>!</operator><call><name>defined</name><argument_list>(<argument><expr><name>TRANSIENT_HEAP_CHECK_MODE</name></expr></argument>)</argument_list></call></expr></cpp:if>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>TRANSIENT_HEAP_CHECK_MODE</name></cpp:macro> <cpp:value>0</cpp:value></cpp:define>
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>TH_ASSERT</name><parameter_list>(<parameter><type><name>expr</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>RUBY_ASSERT_MESG_WHEN(TRANSIENT_HEAP_CHECK_MODE &gt; 0, expr, #expr)</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>TRANSIENT_HEAP_DEBUG</name></cpp:macro> <cpp:value>0</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>TRANSIENT_HEAP_DEBUG_INFINITE_BLOCK</name></cpp:macro> <cpp:value>0</cpp:value></cpp:define>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><name>TRANSIENT_HEAP_DEBUG_INFINITE_BLOCK</name></expr></cpp:if>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;sys/mman.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;errno.h&gt;</cpp:file></cpp:include>
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>TRANSIENT_HEAP_DEBUG_DONT_PROMOTE</name></cpp:macro> <cpp:value>0</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>TRANSIENT_HEAP_PROMOTED_DEFAULT_SIZE</name></cpp:macro> <cpp:value>1024</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>TRANSIENT_HEAP_BLOCK_SIZE</name></cpp:macro> <cpp:value>(1024 * 32 )</cpp:value></cpp:define> 
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>TRANSIENT_HEAP_TOTAL_SIZE</name></cpp:macro> <cpp:value>(1024 * 1024 * 32)</cpp:value></cpp:define> 
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>TRANSIENT_HEAP_ALLOC_MAX</name></cpp:macro> <cpp:value>(1024 * 2 )</cpp:value></cpp:define> 
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>TRANSIENT_HEAP_BLOCK_NUM</name></cpp:macro> <cpp:value>(TRANSIENT_HEAP_TOTAL_SIZE / TRANSIENT_HEAP_BLOCK_SIZE)</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>TRANSIENT_HEAP_ALLOC_MAGIC</name></cpp:macro> <cpp:value>0xfeab</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>TRANSIENT_HEAP_ALLOC_ALIGN</name></cpp:macro> <cpp:value>RUBY_ALIGNOF(void *)</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>TRANSIENT_HEAP_ALLOC_MARKING_LAST</name></cpp:macro> <cpp:value>-1</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>TRANSIENT_HEAP_ALLOC_MARKING_FREE</name></cpp:macro> <cpp:value>-2</cpp:value></cpp:define>
+
+<enum>enum <name>transient_heap_status</name> <block>{
+
+<decl><name>transient_heap_none</name></decl>,
+
+<decl><name>transient_heap_marking</name></decl>,
+
+<decl><name>transient_heap_escaping</name></decl>
+
+}</block>;</enum>
+
+<struct>struct <name>transient_heap_block</name> <block>{
+
+<struct>struct <name>transient_heap_block_header</name> <block>{
+
+<decl_stmt><decl><type><name>int16_t</name></type> <name>size</name></decl>;</decl_stmt> 
+
+<decl_stmt><decl><type><name>int16_t</name></type> <name>index</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int16_t</name></type> <name>last_marked_index</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int16_t</name></type> <name>objects</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>transient_heap_block</name></name> <modifier>*</modifier></type><name>next_block</name></decl>;</decl_stmt>
+
+}</block> <decl><name>info</name></decl>;</struct>
+
+<decl_stmt><decl><type><name>char</name></type> <name><name>buff</name><index>[<expr><name>TRANSIENT_HEAP_BLOCK_SIZE</name> <operator>-</operator> <sizeof>sizeof<argument_list>(<argument><expr>struct <name>transient_heap_block_header</name></expr></argument>)</argument_list></sizeof></expr>]</index></name></decl>;</decl_stmt>
+
+}</block>;</struct>
+
+<struct>struct <name>transient_heap</name> <block>{
+
+<decl_stmt><decl><type><name><name>struct</name> <name>transient_heap_block</name></name> <modifier>*</modifier></type><name>using_blocks</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>transient_heap_block</name></name> <modifier>*</modifier></type><name>marked_blocks</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>transient_heap_block</name></name> <modifier>*</modifier></type><name>free_blocks</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>total_objects</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>total_marked_objects</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>total_blocks</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name><name>enum</name> <name>transient_heap_status</name></name></type> <name>status</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>VALUE</name> <modifier>*</modifier></type><name>promoted_objects</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>promoted_objects_size</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>promoted_objects_index</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>transient_heap_block</name></name> <modifier>*</modifier></type><name>arena</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>arena_index</name></decl>;</decl_stmt> 
+
+}</block>;</struct>
+
+<struct>struct <name>transient_alloc_header</name> <block>{
+
+<decl_stmt><decl><type><name>uint16_t</name></type> <name>magic</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>uint16_t</name></type> <name>size</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int16_t</name></type> <name>next_marked_index</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int16_t</name></type> <name>dummy</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>VALUE</name></type> <name>obj</name></decl>;</decl_stmt>
+
+}</block>;</struct>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name><name>struct</name> <name>transient_heap</name></name></type> <name>global_transient_heap</name></decl>;</decl_stmt>
+
+<function_decl><type><specifier>static</specifier> <name>void</name></type> <name>transient_heap_promote_add</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>transient_heap</name></name><modifier>*</modifier></type> <name>theap</name></decl></parameter>, <parameter><decl><type><name>VALUE</name></type> <name>obj</name></decl></parameter>)</parameter_list>;</function_decl>
+
+<function_decl><type><specifier>static</specifier> <specifier>const</specifier> <name>void</name> <modifier>*</modifier></type><name>transient_heap_ptr</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>obj</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>error</name></decl></parameter>)</parameter_list>;</function_decl>
+
+<function_decl><type><specifier>static</specifier> <name>int</name></type> <name>transient_header_managed_ptr_p</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>transient_heap</name></name><modifier>*</modifier></type> <name>theap</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>void</name> <modifier>*</modifier></type><name>ptr</name></decl></parameter>)</parameter_list>;</function_decl>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>ROUND_UP</name><parameter_list>(<parameter><type><name>v</name></type></parameter>, <parameter><type><name>a</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>(((size_t)(v) + (a) - 1) &amp; ~((a) - 1))</cpp:value></cpp:define>
+
+<function><type><specifier>static</specifier> <name>void</name></type>
+
+<name>transient_heap_block_dump</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>transient_heap</name></name><modifier>*</modifier></type> <name>theap</name></decl></parameter>, <parameter><decl><type><name><name>struct</name> <name>transient_heap_block</name></name> <modifier>*</modifier></type><name>block</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>int</name></type> <name>i</name><init>=<expr><literal type="number">0</literal></expr></init></decl>, <decl><type ref="prev"/><name>n</name><init>=<expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+
+<while>while <condition>(<expr><name>i</name><operator>&lt;</operator><name><name>block</name><operator>-&gt;</operator><name>info</name><operator>.</operator><name>index</name></name></expr>)</condition> <block>{<block_content>
+
+<decl_stmt><decl><type><name>void</name> <modifier>*</modifier></type><name>ptr</name> <init>= <expr><operator>&amp;</operator><name><name>block</name><operator>-&gt;</operator><name>buff</name><index>[<expr><name>i</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>transient_alloc_header</name></name> <modifier>*</modifier></type><name>header</name> <init>= <expr><name>ptr</name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>stderr</name></expr></argument>, <argument><expr><literal type="string">"%4d %8d %p size:%4d next:%4d %s\n"</literal></expr></argument>, <argument><expr><name>n</name></expr></argument>, <argument><expr><name>i</name></expr></argument>, <argument><expr><name>ptr</name></expr></argument>, <argument><expr><name><name>header</name><operator>-&gt;</operator><name>size</name></name></expr></argument>, <argument><expr><name><name>header</name><operator>-&gt;</operator><name>next_marked_index</name></name></expr></argument>, <argument><expr><call><name>rb_obj_info</name><argument_list>(<argument><expr><name><name>header</name><operator>-&gt;</operator><name>obj</name></name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>i</name> <operator>+=</operator> <name><name>header</name><operator>-&gt;</operator><name>size</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>n</name><operator>++</operator></expr>;</expr_stmt>
+
+</block_content>}</block></while>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type>
+
+<name>transient_heap_blocks_dump</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>transient_heap</name></name><modifier>*</modifier></type> <name>theap</name></decl></parameter>, <parameter><decl><type><name><name>struct</name> <name>transient_heap_block</name></name> <modifier>*</modifier></type><name>block</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>type_str</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<while>while <condition>(<expr><name>block</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>stderr</name></expr></argument>, <argument><expr><literal type="string">"- transient_heap_dump: %s:%p index:%d objects:%d last_marked_index:%d next:%p\n"</literal></expr></argument>,
+
+<argument><expr><name>type_str</name></expr></argument>, <argument><expr><operator>(</operator><name>void</name> <operator>*</operator><operator>)</operator><name>block</name></expr></argument>, <argument><expr><name><name>block</name><operator>-&gt;</operator><name>info</name><operator>.</operator><name>index</name></name></expr></argument>, <argument><expr><name><name>block</name><operator>-&gt;</operator><name>info</name><operator>.</operator><name>objects</name></name></expr></argument>, <argument><expr><name><name>block</name><operator>-&gt;</operator><name>info</name><operator>.</operator><name>last_marked_index</name></name></expr></argument>, <argument><expr><operator>(</operator><name>void</name> <operator>*</operator><operator>)</operator><name><name>block</name><operator>-&gt;</operator><name>info</name><operator>.</operator><name>next_block</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>transient_heap_block_dump</name><argument_list>(<argument><expr><name>theap</name></expr></argument>, <argument><expr><name>block</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>block</name> <operator>=</operator> <name><name>block</name><operator>-&gt;</operator><name>info</name><operator>.</operator><name>next_block</name></name></expr>;</expr_stmt>
+
+</block_content>}</block></while>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type>
+
+<name>transient_heap_dump</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>transient_heap</name></name><modifier>*</modifier></type> <name>theap</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>stderr</name></expr></argument>, <argument><expr><literal type="string">"transient_heap_dump objects:%d marked_objects:%d blocks:%d\n"</literal></expr></argument>, <argument><expr><name><name>theap</name><operator>-&gt;</operator><name>total_objects</name></name></expr></argument>, <argument><expr><name><name>theap</name><operator>-&gt;</operator><name>total_marked_objects</name></name></expr></argument>, <argument><expr><name><name>theap</name><operator>-&gt;</operator><name>total_blocks</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>transient_heap_blocks_dump</name><argument_list>(<argument><expr><name>theap</name></expr></argument>, <argument><expr><name><name>theap</name><operator>-&gt;</operator><name>using_blocks</name></name></expr></argument>, <argument><expr><literal type="string">"using_blocks"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>transient_heap_blocks_dump</name><argument_list>(<argument><expr><name>theap</name></expr></argument>, <argument><expr><name><name>theap</name><operator>-&gt;</operator><name>marked_blocks</name></name></expr></argument>, <argument><expr><literal type="string">"marked_blocks"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>transient_heap_blocks_dump</name><argument_list>(<argument><expr><name>theap</name></expr></argument>, <argument><expr><name><name>theap</name><operator>-&gt;</operator><name>free_blocks</name></name></expr></argument>, <argument><expr><literal type="string">"free_blocks"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><name>void</name></type>
+
+<name>rb_transient_heap_dump</name><parameter_list>(<parameter><decl><type><name>void</name></type></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>transient_heap_dump</name><argument_list>(<argument><expr><operator>&amp;</operator><name>global_transient_heap</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><name>TRANSIENT_HEAP_CHECK_MODE</name> <operator>&gt;=</operator> <literal type="number">2</literal></expr></cpp:if>
+
+<macro><name>ATTRIBUTE_NO_ADDRESS_SAFETY_ANALYSIS</name><argument_list>(<argument>static void transient_heap_ptr_check(struct transient_heap *theap, VALUE obj)</argument>)</argument_list></macro><empty_stmt>;</empty_stmt>
+
+<function><type><specifier>static</specifier> <name>void</name></type>
+
+<name>transient_heap_ptr_check</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>transient_heap</name></name> <modifier>*</modifier></type><name>theap</name></decl></parameter>, <parameter><decl><type><name>VALUE</name></type> <name>obj</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><name>obj</name> <operator>!=</operator> <name>Qundef</name></expr>)</condition> <block>{<block_content>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>void</name> <modifier>*</modifier></type><name>ptr</name> <init>= <expr><call><name>transient_heap_ptr</name><argument_list>(<argument><expr><name>obj</name></expr></argument>, <argument><expr><name>FALSE</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>TH_ASSERT</name><argument_list>(<argument><expr><name>ptr</name> <operator>==</operator> <name>NULL</name> <operator>||</operator> <call><name>transient_header_managed_ptr_p</name><argument_list>(<argument><expr><name>theap</name></expr></argument>, <argument><expr><name>ptr</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></function>
+
+<macro><name>ATTRIBUTE_NO_ADDRESS_SAFETY_ANALYSIS</name><argument_list>(<argument>static int transient_heap_block_verify(struct transient_heap *theap, struct transient_heap_block *block)</argument>)</argument_list></macro><empty_stmt>;</empty_stmt>
+
+<function><type><specifier>static</specifier> <name>int</name></type>
+
+<name>transient_heap_block_verify</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>transient_heap</name></name> <modifier>*</modifier></type><name>theap</name></decl></parameter>, <parameter><decl><type><name><name>struct</name> <name>transient_heap_block</name></name> <modifier>*</modifier></type><name>block</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>int</name></type> <name>i</name><init>=<expr><literal type="number">0</literal></expr></init></decl>, <decl><type ref="prev"/><name>n</name><init>=<expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>transient_alloc_header</name></name> <modifier>*</modifier></type><name>header</name></decl>;</decl_stmt>
+
+<while>while <condition>(<expr><name>i</name><operator>&lt;</operator><name><name>block</name><operator>-&gt;</operator><name>info</name><operator>.</operator><name>index</name></name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>header</name> <operator>=</operator> <operator>(</operator><name>void</name> <operator>*</operator><operator>)</operator><operator>&amp;</operator><name><name>block</name><operator>-&gt;</operator><name>buff</name><index>[<expr><name>i</name></expr>]</index></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>TH_ASSERT</name><argument_list>(<argument><expr><name><name>header</name><operator>-&gt;</operator><name>magic</name></name> <operator>==</operator> <name>TRANSIENT_HEAP_ALLOC_MAGIC</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>transient_heap_ptr_check</name><argument_list>(<argument><expr><name>theap</name></expr></argument>, <argument><expr><name><name>header</name><operator>-&gt;</operator><name>obj</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>n</name> <operator>++</operator></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>i</name> <operator>+=</operator> <name><name>header</name><operator>-&gt;</operator><name>size</name></name></expr>;</expr_stmt>
+
+</block_content>}</block></while>
+
+<expr_stmt><expr><call><name>TH_ASSERT</name><argument_list>(<argument><expr><name><name>block</name><operator>-&gt;</operator><name>info</name><operator>.</operator><name>objects</name></name> <operator>==</operator> <name>n</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>n</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type>
+
+<name>transient_heap_blocks_verify</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>transient_heap</name></name> <modifier>*</modifier></type><name>theap</name></decl></parameter>, <parameter><decl><type><name><name>struct</name> <name>transient_heap_block</name></name> <modifier>*</modifier></type><name>blocks</name></decl></parameter>, <parameter><decl><type><name>int</name> <modifier>*</modifier></type><name>block_num_ptr</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>int</name></type> <name>n</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>transient_heap_block</name></name> <modifier>*</modifier></type><name>block</name> <init>= <expr><name>blocks</name></expr></init></decl>;</decl_stmt>
+
+<while>while <condition>(<expr><name>block</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>n</name> <operator>+=</operator> <call><name>transient_heap_block_verify</name><argument_list>(<argument><expr><name>theap</name></expr></argument>, <argument><expr><name>block</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><operator>*</operator><name>block_num_ptr</name> <operator>+=</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>block</name> <operator>=</operator> <name><name>block</name><operator>-&gt;</operator><name>info</name><operator>.</operator><name>next_block</name></name></expr>;</expr_stmt>
+
+</block_content>}</block></while>
+
+<return>return <expr><name>n</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+<function><type><specifier>static</specifier> <name>void</name></type>
+
+<name>transient_heap_verify</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>transient_heap</name></name> <modifier>*</modifier></type><name>theap</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><name>TRANSIENT_HEAP_CHECK_MODE</name> <operator>&gt;=</operator> <literal type="number">2</literal></expr></cpp:if>
+
+<decl_stmt><decl><type><name>int</name></type> <name>n</name><init>=<expr><literal type="number">0</literal></expr></init></decl>, <decl><type ref="prev"/><name>block_num</name><init>=<expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>n</name> <operator>+=</operator> <call><name>transient_heap_blocks_verify</name><argument_list>(<argument><expr><name>theap</name></expr></argument>, <argument><expr><name><name>theap</name><operator>-&gt;</operator><name>using_blocks</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name>block_num</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>n</name> <operator>+=</operator> <call><name>transient_heap_blocks_verify</name><argument_list>(<argument><expr><name>theap</name></expr></argument>, <argument><expr><name><name>theap</name><operator>-&gt;</operator><name>marked_blocks</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name>block_num</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>TH_ASSERT</name><argument_list>(<argument><expr><name>n</name> <operator>==</operator> <name><name>theap</name><operator>-&gt;</operator><name>total_objects</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>TH_ASSERT</name><argument_list>(<argument><expr><name>n</name> <operator>&gt;=</operator> <name><name>theap</name><operator>-&gt;</operator><name>total_marked_objects</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>TH_ASSERT</name><argument_list>(<argument><expr><name>block_num</name> <operator>==</operator> <name><name>theap</name><operator>-&gt;</operator><name>total_blocks</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+</block_content>}</block></function>
+
+<function><type><name>void</name></type>
+
+<name>rb_transient_heap_verify</name><parameter_list>(<parameter><decl><type><name>void</name></type></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>transient_heap_verify</name><argument_list>(<argument><expr><operator>&amp;</operator><name>global_transient_heap</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name><name>struct</name> <name>transient_heap</name></name><modifier>*</modifier></type>
+
+<name>transient_heap_get</name><parameter_list>(<parameter><decl><type><name>void</name></type></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>transient_heap</name></name><modifier>*</modifier></type> <name>theap</name> <init>= <expr><operator>&amp;</operator><name>global_transient_heap</name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>transient_heap_verify</name><argument_list>(<argument><expr><name>theap</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>theap</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type>
+
+<name>reset_block</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>transient_heap_block</name></name> <modifier>*</modifier></type><name>block</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>__msan_allocated_memory</name><argument_list>(<argument><expr><name>block</name></expr></argument>, <argument><expr><sizeof>sizeof <name>block</name></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>block</name><operator>-&gt;</operator><name>info</name><operator>.</operator><name>size</name></name> <operator>=</operator> <name>TRANSIENT_HEAP_BLOCK_SIZE</name> <operator>-</operator> <sizeof>sizeof<argument_list>(<argument><expr>struct <name>transient_heap_block_header</name></expr></argument>)</argument_list></sizeof></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>block</name><operator>-&gt;</operator><name>info</name><operator>.</operator><name>index</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>block</name><operator>-&gt;</operator><name>info</name><operator>.</operator><name>objects</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>block</name><operator>-&gt;</operator><name>info</name><operator>.</operator><name>last_marked_index</name></name> <operator>=</operator> <name>TRANSIENT_HEAP_ALLOC_MARKING_LAST</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>block</name><operator>-&gt;</operator><name>info</name><operator>.</operator><name>next_block</name></name> <operator>=</operator> <name>NULL</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>__asan_poison_memory_region</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>block</name><operator>-&gt;</operator><name>buff</name></name></expr></argument>, <argument><expr><sizeof>sizeof <name><name>block</name><operator>-&gt;</operator><name>buff</name></name></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type>
+
+<name>connect_to_free_blocks</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>transient_heap</name></name> <modifier>*</modifier></type><name>theap</name></decl></parameter>, <parameter><decl><type><name><name>struct</name> <name>transient_heap_block</name></name> <modifier>*</modifier></type><name>block</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><name><name>block</name><operator>-&gt;</operator><name>info</name><operator>.</operator><name>next_block</name></name> <operator>=</operator> <name><name>theap</name><operator>-&gt;</operator><name>free_blocks</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>theap</name><operator>-&gt;</operator><name>free_blocks</name></name> <operator>=</operator> <name>block</name></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type>
+
+<name>connect_to_using_blocks</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>transient_heap</name></name> <modifier>*</modifier></type><name>theap</name></decl></parameter>, <parameter><decl><type><name><name>struct</name> <name>transient_heap_block</name></name> <modifier>*</modifier></type><name>block</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><name><name>block</name><operator>-&gt;</operator><name>info</name><operator>.</operator><name>next_block</name></name> <operator>=</operator> <name><name>theap</name><operator>-&gt;</operator><name>using_blocks</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>theap</name><operator>-&gt;</operator><name>using_blocks</name></name> <operator>=</operator> <name>block</name></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><literal type="number">0</literal></expr></cpp:if>
+
+static void
+
+connect_to_marked_blocks(struct transient_heap *theap, struct transient_heap_block *block)
+
+{
+
+block-&gt;info.next_block = theap-&gt;marked_blocks;
+
+theap-&gt;marked_blocks = block;
+
+}
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+<function><type><specifier>static</specifier> <name>void</name></type>
+
+<name>append_to_marked_blocks</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>transient_heap</name></name> <modifier>*</modifier></type><name>theap</name></decl></parameter>, <parameter><decl><type><name><name>struct</name> <name>transient_heap_block</name></name> <modifier>*</modifier></type><name>append_blocks</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><name><name>theap</name><operator>-&gt;</operator><name>marked_blocks</name></name></expr>)</condition> <block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>transient_heap_block</name></name> <modifier>*</modifier></type><name>block</name> <init>= <expr><name><name>theap</name><operator>-&gt;</operator><name>marked_blocks</name></name></expr></init></decl>, <decl><type ref="prev"><modifier>*</modifier></type><name>last_block</name> <init>= <expr><name>NULL</name></expr></init></decl>;</decl_stmt>
+
+<while>while <condition>(<expr><name>block</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>last_block</name> <operator>=</operator> <name>block</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>block</name> <operator>=</operator> <name><name>block</name><operator>-&gt;</operator><name>info</name><operator>.</operator><name>next_block</name></name></expr>;</expr_stmt>
+
+</block_content>}</block></while>
+
+<expr_stmt><expr><call><name>TH_ASSERT</name><argument_list>(<argument><expr><name><name>last_block</name><operator>-&gt;</operator><name>info</name><operator>.</operator><name>next_block</name></name> <operator>==</operator> <name>NULL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>last_block</name><operator>-&gt;</operator><name>info</name><operator>.</operator><name>next_block</name></name> <operator>=</operator> <name>append_blocks</name></expr>;</expr_stmt>
+
+</block_content>}</block></if>
+
+<else>else <block>{<block_content>
+
+<expr_stmt><expr><name><name>theap</name><operator>-&gt;</operator><name>marked_blocks</name></name> <operator>=</operator> <name>append_blocks</name></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name><name>struct</name> <name>transient_heap_block</name></name> <modifier>*</modifier></type>
+
+<name>transient_heap_block_alloc</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>transient_heap</name></name><modifier>*</modifier></type> <name>theap</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>transient_heap_block</name></name> <modifier>*</modifier></type><name>block</name></decl>;</decl_stmt>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><name>TRANSIENT_HEAP_DEBUG_INFINITE_BLOCK</name></expr></cpp:if>
+
+<expr_stmt><expr><name>block</name> <operator>=</operator> <call><name>mmap</name><argument_list>(<argument><expr><name>NULL</name></expr></argument>, <argument><expr><name>TRANSIENT_HEAP_BLOCK_SIZE</name></expr></argument>, <argument><expr><name>PROT_READ</name> <operator>|</operator> <name>PROT_WRITE</name></expr></argument>,
+
+<argument><expr><name>MAP_PRIVATE</name> <operator>|</operator> <name>MAP_ANONYMOUS</name></expr></argument>,
+
+<argument><expr><operator>-</operator><literal type="number">1</literal></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>block</name> <operator>==</operator> <name>MAP_FAILED</name></expr>)</condition><block type="pseudo"><block_content> <expr_stmt><expr><call><name>rb_bug</name><argument_list>(<argument><expr><literal type="string">"transient_heap_block_alloc: err:%d\n"</literal></expr></argument>, <argument><expr><name>errno</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<cpp:else>#<cpp:directive>else</cpp:directive></cpp:else>
+
+<if_stmt><if>if <condition>(<expr><name><name>theap</name><operator>-&gt;</operator><name>arena</name></name> <operator>==</operator> <name>NULL</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name><name>theap</name><operator>-&gt;</operator><name>arena</name></name> <operator>=</operator> <call><name>rb_aligned_malloc</name><argument_list>(<argument><expr><name>TRANSIENT_HEAP_BLOCK_SIZE</name></expr></argument>, <argument><expr><name>TRANSIENT_HEAP_TOTAL_SIZE</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>theap</name><operator>-&gt;</operator><name>arena</name></name> <operator>==</operator> <name>NULL</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>rb_bug</name><argument_list>(<argument><expr><literal type="string">"transient_heap_block_alloc: failed\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>TH_ASSERT</name><argument_list>(<argument><expr><name><name>theap</name><operator>-&gt;</operator><name>arena_index</name></name> <operator>&lt;</operator> <name>TRANSIENT_HEAP_BLOCK_NUM</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>block</name> <operator>=</operator> <operator>&amp;</operator><name><name>theap</name><operator>-&gt;</operator><name>arena</name><index>[<expr><name><name>theap</name><operator>-&gt;</operator><name>arena_index</name></name><operator>++</operator></expr>]</index></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>TH_ASSERT</name><argument_list>(<argument><expr><operator>(</operator><operator>(</operator><name>intptr_t</name><operator>)</operator><name>block</name> <operator>&amp;</operator> <operator>(</operator><name>TRANSIENT_HEAP_BLOCK_SIZE</name> <operator>-</operator> <literal type="number">1</literal><operator>)</operator><operator>)</operator> <operator>==</operator> <literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+<expr_stmt><expr><call><name>reset_block</name><argument_list>(<argument><expr><name>block</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>TH_ASSERT</name><argument_list>(<argument><expr><operator>(</operator><operator>(</operator><name>intptr_t</name><operator>)</operator><name><name>block</name><operator>-&gt;</operator><name>buff</name></name> <operator>&amp;</operator> <operator>(</operator><name>TRANSIENT_HEAP_ALLOC_ALIGN</name><operator>-</operator><literal type="number">1</literal><operator>)</operator><operator>)</operator> <operator>==</operator> <literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content> <expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>stderr</name></expr></argument>, <argument><expr><literal type="string">"transient_heap_block_alloc: %4d %p\n"</literal></expr></argument>, <argument><expr><name><name>theap</name><operator>-&gt;</operator><name>total_blocks</name></name></expr></argument>, <argument><expr><operator>(</operator><name>void</name> <operator>*</operator><operator>)</operator><name>block</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<return>return <expr><name>block</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name><name>struct</name> <name>transient_heap_block</name></name> <modifier>*</modifier></type>
+
+<name>transient_heap_allocatable_block</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>transient_heap</name></name><modifier>*</modifier></type> <name>theap</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>transient_heap_block</name></name> <modifier>*</modifier></type><name>block</name></decl>;</decl_stmt>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><name>TRANSIENT_HEAP_DEBUG_INFINITE_BLOCK</name></expr></cpp:if>
+
+<expr_stmt><expr><name>block</name> <operator>=</operator> <call><name>transient_heap_block_alloc</name><argument_list>(<argument><expr><name>theap</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>theap</name><operator>-&gt;</operator><name>total_blocks</name></name><operator>++</operator></expr>;</expr_stmt>
+
+<cpp:else>#<cpp:directive>else</cpp:directive></cpp:else>
+
+<expr_stmt><expr><name>block</name> <operator>=</operator> <name><name>theap</name><operator>-&gt;</operator><name>free_blocks</name></name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>block</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name><name>theap</name><operator>-&gt;</operator><name>free_blocks</name></name> <operator>=</operator> <name><name>block</name><operator>-&gt;</operator><name>info</name><operator>.</operator><name>next_block</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>block</name><operator>-&gt;</operator><name>info</name><operator>.</operator><name>next_block</name></name> <operator>=</operator> <name>NULL</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>theap</name><operator>-&gt;</operator><name>total_blocks</name></name><operator>++</operator></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+<return>return <expr><name>block</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name><name>struct</name> <name>transient_alloc_header</name></name> <modifier>*</modifier></type>
+
+<name>transient_heap_allocatable_header</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>transient_heap</name></name><modifier>*</modifier></type> <name>theap</name></decl></parameter>, <parameter><decl><type><name>size_t</name></type> <name>size</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>transient_heap_block</name></name> <modifier>*</modifier></type><name>block</name> <init>= <expr><name><name>theap</name><operator>-&gt;</operator><name>using_blocks</name></name></expr></init></decl>;</decl_stmt>
+
+<while>while <condition>(<expr><name>block</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>TH_ASSERT</name><argument_list>(<argument><expr><name><name>block</name><operator>-&gt;</operator><name>info</name><operator>.</operator><name>size</name></name> <operator>&gt;=</operator> <name><name>block</name><operator>-&gt;</operator><name>info</name><operator>.</operator><name>index</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>block</name><operator>-&gt;</operator><name>info</name><operator>.</operator><name>size</name></name> <operator>-</operator> <name><name>block</name><operator>-&gt;</operator><name>info</name><operator>.</operator><name>index</name></name> <operator>&gt;=</operator> <operator>(</operator><name>int32_t</name><operator>)</operator><name>size</name></expr>)</condition> <block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>transient_alloc_header</name></name> <modifier>*</modifier></type><name>header</name> <init>= <expr><operator>(</operator><name>void</name> <operator>*</operator><operator>)</operator><operator>&amp;</operator><name><name>block</name><operator>-&gt;</operator><name>buff</name><index>[<expr><name><name>block</name><operator>-&gt;</operator><name>info</name><operator>.</operator><name>index</name></name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>block</name><operator>-&gt;</operator><name>info</name><operator>.</operator><name>index</name></name> <operator>+=</operator> <name>size</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>block</name><operator>-&gt;</operator><name>info</name><operator>.</operator><name>objects</name></name><operator>++</operator></expr>;</expr_stmt>
+
+<return>return <expr><name>header</name></expr>;</return>
+
+</block_content>}</block></if>
+
+<else>else <block>{<block_content>
+
+<expr_stmt><expr><name>block</name> <operator>=</operator> <call><name>transient_heap_allocatable_block</name><argument_list>(<argument><expr><name>theap</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>block</name></expr>)</condition><block type="pseudo"><block_content> <expr_stmt><expr><call><name>connect_to_using_blocks</name><argument_list>(<argument><expr><name>theap</name></expr></argument>, <argument><expr><name>block</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+</block_content>}</block></while>
+
+<return>return <expr><name>NULL</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><name>void</name> <modifier>*</modifier></type>
+
+<name>rb_transient_heap_alloc</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>obj</name></decl></parameter>, <parameter><decl><type><name>size_t</name></type> <name>req_size</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>transient_heap</name></name><modifier>*</modifier></type> <name>theap</name> <init>= <expr><call><name>transient_heap_get</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>size_t</name></type> <name>size</name> <init>= <expr><call><name>ROUND_UP</name><argument_list>(<argument><expr><name>req_size</name> <operator>+</operator> <sizeof>sizeof<argument_list>(<argument><expr>struct <name>transient_alloc_header</name></expr></argument>)</argument_list></sizeof></expr></argument>, <argument><expr><name>TRANSIENT_HEAP_ALLOC_ALIGN</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>TH_ASSERT</name><argument_list>(<argument><expr><call><name>RB_TYPE_P</name><argument_list>(<argument><expr><name>obj</name></expr></argument>, <argument><expr><name>T_ARRAY</name></expr></argument>)</argument_list></call> <operator>||</operator>
+
+<call><name>RB_TYPE_P</name><argument_list>(<argument><expr><name>obj</name></expr></argument>, <argument><expr><name>T_OBJECT</name></expr></argument>)</argument_list></call> <operator>||</operator>
+
+<call><name>RB_TYPE_P</name><argument_list>(<argument><expr><name>obj</name></expr></argument>, <argument><expr><name>T_STRUCT</name></expr></argument>)</argument_list></call> <operator>||</operator>
+
+<call><name>RB_TYPE_P</name><argument_list>(<argument><expr><name>obj</name></expr></argument>, <argument><expr><name>T_HASH</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt> 
+
+<if_stmt><if>if <condition>(<expr><name>size</name> <operator>&gt;</operator> <name>TRANSIENT_HEAP_ALLOC_MAX</name></expr>)</condition> <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><name>TRANSIENT_HEAP_DEBUG</name> <operator>&gt;=</operator> <literal type="number">3</literal></expr>)</condition><block type="pseudo"><block_content> <expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>stderr</name></expr></argument>, <argument><expr><literal type="string">"rb_transient_heap_alloc: [too big: %ld] %s\n"</literal></expr></argument>, <argument><expr><operator>(</operator><name>long</name><operator>)</operator><name>size</name></expr></argument>, <argument><expr><call><name>rb_obj_info</name><argument_list>(<argument><expr><name>obj</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<return>return <expr><name>NULL</name></expr>;</return>
+
+</block_content>}</block></if>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><name>TRANSIENT_HEAP_DEBUG_DONT_PROMOTE</name> <operator>==</operator> <literal type="number">0</literal></expr></cpp:if>
+
+<if type="elseif">else if <condition>(<expr><call><name>RB_OBJ_PROMOTED_RAW</name><argument_list>(<argument><expr><name>obj</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><name>TRANSIENT_HEAP_DEBUG</name> <operator>&gt;=</operator> <literal type="number">3</literal></expr>)</condition><block type="pseudo"><block_content> <expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>stderr</name></expr></argument>, <argument><expr><literal type="string">"rb_transient_heap_alloc: [promoted object] %s\n"</literal></expr></argument>, <argument><expr><call><name>rb_obj_info</name><argument_list>(<argument><expr><name>obj</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<return>return <expr><name>NULL</name></expr>;</return>
+
+</block_content>}</block></if>
+
+<cpp:else>#<cpp:directive>else</cpp:directive></cpp:else>
+
+<if type="elseif">else if <condition>(<expr><call><name>RBASIC_CLASS</name><argument_list>(<argument><expr><name>obj</name></expr></argument>)</argument_list></call> <operator>==</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><name>TRANSIENT_HEAP_DEBUG</name> <operator>&gt;=</operator> <literal type="number">3</literal></expr>)</condition><block type="pseudo"><block_content> <expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>stderr</name></expr></argument>, <argument><expr><literal type="string">"rb_transient_heap_alloc: [hidden object] %s\n"</literal></expr></argument>, <argument><expr><call><name>rb_obj_info</name><argument_list>(<argument><expr><name>obj</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<return>return <expr><name>NULL</name></expr>;</return>
+
+</block_content>}</block></if>
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+<else>else <block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>transient_alloc_header</name></name> <modifier>*</modifier></type><name>header</name> <init>= <expr><call><name>transient_heap_allocatable_header</name><argument_list>(<argument><expr><name>theap</name></expr></argument>, <argument><expr><name>size</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>header</name></expr>)</condition> <block>{<block_content>
+
+<decl_stmt><decl><type><name>void</name> <modifier>*</modifier></type><name>ptr</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>asan_unpoison_memory_region</name><argument_list>(<argument><expr><name>header</name></expr></argument>, <argument><expr><sizeof>sizeof <name/></sizeof>*<name>header</name></expr></argument>, <argument><expr><name>true</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>header</name><operator>-&gt;</operator><name>size</name></name> <operator>=</operator> <name>size</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>header</name><operator>-&gt;</operator><name>magic</name></name> <operator>=</operator> <name>TRANSIENT_HEAP_ALLOC_MAGIC</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>header</name><operator>-&gt;</operator><name>next_marked_index</name></name> <operator>=</operator> <name>TRANSIENT_HEAP_ALLOC_MARKING_FREE</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>header</name><operator>-&gt;</operator><name>obj</name></name> <operator>=</operator> <name>obj</name></expr>;</expr_stmt> 
+
+<expr_stmt><expr><call><name>asan_poison_memory_region</name><argument_list>(<argument><expr><name>header</name></expr></argument>, <argument><expr><sizeof>sizeof <name/></sizeof>*<name>header</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>ptr</name> <operator>=</operator> <name>header</name> <operator>+</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>theap</name><operator>-&gt;</operator><name>total_objects</name></name><operator>++</operator></expr>;</expr_stmt> 
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><name>TRANSIENT_HEAP_DEBUG_DONT_PROMOTE</name></expr></cpp:if>
+
+<if_stmt><if>if <condition>(<expr><call><name>RB_OBJ_PROMOTED_RAW</name><argument_list>(<argument><expr><name>obj</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>transient_heap_promote_add</name><argument_list>(<argument><expr><name>theap</name></expr></argument>, <argument><expr><name>obj</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+<if_stmt><if>if <condition>(<expr><name>TRANSIENT_HEAP_DEBUG</name> <operator>&gt;=</operator> <literal type="number">3</literal></expr>)</condition><block type="pseudo"><block_content> <expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>stderr</name></expr></argument>, <argument><expr><literal type="string">"rb_transient_heap_alloc: header:%p ptr:%p size:%d obj:%s\n"</literal></expr></argument>, <argument><expr><operator>(</operator><name>void</name> <operator>*</operator><operator>)</operator><name>header</name></expr></argument>, <argument><expr><name>ptr</name></expr></argument>, <argument><expr><operator>(</operator><name>int</name><operator>)</operator><name>size</name></expr></argument>, <argument><expr><call><name>rb_obj_info</name><argument_list>(<argument><expr><name>obj</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>RB_DEBUG_COUNTER_INC</name><argument_list>(<argument><expr><name>theap_alloc</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>asan_unpoison_memory_region</name><argument_list>(<argument><expr><name>ptr</name></expr></argument>, <argument><expr><name>size</name> <operator>-</operator> <sizeof>sizeof <name/></sizeof>*<name>header</name></expr></argument>, <argument><expr><name>true</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>ptr</name></expr>;</return>
+
+</block_content>}</block></if>
+
+<else>else <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><name>TRANSIENT_HEAP_DEBUG</name> <operator>&gt;=</operator> <literal type="number">3</literal></expr>)</condition><block type="pseudo"><block_content> <expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>stderr</name></expr></argument>, <argument><expr><literal type="string">"rb_transient_heap_alloc: [no enough space: %ld] %s\n"</literal></expr></argument>, <argument><expr><operator>(</operator><name>long</name><operator>)</operator><name>size</name></expr></argument>, <argument><expr><call><name>rb_obj_info</name><argument_list>(<argument><expr><name>obj</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>RB_DEBUG_COUNTER_INC</name><argument_list>(<argument><expr><name>theap_alloc_fail</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>NULL</name></expr>;</return>
+
+</block_content>}</block></else></if_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+</block_content>}</block></function>
+
+<function><type><name>void</name></type>
+
+<name>Init_TransientHeap</name><parameter_list>(<parameter><decl><type><name>void</name></type></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>int</name></type> <name>i</name></decl>, <decl><type ref="prev"/><name>block_num</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>transient_heap</name></name><modifier>*</modifier></type> <name>theap</name> <init>= <expr><call><name>transient_heap_get</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><name>TRANSIENT_HEAP_DEBUG_INFINITE_BLOCK</name></expr></cpp:if>
+
+<expr_stmt><expr><name>block_num</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<cpp:else>#<cpp:directive>else</cpp:directive></cpp:else>
+
+<expr_stmt><expr><call><name>TH_ASSERT</name><argument_list>(<argument><expr><name>TRANSIENT_HEAP_BLOCK_SIZE</name> <operator>*</operator> <name>TRANSIENT_HEAP_BLOCK_NUM</name> <operator>==</operator> <name>TRANSIENT_HEAP_TOTAL_SIZE</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>block_num</name> <operator>=</operator> <name>TRANSIENT_HEAP_BLOCK_NUM</name></expr>;</expr_stmt>
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+<for>for <control>(<init><expr><name>i</name><operator>=</operator><literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name><operator>&lt;</operator><name>block_num</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+
+<expr_stmt><expr><call><name>connect_to_free_blocks</name><argument_list>(<argument><expr><name>theap</name></expr></argument>, <argument><expr><call><name>transient_heap_block_alloc</name><argument_list>(<argument><expr><name>theap</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></for>
+
+<expr_stmt><expr><name><name>theap</name><operator>-&gt;</operator><name>using_blocks</name></name> <operator>=</operator> <call><name>transient_heap_allocatable_block</name><argument_list>(<argument><expr><name>theap</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>theap</name><operator>-&gt;</operator><name>promoted_objects_size</name></name> <operator>=</operator> <name>TRANSIENT_HEAP_PROMOTED_DEFAULT_SIZE</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>theap</name><operator>-&gt;</operator><name>promoted_objects_index</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>theap</name><operator>-&gt;</operator><name>promoted_objects</name></name> <operator>=</operator> <call><name>malloc</name><argument_list>(<argument><expr><sizeof>sizeof<argument_list>(<argument><expr><name>VALUE</name></expr></argument>)</argument_list></sizeof> <operator>*</operator> <name><name>theap</name><operator>-&gt;</operator><name>promoted_objects_size</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>STATIC_ASSERT</name><argument_list>(
+
+<argument><expr><name>integer_overflow</name></expr></argument>,
+
+<argument><expr><sizeof>sizeof<argument_list>(<argument><expr><name>VALUE</name></expr></argument>)</argument_list></sizeof> <operator>&lt;=</operator> <name>SIZE_MAX</name> <operator>/</operator> <name>TRANSIENT_HEAP_PROMOTED_DEFAULT_SIZE</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>theap</name><operator>-&gt;</operator><name>promoted_objects</name></name> <operator>==</operator> <name>NULL</name></expr>)</condition><block type="pseudo"><block_content> <expr_stmt><expr><call><name>rb_bug</name><argument_list>(<argument><expr><literal type="string">"Init_TransientHeap: malloc failed."</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name><name>struct</name> <name>transient_heap_block</name></name> <modifier>*</modifier></type>
+
+<name>blocks_alloc_header_to_block</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>transient_heap</name></name> <modifier>*</modifier></type><name>theap</name></decl></parameter>, <parameter><decl><type><name><name>struct</name> <name>transient_heap_block</name></name> <modifier>*</modifier></type><name>blocks</name></decl></parameter>, <parameter><decl><type><name><name>struct</name> <name>transient_alloc_header</name></name> <modifier>*</modifier></type><name>header</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>transient_heap_block</name></name> <modifier>*</modifier></type><name>block</name> <init>= <expr><name>blocks</name></expr></init></decl>;</decl_stmt>
+
+<while>while <condition>(<expr><name>block</name></expr>)</condition> <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><name><name>block</name><operator>-&gt;</operator><name>buff</name></name> <operator>&lt;=</operator> <operator>(</operator><name>char</name> <operator>*</operator><operator>)</operator><name>header</name> <operator>&amp;&amp;</operator> <operator>(</operator><name>char</name> <operator>*</operator><operator>)</operator><name>header</name> <operator>&lt;</operator> <name><name>block</name><operator>-&gt;</operator><name>buff</name></name> <operator>+</operator> <name><name>block</name><operator>-&gt;</operator><name>info</name><operator>.</operator><name>size</name></name></expr>)</condition> <block>{<block_content>
+
+<return>return <expr><name>block</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name>block</name> <operator>=</operator> <name><name>block</name><operator>-&gt;</operator><name>info</name><operator>.</operator><name>next_block</name></name></expr>;</expr_stmt>
+
+</block_content>}</block></while>
+
+<return>return <expr><name>NULL</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name><name>struct</name> <name>transient_heap_block</name></name> <modifier>*</modifier></type>
+
+<name>alloc_header_to_block_verbose</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>transient_heap</name></name> <modifier>*</modifier></type><name>theap</name></decl></parameter>, <parameter><decl><type><name><name>struct</name> <name>transient_alloc_header</name></name> <modifier>*</modifier></type><name>header</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>transient_heap_block</name></name> <modifier>*</modifier></type><name>block</name></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>(</operator><name>block</name> <operator>=</operator> <call><name>blocks_alloc_header_to_block</name><argument_list>(<argument><expr><name>theap</name></expr></argument>, <argument><expr><name><name>theap</name><operator>-&gt;</operator><name>marked_blocks</name></name></expr></argument>, <argument><expr><name>header</name></expr></argument>)</argument_list></call><operator>)</operator> <operator>!=</operator> <name>NULL</name></expr>)</condition> <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><name>TRANSIENT_HEAP_DEBUG</name> <operator>&gt;=</operator> <literal type="number">3</literal></expr>)</condition><block type="pseudo"><block_content> <expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>stderr</name></expr></argument>, <argument><expr><literal type="string">"alloc_header_to_block: found in marked_blocks\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<return>return <expr><name>block</name></expr>;</return>
+
+</block_content>}</block></if>
+
+<if type="elseif">else if <condition>(<expr><operator>(</operator><name>block</name> <operator>=</operator> <call><name>blocks_alloc_header_to_block</name><argument_list>(<argument><expr><name>theap</name></expr></argument>, <argument><expr><name><name>theap</name><operator>-&gt;</operator><name>using_blocks</name></name></expr></argument>, <argument><expr><name>header</name></expr></argument>)</argument_list></call><operator>)</operator> <operator>!=</operator> <name>NULL</name></expr>)</condition> <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><name>TRANSIENT_HEAP_DEBUG</name> <operator>&gt;=</operator> <literal type="number">3</literal></expr>)</condition><block type="pseudo"><block_content> <expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>stderr</name></expr></argument>, <argument><expr><literal type="string">"alloc_header_to_block: found in using_blocks\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<return>return <expr><name>block</name></expr>;</return>
+
+</block_content>}</block></if>
+
+<else>else <block>{<block_content>
+
+<return>return <expr><name>NULL</name></expr>;</return>
+
+</block_content>}</block></else></if_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name><name>struct</name> <name>transient_alloc_header</name></name> <modifier>*</modifier></type>
+
+<name>ptr_to_alloc_header</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name>void</name> <modifier>*</modifier></type><name>ptr</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>transient_alloc_header</name></name> <modifier>*</modifier></type><name>header</name> <init>= <expr><operator>(</operator><name>void</name> <operator>*</operator><operator>)</operator><name>ptr</name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>header</name> <operator>-=</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+
+<return>return <expr><name>header</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type>
+
+<name>transient_header_managed_ptr_p</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>transient_heap</name></name><modifier>*</modifier></type> <name>theap</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>void</name> <modifier>*</modifier></type><name>ptr</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><call><name>alloc_header_to_block_verbose</name><argument_list>(<argument><expr><name>theap</name></expr></argument>, <argument><expr><call><name>ptr_to_alloc_header</name><argument_list>(<argument><expr><name>ptr</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<return>return <expr><name>TRUE</name></expr>;</return>
+
+</block_content>}</block></if>
+
+<else>else <block>{<block_content>
+
+<return>return <expr><name>FALSE</name></expr>;</return>
+
+</block_content>}</block></else></if_stmt>
+
+</block_content>}</block></function>
+
+<function><type><name>int</name></type>
+
+<name>rb_transient_heap_managed_ptr_p</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name>void</name> <modifier>*</modifier></type><name>ptr</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<return>return <expr><call><name>transient_header_managed_ptr_p</name><argument_list>(<argument><expr><call><name>transient_heap_get</name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><name>ptr</name></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name><name>struct</name> <name>transient_heap_block</name></name> <modifier>*</modifier></type>
+
+<name>alloc_header_to_block</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>transient_heap</name></name> <modifier>*</modifier></type><name>theap</name></decl></parameter>, <parameter><decl><type><name><name>struct</name> <name>transient_alloc_header</name></name> <modifier>*</modifier></type><name>header</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>transient_heap_block</name></name> <modifier>*</modifier></type><name>block</name></decl>;</decl_stmt>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><name>TRANSIENT_HEAP_DEBUG_INFINITE_BLOCK</name></expr></cpp:if>
+
+<expr_stmt><expr><name>block</name> <operator>=</operator> <call><name>alloc_header_to_block_verbose</name><argument_list>(<argument><expr><name>theap</name></expr></argument>, <argument><expr><name>header</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>block</name> <operator>==</operator> <name>NULL</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>transient_heap_dump</name><argument_list>(<argument><expr><name>theap</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_bug</name><argument_list>(<argument><expr><literal type="string">"alloc_header_to_block: not found in mark_blocks (%p)\n"</literal></expr></argument>, <argument><expr><name>header</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<cpp:else>#<cpp:directive>else</cpp:directive></cpp:else>
+
+<expr_stmt><expr><name>block</name> <operator>=</operator> <operator>(</operator><name>void</name> <operator>*</operator><operator>)</operator><operator>(</operator><operator>(</operator><name>intptr_t</name><operator>)</operator><name>header</name> <operator>&amp;</operator> <operator>~</operator><operator>(</operator><name>TRANSIENT_HEAP_BLOCK_SIZE</name><operator>-</operator><literal type="number">1</literal><operator>)</operator><operator>)</operator></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>TH_ASSERT</name><argument_list>(<argument><expr><name>block</name> <operator>==</operator> <call><name>alloc_header_to_block_verbose</name><argument_list>(<argument><expr><name>theap</name></expr></argument>, <argument><expr><name>header</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+<return>return <expr><name>block</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><name>void</name></type>
+
+<name>rb_transient_heap_mark</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>obj</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>void</name> <modifier>*</modifier></type><name>ptr</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>transient_alloc_header</name></name> <modifier>*</modifier></type><name>header</name> <init>= <expr><call><name>ptr_to_alloc_header</name><argument_list>(<argument><expr><name>ptr</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>asan_unpoison_memory_region</name><argument_list>(<argument><expr><name>header</name></expr></argument>, <argument><expr><sizeof>sizeof <name/></sizeof>*<name>header</name></expr></argument>, <argument><expr><name>false</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>header</name><operator>-&gt;</operator><name>magic</name></name> <operator>!=</operator> <name>TRANSIENT_HEAP_ALLOC_MAGIC</name></expr>)</condition><block type="pseudo"><block_content> <expr_stmt><expr><call><name>rb_bug</name><argument_list>(<argument><expr><literal type="string">"rb_transient_heap_mark: wrong header, %s (%p)"</literal></expr></argument>, <argument><expr><call><name>rb_obj_info</name><argument_list>(<argument><expr><name>obj</name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name>ptr</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>TRANSIENT_HEAP_DEBUG</name> <operator>&gt;=</operator> <literal type="number">3</literal></expr>)</condition><block type="pseudo"><block_content> <expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>stderr</name></expr></argument>, <argument><expr><literal type="string">"rb_transient_heap_mark: %s (%p)\n"</literal></expr></argument>, <argument><expr><call><name>rb_obj_info</name><argument_list>(<argument><expr><name>obj</name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name>ptr</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><name>TRANSIENT_HEAP_CHECK_MODE</name> <operator>&gt;</operator> <literal type="number">0</literal></expr></cpp:if>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>transient_heap</name></name><modifier>*</modifier></type> <name>theap</name> <init>= <expr><call><name>transient_heap_get</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>TH_ASSERT</name><argument_list>(<argument><expr><name><name>theap</name><operator>-&gt;</operator><name>status</name></name> <operator>==</operator> <name>transient_heap_marking</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>TH_ASSERT</name><argument_list>(<argument><expr><call><name>transient_header_managed_ptr_p</name><argument_list>(<argument><expr><name>theap</name></expr></argument>, <argument><expr><name>ptr</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>header</name><operator>-&gt;</operator><name>magic</name></name> <operator>!=</operator> <name>TRANSIENT_HEAP_ALLOC_MAGIC</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>transient_heap_dump</name><argument_list>(<argument><expr><name>theap</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_bug</name><argument_list>(<argument><expr><literal type="string">"rb_transient_heap_mark: magic is broken"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if>
+
+<if type="elseif">else if <condition>(<expr><name><name>header</name><operator>-&gt;</operator><name>obj</name></name> <operator>!=</operator> <name>obj</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>rb_bug</name><argument_list>(<argument><expr><literal type="string">"rb_transient_heap_mark: unmatch (%s is stored, but %s is given)\n"</literal></expr></argument>,
+
+<argument><expr><call><name>rb_obj_info</name><argument_list>(<argument><expr><name><name>header</name><operator>-&gt;</operator><name>obj</name></name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>rb_obj_info</name><argument_list>(<argument><expr><name>obj</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block>
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+<if_stmt><if>if <condition>(<expr><name><name>header</name><operator>-&gt;</operator><name>next_marked_index</name></name> <operator>!=</operator> <name>TRANSIENT_HEAP_ALLOC_MARKING_FREE</name></expr>)</condition> <block>{<block_content>
+
+<return>return;</return>
+
+</block_content>}</block></if>
+
+<else>else <block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>transient_heap</name></name><modifier>*</modifier></type> <name>theap</name> <init>= <expr><call><name>transient_heap_get</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>transient_heap_block</name></name> <modifier>*</modifier></type><name>block</name> <init>= <expr><call><name>alloc_header_to_block</name><argument_list>(<argument><expr><name>theap</name></expr></argument>, <argument><expr><name>header</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>__asan_unpoison_memory_region</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>block</name><operator>-&gt;</operator><name>info</name></name></expr></argument>, <argument><expr><sizeof>sizeof <name><name>block</name><operator>-&gt;</operator><name>info</name></name></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>header</name><operator>-&gt;</operator><name>next_marked_index</name></name> <operator>=</operator> <name><name>block</name><operator>-&gt;</operator><name>info</name><operator>.</operator><name>last_marked_index</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>block</name><operator>-&gt;</operator><name>info</name><operator>.</operator><name>last_marked_index</name></name> <operator>=</operator> <operator>(</operator><name>int</name><operator>)</operator><operator>(</operator><operator>(</operator><name>char</name> <operator>*</operator><operator>)</operator><name>header</name> <operator>-</operator> <name><name>block</name><operator>-&gt;</operator><name>buff</name></name><operator>)</operator></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>theap</name><operator>-&gt;</operator><name>total_marked_objects</name></name><operator>++</operator></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>transient_heap_verify</name><argument_list>(<argument><expr><name>theap</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+</block_content>}</block></function>
+
+<expr_stmt><expr><call><name>ATTRIBUTE_NO_ADDRESS_SAFETY_ANALYSIS</name><argument_list>(<argument><expr><specifier>static</specifier> <specifier>const</specifier> <name>void</name> <operator>*</operator><macro><name>transient_heap_ptr</name><argument_list>(<argument>VALUE obj</argument>, <argument>int error</argument>)</argument_list></macro></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<function><type><specifier>static</specifier> <specifier>const</specifier> <name>void</name> <modifier>*</modifier></type>
+
+<name>transient_heap_ptr</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>obj</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>error</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>void</name> <modifier>*</modifier></type><name>ptr</name> <init>= <expr><name>NULL</name></expr></init></decl>;</decl_stmt>
+
+<switch>switch <condition>(<expr><call><name>BUILTIN_TYPE</name><argument_list>(<argument><expr><name>obj</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<case>case <expr><name>T_ARRAY</name></expr>:</case>
+
+<if_stmt><if>if <condition>(<expr><call><name>RARRAY_TRANSIENT_P</name><argument_list>(<argument><expr><name>obj</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>TH_ASSERT</name><argument_list>(<argument><expr><operator>!</operator><call><name>FL_TEST_RAW</name><argument_list>(<argument><expr><name>obj</name></expr></argument>, <argument><expr><name>RARRAY_EMBED_FLAG</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>ptr</name> <operator>=</operator> <call><name>RARRAY</name><argument_list>(<argument><expr><name>obj</name></expr></argument>)</argument_list></call><operator>-&gt;</operator><name><name>as</name><operator>.</operator><name>heap</name><operator>.</operator><name>ptr</name></name></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<break>break;</break>
+
+<case>case <expr><name>T_OBJECT</name></expr>:</case>
+
+<if_stmt><if>if <condition>(<expr><call><name>ROBJ_TRANSIENT_P</name><argument_list>(<argument><expr><name>obj</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>ptr</name> <operator>=</operator> <call><name>ROBJECT_IVPTR</name><argument_list>(<argument><expr><name>obj</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<break>break;</break>
+
+<case>case <expr><name>T_STRUCT</name></expr>:</case>
+
+<if_stmt><if>if <condition>(<expr><call><name>RSTRUCT_TRANSIENT_P</name><argument_list>(<argument><expr><name>obj</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>ptr</name> <operator>=</operator> <call><name>rb_struct_const_heap_ptr</name><argument_list>(<argument><expr><name>obj</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<break>break;</break>
+
+<case>case <expr><name>T_HASH</name></expr>:</case>
+
+<if_stmt><if>if <condition>(<expr><call><name>RHASH_TRANSIENT_P</name><argument_list>(<argument><expr><name>obj</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>TH_ASSERT</name><argument_list>(<argument><expr><call><name>RHASH_AR_TABLE_P</name><argument_list>(<argument><expr><name>obj</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>ptr</name> <operator>=</operator> <operator>(</operator><name>VALUE</name> <operator>*</operator><operator>)</operator><operator>(</operator><call><name>RHASH</name><argument_list>(<argument><expr><name>obj</name></expr></argument>)</argument_list></call><operator>-&gt;</operator><name><name>as</name><operator>.</operator><name>ar</name></name><operator>)</operator></expr>;</expr_stmt>
+
+</block_content>}</block></if>
+
+<else>else <block>{<block_content>
+
+<expr_stmt><expr><name>ptr</name> <operator>=</operator> <name>NULL</name></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+<break>break;</break>
+
+<default>default:</default>
+
+<if_stmt><if>if <condition>(<expr><name>error</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>rb_bug</name><argument_list>(<argument><expr><literal type="string">"transient_heap_ptr: unknown obj %s\n"</literal></expr></argument>, <argument><expr><call><name>rb_obj_info</name><argument_list>(<argument><expr><name>obj</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></switch>
+
+<return>return <expr><name>ptr</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type>
+
+<name>transient_heap_promote_add</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>transient_heap</name></name><modifier>*</modifier></type> <name>theap</name></decl></parameter>, <parameter><decl><type><name>VALUE</name></type> <name>obj</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><name>TRANSIENT_HEAP_DEBUG</name> <operator>&gt;=</operator> <literal type="number">3</literal></expr>)</condition><block type="pseudo"><block_content> <expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>stderr</name></expr></argument>, <argument><expr><literal type="string">"rb_transient_heap_promote: %s\n"</literal></expr></argument>, <argument><expr><call><name>rb_obj_info</name><argument_list>(<argument><expr><name>obj</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>TRANSIENT_HEAP_DEBUG_DONT_PROMOTE</name></expr>)</condition> <block>{<block_content>
+
+<decl_stmt><decl><type><name>int</name></type> <name>i</name></decl>;</decl_stmt>
+
+<for>for <control>(<init><expr><name>i</name><operator>=</operator><literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name><operator>&lt;</operator><name><name>theap</name><operator>-&gt;</operator><name>promoted_objects_index</name></name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><name><name>theap</name><operator>-&gt;</operator><name>promoted_objects</name><index>[<expr><name>i</name></expr>]</index></name> <operator>==</operator> <name>obj</name></expr>)</condition><block type="pseudo"><block_content> <return>return;</return></block_content></block></if></if_stmt>
+
+</block_content>}</block></for>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>theap</name><operator>-&gt;</operator><name>promoted_objects_size</name></name> <operator>&lt;=</operator> <name><name>theap</name><operator>-&gt;</operator><name>promoted_objects_index</name></name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name><name>theap</name><operator>-&gt;</operator><name>promoted_objects_size</name></name> <operator>*=</operator> <literal type="number">2</literal></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>TRANSIENT_HEAP_DEBUG</name> <operator>&gt;=</operator> <literal type="number">1</literal></expr>)</condition><block type="pseudo"><block_content> <expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>stderr</name></expr></argument>, <argument><expr><literal type="string">"rb_transient_heap_promote: expand table to %d\n"</literal></expr></argument>, <argument><expr><name><name>theap</name><operator>-&gt;</operator><name>promoted_objects_size</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>UNLIKELY</name><argument_list>(<argument><expr><operator>(</operator><name>size_t</name><operator>)</operator><name><name>theap</name><operator>-&gt;</operator><name>promoted_objects_size</name></name> <operator>&gt;</operator> <name>SIZE_MAX</name> <operator>/</operator> <sizeof>sizeof<argument_list>(<argument><expr><name>VALUE</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name><name>theap</name><operator>-&gt;</operator><name>promoted_objects</name></name> <operator>=</operator> <name>NULL</name></expr>;</expr_stmt>
+
+</block_content>}</block></if>
+
+<else>else <block>{<block_content>
+
+<expr_stmt><expr><name><name>theap</name><operator>-&gt;</operator><name>promoted_objects</name></name> <operator>=</operator> <call><name>realloc</name><argument_list>(<argument><expr><name><name>theap</name><operator>-&gt;</operator><name>promoted_objects</name></name></expr></argument>, <argument><expr><name><name>theap</name><operator>-&gt;</operator><name>promoted_objects_size</name></name> <operator>*</operator> <sizeof>sizeof<argument_list>(<argument><expr><name>VALUE</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>theap</name><operator>-&gt;</operator><name>promoted_objects</name></name> <operator>==</operator> <name>NULL</name></expr>)</condition><block type="pseudo"><block_content> <expr_stmt><expr><call><name>rb_bug</name><argument_list>(<argument><expr><literal type="string">"rb_transient_heap_promote: realloc failed"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>theap</name><operator>-&gt;</operator><name>promoted_objects</name><index>[<expr><name><name>theap</name><operator>-&gt;</operator><name>promoted_objects_index</name></name><operator>++</operator></expr>]</index></name> <operator>=</operator> <name>obj</name></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><name>void</name></type>
+
+<name>rb_transient_heap_promote</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>obj</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><call><name>transient_heap_ptr</name><argument_list>(<argument><expr><name>obj</name></expr></argument>, <argument><expr><name>FALSE</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>transient_heap</name></name><modifier>*</modifier></type> <name>theap</name> <init>= <expr><call><name>transient_heap_get</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>transient_heap_promote_add</name><argument_list>(<argument><expr><name>theap</name></expr></argument>, <argument><expr><name>obj</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if>
+
+<else>else <block>{<block_content>
+
+</block_content>}</block></else></if_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name><name>struct</name> <name>transient_alloc_header</name></name> <modifier>*</modifier></type>
+
+<name>alloc_header</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>transient_heap_block</name></name><modifier>*</modifier></type> <name>block</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>index</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<return>return <expr><operator>(</operator><name>void</name> <operator>*</operator><operator>)</operator><operator>&amp;</operator><name><name>block</name><operator>-&gt;</operator><name>buff</name><index>[<expr><name>index</name></expr>]</index></name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type>
+
+<name>transient_heap_reset</name><parameter_list>(<parameter><decl><type><name>void</name></type></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>transient_heap</name></name><modifier>*</modifier></type> <name>theap</name> <init>= <expr><call><name>transient_heap_get</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>transient_heap_block</name></name><modifier>*</modifier></type> <name>block</name></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>TRANSIENT_HEAP_DEBUG</name> <operator>&gt;=</operator> <literal type="number">1</literal></expr>)</condition><block type="pseudo"><block_content> <expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>stderr</name></expr></argument>, <argument><expr><literal type="string">"!! transient_heap_reset\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>block</name> <operator>=</operator> <name><name>theap</name><operator>-&gt;</operator><name>marked_blocks</name></name></expr>;</expr_stmt>
+
+<while>while <condition>(<expr><name>block</name></expr>)</condition> <block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>transient_heap_block</name></name> <modifier>*</modifier></type><name>next_block</name> <init>= <expr><name><name>block</name><operator>-&gt;</operator><name>info</name><operator>.</operator><name>next_block</name></name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>theap</name><operator>-&gt;</operator><name>total_objects</name></name> <operator>-=</operator> <name><name>block</name><operator>-&gt;</operator><name>info</name><operator>.</operator><name>objects</name></name></expr>;</expr_stmt>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><name>TRANSIENT_HEAP_DEBUG_INFINITE_BLOCK</name></expr></cpp:if>
+
+<if_stmt><if>if <condition>(<expr><call><name>madvise</name><argument_list>(<argument><expr><name>block</name></expr></argument>, <argument><expr><name>TRANSIENT_HEAP_BLOCK_SIZE</name></expr></argument>, <argument><expr><name>MADV_DONTNEED</name></expr></argument>)</argument_list></call> <operator>!=</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>rb_bug</name><argument_list>(<argument><expr><literal type="string">"madvise err:%d"</literal></expr></argument>, <argument><expr><name>errno</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>mprotect</name><argument_list>(<argument><expr><name>block</name></expr></argument>, <argument><expr><name>TRANSIENT_HEAP_BLOCK_SIZE</name></expr></argument>, <argument><expr><name>PROT_NONE</name></expr></argument>)</argument_list></call> <operator>!=</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>rb_bug</name><argument_list>(<argument><expr><literal type="string">"mprotect err:%d"</literal></expr></argument>, <argument><expr><name>errno</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<cpp:else>#<cpp:directive>else</cpp:directive></cpp:else>
+
+<expr_stmt><expr><call><name>reset_block</name><argument_list>(<argument><expr><name>block</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>connect_to_free_blocks</name><argument_list>(<argument><expr><name>theap</name></expr></argument>, <argument><expr><name>block</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+<expr_stmt><expr><name><name>theap</name><operator>-&gt;</operator><name>total_blocks</name></name><operator>--</operator></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>block</name> <operator>=</operator> <name>next_block</name></expr>;</expr_stmt>
+
+</block_content>}</block></while>
+
+<if_stmt><if>if <condition>(<expr><name>TRANSIENT_HEAP_DEBUG</name> <operator>&gt;=</operator> <literal type="number">1</literal></expr>)</condition><block type="pseudo"><block_content> <expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>stderr</name></expr></argument>, <argument><expr><literal type="string">"!! transient_heap_reset block_num:%d\n"</literal></expr></argument>, <argument><expr><name><name>theap</name><operator>-&gt;</operator><name>total_blocks</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name><name>theap</name><operator>-&gt;</operator><name>marked_blocks</name></name> <operator>=</operator> <name>NULL</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>theap</name><operator>-&gt;</operator><name>total_marked_objects</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type>
+
+<name>transient_heap_block_evacuate</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>transient_heap</name></name><modifier>*</modifier></type> <name>theap</name></decl></parameter>, <parameter><decl><type><name><name>struct</name> <name>transient_heap_block</name></name><modifier>*</modifier></type> <name>block</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>int</name></type> <name>marked_index</name> <init>= <expr><name><name>block</name><operator>-&gt;</operator><name>info</name><operator>.</operator><name>last_marked_index</name></name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>block</name><operator>-&gt;</operator><name>info</name><operator>.</operator><name>last_marked_index</name></name> <operator>=</operator> <name>TRANSIENT_HEAP_ALLOC_MARKING_LAST</name></expr>;</expr_stmt>
+
+<while>while <condition>(<expr><name>marked_index</name> <operator>&gt;=</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>transient_alloc_header</name></name> <modifier>*</modifier></type><name>header</name> <init>= <expr><call><name>alloc_header</name><argument_list>(<argument><expr><name>block</name></expr></argument>, <argument><expr><name>marked_index</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>VALUE</name></type> <name>obj</name> <init>= <expr><name><name>header</name><operator>-&gt;</operator><name>obj</name></name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>TH_ASSERT</name><argument_list>(<argument><expr><name><name>header</name><operator>-&gt;</operator><name>magic</name></name> <operator>==</operator> <name>TRANSIENT_HEAP_ALLOC_MAGIC</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>header</name><operator>-&gt;</operator><name>magic</name></name> <operator>!=</operator> <name>TRANSIENT_HEAP_ALLOC_MAGIC</name></expr>)</condition><block type="pseudo"><block_content> <expr_stmt><expr><call><name>rb_bug</name><argument_list>(<argument><expr><literal type="string">"rb_transient_heap_mark: wrong header %s\n"</literal></expr></argument>, <argument><expr><call><name>rb_obj_info</name><argument_list>(<argument><expr><name>obj</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>TRANSIENT_HEAP_DEBUG</name> <operator>&gt;=</operator> <literal type="number">3</literal></expr>)</condition><block type="pseudo"><block_content> <expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>stderr</name></expr></argument>, <argument><expr><literal type="string">" * transient_heap_block_evacuate %p %s\n"</literal></expr></argument>, <argument><expr><operator>(</operator><name>void</name> <operator>*</operator><operator>)</operator><name>header</name></expr></argument>, <argument><expr><call><name>rb_obj_info</name><argument_list>(<argument><expr><name>obj</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>obj</name> <operator>!=</operator> <name>Qnil</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>RB_DEBUG_COUNTER_INC</name><argument_list>(<argument><expr><name>theap_evacuate</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<switch>switch <condition>(<expr><call><name>BUILTIN_TYPE</name><argument_list>(<argument><expr><name>obj</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<case>case <expr><name>T_ARRAY</name></expr>:</case>
+
+<expr_stmt><expr><call><name>rb_ary_transient_heap_evacuate</name><argument_list>(<argument><expr><name>obj</name></expr></argument>, <argument><expr><operator>!</operator><name>TRANSIENT_HEAP_DEBUG_DONT_PROMOTE</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<break>break;</break>
+
+<case>case <expr><name>T_OBJECT</name></expr>:</case>
+
+<expr_stmt><expr><call><name>rb_obj_transient_heap_evacuate</name><argument_list>(<argument><expr><name>obj</name></expr></argument>, <argument><expr><operator>!</operator><name>TRANSIENT_HEAP_DEBUG_DONT_PROMOTE</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<break>break;</break>
+
+<case>case <expr><name>T_STRUCT</name></expr>:</case>
+
+<expr_stmt><expr><call><name>rb_struct_transient_heap_evacuate</name><argument_list>(<argument><expr><name>obj</name></expr></argument>, <argument><expr><operator>!</operator><name>TRANSIENT_HEAP_DEBUG_DONT_PROMOTE</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<break>break;</break>
+
+<case>case <expr><name>T_HASH</name></expr>:</case>
+
+<expr_stmt><expr><call><name>rb_hash_transient_heap_evacuate</name><argument_list>(<argument><expr><name>obj</name></expr></argument>, <argument><expr><operator>!</operator><name>TRANSIENT_HEAP_DEBUG_DONT_PROMOTE</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<break>break;</break>
+
+<default>default:</default>
+
+<expr_stmt><expr><call><name>rb_bug</name><argument_list>(<argument><expr><literal type="string">"unsupporeted: %s\n"</literal></expr></argument>, <argument><expr><call><name>rb_obj_info</name><argument_list>(<argument><expr><name>obj</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></switch>
+
+<expr_stmt><expr><name><name>header</name><operator>-&gt;</operator><name>obj</name></name> <operator>=</operator> <name>Qundef</name></expr>;</expr_stmt> 
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name>marked_index</name> <operator>=</operator> <name><name>header</name><operator>-&gt;</operator><name>next_marked_index</name></name></expr>;</expr_stmt>
+
+</block_content>}</block></while>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type>
+
+<name>transient_heap_update_status</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>transient_heap</name></name><modifier>*</modifier></type> <name>theap</name></decl></parameter>, <parameter><decl><type><name><name>enum</name> <name>transient_heap_status</name></name></type> <name>status</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>TH_ASSERT</name><argument_list>(<argument><expr><name><name>theap</name><operator>-&gt;</operator><name>status</name></name> <operator>!=</operator> <name>status</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>theap</name><operator>-&gt;</operator><name>status</name></name> <operator>=</operator> <name>status</name></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type>
+
+<name>transient_heap_evacuate</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>dmy</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>transient_heap</name></name><modifier>*</modifier></type> <name>theap</name> <init>= <expr><call><name>transient_heap_get</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>theap</name><operator>-&gt;</operator><name>status</name></name> <operator>==</operator> <name>transient_heap_marking</name></expr>)</condition> <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><name>TRANSIENT_HEAP_DEBUG</name> <operator>&gt;=</operator> <literal type="number">1</literal></expr>)</condition><block type="pseudo"><block_content> <expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>stderr</name></expr></argument>, <argument><expr><literal type="string">"!! transient_heap_evacuate: skip while transient_heap_marking\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+</block_content>}</block></if>
+
+<else>else <block>{<block_content>
+
+<decl_stmt><decl><type><name>VALUE</name></type> <name>gc_disabled</name> <init>= <expr><call><name>rb_gc_disable_no_rest</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>transient_heap_block</name></name><modifier>*</modifier></type> <name>block</name></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>TRANSIENT_HEAP_DEBUG</name> <operator>&gt;=</operator> <literal type="number">1</literal></expr>)</condition> <block>{<block_content>
+
+<decl_stmt><decl><type><name>int</name></type> <name>i</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>stderr</name></expr></argument>, <argument><expr><literal type="string">"!! transient_heap_evacuate start total_blocks:%d\n"</literal></expr></argument>, <argument><expr><name><name>theap</name><operator>-&gt;</operator><name>total_blocks</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>TRANSIENT_HEAP_DEBUG</name> <operator>&gt;=</operator> <literal type="number">4</literal></expr>)</condition> <block>{<block_content>
+
+<for>for <control>(<init><expr><name>i</name><operator>=</operator><literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name><operator>&lt;</operator><name><name>theap</name><operator>-&gt;</operator><name>promoted_objects_index</name></name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control><block type="pseudo"><block_content> <expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>stderr</name></expr></argument>, <argument><expr><literal type="string">"%4d %s\n"</literal></expr></argument>, <argument><expr><name>i</name></expr></argument>, <argument><expr><call><name>rb_obj_info</name><argument_list>(<argument><expr><name><name>theap</name><operator>-&gt;</operator><name>promoted_objects</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></for>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>TRANSIENT_HEAP_DEBUG</name> <operator>&gt;=</operator> <literal type="number">2</literal></expr>)</condition><block type="pseudo"><block_content> <expr_stmt><expr><call><name>transient_heap_dump</name><argument_list>(<argument><expr><name>theap</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>TH_ASSERT</name><argument_list>(<argument><expr><name><name>theap</name><operator>-&gt;</operator><name>status</name></name> <operator>==</operator> <name>transient_heap_none</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>transient_heap_update_status</name><argument_list>(<argument><expr><name>theap</name></expr></argument>, <argument><expr><name>transient_heap_escaping</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>block</name> <operator>=</operator> <name><name>theap</name><operator>-&gt;</operator><name>marked_blocks</name></name></expr>;</expr_stmt>
+
+<while>while <condition>(<expr><name>block</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>transient_heap_block_evacuate</name><argument_list>(<argument><expr><name>theap</name></expr></argument>, <argument><expr><name>block</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>block</name> <operator>=</operator> <name><name>block</name><operator>-&gt;</operator><name>info</name><operator>.</operator><name>next_block</name></name></expr>;</expr_stmt>
+
+</block_content>}</block></while>
+
+<expr_stmt><expr><name>block</name> <operator>=</operator> <name><name>theap</name><operator>-&gt;</operator><name>using_blocks</name></name></expr>;</expr_stmt>
+
+<while>while <condition>(<expr><name>block</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>transient_heap_block_evacuate</name><argument_list>(<argument><expr><name>theap</name></expr></argument>, <argument><expr><name>block</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>block</name> <operator>=</operator> <name><name>block</name><operator>-&gt;</operator><name>info</name><operator>.</operator><name>next_block</name></name></expr>;</expr_stmt>
+
+</block_content>}</block></while>
+
+<expr_stmt><expr><call><name>transient_heap_reset</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>TRANSIENT_HEAP_DEBUG</name> <operator>&gt;</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>stderr</name></expr></argument>, <argument><expr><literal type="string">"!! transient_heap_evacuate end total_blocks:%d\n"</literal></expr></argument>, <argument><expr><name><name>theap</name><operator>-&gt;</operator><name>total_blocks</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>transient_heap_verify</name><argument_list>(<argument><expr><name>theap</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>transient_heap_update_status</name><argument_list>(<argument><expr><name>theap</name></expr></argument>, <argument><expr><name>transient_heap_none</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>gc_disabled</name> <operator>!=</operator> <name>Qtrue</name></expr>)</condition><block type="pseudo"><block_content> <expr_stmt><expr><call><name>rb_gc_enable</name><argument_list>()</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type>
+
+<name>clear_marked_index</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>transient_heap_block</name></name><modifier>*</modifier></type> <name>block</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>int</name></type> <name>marked_index</name> <init>= <expr><name><name>block</name><operator>-&gt;</operator><name>info</name><operator>.</operator><name>last_marked_index</name></name></expr></init></decl>;</decl_stmt>
+
+<while>while <condition>(<expr><name>marked_index</name> <operator>!=</operator> <name>TRANSIENT_HEAP_ALLOC_MARKING_LAST</name></expr>)</condition> <block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>transient_alloc_header</name></name> <modifier>*</modifier></type><name>header</name> <init>= <expr><call><name>alloc_header</name><argument_list>(<argument><expr><name>block</name></expr></argument>, <argument><expr><name>marked_index</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>asan_unpoison_memory_region</name><argument_list>(<argument><expr><name>header</name></expr></argument>, <argument><expr><sizeof>sizeof <name/></sizeof>*<name>header</name></expr></argument>, <argument><expr><name>false</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>TH_ASSERT</name><argument_list>(<argument><expr><name>marked_index</name> <operator>!=</operator> <name>TRANSIENT_HEAP_ALLOC_MARKING_FREE</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content> <expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>stderr</name></expr></argument>, <argument><expr><literal type="string">"clear_marked_index - block:%p mark_index:%d\n"</literal></expr></argument>, <argument><expr><operator>(</operator><name>void</name> <operator>*</operator><operator>)</operator><name>block</name></expr></argument>, <argument><expr><name>marked_index</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>marked_index</name> <operator>=</operator> <name><name>header</name><operator>-&gt;</operator><name>next_marked_index</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>header</name><operator>-&gt;</operator><name>next_marked_index</name></name> <operator>=</operator> <name>TRANSIENT_HEAP_ALLOC_MARKING_FREE</name></expr>;</expr_stmt>
+
+</block_content>}</block></while>
+
+<expr_stmt><expr><name><name>block</name><operator>-&gt;</operator><name>info</name><operator>.</operator><name>last_marked_index</name></name> <operator>=</operator> <name>TRANSIENT_HEAP_ALLOC_MARKING_LAST</name></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type>
+
+<name>blocks_clear_marked_index</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>transient_heap_block</name></name><modifier>*</modifier></type> <name>block</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<while>while <condition>(<expr><name>block</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>clear_marked_index</name><argument_list>(<argument><expr><name>block</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>block</name> <operator>=</operator> <name><name>block</name><operator>-&gt;</operator><name>info</name><operator>.</operator><name>next_block</name></name></expr>;</expr_stmt>
+
+</block_content>}</block></while>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type>
+
+<name>transient_heap_block_update_refs</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>transient_heap</name></name><modifier>*</modifier></type> <name>theap</name></decl></parameter>, <parameter><decl><type><name><name>struct</name> <name>transient_heap_block</name></name><modifier>*</modifier></type> <name>block</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>int</name></type> <name>i</name><init>=<expr><literal type="number">0</literal></expr></init></decl>, <decl><type ref="prev"/><name>n</name><init>=<expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+
+<while>while <condition>(<expr><name>i</name><operator>&lt;</operator><name><name>block</name><operator>-&gt;</operator><name>info</name><operator>.</operator><name>index</name></name></expr>)</condition> <block>{<block_content>
+
+<decl_stmt><decl><type><name>void</name> <modifier>*</modifier></type><name>ptr</name> <init>= <expr><operator>&amp;</operator><name><name>block</name><operator>-&gt;</operator><name>buff</name><index>[<expr><name>i</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>transient_alloc_header</name></name> <modifier>*</modifier></type><name>header</name> <init>= <expr><name>ptr</name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>asan_unpoison_memory_region</name><argument_list>(<argument><expr><name>header</name></expr></argument>, <argument><expr><sizeof>sizeof <name/></sizeof>*<name>header</name></expr></argument>, <argument><expr><name>false</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<decl_stmt><decl><type><name>void</name> <modifier>*</modifier></type><name>poisoned</name> <init>= <expr><call><name>__asan_region_is_poisoned</name><argument_list>(<argument><expr><operator>(</operator><name>void</name> <operator>*</operator><operator>)</operator><name><name>header</name><operator>-&gt;</operator><name>obj</name></name></expr></argument>, <argument><expr><name>SIZEOF_VALUE</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>asan_unpoison_object</name><argument_list>(<argument><expr><name><name>header</name><operator>-&gt;</operator><name>obj</name></name></expr></argument>, <argument><expr><name>false</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>header</name><operator>-&gt;</operator><name>obj</name></name> <operator>=</operator> <call><name>rb_gc_location</name><argument_list>(<argument><expr><name><name>header</name><operator>-&gt;</operator><name>obj</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>poisoned</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>asan_poison_object</name><argument_list>(<argument><expr><name><name>header</name><operator>-&gt;</operator><name>obj</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name>i</name> <operator>+=</operator> <name><name>header</name><operator>-&gt;</operator><name>size</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>asan_poison_memory_region</name><argument_list>(<argument><expr><name>header</name></expr></argument>, <argument><expr><sizeof>sizeof <name/></sizeof>*<name>header</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>n</name><operator>++</operator></expr>;</expr_stmt>
+
+</block_content>}</block></while>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type>
+
+<name>transient_heap_blocks_update_refs</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>transient_heap</name></name><modifier>*</modifier></type> <name>theap</name></decl></parameter>, <parameter><decl><type><name><name>struct</name> <name>transient_heap_block</name></name> <modifier>*</modifier></type><name>block</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>type_str</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<while>while <condition>(<expr><name>block</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>transient_heap_block_update_refs</name><argument_list>(<argument><expr><name>theap</name></expr></argument>, <argument><expr><name>block</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>block</name> <operator>=</operator> <name><name>block</name><operator>-&gt;</operator><name>info</name><operator>.</operator><name>next_block</name></name></expr>;</expr_stmt>
+
+</block_content>}</block></while>
+
+</block_content>}</block></function>
+
+<function><type><name>void</name></type>
+
+<name>rb_transient_heap_update_references</name><parameter_list>(<parameter><decl><type><name>void</name></type></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>transient_heap</name></name><modifier>*</modifier></type> <name>theap</name> <init>= <expr><call><name>transient_heap_get</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>i</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>transient_heap_blocks_update_refs</name><argument_list>(<argument><expr><name>theap</name></expr></argument>, <argument><expr><name><name>theap</name><operator>-&gt;</operator><name>using_blocks</name></name></expr></argument>, <argument><expr><literal type="string">"using_blocks"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>transient_heap_blocks_update_refs</name><argument_list>(<argument><expr><name>theap</name></expr></argument>, <argument><expr><name><name>theap</name><operator>-&gt;</operator><name>marked_blocks</name></name></expr></argument>, <argument><expr><literal type="string">"marked_blocks"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<for>for <control>(<init><expr><name>i</name><operator>=</operator><literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name><operator>&lt;</operator><name><name>theap</name><operator>-&gt;</operator><name>promoted_objects_index</name></name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+
+<decl_stmt><decl><type><name>VALUE</name></type> <name>obj</name> <init>= <expr><name><name>theap</name><operator>-&gt;</operator><name>promoted_objects</name><index>[<expr><name>i</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>theap</name><operator>-&gt;</operator><name>promoted_objects</name><index>[<expr><name>i</name></expr>]</index></name> <operator>=</operator> <call><name>rb_gc_location</name><argument_list>(<argument><expr><name>obj</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></for>
+
+</block_content>}</block></function>
+
+<function><type><name>void</name></type>
+
+<name>rb_transient_heap_start_marking</name><parameter_list>(<parameter><decl><type><name>int</name></type> <name>full_marking</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>transient_heap</name></name><modifier>*</modifier></type> <name>theap</name> <init>= <expr><call><name>transient_heap_get</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>TRANSIENT_HEAP_DEBUG</name> <operator>&gt;=</operator> <literal type="number">1</literal></expr>)</condition><block type="pseudo"><block_content> <expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>stderr</name></expr></argument>, <argument><expr><literal type="string">"!! rb_transient_heap_start_marking objects:%d blocks:%d promtoed:%d full_marking:%d\n"</literal></expr></argument>,
+
+<argument><expr><name><name>theap</name><operator>-&gt;</operator><name>total_objects</name></name></expr></argument>, <argument><expr><name><name>theap</name><operator>-&gt;</operator><name>total_blocks</name></name></expr></argument>, <argument><expr><name><name>theap</name><operator>-&gt;</operator><name>promoted_objects_index</name></name></expr></argument>, <argument><expr><name>full_marking</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>TRANSIENT_HEAP_DEBUG</name> <operator>&gt;=</operator> <literal type="number">2</literal></expr>)</condition><block type="pseudo"><block_content> <expr_stmt><expr><call><name>transient_heap_dump</name><argument_list>(<argument><expr><name>theap</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>blocks_clear_marked_index</name><argument_list>(<argument><expr><name><name>theap</name><operator>-&gt;</operator><name>marked_blocks</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>blocks_clear_marked_index</name><argument_list>(<argument><expr><name><name>theap</name><operator>-&gt;</operator><name>using_blocks</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>theap</name><operator>-&gt;</operator><name>using_blocks</name></name></expr>)</condition> <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><name><name>theap</name><operator>-&gt;</operator><name>using_blocks</name><operator>-&gt;</operator><name>info</name><operator>.</operator><name>objects</name></name> <operator>&gt;</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>append_to_marked_blocks</name><argument_list>(<argument><expr><name>theap</name></expr></argument>, <argument><expr><name><name>theap</name><operator>-&gt;</operator><name>using_blocks</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>theap</name><operator>-&gt;</operator><name>using_blocks</name></name> <operator>=</operator> <name>NULL</name></expr>;</expr_stmt>
+
+</block_content>}</block></if>
+
+<else>else <block>{<block_content>
+
+<expr_stmt><expr><call><name>append_to_marked_blocks</name><argument_list>(<argument><expr><name>theap</name></expr></argument>, <argument><expr><name><name>theap</name><operator>-&gt;</operator><name>using_blocks</name><operator>-&gt;</operator><name>info</name><operator>.</operator><name>next_block</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>theap</name><operator>-&gt;</operator><name>using_blocks</name><operator>-&gt;</operator><name>info</name><operator>.</operator><name>next_block</name></name> <operator>=</operator> <name>NULL</name></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>theap</name><operator>-&gt;</operator><name>using_blocks</name></name> <operator>==</operator> <name>NULL</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name><name>theap</name><operator>-&gt;</operator><name>using_blocks</name></name> <operator>=</operator> <call><name>transient_heap_allocatable_block</name><argument_list>(<argument><expr><name>theap</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>TH_ASSERT</name><argument_list>(<argument><expr><name><name>theap</name><operator>-&gt;</operator><name>status</name></name> <operator>==</operator> <name>transient_heap_none</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>transient_heap_update_status</name><argument_list>(<argument><expr><name>theap</name></expr></argument>, <argument><expr><name>transient_heap_marking</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>theap</name><operator>-&gt;</operator><name>total_marked_objects</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>full_marking</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name><name>theap</name><operator>-&gt;</operator><name>promoted_objects_index</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+</block_content>}</block></if>
+
+<else>else <block>{<block_content> 
+
+<decl_stmt><decl><type><name>int</name></type> <name>i</name></decl>;</decl_stmt>
+
+<for>for <control>(<init><expr><name>i</name><operator>=</operator><literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name><operator>&lt;</operator><name><name>theap</name><operator>-&gt;</operator><name>promoted_objects_index</name></name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+
+<decl_stmt><decl><type><name>VALUE</name></type> <name>obj</name> <init>= <expr><name><name>theap</name><operator>-&gt;</operator><name>promoted_objects</name><index>[<expr><name>i</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>void</name> <modifier>*</modifier></type><name>ptr</name> <init>= <expr><call><name>transient_heap_ptr</name><argument_list>(<argument><expr><name>obj</name></expr></argument>, <argument><expr><name>TRUE</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>ptr</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>rb_transient_heap_mark</name><argument_list>(<argument><expr><name>obj</name></expr></argument>, <argument><expr><name>ptr</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></for>
+
+</block_content>}</block></else></if_stmt>
+
+<expr_stmt><expr><call><name>transient_heap_verify</name><argument_list>(<argument><expr><name>theap</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><name>void</name></type>
+
+<name>rb_transient_heap_finish_marking</name><parameter_list>(<parameter><decl><type><name>void</name></type></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>transient_heap</name></name><modifier>*</modifier></type> <name>theap</name> <init>= <expr><call><name>transient_heap_get</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>TRANSIENT_HEAP_DEBUG</name> <operator>&gt;=</operator> <literal type="number">1</literal></expr>)</condition><block type="pseudo"><block_content> <expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>stderr</name></expr></argument>, <argument><expr><literal type="string">"!! rb_transient_heap_finish_marking objects:%d, marked:%d\n"</literal></expr></argument>,
+
+<argument><expr><name><name>theap</name><operator>-&gt;</operator><name>total_objects</name></name></expr></argument>,
+
+<argument><expr><name><name>theap</name><operator>-&gt;</operator><name>total_marked_objects</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>TRANSIENT_HEAP_DEBUG</name> <operator>&gt;=</operator> <literal type="number">2</literal></expr>)</condition><block type="pseudo"><block_content> <expr_stmt><expr><call><name>transient_heap_dump</name><argument_list>(<argument><expr><name>theap</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>TH_ASSERT</name><argument_list>(<argument><expr><name><name>theap</name><operator>-&gt;</operator><name>total_objects</name></name> <operator>&gt;=</operator> <name><name>theap</name><operator>-&gt;</operator><name>total_marked_objects</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>TH_ASSERT</name><argument_list>(<argument><expr><name><name>theap</name><operator>-&gt;</operator><name>status</name></name> <operator>==</operator> <name>transient_heap_marking</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>transient_heap_update_status</name><argument_list>(<argument><expr><name>theap</name></expr></argument>, <argument><expr><name>transient_heap_none</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>theap</name><operator>-&gt;</operator><name>total_marked_objects</name></name> <operator>&gt;</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><name>TRANSIENT_HEAP_DEBUG</name> <operator>&gt;=</operator> <literal type="number">1</literal></expr>)</condition><block type="pseudo"><block_content> <expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>stderr</name></expr></argument>, <argument><expr><literal type="string">"-&gt; rb_transient_heap_finish_marking register escape func.\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>rb_postponed_job_register_one</name><argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><name>transient_heap_evacuate</name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if>
+
+<else>else <block>{<block_content>
+
+<expr_stmt><expr><call><name>transient_heap_reset</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+<expr_stmt><expr><call><name>transient_heap_verify</name><argument_list>(<argument><expr><name>theap</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif> 
+
+</unit>

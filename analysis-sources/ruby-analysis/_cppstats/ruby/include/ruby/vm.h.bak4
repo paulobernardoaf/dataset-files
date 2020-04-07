@@ -1,0 +1,63 @@
+
+
+
+
+
+
+
+
+
+
+
+#if !defined(RUBY_VM_H)
+#define RUBY_VM_H 1
+
+#if defined(__cplusplus)
+extern "C" {
+#if 0
+} 
+#endif
+#endif
+
+RUBY_SYMBOL_EXPORT_BEGIN
+
+
+
+
+
+
+
+
+typedef struct rb_vm_struct ruby_vm_t;
+
+
+int ruby_vm_destruct(ruby_vm_t *vm);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+void ruby_vm_at_exit(void(*func)(ruby_vm_t *));
+
+RUBY_SYMBOL_EXPORT_END
+
+#if defined(__cplusplus)
+#if 0
+{ 
+#endif
+} 
+#endif
+
+#endif 

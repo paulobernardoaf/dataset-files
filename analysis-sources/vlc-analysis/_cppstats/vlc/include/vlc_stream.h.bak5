@@ -1,0 +1,511 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#include <vlc_block.h>
+
+#if defined(__cplusplus)
+extern "C" {
+#endif
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+struct stream_t
+{
+struct vlc_object_t obj;
+
+char *psz_name;
+char *psz_url; 
+const char *psz_location; 
+char *psz_filepath; 
+bool b_preparsing; 
+input_item_t *p_input_item;
+
+union {
+
+
+
+
+
+
+
+
+stream_t *s;
+
+
+
+
+
+
+demux_t *p_next;
+};
+
+
+es_out_t *out; 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ssize_t (*pf_read)(stream_t *, void *buf, size_t len);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+block_t *(*pf_block)(stream_t *, bool *eof);
+
+
+
+
+
+
+
+
+
+int (*pf_readdir)(stream_t *, input_item_node_t *);
+
+int (*pf_demux)(stream_t *);
+
+
+
+
+
+
+
+
+int (*pf_seek)(stream_t *, uint64_t);
+
+
+
+
+
+
+
+
+int (*pf_control)(stream_t *, int i_query, va_list);
+
+
+
+
+void *p_sys;
+};
+
+
+
+
+enum stream_query_e
+{
+
+STREAM_CAN_SEEK, 
+STREAM_CAN_FASTSEEK, 
+STREAM_CAN_PAUSE, 
+STREAM_CAN_CONTROL_PACE, 
+
+STREAM_GET_SIZE=6, 
+
+
+STREAM_GET_PTS_DELAY = 0x101,
+STREAM_GET_TITLE_INFO, 
+STREAM_GET_TITLE, 
+STREAM_GET_SEEKPOINT, 
+STREAM_GET_META, 
+STREAM_GET_CONTENT_TYPE, 
+STREAM_GET_SIGNAL, 
+STREAM_GET_TAGS, 
+
+STREAM_SET_PAUSE_STATE = 0x200, 
+STREAM_SET_TITLE, 
+STREAM_SET_SEEKPOINT, 
+
+
+STREAM_SET_RECORD_STATE, 
+
+STREAM_SET_PRIVATE_ID_STATE = 0x1000, 
+STREAM_SET_PRIVATE_ID_CA, 
+STREAM_GET_PRIVATE_ID_STATE, 
+};
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+VLC_API ssize_t vlc_stream_Read(stream_t *, void *buf, size_t len) VLC_USED;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+VLC_API ssize_t vlc_stream_ReadPartial(stream_t *, void *buf, size_t len)
+VLC_USED;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+VLC_API ssize_t vlc_stream_Peek(stream_t *, const uint8_t **, size_t) VLC_USED;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+VLC_API block_t *vlc_stream_ReadBlock(stream_t *) VLC_USED;
+
+
+
+
+
+
+
+
+
+
+
+VLC_API uint64_t vlc_stream_Tell(const stream_t *) VLC_USED;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+VLC_API bool vlc_stream_Eof(const stream_t *) VLC_USED;
+
+
+
+
+
+
+
+
+
+
+
+
+VLC_API int vlc_stream_Seek(stream_t *, uint64_t offset) VLC_USED;
+
+VLC_API int vlc_stream_vaControl(stream_t *s, int query, va_list args);
+
+static inline int vlc_stream_Control(stream_t *s, int query, ...)
+{
+va_list ap;
+int ret;
+
+va_start(ap, query);
+ret = vlc_stream_vaControl(s, query, ap);
+va_end(ap);
+return ret;
+}
+
+VLC_API block_t *vlc_stream_Block(stream_t *s, size_t);
+VLC_API char *vlc_stream_ReadLine(stream_t *);
+
+
+
+
+
+
+
+
+
+
+
+VLC_API int vlc_stream_ReadDir(stream_t *s, input_item_node_t *node);
+
+
+
+
+
+VLC_API void vlc_stream_Delete(stream_t *s);
+
+VLC_API stream_t *vlc_stream_CommonNew(vlc_object_t *, void (*)(stream_t *));
+
+
+
+
+VLC_USED static inline int vlc_stream_GetSize( stream_t *s, uint64_t *size )
+{
+return vlc_stream_Control( s, STREAM_GET_SIZE, size );
+}
+
+static inline int64_t stream_Size( stream_t *s )
+{
+uint64_t i_pos;
+
+if( vlc_stream_GetSize( s, &i_pos ) )
+return 0;
+if( i_pos >> 62 )
+return (int64_t)1 << 62;
+return i_pos;
+}
+
+VLC_USED
+static inline bool stream_HasExtension( stream_t *s, const char *extension )
+{
+const char *name = (s->psz_filepath != NULL) ? s->psz_filepath
+: s->psz_url;
+const char *ext = strrchr( name, '.' );
+return ext != NULL && !strcasecmp( ext, extension );
+}
+
+
+
+
+
+static inline char *stream_ContentType( stream_t *s )
+{
+char *res;
+if( vlc_stream_Control( s, STREAM_GET_CONTENT_TYPE, &res ) )
+return NULL;
+return res;
+}
+
+
+
+
+
+
+
+VLC_USED
+static inline char *stream_MimeType( stream_t *s )
+{
+char* mime_type = stream_ContentType( s );
+
+if( mime_type ) 
+mime_type[strcspn( mime_type, " ;" )] = '\0';
+
+return mime_type;
+}
+
+
+
+
+
+
+VLC_USED
+static inline bool stream_IsMimeType(stream_t *s, const char *type)
+{
+char *mime = stream_MimeType(s);
+if (mime == NULL)
+return false;
+
+bool ok = !strcasecmp(mime, type);
+free(mime);
+return ok;
+}
+
+
+
+
+
+
+
+
+
+
+VLC_API stream_t *vlc_stream_MemoryNew(vlc_object_t *obj, uint8_t *base,
+size_t size, bool preserve) VLC_USED;
+#define vlc_stream_MemoryNew(a, b, c, d) vlc_stream_MemoryNew(VLC_OBJECT(a), b, c, d)
+
+
+
+
+
+
+VLC_API stream_t * vlc_stream_NewURL(vlc_object_t *obj, const char *url)
+VLC_USED;
+#define vlc_stream_NewURL(a, b) vlc_stream_NewURL(VLC_OBJECT(a), b)
+
+
+
+
+
+
+
+typedef struct vlc_stream_fifo vlc_stream_fifo_t;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+VLC_API vlc_stream_fifo_t *vlc_stream_fifo_New(vlc_object_t *parent,
+stream_t **reader);
+
+
+
+
+
+
+
+
+
+
+
+
+VLC_API int vlc_stream_fifo_Queue(vlc_stream_fifo_t *s, block_t *block);
+
+
+
+
+
+
+
+
+
+
+VLC_API ssize_t vlc_stream_fifo_Write(vlc_stream_fifo_t *s, const void *buf,
+size_t len);
+
+
+
+
+
+
+
+VLC_API void vlc_stream_fifo_Close(vlc_stream_fifo_t *s);
+
+
+
+
+
+
+
+
+
+VLC_API stream_t* vlc_stream_FilterNew( stream_t *p_source, const char *psz_stream_filter );
+
+
+
+
+
+#if defined(__cplusplus)
+}
+#endif
+
+

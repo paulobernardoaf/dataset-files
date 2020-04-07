@@ -1,0 +1,27 @@
+struct filter_t;
+struct picture_t;
+#define IVTC_NUM_FIELD_PAIRS 7
+#define IVTC_DETECTION_HISTORY_SIZE 3
+#define IVTC_LATEST (IVTC_DETECTION_HISTORY_SIZE-1)
+typedef struct
+{
+int i_mode; 
+int i_old_mode; 
+int i_cadence_pos; 
+int i_tfd; 
+int pi_scores[IVTC_NUM_FIELD_PAIRS]; 
+int pi_motion[IVTC_DETECTION_HISTORY_SIZE]; 
+int pi_top_rep[IVTC_DETECTION_HISTORY_SIZE]; 
+int pi_bot_rep[IVTC_DETECTION_HISTORY_SIZE]; 
+int pi_final_scores[IVTC_DETECTION_HISTORY_SIZE];
+int pi_s_cadence_pos[IVTC_DETECTION_HISTORY_SIZE];
+bool pb_s_reliable[IVTC_DETECTION_HISTORY_SIZE];
+int pi_v_raw[IVTC_DETECTION_HISTORY_SIZE]; 
+int pi_v_cadence_pos[IVTC_DETECTION_HISTORY_SIZE];
+bool pb_v_reliable[IVTC_DETECTION_HISTORY_SIZE];
+int pi_cadence_pos_history[IVTC_DETECTION_HISTORY_SIZE];
+bool b_sequence_valid;
+bool pb_all_progressives[IVTC_DETECTION_HISTORY_SIZE];
+} ivtc_sys_t;
+int RenderIVTC( filter_t *p_filter, picture_t *p_dst, picture_t *p_pic );
+void IVTCClearState( filter_t *p_filter );

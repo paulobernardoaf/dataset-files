@@ -1,0 +1,143 @@
+#if defined(HAVE_CONFIG_H)
+#include "config.h"
+#endif
+#include <math.h> 
+#include <vlc_common.h>
+#include <vlc_plugin.h>
+#include <vlc_filter.h>
+#include <vlc_picture.h>
+#include "filter_picture.h"
+static int Create ( vlc_object_t * );
+static void Destroy ( vlc_object_t * );
+static picture_t *Filter( filter_t *, picture_t * );
+vlc_module_begin ()
+set_description( N_("Ripple video filter") )
+set_shortname( N_( "Ripple" ))
+set_capability( "video filter", 0 )
+set_category( CAT_VIDEO )
+set_subcategory( SUBCAT_VIDEO_VFILTER )
+add_shortcut( "ripple" )
+set_callbacks( Create, Destroy )
+vlc_module_end ()
+typedef struct
+{
+double f_angle;
+vlc_tick_t last_date;
+} filter_sys_t;
+static int Create( vlc_object_t *p_this )
+{
+filter_t *p_filter = (filter_t *)p_this;
+const vlc_chroma_description_t *p_chroma =
+vlc_fourcc_GetChromaDescription( p_filter->fmt_in.video.i_chroma );
+if( p_chroma == NULL || p_chroma->plane_count == 0 )
+return VLC_EGENERIC;
+filter_sys_t *p_sys = malloc( sizeof( filter_sys_t ) );
+if( p_sys == NULL )
+return VLC_ENOMEM;
+p_filter->p_sys = p_sys;
+p_filter->pf_video_filter = Filter;
+p_sys->f_angle = 0.0;
+p_sys->last_date = 0;
+return VLC_SUCCESS;
+}
+static void Destroy( vlc_object_t *p_this )
+{
+filter_t *p_filter = (filter_t *)p_this;
+free( p_filter->p_sys );
+}
+static picture_t *Filter( filter_t *p_filter, picture_t *p_pic )
+{
+picture_t *p_outpic;
+double f_angle;
+vlc_tick_t new_date = vlc_tick_now();
+if( !p_pic ) return NULL;
+p_outpic = filter_NewPicture( p_filter );
+if( !p_outpic )
+{
+picture_Release( p_pic );
+return NULL;
+}
+filter_sys_t *p_sys = p_filter->p_sys;
+p_sys->f_angle -= 10.0f * secf_from_vlc_tick(p_sys->last_date - new_date);
+p_sys->last_date = new_date;
+f_angle = p_sys->f_angle;
+for( int i_index = 0; i_index < p_pic->i_planes; i_index++ )
+{
+int i_first_line, i_visible_pitch, i_num_lines, i_offset, i_pixel_pitch,
+i_visible_pixels;
+uint16_t black_pixel;
+uint8_t *p_in, *p_out;
+black_pixel = ( p_pic->i_planes > 1 && i_index == Y_PLANE ) ? 0x00
+: 0x80;
+i_num_lines = p_pic->p[i_index].i_visible_lines;
+i_visible_pitch = p_pic->p[i_index].i_visible_pitch;
+i_pixel_pitch = p_pic->p[i_index].i_pixel_pitch;
+switch( p_filter->fmt_in.video.i_chroma )
+{
+CASE_PLANAR_YUV10
+black_pixel = ( p_pic->i_planes > 1 && i_index == Y_PLANE ) ? 0x00
+: 0x200;
+break;
+CASE_PACKED_YUV_422
+i_pixel_pitch *= 2;
+CASE_PLANAR_YUV
+black_pixel = ( p_pic->i_planes > 1 && i_index == Y_PLANE ) ? 0x00
+: 0x80;
+break;
+default:
+black_pixel = 0x00;
+}
+i_visible_pixels = i_visible_pitch/i_pixel_pitch;
+i_first_line = i_num_lines * 4 / 5;
+p_in = p_pic->p[i_index].p_pixels;
+p_out = p_outpic->p[i_index].p_pixels;
+for( int i_line = 0; i_line < i_first_line; i_line++ )
+{
+memcpy( p_out, p_in, i_visible_pitch );
+p_in += p_pic->p[i_index].i_pitch;
+p_out += p_outpic->p[i_index].i_pitch;
+}
+for( int i_line = i_first_line; i_line < i_num_lines; i_line++ )
+{
+i_offset = (int)( (double)(i_visible_pixels)
+* sin( f_angle + 2.0 * (double)i_line
+/ (double)( 1 + i_line
+- i_first_line) )
+* (double)(i_line - i_first_line)
+/ (double)i_num_lines
+/ 8.0 )*i_pixel_pitch;
+if( i_offset )
+{
+void *p_black_out;
+if( i_offset < 0 )
+{
+memcpy( p_out, p_in - i_offset,
+i_visible_pitch + i_offset );
+p_black_out = &p_out[i_visible_pitch + i_offset];
+i_offset = -i_offset;
+}
+else
+{
+memcpy( p_out + i_offset, p_in,
+i_visible_pitch - i_offset );
+p_black_out = p_out;
+}
+if (black_pixel > 0xFF)
+{
+uint16_t *p_out16 = p_black_out;
+for (int x = 0; x < i_offset; x += 2)
+*p_out16++ = black_pixel;
+}
+else
+memset( p_black_out, black_pixel, i_offset );
+}
+else
+{
+memcpy( p_out, p_in, i_visible_pitch );
+}
+p_in -= p_pic->p[i_index].i_pitch;
+p_out += p_outpic->p[i_index].i_pitch;
+}
+}
+return CopyInfoAndRelease( p_outpic, p_pic );
+}

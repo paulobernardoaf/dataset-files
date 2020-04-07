@@ -1,0 +1,848 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" revision="1.0.0" language="C" filename="D:\Pesquisa\Projects\neovim-analysis\_cppstats_featurelocations\neovim\src\tree_sitter\stack.c"><cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"./alloc.h"</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"./language.h"</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"./subtree.h"</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"./array.h"</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"./stack.h"</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"./length.h"</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;assert.h&gt;</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;stdio.h&gt;</cpp:file></cpp:include>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>MAX_LINK_COUNT</name></cpp:macro> <cpp:value>8</cpp:value></cpp:define>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>MAX_NODE_POOL_SIZE</name></cpp:macro> <cpp:value>50</cpp:value></cpp:define>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>MAX_ITERATOR_COUNT</name></cpp:macro> <cpp:value>64</cpp:value></cpp:define>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><name>defined</name> <name>_WIN32</name> <operator>&amp;&amp;</operator> <operator>!</operator><name>defined</name> <name>__GNUC__</name></expr></cpp:if>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>inline</name></cpp:macro> <cpp:value>__forceinline</cpp:value></cpp:define>
+<cpp:else>#<cpp:directive>else</cpp:directive></cpp:else>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>inline</name></cpp:macro> <cpp:value>static inline __attribute__((always_inline))</cpp:value></cpp:define>
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+<typedef>typedef <type><name><name>struct</name> <name>StackNode</name></name></type> <name>StackNode</name>;</typedef>
+
+<typedef>typedef <type><struct>struct <block>{
+<decl_stmt><decl><type><name>StackNode</name> <modifier>*</modifier></type><name>node</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>Subtree</name></type> <name>subtree</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>bool</name></type> <name>is_pending</name></decl>;</decl_stmt>
+}</block></struct></type> <name>StackLink</name>;</typedef>
+
+<struct>struct <name>StackNode</name> <block>{
+<decl_stmt><decl><type><name>TSStateId</name></type> <name>state</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>Length</name></type> <name>position</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>StackLink</name></type> <name><name>links</name><index>[<expr><name>MAX_LINK_COUNT</name></expr>]</index></name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>short</name> <name>unsigned</name> <name>int</name></type> <name>link_count</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>uint32_t</name></type> <name>ref_count</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>unsigned</name></type> <name>error_cost</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>unsigned</name></type> <name>node_count</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>dynamic_precedence</name></decl>;</decl_stmt>
+}</block>;</struct>
+
+<typedef>typedef <type><struct>struct <block>{
+<decl_stmt><decl><type><name>StackNode</name> <modifier>*</modifier></type><name>node</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>SubtreeArray</name></type> <name>subtrees</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>uint32_t</name></type> <name>subtree_count</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>bool</name></type> <name>is_pending</name></decl>;</decl_stmt>
+}</block></struct></type> <name>StackIterator</name>;</typedef>
+
+<typedef>typedef <type><struct>struct <block>{
+<decl_stmt><decl><type><name>void</name> <modifier>*</modifier></type><name>payload</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>StackIterateCallback</name></type> <name>callback</name></decl>;</decl_stmt>
+}</block></struct></type> <name>StackIterateSession</name>;</typedef>
+
+<typedef>typedef <macro><name>Array</name><argument_list>(<argument>StackNode *</argument>)</argument_list></macro> <expr_stmt><expr><name>StackNodeArray</name></expr>;</expr_stmt></typedef>
+
+<typedef>typedef <type><enum>enum <block>{
+<decl><name>StackStatusActive</name></decl>,
+<decl><name>StackStatusPaused</name></decl>,
+<decl><name>StackStatusHalted</name></decl>,
+}</block></enum></type> <name>StackStatus</name>;</typedef>
+
+<typedef>typedef <type><struct>struct <block>{
+<decl_stmt><decl><type><name>StackNode</name> <modifier>*</modifier></type><name>node</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>Subtree</name></type> <name>last_external_token</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>StackSummary</name> <modifier>*</modifier></type><name>summary</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>unsigned</name></type> <name>node_count_at_last_error</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>TSSymbol</name></type> <name>lookahead_when_paused</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>StackStatus</name></type> <name>status</name></decl>;</decl_stmt>
+}</block></struct></type> <name>StackHead</name>;</typedef>
+
+<struct>struct <name>Stack</name> <block>{
+<macro><name>Array</name><argument_list>(<argument>StackHead</argument>)</argument_list></macro> <expr_stmt><expr><name>heads</name></expr>;</expr_stmt>
+<decl_stmt><decl><type><name>StackSliceArray</name></type> <name>slices</name></decl>;</decl_stmt>
+<macro><name>Array</name><argument_list>(<argument>StackIterator</argument>)</argument_list></macro> <expr_stmt><expr><name>iterators</name></expr>;</expr_stmt>
+<decl_stmt><decl><type><name>StackNodeArray</name></type> <name>node_pool</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>StackNode</name> <modifier>*</modifier></type><name>base_node</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>SubtreePool</name> <modifier>*</modifier></type><name>subtree_pool</name></decl>;</decl_stmt>
+}</block>;</struct>
+
+<typedef>typedef <type><name>unsigned</name></type> <name>StackAction</name>;</typedef>
+<enum>enum <block>{
+<decl><name>StackActionNone</name></decl>,
+<decl><name>StackActionStop</name> <init>= <expr><literal type="number">1</literal></expr></init></decl>,
+<decl><name>StackActionPop</name> <init>= <expr><literal type="number">2</literal></expr></init></decl>,
+}</block>;</enum>
+
+<typedef>typedef <function_decl><type><name>StackAction</name></type> (<modifier>*</modifier><name>StackCallback</name>)<parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>StackIterator</name> <modifier>*</modifier></type></decl></parameter>)</parameter_list>;</function_decl></typedef>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>stack_node_retain</name><parameter_list>(<parameter><decl><type><name>StackNode</name> <modifier>*</modifier></type><name>self</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>self</name></expr>)</condition><block type="pseudo"><block_content>
+<return>return;</return></block_content></block></if></if_stmt>
+<expr_stmt><expr><call><name>assert</name><argument_list>(<argument><expr><name><name>self</name><operator>-&gt;</operator><name>ref_count</name></name> <operator>&gt;</operator> <literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>self</name><operator>-&gt;</operator><name>ref_count</name></name><operator>++</operator></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>assert</name><argument_list>(<argument><expr><name><name>self</name><operator>-&gt;</operator><name>ref_count</name></name> <operator>!=</operator> <literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>stack_node_release</name><parameter_list>(<parameter><decl><type><name>StackNode</name> <modifier>*</modifier></type><name>self</name></decl></parameter>, <parameter><decl><type><name>StackNodeArray</name> <modifier>*</modifier></type><name>pool</name></decl></parameter>, <parameter><decl><type><name>SubtreePool</name> <modifier>*</modifier></type><name>subtree_pool</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<label><name>recur</name>:</label>
+<expr_stmt><expr><call><name>assert</name><argument_list>(<argument><expr><name><name>self</name><operator>-&gt;</operator><name>ref_count</name></name> <operator>!=</operator> <literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>self</name><operator>-&gt;</operator><name>ref_count</name></name><operator>--</operator></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>self</name><operator>-&gt;</operator><name>ref_count</name></name> <operator>&gt;</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content> <return>return;</return></block_content></block></if></if_stmt>
+
+<decl_stmt><decl><type><name>StackNode</name> <modifier>*</modifier></type><name>first_predecessor</name> <init>= <expr><name>NULL</name></expr></init></decl>;</decl_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>self</name><operator>-&gt;</operator><name>link_count</name></name> <operator>&gt;</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+<for>for <control>(<init><decl><type><name>unsigned</name></type> <name>i</name> <init>= <expr><name><name>self</name><operator>-&gt;</operator><name>link_count</name></name> <operator>-</operator> <literal type="number">1</literal></expr></init></decl>;</init> <condition><expr><name>i</name> <operator>&gt;</operator> <literal type="number">0</literal></expr>;</condition> <incr><expr><name>i</name><operator>--</operator></expr></incr>)</control> <block>{<block_content>
+<decl_stmt><decl><type><name>StackLink</name></type> <name>link</name> <init>= <expr><name><name>self</name><operator>-&gt;</operator><name>links</name><index>[<expr><name>i</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>link</name><operator>.</operator><name>subtree</name><operator>.</operator><name>ptr</name></name></expr>)</condition><block type="pseudo"><block_content> <expr_stmt><expr><call><name>ts_subtree_release</name><argument_list>(<argument><expr><name>subtree_pool</name></expr></argument>, <argument><expr><name><name>link</name><operator>.</operator><name>subtree</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+<expr_stmt><expr><call><name>stack_node_release</name><argument_list>(<argument><expr><name><name>link</name><operator>.</operator><name>node</name></name></expr></argument>, <argument><expr><name>pool</name></expr></argument>, <argument><expr><name>subtree_pool</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></for>
+<decl_stmt><decl><type><name>StackLink</name></type> <name>link</name> <init>= <expr><name><name>self</name><operator>-&gt;</operator><name>links</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></init></decl>;</decl_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>link</name><operator>.</operator><name>subtree</name><operator>.</operator><name>ptr</name></name></expr>)</condition><block type="pseudo"><block_content> <expr_stmt><expr><call><name>ts_subtree_release</name><argument_list>(<argument><expr><name>subtree_pool</name></expr></argument>, <argument><expr><name><name>link</name><operator>.</operator><name>subtree</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+<expr_stmt><expr><name>first_predecessor</name> <operator>=</operator> <name><name>self</name><operator>-&gt;</operator><name>links</name><index>[<expr><literal type="number">0</literal></expr>]</index></name><operator>.</operator><name>node</name></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>pool</name><operator>-&gt;</operator><name>size</name></name> <operator>&lt;</operator> <name>MAX_NODE_POOL_SIZE</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>array_push</name><argument_list>(<argument><expr><name>pool</name></expr></argument>, <argument><expr><name>self</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<expr_stmt><expr><call><name>ts_free</name><argument_list>(<argument><expr><name>self</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></else></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>first_predecessor</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name>self</name> <operator>=</operator> <name>first_predecessor</name></expr>;</expr_stmt>
+<goto>goto <name>recur</name>;</goto>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>StackNode</name> <modifier>*</modifier></type><name>stack_node_new</name><parameter_list>(<parameter><decl><type><name>StackNode</name> <modifier>*</modifier></type><name>previous_node</name></decl></parameter>, <parameter><decl><type><name>Subtree</name></type> <name>subtree</name></decl></parameter>,
+<parameter><decl><type><name>bool</name></type> <name>is_pending</name></decl></parameter>, <parameter><decl><type><name>TSStateId</name></type> <name>state</name></decl></parameter>, <parameter><decl><type><name>StackNodeArray</name> <modifier>*</modifier></type><name>pool</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<decl_stmt><decl><type><name>StackNode</name> <modifier>*</modifier></type><name>node</name> <init>= <expr><ternary><condition><expr><name><name>pool</name><operator>-&gt;</operator><name>size</name></name> <operator>&gt;</operator> <literal type="number">0</literal></expr> ?</condition><then>
+<expr><call><name>array_pop</name><argument_list>(<argument><expr><name>pool</name></expr></argument>)</argument_list></call></expr> </then><else>:
+<expr><call><name>ts_malloc</name><argument_list>(<argument><expr><sizeof>sizeof<argument_list>(<argument><expr><name>StackNode</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr></else></ternary></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><operator>*</operator><name>node</name> <operator>=</operator> <operator>(</operator><name>StackNode</name><operator>)</operator><block>{<expr><operator>.</operator><name>ref_count</name> <operator>=</operator> <literal type="number">1</literal></expr>, <expr><operator>.</operator><name>link_count</name> <operator>=</operator> <literal type="number">0</literal></expr>, <expr><operator>.</operator><name>state</name> <operator>=</operator> <name>state</name></expr>}</block></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>previous_node</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name><name>node</name><operator>-&gt;</operator><name>link_count</name></name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>node</name><operator>-&gt;</operator><name>links</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>=</operator> <operator>(</operator><name>StackLink</name><operator>)</operator><block>{
+<expr><operator>.</operator><name>node</name> <operator>=</operator> <name>previous_node</name></expr>,
+<expr><operator>.</operator><name>subtree</name> <operator>=</operator> <name>subtree</name></expr>,
+<expr><operator>.</operator><name>is_pending</name> <operator>=</operator> <name>is_pending</name></expr>,
+}</block></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>node</name><operator>-&gt;</operator><name>position</name></name> <operator>=</operator> <name><name>previous_node</name><operator>-&gt;</operator><name>position</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>node</name><operator>-&gt;</operator><name>error_cost</name></name> <operator>=</operator> <name><name>previous_node</name><operator>-&gt;</operator><name>error_cost</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>node</name><operator>-&gt;</operator><name>dynamic_precedence</name></name> <operator>=</operator> <name><name>previous_node</name><operator>-&gt;</operator><name>dynamic_precedence</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>node</name><operator>-&gt;</operator><name>node_count</name></name> <operator>=</operator> <name><name>previous_node</name><operator>-&gt;</operator><name>node_count</name></name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>subtree</name><operator>.</operator><name>ptr</name></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name><name>node</name><operator>-&gt;</operator><name>error_cost</name></name> <operator>+=</operator> <call><name>ts_subtree_error_cost</name><argument_list>(<argument><expr><name>subtree</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>node</name><operator>-&gt;</operator><name>position</name></name> <operator>=</operator> <call><name>length_add</name><argument_list>(<argument><expr><name><name>node</name><operator>-&gt;</operator><name>position</name></name></expr></argument>, <argument><expr><call><name>ts_subtree_total_size</name><argument_list>(<argument><expr><name>subtree</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>node</name><operator>-&gt;</operator><name>node_count</name></name> <operator>+=</operator> <call><name>ts_subtree_node_count</name><argument_list>(<argument><expr><name>subtree</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>node</name><operator>-&gt;</operator><name>dynamic_precedence</name></name> <operator>+=</operator> <call><name>ts_subtree_dynamic_precedence</name><argument_list>(<argument><expr><name>subtree</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<expr_stmt><expr><name><name>node</name><operator>-&gt;</operator><name>position</name></name> <operator>=</operator> <call><name>length_zero</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>node</name><operator>-&gt;</operator><name>error_cost</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+</block_content>}</block></else></if_stmt>
+
+<return>return <expr><name>node</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>bool</name></type> <name>stack__subtree_is_equivalent</name><parameter_list>(<parameter><decl><type><name>Subtree</name></type> <name>left</name></decl></parameter>, <parameter><decl><type><name>Subtree</name></type> <name>right</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<return>return
+<expr><name><name>left</name><operator>.</operator><name>ptr</name></name> <operator>==</operator> <name><name>right</name><operator>.</operator><name>ptr</name></name> <operator>||</operator>
+<operator>(</operator><name><name>left</name><operator>.</operator><name>ptr</name></name> <operator>&amp;&amp;</operator> <name><name>right</name><operator>.</operator><name>ptr</name></name> <operator>&amp;&amp;</operator>
+<call><name>ts_subtree_symbol</name><argument_list>(<argument><expr><name>left</name></expr></argument>)</argument_list></call> <operator>==</operator> <call><name>ts_subtree_symbol</name><argument_list>(<argument><expr><name>right</name></expr></argument>)</argument_list></call> <operator>&amp;&amp;</operator>
+<operator>(</operator><operator>(</operator><call><name>ts_subtree_error_cost</name><argument_list>(<argument><expr><name>left</name></expr></argument>)</argument_list></call> <operator>&gt;</operator> <literal type="number">0</literal> <operator>&amp;&amp;</operator> <call><name>ts_subtree_error_cost</name><argument_list>(<argument><expr><name>right</name></expr></argument>)</argument_list></call> <operator>&gt;</operator> <literal type="number">0</literal><operator>)</operator> <operator>||</operator>
+<operator>(</operator><call><name>ts_subtree_padding</name><argument_list>(<argument><expr><name>left</name></expr></argument>)</argument_list></call><operator>.</operator><name>bytes</name> <operator>==</operator> <call><name>ts_subtree_padding</name><argument_list>(<argument><expr><name>right</name></expr></argument>)</argument_list></call><operator>.</operator><name>bytes</name> <operator>&amp;&amp;</operator>
+<call><name>ts_subtree_size</name><argument_list>(<argument><expr><name>left</name></expr></argument>)</argument_list></call><operator>.</operator><name>bytes</name> <operator>==</operator> <call><name>ts_subtree_size</name><argument_list>(<argument><expr><name>right</name></expr></argument>)</argument_list></call><operator>.</operator><name>bytes</name> <operator>&amp;&amp;</operator>
+<call><name>ts_subtree_child_count</name><argument_list>(<argument><expr><name>left</name></expr></argument>)</argument_list></call> <operator>==</operator> <call><name>ts_subtree_child_count</name><argument_list>(<argument><expr><name>right</name></expr></argument>)</argument_list></call> <operator>&amp;&amp;</operator>
+<call><name>ts_subtree_extra</name><argument_list>(<argument><expr><name>left</name></expr></argument>)</argument_list></call> <operator>==</operator> <call><name>ts_subtree_extra</name><argument_list>(<argument><expr><name>right</name></expr></argument>)</argument_list></call> <operator>&amp;&amp;</operator>
+<call><name>ts_subtree_external_scanner_state_eq</name><argument_list>(<argument><expr><name>left</name></expr></argument>, <argument><expr><name>right</name></expr></argument>)</argument_list></call><operator>)</operator><operator>)</operator><operator>)</operator></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>stack_node_add_link</name><parameter_list>(<parameter><decl><type><name>StackNode</name> <modifier>*</modifier></type><name>self</name></decl></parameter>, <parameter><decl><type><name>StackLink</name></type> <name>link</name></decl></parameter>, <parameter><decl><type><name>SubtreePool</name> <modifier>*</modifier></type><name>subtree_pool</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name><name>link</name><operator>.</operator><name>node</name></name> <operator>==</operator> <name>self</name></expr>)</condition><block type="pseudo"><block_content> <return>return;</return></block_content></block></if></if_stmt>
+
+<for>for <control>(<init><decl><type><name>int</name></type> <name>i</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name><name>self</name><operator>-&gt;</operator><name>link_count</name></name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<decl_stmt><decl><type><name>StackLink</name> <modifier>*</modifier></type><name>existing_link</name> <init>= <expr><operator>&amp;</operator><name><name>self</name><operator>-&gt;</operator><name>links</name><index>[<expr><name>i</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+<if_stmt><if>if <condition>(<expr><call><name>stack__subtree_is_equivalent</name><argument_list>(<argument><expr><name><name>existing_link</name><operator>-&gt;</operator><name>subtree</name></name></expr></argument>, <argument><expr><name><name>link</name><operator>.</operator><name>subtree</name></name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+
+
+
+<if_stmt><if>if <condition>(<expr><name><name>existing_link</name><operator>-&gt;</operator><name>node</name></name> <operator>==</operator> <name><name>link</name><operator>.</operator><name>node</name></name></expr>)</condition> <block>{<block_content>
+<if_stmt><if>if <condition>(
+<expr><call><name>ts_subtree_dynamic_precedence</name><argument_list>(<argument><expr><name><name>link</name><operator>.</operator><name>subtree</name></name></expr></argument>)</argument_list></call> <operator>&gt;</operator>
+<call><name>ts_subtree_dynamic_precedence</name><argument_list>(<argument><expr><name><name>existing_link</name><operator>-&gt;</operator><name>subtree</name></name></expr></argument>)</argument_list></call></expr>
+)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>ts_subtree_retain</name><argument_list>(<argument><expr><name><name>link</name><operator>.</operator><name>subtree</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ts_subtree_release</name><argument_list>(<argument><expr><name>subtree_pool</name></expr></argument>, <argument><expr><name><name>existing_link</name><operator>-&gt;</operator><name>subtree</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>existing_link</name><operator>-&gt;</operator><name>subtree</name></name> <operator>=</operator> <name><name>link</name><operator>.</operator><name>subtree</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>self</name><operator>-&gt;</operator><name>dynamic_precedence</name></name> <operator>=</operator>
+<name><name>link</name><operator>.</operator><name>node</name><operator>-&gt;</operator><name>dynamic_precedence</name></name> <operator>+</operator> <call><name>ts_subtree_dynamic_precedence</name><argument_list>(<argument><expr><name><name>link</name><operator>.</operator><name>subtree</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+<return>return;</return>
+</block_content>}</block></if></if_stmt>
+
+
+<if_stmt><if>if <condition>(<expr><name><name>existing_link</name><operator>-&gt;</operator><name>node</name><operator>-&gt;</operator><name>state</name></name> <operator>==</operator> <name><name>link</name><operator>.</operator><name>node</name><operator>-&gt;</operator><name>state</name></name> <operator>&amp;&amp;</operator>
+<name><name>existing_link</name><operator>-&gt;</operator><name>node</name><operator>-&gt;</operator><name>position</name><operator>.</operator><name>bytes</name></name> <operator>==</operator> <name><name>link</name><operator>.</operator><name>node</name><operator>-&gt;</operator><name>position</name><operator>.</operator><name>bytes</name></name></expr>)</condition> <block>{<block_content>
+<for>for <control>(<init><decl><type><name>int</name></type> <name>j</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>j</name> <operator>&lt;</operator> <name><name>link</name><operator>.</operator><name>node</name><operator>-&gt;</operator><name>link_count</name></name></expr>;</condition> <incr><expr><name>j</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<expr_stmt><expr><call><name>stack_node_add_link</name><argument_list>(<argument><expr><name><name>existing_link</name><operator>-&gt;</operator><name>node</name></name></expr></argument>, <argument><expr><name><name>link</name><operator>.</operator><name>node</name><operator>-&gt;</operator><name>links</name><index>[<expr><name>j</name></expr>]</index></name></expr></argument>, <argument><expr><name>subtree_pool</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></for>
+<decl_stmt><decl><type><name>int32_t</name></type> <name>dynamic_precedence</name> <init>= <expr><name><name>link</name><operator>.</operator><name>node</name><operator>-&gt;</operator><name>dynamic_precedence</name></name></expr></init></decl>;</decl_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>link</name><operator>.</operator><name>subtree</name><operator>.</operator><name>ptr</name></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name>dynamic_precedence</name> <operator>+=</operator> <call><name>ts_subtree_dynamic_precedence</name><argument_list>(<argument><expr><name><name>link</name><operator>.</operator><name>subtree</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+<if_stmt><if>if <condition>(<expr><name>dynamic_precedence</name> <operator>&gt;</operator> <name><name>self</name><operator>-&gt;</operator><name>dynamic_precedence</name></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name><name>self</name><operator>-&gt;</operator><name>dynamic_precedence</name></name> <operator>=</operator> <name>dynamic_precedence</name></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+<return>return;</return>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block></for>
+
+<if_stmt><if>if <condition>(<expr><name><name>self</name><operator>-&gt;</operator><name>link_count</name></name> <operator>==</operator> <name>MAX_LINK_COUNT</name></expr>)</condition><block type="pseudo"><block_content> <return>return;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>stack_node_retain</name><argument_list>(<argument><expr><name><name>link</name><operator>.</operator><name>node</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<decl_stmt><decl><type><name>unsigned</name></type> <name>node_count</name> <init>= <expr><name><name>link</name><operator>.</operator><name>node</name><operator>-&gt;</operator><name>node_count</name></name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>dynamic_precedence</name> <init>= <expr><name><name>link</name><operator>.</operator><name>node</name><operator>-&gt;</operator><name>dynamic_precedence</name></name></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><name><name>self</name><operator>-&gt;</operator><name>links</name><index>[<expr><name><name>self</name><operator>-&gt;</operator><name>link_count</name></name><operator>++</operator></expr>]</index></name> <operator>=</operator> <name>link</name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>link</name><operator>.</operator><name>subtree</name><operator>.</operator><name>ptr</name></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>ts_subtree_retain</name><argument_list>(<argument><expr><name><name>link</name><operator>.</operator><name>subtree</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>node_count</name> <operator>+=</operator> <call><name>ts_subtree_node_count</name><argument_list>(<argument><expr><name><name>link</name><operator>.</operator><name>subtree</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>dynamic_precedence</name> <operator>+=</operator> <call><name>ts_subtree_dynamic_precedence</name><argument_list>(<argument><expr><name><name>link</name><operator>.</operator><name>subtree</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>node_count</name> <operator>&gt;</operator> <name><name>self</name><operator>-&gt;</operator><name>node_count</name></name></expr>)</condition><block type="pseudo"><block_content> <expr_stmt><expr><name><name>self</name><operator>-&gt;</operator><name>node_count</name></name> <operator>=</operator> <name>node_count</name></expr>;</expr_stmt></block_content></block></if></if_stmt>
+<if_stmt><if>if <condition>(<expr><name>dynamic_precedence</name> <operator>&gt;</operator> <name><name>self</name><operator>-&gt;</operator><name>dynamic_precedence</name></name></expr>)</condition><block type="pseudo"><block_content> <expr_stmt><expr><name><name>self</name><operator>-&gt;</operator><name>dynamic_precedence</name></name> <operator>=</operator> <name>dynamic_precedence</name></expr>;</expr_stmt></block_content></block></if></if_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>stack_head_delete</name><parameter_list>(<parameter><decl><type><name>StackHead</name> <modifier>*</modifier></type><name>self</name></decl></parameter>, <parameter><decl><type><name>StackNodeArray</name> <modifier>*</modifier></type><name>pool</name></decl></parameter>, <parameter><decl><type><name>SubtreePool</name> <modifier>*</modifier></type><name>subtree_pool</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name><name>self</name><operator>-&gt;</operator><name>node</name></name></expr>)</condition> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name><name>self</name><operator>-&gt;</operator><name>last_external_token</name><operator>.</operator><name>ptr</name></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>ts_subtree_release</name><argument_list>(<argument><expr><name>subtree_pool</name></expr></argument>, <argument><expr><name><name>self</name><operator>-&gt;</operator><name>last_external_token</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>self</name><operator>-&gt;</operator><name>summary</name></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>array_delete</name><argument_list>(<argument><expr><name><name>self</name><operator>-&gt;</operator><name>summary</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ts_free</name><argument_list>(<argument><expr><name><name>self</name><operator>-&gt;</operator><name>summary</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+<expr_stmt><expr><call><name>stack_node_release</name><argument_list>(<argument><expr><name><name>self</name><operator>-&gt;</operator><name>node</name></name></expr></argument>, <argument><expr><name>pool</name></expr></argument>, <argument><expr><name>subtree_pool</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>StackVersion</name></type> <name>ts_stack__add_version</name><parameter_list>(<parameter><decl><type><name>Stack</name> <modifier>*</modifier></type><name>self</name></decl></parameter>, <parameter><decl><type><name>StackVersion</name></type> <name>original_version</name></decl></parameter>,
+<parameter><decl><type><name>StackNode</name> <modifier>*</modifier></type><name>node</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<decl_stmt><decl><type><name>StackHead</name></type> <name>head</name> <init>= <expr><block>{
+<expr><operator>.</operator><name>node</name> <operator>=</operator> <name>node</name></expr>,
+<expr><operator>.</operator><name>node_count_at_last_error</name> <operator>=</operator> <name><name>self</name><operator>-&gt;</operator><name>heads</name><operator>.</operator><name>contents</name><index>[<expr><name>original_version</name></expr>]</index></name><operator>.</operator><name>node_count_at_last_error</name></expr>,
+<expr><operator>.</operator><name>last_external_token</name> <operator>=</operator> <name><name>self</name><operator>-&gt;</operator><name>heads</name><operator>.</operator><name>contents</name><index>[<expr><name>original_version</name></expr>]</index></name><operator>.</operator><name>last_external_token</name></expr>,
+<expr><operator>.</operator><name>status</name> <operator>=</operator> <name>StackStatusActive</name></expr>,
+<expr><operator>.</operator><name>lookahead_when_paused</name> <operator>=</operator> <literal type="number">0</literal></expr>,
+}</block></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><call><name>array_push</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>self</name><operator>-&gt;</operator><name>heads</name></name></expr></argument>, <argument><expr><name>head</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>stack_node_retain</name><argument_list>(<argument><expr><name>node</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>head</name><operator>.</operator><name>last_external_token</name><operator>.</operator><name>ptr</name></name></expr>)</condition><block type="pseudo"><block_content> <expr_stmt><expr><call><name>ts_subtree_retain</name><argument_list>(<argument><expr><name><name>head</name><operator>.</operator><name>last_external_token</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+<return>return <expr><operator>(</operator><name>StackVersion</name><operator>)</operator><operator>(</operator><name><name>self</name><operator>-&gt;</operator><name>heads</name><operator>.</operator><name>size</name></name> <operator>-</operator> <literal type="number">1</literal><operator>)</operator></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>ts_stack__add_slice</name><parameter_list>(<parameter><decl><type><name>Stack</name> <modifier>*</modifier></type><name>self</name></decl></parameter>, <parameter><decl><type><name>StackVersion</name></type> <name>original_version</name></decl></parameter>,
+<parameter><decl><type><name>StackNode</name> <modifier>*</modifier></type><name>node</name></decl></parameter>, <parameter><decl><type><name>SubtreeArray</name> <modifier>*</modifier></type><name>subtrees</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<for>for <control>(<init><decl><type><name>uint32_t</name></type> <name>i</name> <init>= <expr><name><name>self</name><operator>-&gt;</operator><name>slices</name><operator>.</operator><name>size</name></name> <operator>-</operator> <literal type="number">1</literal></expr></init></decl>;</init> <condition><expr><name>i</name> <operator>+</operator> <literal type="number">1</literal> <operator>&gt;</operator> <literal type="number">0</literal></expr>;</condition> <incr><expr><name>i</name><operator>--</operator></expr></incr>)</control> <block>{<block_content>
+<decl_stmt><decl><type><name>StackVersion</name></type> <name>version</name> <init>= <expr><name><name>self</name><operator>-&gt;</operator><name>slices</name><operator>.</operator><name>contents</name><index>[<expr><name>i</name></expr>]</index></name><operator>.</operator><name>version</name></expr></init></decl>;</decl_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>self</name><operator>-&gt;</operator><name>heads</name><operator>.</operator><name>contents</name><index>[<expr><name>version</name></expr>]</index></name><operator>.</operator><name>node</name> <operator>==</operator> <name>node</name></expr>)</condition> <block>{<block_content>
+<decl_stmt><decl><type><name>StackSlice</name></type> <name>slice</name> <init>= <expr><block>{<expr><operator>*</operator><name>subtrees</name></expr>, <expr><name>version</name></expr>}</block></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><call><name>array_insert</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>self</name><operator>-&gt;</operator><name>slices</name></name></expr></argument>, <argument><expr><name>i</name> <operator>+</operator> <literal type="number">1</literal></expr></argument>, <argument><expr><name>slice</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return;</return>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block></for>
+
+<decl_stmt><decl><type><name>StackVersion</name></type> <name>version</name> <init>= <expr><call><name>ts_stack__add_version</name><argument_list>(<argument><expr><name>self</name></expr></argument>, <argument><expr><name>original_version</name></expr></argument>, <argument><expr><name>node</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>StackSlice</name></type> <name>slice</name> <init>= <expr><block>{ <expr><operator>*</operator><name>subtrees</name></expr>, <expr><name>version</name></expr> }</block></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><call><name>array_push</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>self</name><operator>-&gt;</operator><name>slices</name></name></expr></argument>, <argument><expr><name>slice</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>inline</specifier> <name>StackSliceArray</name></type> <name>stack__iter</name><parameter_list>(<parameter><decl><type><name>Stack</name> <modifier>*</modifier></type><name>self</name></decl></parameter>, <parameter><decl><type><name>StackVersion</name></type> <name>version</name></decl></parameter>,
+<parameter><decl><type><name>StackCallback</name></type> <name>callback</name></decl></parameter>, <parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>payload</name></decl></parameter>,
+<parameter><decl><type><name>int</name></type> <name>goal_subtree_count</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<expr_stmt><expr><call><name>array_clear</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>self</name><operator>-&gt;</operator><name>slices</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>array_clear</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>self</name><operator>-&gt;</operator><name>iterators</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<decl_stmt><decl><type><name>StackHead</name> <modifier>*</modifier></type><name>head</name> <init>= <expr><call><name>array_get</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>self</name><operator>-&gt;</operator><name>heads</name></name></expr></argument>, <argument><expr><name>version</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>StackIterator</name></type> <name>iterator</name> <init>= <expr><block>{
+<expr><operator>.</operator><name>node</name> <operator>=</operator> <name><name>head</name><operator>-&gt;</operator><name>node</name></name></expr>,
+<expr><operator>.</operator><name>subtrees</name> <operator>=</operator> <call><name>array_new</name><argument_list>()</argument_list></call></expr>,
+<expr><operator>.</operator><name>subtree_count</name> <operator>=</operator> <literal type="number">0</literal></expr>,
+<expr><operator>.</operator><name>is_pending</name> <operator>=</operator> <name>true</name></expr>,
+}</block></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>bool</name></type> <name>include_subtrees</name> <init>= <expr><name>false</name></expr></init></decl>;</decl_stmt>
+<if_stmt><if>if <condition>(<expr><name>goal_subtree_count</name> <operator>&gt;=</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name>include_subtrees</name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>array_reserve</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>iterator</name><operator>.</operator><name>subtrees</name></name></expr></argument>, <argument><expr><name>goal_subtree_count</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>array_push</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>self</name><operator>-&gt;</operator><name>iterators</name></name></expr></argument>, <argument><expr><name>iterator</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<while>while <condition>(<expr><name><name>self</name><operator>-&gt;</operator><name>iterators</name><operator>.</operator><name>size</name></name> <operator>&gt;</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+<for>for <control>(<init><decl><type><name>uint32_t</name></type> <name>i</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>, <decl><type ref="prev"/><name>size</name> <init>= <expr><name><name>self</name><operator>-&gt;</operator><name>iterators</name><operator>.</operator><name>size</name></name></expr></init></decl>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>size</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<decl_stmt><decl><type><name>StackIterator</name> <modifier>*</modifier></type><name>iterator</name> <init>= <expr><operator>&amp;</operator><name><name>self</name><operator>-&gt;</operator><name>iterators</name><operator>.</operator><name>contents</name><index>[<expr><name>i</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>StackNode</name> <modifier>*</modifier></type><name>node</name> <init>= <expr><name><name>iterator</name><operator>-&gt;</operator><name>node</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>StackAction</name></type> <name>action</name> <init>= <expr><call><name>callback</name><argument_list>(<argument><expr><name>payload</name></expr></argument>, <argument><expr><name>iterator</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>bool</name></type> <name>should_pop</name> <init>= <expr><name>action</name> <operator>&amp;</operator> <name>StackActionPop</name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>bool</name></type> <name>should_stop</name> <init>= <expr><name>action</name> <operator>&amp;</operator> <name>StackActionStop</name> <operator>||</operator> <name><name>node</name><operator>-&gt;</operator><name>link_count</name></name> <operator>==</operator> <literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>should_pop</name></expr>)</condition> <block>{<block_content>
+<decl_stmt><decl><type><name>SubtreeArray</name></type> <name>subtrees</name> <init>= <expr><name><name>iterator</name><operator>-&gt;</operator><name>subtrees</name></name></expr></init></decl>;</decl_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>should_stop</name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>ts_subtree_array_copy</name><argument_list>(<argument><expr><name>subtrees</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>subtrees</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+<expr_stmt><expr><call><name>ts_subtree_array_reverse</name><argument_list>(<argument><expr><operator>&amp;</operator><name>subtrees</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ts_stack__add_slice</name><argument_list>(
+<argument><expr><name>self</name></expr></argument>,
+<argument><expr><name>version</name></expr></argument>,
+<argument><expr><name>node</name></expr></argument>,
+<argument><expr><operator>&amp;</operator><name>subtrees</name></expr></argument>
+)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>should_stop</name></expr>)</condition> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>should_pop</name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>ts_subtree_array_delete</name><argument_list>(<argument><expr><name><name>self</name><operator>-&gt;</operator><name>subtree_pool</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>iterator</name><operator>-&gt;</operator><name>subtrees</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+<expr_stmt><expr><call><name>array_erase</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>self</name><operator>-&gt;</operator><name>iterators</name></name></expr></argument>, <argument><expr><name>i</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>i</name><operator>--</operator></expr><operator>,</operator> <expr><name>size</name><operator>--</operator></expr>;</expr_stmt>
+<continue>continue;</continue>
+</block_content>}</block></if></if_stmt>
+
+<for>for <control>(<init><decl><type><name>uint32_t</name></type> <name>j</name> <init>= <expr><literal type="number">1</literal></expr></init></decl>;</init> <condition><expr><name>j</name> <operator>&lt;=</operator> <name><name>node</name><operator>-&gt;</operator><name>link_count</name></name></expr>;</condition> <incr><expr><name>j</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<decl_stmt><decl><type><name>StackIterator</name> <modifier>*</modifier></type><name>next_iterator</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>StackLink</name></type> <name>link</name></decl>;</decl_stmt>
+<if_stmt><if>if <condition>(<expr><name>j</name> <operator>==</operator> <name><name>node</name><operator>-&gt;</operator><name>link_count</name></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name>link</name> <operator>=</operator> <name><name>node</name><operator>-&gt;</operator><name>links</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr>;</expr_stmt>
+<expr_stmt><expr><name>next_iterator</name> <operator>=</operator> <operator>&amp;</operator><name><name>self</name><operator>-&gt;</operator><name>iterators</name><operator>.</operator><name>contents</name><index>[<expr><name>i</name></expr>]</index></name></expr>;</expr_stmt>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name><name>self</name><operator>-&gt;</operator><name>iterators</name><operator>.</operator><name>size</name></name> <operator>&gt;=</operator> <name>MAX_ITERATOR_COUNT</name></expr>)</condition><block type="pseudo"><block_content> <continue>continue;</continue></block_content></block></if></if_stmt>
+<expr_stmt><expr><name>link</name> <operator>=</operator> <name><name>node</name><operator>-&gt;</operator><name>links</name><index>[<expr><name>j</name></expr>]</index></name></expr>;</expr_stmt>
+<decl_stmt><decl><type><name>StackIterator</name></type> <name>current_iterator</name> <init>= <expr><name><name>self</name><operator>-&gt;</operator><name>iterators</name><operator>.</operator><name>contents</name><index>[<expr><name>i</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><call><name>array_push</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>self</name><operator>-&gt;</operator><name>iterators</name></name></expr></argument>, <argument><expr><name>current_iterator</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>next_iterator</name> <operator>=</operator> <call><name>array_back</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>self</name><operator>-&gt;</operator><name>iterators</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ts_subtree_array_copy</name><argument_list>(<argument><expr><name><name>next_iterator</name><operator>-&gt;</operator><name>subtrees</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>next_iterator</name><operator>-&gt;</operator><name>subtrees</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></else></if_stmt>
+
+<expr_stmt><expr><name><name>next_iterator</name><operator>-&gt;</operator><name>node</name></name> <operator>=</operator> <name><name>link</name><operator>.</operator><name>node</name></name></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>link</name><operator>.</operator><name>subtree</name><operator>.</operator><name>ptr</name></name></expr>)</condition> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name>include_subtrees</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>array_push</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>next_iterator</name><operator>-&gt;</operator><name>subtrees</name></name></expr></argument>, <argument><expr><name><name>link</name><operator>.</operator><name>subtree</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ts_subtree_retain</name><argument_list>(<argument><expr><name><name>link</name><operator>.</operator><name>subtree</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>ts_subtree_extra</name><argument_list>(<argument><expr><name><name>link</name><operator>.</operator><name>subtree</name></name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name><name>next_iterator</name><operator>-&gt;</operator><name>subtree_count</name></name><operator>++</operator></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>link</name><operator>.</operator><name>is_pending</name></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name><name>next_iterator</name><operator>-&gt;</operator><name>is_pending</name></name> <operator>=</operator> <name>false</name></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<expr_stmt><expr><name><name>next_iterator</name><operator>-&gt;</operator><name>subtree_count</name></name><operator>++</operator></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>next_iterator</name><operator>-&gt;</operator><name>is_pending</name></name> <operator>=</operator> <name>false</name></expr>;</expr_stmt>
+</block_content>}</block></else></if_stmt>
+</block_content>}</block></for>
+</block_content>}</block></for>
+</block_content>}</block></while>
+
+<return>return <expr><name><name>self</name><operator>-&gt;</operator><name>slices</name></name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><name>Stack</name> <modifier>*</modifier></type><name>ts_stack_new</name><parameter_list>(<parameter><decl><type><name>SubtreePool</name> <modifier>*</modifier></type><name>subtree_pool</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<decl_stmt><decl><type><name>Stack</name> <modifier>*</modifier></type><name>self</name> <init>= <expr><call><name>ts_calloc</name><argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr><name>Stack</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>array_init</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>self</name><operator>-&gt;</operator><name>heads</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>array_init</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>self</name><operator>-&gt;</operator><name>slices</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>array_init</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>self</name><operator>-&gt;</operator><name>iterators</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>array_init</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>self</name><operator>-&gt;</operator><name>node_pool</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>array_reserve</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>self</name><operator>-&gt;</operator><name>heads</name></name></expr></argument>, <argument><expr><literal type="number">4</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>array_reserve</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>self</name><operator>-&gt;</operator><name>slices</name></name></expr></argument>, <argument><expr><literal type="number">4</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>array_reserve</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>self</name><operator>-&gt;</operator><name>iterators</name></name></expr></argument>, <argument><expr><literal type="number">4</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>array_reserve</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>self</name><operator>-&gt;</operator><name>node_pool</name></name></expr></argument>, <argument><expr><name>MAX_NODE_POOL_SIZE</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>self</name><operator>-&gt;</operator><name>subtree_pool</name></name> <operator>=</operator> <name>subtree_pool</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>self</name><operator>-&gt;</operator><name>base_node</name></name> <operator>=</operator> <call><name>stack_node_new</name><argument_list>(<argument><expr><name>NULL</name></expr></argument>, <argument><expr><name>NULL_SUBTREE</name></expr></argument>, <argument><expr><name>false</name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>self</name><operator>-&gt;</operator><name>node_pool</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ts_stack_clear</name><argument_list>(<argument><expr><name>self</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>self</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><name>void</name></type> <name>ts_stack_delete</name><parameter_list>(<parameter><decl><type><name>Stack</name> <modifier>*</modifier></type><name>self</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name><name>self</name><operator>-&gt;</operator><name>slices</name><operator>.</operator><name>contents</name></name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>array_delete</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>self</name><operator>-&gt;</operator><name>slices</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>self</name><operator>-&gt;</operator><name>iterators</name><operator>.</operator><name>contents</name></name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>array_delete</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>self</name><operator>-&gt;</operator><name>iterators</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+<expr_stmt><expr><call><name>stack_node_release</name><argument_list>(<argument><expr><name><name>self</name><operator>-&gt;</operator><name>base_node</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>self</name><operator>-&gt;</operator><name>node_pool</name></name></expr></argument>, <argument><expr><name><name>self</name><operator>-&gt;</operator><name>subtree_pool</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<for>for <control>(<init><decl><type><name>uint32_t</name></type> <name>i</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name><name>self</name><operator>-&gt;</operator><name>heads</name><operator>.</operator><name>size</name></name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<expr_stmt><expr><call><name>stack_head_delete</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>self</name><operator>-&gt;</operator><name>heads</name><operator>.</operator><name>contents</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>self</name><operator>-&gt;</operator><name>node_pool</name></name></expr></argument>, <argument><expr><name><name>self</name><operator>-&gt;</operator><name>subtree_pool</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></for>
+<expr_stmt><expr><call><name>array_clear</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>self</name><operator>-&gt;</operator><name>heads</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>self</name><operator>-&gt;</operator><name>node_pool</name><operator>.</operator><name>contents</name></name></expr>)</condition> <block>{<block_content>
+<for>for <control>(<init><decl><type><name>uint32_t</name></type> <name>i</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name><name>self</name><operator>-&gt;</operator><name>node_pool</name><operator>.</operator><name>size</name></name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>ts_free</name><argument_list>(<argument><expr><name><name>self</name><operator>-&gt;</operator><name>node_pool</name><operator>.</operator><name>contents</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></for>
+<expr_stmt><expr><call><name>array_delete</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>self</name><operator>-&gt;</operator><name>node_pool</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+<expr_stmt><expr><call><name>array_delete</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>self</name><operator>-&gt;</operator><name>heads</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ts_free</name><argument_list>(<argument><expr><name>self</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><name>uint32_t</name></type> <name>ts_stack_version_count</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name>Stack</name> <modifier>*</modifier></type><name>self</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<return>return <expr><name><name>self</name><operator>-&gt;</operator><name>heads</name><operator>.</operator><name>size</name></name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><name>TSStateId</name></type> <name>ts_stack_state</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name>Stack</name> <modifier>*</modifier></type><name>self</name></decl></parameter>, <parameter><decl><type><name>StackVersion</name></type> <name>version</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<return>return <expr><call><name>array_get</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>self</name><operator>-&gt;</operator><name>heads</name></name></expr></argument>, <argument><expr><name>version</name></expr></argument>)</argument_list></call><operator>-&gt;</operator><name><name>node</name><operator>-&gt;</operator><name>state</name></name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><name>Length</name></type> <name>ts_stack_position</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name>Stack</name> <modifier>*</modifier></type><name>self</name></decl></parameter>, <parameter><decl><type><name>StackVersion</name></type> <name>version</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<return>return <expr><call><name>array_get</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>self</name><operator>-&gt;</operator><name>heads</name></name></expr></argument>, <argument><expr><name>version</name></expr></argument>)</argument_list></call><operator>-&gt;</operator><name><name>node</name><operator>-&gt;</operator><name>position</name></name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><name>Subtree</name></type> <name>ts_stack_last_external_token</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name>Stack</name> <modifier>*</modifier></type><name>self</name></decl></parameter>, <parameter><decl><type><name>StackVersion</name></type> <name>version</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<return>return <expr><call><name>array_get</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>self</name><operator>-&gt;</operator><name>heads</name></name></expr></argument>, <argument><expr><name>version</name></expr></argument>)</argument_list></call><operator>-&gt;</operator><name>last_external_token</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><name>void</name></type> <name>ts_stack_set_last_external_token</name><parameter_list>(<parameter><decl><type><name>Stack</name> <modifier>*</modifier></type><name>self</name></decl></parameter>, <parameter><decl><type><name>StackVersion</name></type> <name>version</name></decl></parameter>, <parameter><decl><type><name>Subtree</name></type> <name>token</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<decl_stmt><decl><type><name>StackHead</name> <modifier>*</modifier></type><name>head</name> <init>= <expr><call><name>array_get</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>self</name><operator>-&gt;</operator><name>heads</name></name></expr></argument>, <argument><expr><name>version</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>token</name><operator>.</operator><name>ptr</name></name></expr>)</condition><block type="pseudo"><block_content> <expr_stmt><expr><call><name>ts_subtree_retain</name><argument_list>(<argument><expr><name>token</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>head</name><operator>-&gt;</operator><name>last_external_token</name><operator>.</operator><name>ptr</name></name></expr>)</condition><block type="pseudo"><block_content> <expr_stmt><expr><call><name>ts_subtree_release</name><argument_list>(<argument><expr><name><name>self</name><operator>-&gt;</operator><name>subtree_pool</name></name></expr></argument>, <argument><expr><name><name>head</name><operator>-&gt;</operator><name>last_external_token</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+<expr_stmt><expr><name><name>head</name><operator>-&gt;</operator><name>last_external_token</name></name> <operator>=</operator> <name>token</name></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><name>unsigned</name></type> <name>ts_stack_error_cost</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name>Stack</name> <modifier>*</modifier></type><name>self</name></decl></parameter>, <parameter><decl><type><name>StackVersion</name></type> <name>version</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<decl_stmt><decl><type><name>StackHead</name> <modifier>*</modifier></type><name>head</name> <init>= <expr><call><name>array_get</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>self</name><operator>-&gt;</operator><name>heads</name></name></expr></argument>, <argument><expr><name>version</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>unsigned</name></type> <name>result</name> <init>= <expr><name><name>head</name><operator>-&gt;</operator><name>node</name><operator>-&gt;</operator><name>error_cost</name></name></expr></init></decl>;</decl_stmt>
+<if_stmt><if>if <condition>(
+<expr><name><name>head</name><operator>-&gt;</operator><name>status</name></name> <operator>==</operator> <name>StackStatusPaused</name> <operator>||</operator>
+<operator>(</operator><name><name>head</name><operator>-&gt;</operator><name>node</name><operator>-&gt;</operator><name>state</name></name> <operator>==</operator> <name>ERROR_STATE</name> <operator>&amp;&amp;</operator> <operator>!</operator><name><name>head</name><operator>-&gt;</operator><name>node</name><operator>-&gt;</operator><name>links</name><index>[<expr><literal type="number">0</literal></expr>]</index></name><operator>.</operator><name><name>subtree</name><operator>.</operator><name>ptr</name></name><operator>)</operator></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name>result</name> <operator>+=</operator> <name>ERROR_COST_PER_RECOVERY</name></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+<return>return <expr><name>result</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><name>unsigned</name></type> <name>ts_stack_node_count_since_error</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name>Stack</name> <modifier>*</modifier></type><name>self</name></decl></parameter>, <parameter><decl><type><name>StackVersion</name></type> <name>version</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<decl_stmt><decl><type><name>StackHead</name> <modifier>*</modifier></type><name>head</name> <init>= <expr><call><name>array_get</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>self</name><operator>-&gt;</operator><name>heads</name></name></expr></argument>, <argument><expr><name>version</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>head</name><operator>-&gt;</operator><name>node</name><operator>-&gt;</operator><name>node_count</name></name> <operator>&lt;</operator> <name><name>head</name><operator>-&gt;</operator><name>node_count_at_last_error</name></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name><name>head</name><operator>-&gt;</operator><name>node_count_at_last_error</name></name> <operator>=</operator> <name><name>head</name><operator>-&gt;</operator><name>node</name><operator>-&gt;</operator><name>node_count</name></name></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+<return>return <expr><name><name>head</name><operator>-&gt;</operator><name>node</name><operator>-&gt;</operator><name>node_count</name></name> <operator>-</operator> <name><name>head</name><operator>-&gt;</operator><name>node_count_at_last_error</name></name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><name>void</name></type> <name>ts_stack_push</name><parameter_list>(<parameter><decl><type><name>Stack</name> <modifier>*</modifier></type><name>self</name></decl></parameter>, <parameter><decl><type><name>StackVersion</name></type> <name>version</name></decl></parameter>, <parameter><decl><type><name>Subtree</name></type> <name>subtree</name></decl></parameter>,
+<parameter><decl><type><name>bool</name></type> <name>pending</name></decl></parameter>, <parameter><decl><type><name>TSStateId</name></type> <name>state</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<decl_stmt><decl><type><name>StackHead</name> <modifier>*</modifier></type><name>head</name> <init>= <expr><call><name>array_get</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>self</name><operator>-&gt;</operator><name>heads</name></name></expr></argument>, <argument><expr><name>version</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>StackNode</name> <modifier>*</modifier></type><name>new_node</name> <init>= <expr><call><name>stack_node_new</name><argument_list>(<argument><expr><name><name>head</name><operator>-&gt;</operator><name>node</name></name></expr></argument>, <argument><expr><name>subtree</name></expr></argument>, <argument><expr><name>pending</name></expr></argument>, <argument><expr><name>state</name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>self</name><operator>-&gt;</operator><name>node_pool</name></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>subtree</name><operator>.</operator><name>ptr</name></name></expr>)</condition><block type="pseudo"><block_content> <expr_stmt><expr><name><name>head</name><operator>-&gt;</operator><name>node_count_at_last_error</name></name> <operator>=</operator> <name><name>new_node</name><operator>-&gt;</operator><name>node_count</name></name></expr>;</expr_stmt></block_content></block></if></if_stmt>
+<expr_stmt><expr><name><name>head</name><operator>-&gt;</operator><name>node</name></name> <operator>=</operator> <name>new_node</name></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>inline</specifier> <name>StackAction</name></type> <name>iterate_callback</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>payload</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>StackIterator</name> <modifier>*</modifier></type><name>iterator</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<decl_stmt><decl><type><name>StackIterateSession</name> <modifier>*</modifier></type><name>session</name> <init>= <expr><name>payload</name></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><call><name><name>session</name><operator>-&gt;</operator><name>callback</name></name><argument_list>(
+<argument><expr><name><name>session</name><operator>-&gt;</operator><name>payload</name></name></expr></argument>,
+<argument><expr><name><name>iterator</name><operator>-&gt;</operator><name>node</name><operator>-&gt;</operator><name>state</name></name></expr></argument>,
+<argument><expr><name><name>iterator</name><operator>-&gt;</operator><name>subtree_count</name></name></expr></argument>
+)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>StackActionNone</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><name>void</name></type> <name>ts_stack_iterate</name><parameter_list>(<parameter><decl><type><name>Stack</name> <modifier>*</modifier></type><name>self</name></decl></parameter>, <parameter><decl><type><name>StackVersion</name></type> <name>version</name></decl></parameter>,
+<parameter><decl><type><name>StackIterateCallback</name></type> <name>callback</name></decl></parameter>, <parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>payload</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<decl_stmt><decl><type><name>StackIterateSession</name></type> <name>session</name> <init>= <expr><block>{<expr><name>payload</name></expr>, <expr><name>callback</name></expr>}</block></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><call><name>stack__iter</name><argument_list>(<argument><expr><name>self</name></expr></argument>, <argument><expr><name>version</name></expr></argument>, <argument><expr><name>iterate_callback</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>session</name></expr></argument>, <argument><expr><operator>-</operator><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>inline</specifier> <name>StackAction</name></type> <name>pop_count_callback</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>payload</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>StackIterator</name> <modifier>*</modifier></type><name>iterator</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<decl_stmt><decl><type><name>unsigned</name> <modifier>*</modifier></type><name>goal_subtree_count</name> <init>= <expr><name>payload</name></expr></init></decl>;</decl_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>iterator</name><operator>-&gt;</operator><name>subtree_count</name></name> <operator>==</operator> <operator>*</operator><name>goal_subtree_count</name></expr>)</condition> <block>{<block_content>
+<return>return <expr><name>StackActionPop</name> <operator>|</operator> <name>StackActionStop</name></expr>;</return>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<return>return <expr><name>StackActionNone</name></expr>;</return>
+</block_content>}</block></else></if_stmt>
+</block_content>}</block></function>
+
+<function><type><name>StackSliceArray</name></type> <name>ts_stack_pop_count</name><parameter_list>(<parameter><decl><type><name>Stack</name> <modifier>*</modifier></type><name>self</name></decl></parameter>, <parameter><decl><type><name>StackVersion</name></type> <name>version</name></decl></parameter>, <parameter><decl><type><name>uint32_t</name></type> <name>count</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<return>return <expr><call><name>stack__iter</name><argument_list>(<argument><expr><name>self</name></expr></argument>, <argument><expr><name>version</name></expr></argument>, <argument><expr><name>pop_count_callback</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>count</name></expr></argument>, <argument><expr><name>count</name></expr></argument>)</argument_list></call></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>inline</specifier> <name>StackAction</name></type> <name>pop_pending_callback</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>payload</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>StackIterator</name> <modifier>*</modifier></type><name>iterator</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name><name>iterator</name><operator>-&gt;</operator><name>subtree_count</name></name> <operator>&gt;=</operator> <literal type="number">1</literal></expr>)</condition> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name><name>iterator</name><operator>-&gt;</operator><name>is_pending</name></name></expr>)</condition> <block>{<block_content>
+<return>return <expr><name>StackActionPop</name> <operator>|</operator> <name>StackActionStop</name></expr>;</return>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<return>return <expr><name>StackActionStop</name></expr>;</return>
+</block_content>}</block></else></if_stmt>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<return>return <expr><name>StackActionNone</name></expr>;</return>
+</block_content>}</block></else></if_stmt>
+</block_content>}</block></function>
+
+<function><type><name>StackSliceArray</name></type> <name>ts_stack_pop_pending</name><parameter_list>(<parameter><decl><type><name>Stack</name> <modifier>*</modifier></type><name>self</name></decl></parameter>, <parameter><decl><type><name>StackVersion</name></type> <name>version</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<decl_stmt><decl><type><name>StackSliceArray</name></type> <name>pop</name> <init>= <expr><call><name>stack__iter</name><argument_list>(<argument><expr><name>self</name></expr></argument>, <argument><expr><name>version</name></expr></argument>, <argument><expr><name>pop_pending_callback</name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>pop</name><operator>.</operator><name>size</name></name> <operator>&gt;</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>ts_stack_renumber_version</name><argument_list>(<argument><expr><name>self</name></expr></argument>, <argument><expr><name><name>pop</name><operator>.</operator><name>contents</name><index>[<expr><literal type="number">0</literal></expr>]</index></name><operator>.</operator><name>version</name></expr></argument>, <argument><expr><name>version</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>pop</name><operator>.</operator><name>contents</name><index>[<expr><literal type="number">0</literal></expr>]</index></name><operator>.</operator><name>version</name> <operator>=</operator> <name>version</name></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+<return>return <expr><name>pop</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>inline</specifier> <name>StackAction</name></type> <name>pop_error_callback</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>payload</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>StackIterator</name> <modifier>*</modifier></type><name>iterator</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name><name>iterator</name><operator>-&gt;</operator><name>subtrees</name><operator>.</operator><name>size</name></name> <operator>&gt;</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+<decl_stmt><decl><type><name>bool</name> <modifier>*</modifier></type><name>found_error</name> <init>= <expr><name>payload</name></expr></init></decl>;</decl_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><operator>*</operator><name>found_error</name> <operator>&amp;&amp;</operator> <call><name>ts_subtree_is_error</name><argument_list>(<argument><expr><name><name>iterator</name><operator>-&gt;</operator><name>subtrees</name><operator>.</operator><name>contents</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><operator>*</operator><name>found_error</name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+<return>return <expr><name>StackActionPop</name> <operator>|</operator> <name>StackActionStop</name></expr>;</return>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<return>return <expr><name>StackActionStop</name></expr>;</return>
+</block_content>}</block></else></if_stmt>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<return>return <expr><name>StackActionNone</name></expr>;</return>
+</block_content>}</block></else></if_stmt>
+</block_content>}</block></function>
+
+<function><type><name>SubtreeArray</name></type> <name>ts_stack_pop_error</name><parameter_list>(<parameter><decl><type><name>Stack</name> <modifier>*</modifier></type><name>self</name></decl></parameter>, <parameter><decl><type><name>StackVersion</name></type> <name>version</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<decl_stmt><decl><type><name>StackNode</name> <modifier>*</modifier></type><name>node</name> <init>= <expr><call><name>array_get</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>self</name><operator>-&gt;</operator><name>heads</name></name></expr></argument>, <argument><expr><name>version</name></expr></argument>)</argument_list></call><operator>-&gt;</operator><name>node</name></expr></init></decl>;</decl_stmt>
+<for>for <control>(<init><decl><type><name>unsigned</name></type> <name>i</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name><name>node</name><operator>-&gt;</operator><name>link_count</name></name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name><name>node</name><operator>-&gt;</operator><name>links</name><index>[<expr><name>i</name></expr>]</index></name><operator>.</operator><name><name>subtree</name><operator>.</operator><name>ptr</name></name> <operator>&amp;&amp;</operator> <call><name>ts_subtree_is_error</name><argument_list>(<argument><expr><name><name>node</name><operator>-&gt;</operator><name>links</name><index>[<expr><name>i</name></expr>]</index></name><operator>.</operator><name>subtree</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+<decl_stmt><decl><type><name>bool</name></type> <name>found_error</name> <init>= <expr><name>false</name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>StackSliceArray</name></type> <name>pop</name> <init>= <expr><call><name>stack__iter</name><argument_list>(<argument><expr><name>self</name></expr></argument>, <argument><expr><name>version</name></expr></argument>, <argument><expr><name>pop_error_callback</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>found_error</name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>pop</name><operator>.</operator><name>size</name></name> <operator>&gt;</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>assert</name><argument_list>(<argument><expr><name><name>pop</name><operator>.</operator><name>size</name></name> <operator>==</operator> <literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ts_stack_renumber_version</name><argument_list>(<argument><expr><name>self</name></expr></argument>, <argument><expr><name><name>pop</name><operator>.</operator><name>contents</name><index>[<expr><literal type="number">0</literal></expr>]</index></name><operator>.</operator><name>version</name></expr></argument>, <argument><expr><name>version</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name><name>pop</name><operator>.</operator><name>contents</name><index>[<expr><literal type="number">0</literal></expr>]</index></name><operator>.</operator><name>subtrees</name></expr>;</return>
+</block_content>}</block></if></if_stmt>
+<break>break;</break>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block></for>
+<return>return <expr><operator>(</operator><name>SubtreeArray</name><operator>)</operator><block>{<expr><operator>.</operator><name>size</name> <operator>=</operator> <literal type="number">0</literal></expr>}</block></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>inline</specifier> <name>StackAction</name></type> <name>pop_all_callback</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>payload</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>StackIterator</name> <modifier>*</modifier></type><name>iterator</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<return>return <expr><ternary><condition><expr><name><name>iterator</name><operator>-&gt;</operator><name>node</name><operator>-&gt;</operator><name>link_count</name></name> <operator>==</operator> <literal type="number">0</literal></expr> ?</condition><then> <expr><name>StackActionPop</name></expr> </then><else>: <expr><name>StackActionNone</name></expr></else></ternary></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><name>StackSliceArray</name></type> <name>ts_stack_pop_all</name><parameter_list>(<parameter><decl><type><name>Stack</name> <modifier>*</modifier></type><name>self</name></decl></parameter>, <parameter><decl><type><name>StackVersion</name></type> <name>version</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<return>return <expr><call><name>stack__iter</name><argument_list>(<argument><expr><name>self</name></expr></argument>, <argument><expr><name>version</name></expr></argument>, <argument><expr><name>pop_all_callback</name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</return>
+</block_content>}</block></function>
+
+<typedef>typedef <type><struct>struct <block>{
+<decl_stmt><decl><type><name>StackSummary</name> <modifier>*</modifier></type><name>summary</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>unsigned</name></type> <name>max_depth</name></decl>;</decl_stmt>
+}</block></struct></type> <name>SummarizeStackSession</name>;</typedef>
+
+<function><type><specifier>inline</specifier> <name>StackAction</name></type> <name>summarize_stack_callback</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>payload</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>StackIterator</name> <modifier>*</modifier></type><name>iterator</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<decl_stmt><decl><type><name>SummarizeStackSession</name> <modifier>*</modifier></type><name>session</name> <init>= <expr><name>payload</name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>TSStateId</name></type> <name>state</name> <init>= <expr><name><name>iterator</name><operator>-&gt;</operator><name>node</name><operator>-&gt;</operator><name>state</name></name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>unsigned</name></type> <name>depth</name> <init>= <expr><name><name>iterator</name><operator>-&gt;</operator><name>subtree_count</name></name></expr></init></decl>;</decl_stmt>
+<if_stmt><if>if <condition>(<expr><name>depth</name> <operator>&gt;</operator> <name><name>session</name><operator>-&gt;</operator><name>max_depth</name></name></expr>)</condition><block type="pseudo"><block_content> <return>return <expr><name>StackActionStop</name></expr>;</return></block_content></block></if></if_stmt>
+<for>for <control>(<init><decl><type><name>unsigned</name></type> <name>i</name> <init>= <expr><name><name>session</name><operator>-&gt;</operator><name>summary</name><operator>-&gt;</operator><name>size</name></name> <operator>-</operator> <literal type="number">1</literal></expr></init></decl>;</init> <condition><expr><name>i</name> <operator>+</operator> <literal type="number">1</literal> <operator>&gt;</operator> <literal type="number">0</literal></expr>;</condition> <incr><expr><name>i</name><operator>--</operator></expr></incr>)</control> <block>{<block_content>
+<decl_stmt><decl><type><name>StackSummaryEntry</name></type> <name>entry</name> <init>= <expr><name><name>session</name><operator>-&gt;</operator><name>summary</name><operator>-&gt;</operator><name>contents</name><index>[<expr><name>i</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>entry</name><operator>.</operator><name>depth</name></name> <operator>&lt;</operator> <name>depth</name></expr>)</condition><block type="pseudo"><block_content> <break>break;</break></block_content></block></if></if_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>entry</name><operator>.</operator><name>depth</name></name> <operator>==</operator> <name>depth</name> <operator>&amp;&amp;</operator> <name><name>entry</name><operator>.</operator><name>state</name></name> <operator>==</operator> <name>state</name></expr>)</condition><block type="pseudo"><block_content> <return>return <expr><name>StackActionNone</name></expr>;</return></block_content></block></if></if_stmt>
+</block_content>}</block></for>
+<macro><name>array_push</name><argument_list>(<argument>session-&gt;summary</argument>, <argument>((StackSummaryEntry){
+.position = iterator-&gt;node-&gt;position,
+.depth = depth,
+.state = state,
+})</argument>)</argument_list></macro><empty_stmt>;</empty_stmt>
+<return>return <expr><name>StackActionNone</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><name>void</name></type> <name>ts_stack_record_summary</name><parameter_list>(<parameter><decl><type><name>Stack</name> <modifier>*</modifier></type><name>self</name></decl></parameter>, <parameter><decl><type><name>StackVersion</name></type> <name>version</name></decl></parameter>, <parameter><decl><type><name>unsigned</name></type> <name>max_depth</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<decl_stmt><decl><type><name>SummarizeStackSession</name></type> <name>session</name> <init>= <expr><block>{
+<expr><operator>.</operator><name>summary</name> <operator>=</operator> <call><name>ts_malloc</name><argument_list>(<argument><expr><sizeof>sizeof<argument_list>(<argument><expr><name>StackSummary</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>,
+<expr><operator>.</operator><name>max_depth</name> <operator>=</operator> <name>max_depth</name></expr>
+}</block></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><call><name>array_init</name><argument_list>(<argument><expr><name><name>session</name><operator>.</operator><name>summary</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>stack__iter</name><argument_list>(<argument><expr><name>self</name></expr></argument>, <argument><expr><name>version</name></expr></argument>, <argument><expr><name>summarize_stack_callback</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>session</name></expr></argument>, <argument><expr><operator>-</operator><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>self</name><operator>-&gt;</operator><name>heads</name><operator>.</operator><name>contents</name><index>[<expr><name>version</name></expr>]</index></name><operator>.</operator><name>summary</name> <operator>=</operator> <name><name>session</name><operator>.</operator><name>summary</name></name></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><name>StackSummary</name> <modifier>*</modifier></type><name>ts_stack_get_summary</name><parameter_list>(<parameter><decl><type><name>Stack</name> <modifier>*</modifier></type><name>self</name></decl></parameter>, <parameter><decl><type><name>StackVersion</name></type> <name>version</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<return>return <expr><call><name>array_get</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>self</name><operator>-&gt;</operator><name>heads</name></name></expr></argument>, <argument><expr><name>version</name></expr></argument>)</argument_list></call><operator>-&gt;</operator><name>summary</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><name>int</name></type> <name>ts_stack_dynamic_precedence</name><parameter_list>(<parameter><decl><type><name>Stack</name> <modifier>*</modifier></type><name>self</name></decl></parameter>, <parameter><decl><type><name>StackVersion</name></type> <name>version</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<return>return <expr><call><name>array_get</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>self</name><operator>-&gt;</operator><name>heads</name></name></expr></argument>, <argument><expr><name>version</name></expr></argument>)</argument_list></call><operator>-&gt;</operator><name><name>node</name><operator>-&gt;</operator><name>dynamic_precedence</name></name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><name>bool</name></type> <name>ts_stack_has_advanced_since_error</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name>Stack</name> <modifier>*</modifier></type><name>self</name></decl></parameter>, <parameter><decl><type><name>StackVersion</name></type> <name>version</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<decl_stmt><decl><type><specifier>const</specifier> <name>StackHead</name> <modifier>*</modifier></type><name>head</name> <init>= <expr><call><name>array_get</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>self</name><operator>-&gt;</operator><name>heads</name></name></expr></argument>, <argument><expr><name>version</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><specifier>const</specifier> <name>StackNode</name> <modifier>*</modifier></type><name>node</name> <init>= <expr><name><name>head</name><operator>-&gt;</operator><name>node</name></name></expr></init></decl>;</decl_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>node</name><operator>-&gt;</operator><name>error_cost</name></name> <operator>==</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content> <return>return <expr><name>true</name></expr>;</return></block_content></block></if></if_stmt>
+<while>while <condition>(<expr><name>node</name></expr>)</condition> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name><name>node</name><operator>-&gt;</operator><name>link_count</name></name> <operator>&gt;</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+<decl_stmt><decl><type><name>Subtree</name></type> <name>subtree</name> <init>= <expr><name><name>node</name><operator>-&gt;</operator><name>links</name><index>[<expr><literal type="number">0</literal></expr>]</index></name><operator>.</operator><name>subtree</name></expr></init></decl>;</decl_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>subtree</name><operator>.</operator><name>ptr</name></name></expr>)</condition> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><call><name>ts_subtree_total_bytes</name><argument_list>(<argument><expr><name>subtree</name></expr></argument>)</argument_list></call> <operator>&gt;</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+<return>return <expr><name>true</name></expr>;</return>
+</block_content>}</block></if> <if type="elseif">else if <condition>(
+<expr><name><name>node</name><operator>-&gt;</operator><name>node_count</name></name> <operator>&gt;</operator> <name><name>head</name><operator>-&gt;</operator><name>node_count_at_last_error</name></name> <operator>&amp;&amp;</operator>
+<call><name>ts_subtree_error_cost</name><argument_list>(<argument><expr><name>subtree</name></expr></argument>)</argument_list></call> <operator>==</operator> <literal type="number">0</literal></expr>
+)</condition> <block>{<block_content>
+<expr_stmt><expr><name>node</name> <operator>=</operator> <name><name>node</name><operator>-&gt;</operator><name>links</name><index>[<expr><literal type="number">0</literal></expr>]</index></name><operator>.</operator><name>node</name></expr>;</expr_stmt>
+<continue>continue;</continue>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block></if></if_stmt>
+<break>break;</break>
+</block_content>}</block></while>
+<return>return <expr><name>false</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><name>void</name></type> <name>ts_stack_remove_version</name><parameter_list>(<parameter><decl><type><name>Stack</name> <modifier>*</modifier></type><name>self</name></decl></parameter>, <parameter><decl><type><name>StackVersion</name></type> <name>version</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<expr_stmt><expr><call><name>stack_head_delete</name><argument_list>(<argument><expr><call><name>array_get</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>self</name><operator>-&gt;</operator><name>heads</name></name></expr></argument>, <argument><expr><name>version</name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>self</name><operator>-&gt;</operator><name>node_pool</name></name></expr></argument>, <argument><expr><name><name>self</name><operator>-&gt;</operator><name>subtree_pool</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>array_erase</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>self</name><operator>-&gt;</operator><name>heads</name></name></expr></argument>, <argument><expr><name>version</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><name>void</name></type> <name>ts_stack_renumber_version</name><parameter_list>(<parameter><decl><type><name>Stack</name> <modifier>*</modifier></type><name>self</name></decl></parameter>, <parameter><decl><type><name>StackVersion</name></type> <name>v1</name></decl></parameter>, <parameter><decl><type><name>StackVersion</name></type> <name>v2</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name>v1</name> <operator>==</operator> <name>v2</name></expr>)</condition><block type="pseudo"><block_content> <return>return;</return></block_content></block></if></if_stmt>
+<expr_stmt><expr><call><name>assert</name><argument_list>(<argument><expr><name>v2</name> <operator>&lt;</operator> <name>v1</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>assert</name><argument_list>(<argument><expr><operator>(</operator><name>uint32_t</name><operator>)</operator><name>v1</name> <operator>&lt;</operator> <name><name>self</name><operator>-&gt;</operator><name>heads</name><operator>.</operator><name>size</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<decl_stmt><decl><type><name>StackHead</name> <modifier>*</modifier></type><name>source_head</name> <init>= <expr><operator>&amp;</operator><name><name>self</name><operator>-&gt;</operator><name>heads</name><operator>.</operator><name>contents</name><index>[<expr><name>v1</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>StackHead</name> <modifier>*</modifier></type><name>target_head</name> <init>= <expr><operator>&amp;</operator><name><name>self</name><operator>-&gt;</operator><name>heads</name><operator>.</operator><name>contents</name><index>[<expr><name>v2</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>target_head</name><operator>-&gt;</operator><name>summary</name></name> <operator>&amp;&amp;</operator> <operator>!</operator><name><name>source_head</name><operator>-&gt;</operator><name>summary</name></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name><name>source_head</name><operator>-&gt;</operator><name>summary</name></name> <operator>=</operator> <name><name>target_head</name><operator>-&gt;</operator><name>summary</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>target_head</name><operator>-&gt;</operator><name>summary</name></name> <operator>=</operator> <name>NULL</name></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+<expr_stmt><expr><call><name>stack_head_delete</name><argument_list>(<argument><expr><name>target_head</name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>self</name><operator>-&gt;</operator><name>node_pool</name></name></expr></argument>, <argument><expr><name><name>self</name><operator>-&gt;</operator><name>subtree_pool</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><operator>*</operator><name>target_head</name> <operator>=</operator> <operator>*</operator><name>source_head</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>array_erase</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>self</name><operator>-&gt;</operator><name>heads</name></name></expr></argument>, <argument><expr><name>v1</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><name>void</name></type> <name>ts_stack_swap_versions</name><parameter_list>(<parameter><decl><type><name>Stack</name> <modifier>*</modifier></type><name>self</name></decl></parameter>, <parameter><decl><type><name>StackVersion</name></type> <name>v1</name></decl></parameter>, <parameter><decl><type><name>StackVersion</name></type> <name>v2</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<decl_stmt><decl><type><name>StackHead</name></type> <name>temporary_head</name> <init>= <expr><name><name>self</name><operator>-&gt;</operator><name>heads</name><operator>.</operator><name>contents</name><index>[<expr><name>v1</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><name><name>self</name><operator>-&gt;</operator><name>heads</name><operator>.</operator><name>contents</name><index>[<expr><name>v1</name></expr>]</index></name> <operator>=</operator> <name><name>self</name><operator>-&gt;</operator><name>heads</name><operator>.</operator><name>contents</name><index>[<expr><name>v2</name></expr>]</index></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>self</name><operator>-&gt;</operator><name>heads</name><operator>.</operator><name>contents</name><index>[<expr><name>v2</name></expr>]</index></name> <operator>=</operator> <name>temporary_head</name></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><name>StackVersion</name></type> <name>ts_stack_copy_version</name><parameter_list>(<parameter><decl><type><name>Stack</name> <modifier>*</modifier></type><name>self</name></decl></parameter>, <parameter><decl><type><name>StackVersion</name></type> <name>version</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<expr_stmt><expr><call><name>assert</name><argument_list>(<argument><expr><name>version</name> <operator>&lt;</operator> <name><name>self</name><operator>-&gt;</operator><name>heads</name><operator>.</operator><name>size</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>array_push</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>self</name><operator>-&gt;</operator><name>heads</name></name></expr></argument>, <argument><expr><name><name>self</name><operator>-&gt;</operator><name>heads</name><operator>.</operator><name>contents</name><index>[<expr><name>version</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<decl_stmt><decl><type><name>StackHead</name> <modifier>*</modifier></type><name>head</name> <init>= <expr><call><name>array_back</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>self</name><operator>-&gt;</operator><name>heads</name></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><call><name>stack_node_retain</name><argument_list>(<argument><expr><name><name>head</name><operator>-&gt;</operator><name>node</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>head</name><operator>-&gt;</operator><name>last_external_token</name><operator>.</operator><name>ptr</name></name></expr>)</condition><block type="pseudo"><block_content> <expr_stmt><expr><call><name>ts_subtree_retain</name><argument_list>(<argument><expr><name><name>head</name><operator>-&gt;</operator><name>last_external_token</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+<expr_stmt><expr><name><name>head</name><operator>-&gt;</operator><name>summary</name></name> <operator>=</operator> <name>NULL</name></expr>;</expr_stmt>
+<return>return <expr><name><name>self</name><operator>-&gt;</operator><name>heads</name><operator>.</operator><name>size</name></name> <operator>-</operator> <literal type="number">1</literal></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><name>bool</name></type> <name>ts_stack_merge</name><parameter_list>(<parameter><decl><type><name>Stack</name> <modifier>*</modifier></type><name>self</name></decl></parameter>, <parameter><decl><type><name>StackVersion</name></type> <name>version1</name></decl></parameter>, <parameter><decl><type><name>StackVersion</name></type> <name>version2</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>ts_stack_can_merge</name><argument_list>(<argument><expr><name>self</name></expr></argument>, <argument><expr><name>version1</name></expr></argument>, <argument><expr><name>version2</name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content> <return>return <expr><name>false</name></expr>;</return></block_content></block></if></if_stmt>
+<decl_stmt><decl><type><name>StackHead</name> <modifier>*</modifier></type><name>head1</name> <init>= <expr><operator>&amp;</operator><name><name>self</name><operator>-&gt;</operator><name>heads</name><operator>.</operator><name>contents</name><index>[<expr><name>version1</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>StackHead</name> <modifier>*</modifier></type><name>head2</name> <init>= <expr><operator>&amp;</operator><name><name>self</name><operator>-&gt;</operator><name>heads</name><operator>.</operator><name>contents</name><index>[<expr><name>version2</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+<for>for <control>(<init><decl><type><name>uint32_t</name></type> <name>i</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name><name>head2</name><operator>-&gt;</operator><name>node</name><operator>-&gt;</operator><name>link_count</name></name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<expr_stmt><expr><call><name>stack_node_add_link</name><argument_list>(<argument><expr><name><name>head1</name><operator>-&gt;</operator><name>node</name></name></expr></argument>, <argument><expr><name><name>head2</name><operator>-&gt;</operator><name>node</name><operator>-&gt;</operator><name>links</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>, <argument><expr><name><name>self</name><operator>-&gt;</operator><name>subtree_pool</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></for>
+<if_stmt><if>if <condition>(<expr><name><name>head1</name><operator>-&gt;</operator><name>node</name><operator>-&gt;</operator><name>state</name></name> <operator>==</operator> <name>ERROR_STATE</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name><name>head1</name><operator>-&gt;</operator><name>node_count_at_last_error</name></name> <operator>=</operator> <name><name>head1</name><operator>-&gt;</operator><name>node</name><operator>-&gt;</operator><name>node_count</name></name></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+<expr_stmt><expr><call><name>ts_stack_remove_version</name><argument_list>(<argument><expr><name>self</name></expr></argument>, <argument><expr><name>version2</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>true</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><name>bool</name></type> <name>ts_stack_can_merge</name><parameter_list>(<parameter><decl><type><name>Stack</name> <modifier>*</modifier></type><name>self</name></decl></parameter>, <parameter><decl><type><name>StackVersion</name></type> <name>version1</name></decl></parameter>, <parameter><decl><type><name>StackVersion</name></type> <name>version2</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<decl_stmt><decl><type><name>StackHead</name> <modifier>*</modifier></type><name>head1</name> <init>= <expr><operator>&amp;</operator><name><name>self</name><operator>-&gt;</operator><name>heads</name><operator>.</operator><name>contents</name><index>[<expr><name>version1</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>StackHead</name> <modifier>*</modifier></type><name>head2</name> <init>= <expr><operator>&amp;</operator><name><name>self</name><operator>-&gt;</operator><name>heads</name><operator>.</operator><name>contents</name><index>[<expr><name>version2</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+<return>return
+<expr><name><name>head1</name><operator>-&gt;</operator><name>status</name></name> <operator>==</operator> <name>StackStatusActive</name> <operator>&amp;&amp;</operator>
+<name><name>head2</name><operator>-&gt;</operator><name>status</name></name> <operator>==</operator> <name>StackStatusActive</name> <operator>&amp;&amp;</operator>
+<name><name>head1</name><operator>-&gt;</operator><name>node</name><operator>-&gt;</operator><name>state</name></name> <operator>==</operator> <name><name>head2</name><operator>-&gt;</operator><name>node</name><operator>-&gt;</operator><name>state</name></name> <operator>&amp;&amp;</operator>
+<name><name>head1</name><operator>-&gt;</operator><name>node</name><operator>-&gt;</operator><name>position</name><operator>.</operator><name>bytes</name></name> <operator>==</operator> <name><name>head2</name><operator>-&gt;</operator><name>node</name><operator>-&gt;</operator><name>position</name><operator>.</operator><name>bytes</name></name> <operator>&amp;&amp;</operator>
+<name><name>head1</name><operator>-&gt;</operator><name>node</name><operator>-&gt;</operator><name>error_cost</name></name> <operator>==</operator> <name><name>head2</name><operator>-&gt;</operator><name>node</name><operator>-&gt;</operator><name>error_cost</name></name> <operator>&amp;&amp;</operator>
+<call><name>ts_subtree_external_scanner_state_eq</name><argument_list>(<argument><expr><name><name>head1</name><operator>-&gt;</operator><name>last_external_token</name></name></expr></argument>, <argument><expr><name><name>head2</name><operator>-&gt;</operator><name>last_external_token</name></name></expr></argument>)</argument_list></call></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><name>void</name></type> <name>ts_stack_halt</name><parameter_list>(<parameter><decl><type><name>Stack</name> <modifier>*</modifier></type><name>self</name></decl></parameter>, <parameter><decl><type><name>StackVersion</name></type> <name>version</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<expr_stmt><expr><call><name>array_get</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>self</name><operator>-&gt;</operator><name>heads</name></name></expr></argument>, <argument><expr><name>version</name></expr></argument>)</argument_list></call><operator>-&gt;</operator><name>status</name> <operator>=</operator> <name>StackStatusHalted</name></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><name>void</name></type> <name>ts_stack_pause</name><parameter_list>(<parameter><decl><type><name>Stack</name> <modifier>*</modifier></type><name>self</name></decl></parameter>, <parameter><decl><type><name>StackVersion</name></type> <name>version</name></decl></parameter>, <parameter><decl><type><name>TSSymbol</name></type> <name>lookahead</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<decl_stmt><decl><type><name>StackHead</name> <modifier>*</modifier></type><name>head</name> <init>= <expr><call><name>array_get</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>self</name><operator>-&gt;</operator><name>heads</name></name></expr></argument>, <argument><expr><name>version</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><name><name>head</name><operator>-&gt;</operator><name>status</name></name> <operator>=</operator> <name>StackStatusPaused</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>head</name><operator>-&gt;</operator><name>lookahead_when_paused</name></name> <operator>=</operator> <name>lookahead</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>head</name><operator>-&gt;</operator><name>node_count_at_last_error</name></name> <operator>=</operator> <name><name>head</name><operator>-&gt;</operator><name>node</name><operator>-&gt;</operator><name>node_count</name></name></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><name>bool</name></type> <name>ts_stack_is_active</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name>Stack</name> <modifier>*</modifier></type><name>self</name></decl></parameter>, <parameter><decl><type><name>StackVersion</name></type> <name>version</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<return>return <expr><call><name>array_get</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>self</name><operator>-&gt;</operator><name>heads</name></name></expr></argument>, <argument><expr><name>version</name></expr></argument>)</argument_list></call><operator>-&gt;</operator><name>status</name> <operator>==</operator> <name>StackStatusActive</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><name>bool</name></type> <name>ts_stack_is_halted</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name>Stack</name> <modifier>*</modifier></type><name>self</name></decl></parameter>, <parameter><decl><type><name>StackVersion</name></type> <name>version</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<return>return <expr><call><name>array_get</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>self</name><operator>-&gt;</operator><name>heads</name></name></expr></argument>, <argument><expr><name>version</name></expr></argument>)</argument_list></call><operator>-&gt;</operator><name>status</name> <operator>==</operator> <name>StackStatusHalted</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><name>bool</name></type> <name>ts_stack_is_paused</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name>Stack</name> <modifier>*</modifier></type><name>self</name></decl></parameter>, <parameter><decl><type><name>StackVersion</name></type> <name>version</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<return>return <expr><call><name>array_get</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>self</name><operator>-&gt;</operator><name>heads</name></name></expr></argument>, <argument><expr><name>version</name></expr></argument>)</argument_list></call><operator>-&gt;</operator><name>status</name> <operator>==</operator> <name>StackStatusPaused</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><name>TSSymbol</name></type> <name>ts_stack_resume</name><parameter_list>(<parameter><decl><type><name>Stack</name> <modifier>*</modifier></type><name>self</name></decl></parameter>, <parameter><decl><type><name>StackVersion</name></type> <name>version</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<decl_stmt><decl><type><name>StackHead</name> <modifier>*</modifier></type><name>head</name> <init>= <expr><call><name>array_get</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>self</name><operator>-&gt;</operator><name>heads</name></name></expr></argument>, <argument><expr><name>version</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><call><name>assert</name><argument_list>(<argument><expr><name><name>head</name><operator>-&gt;</operator><name>status</name></name> <operator>==</operator> <name>StackStatusPaused</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<decl_stmt><decl><type><name>TSSymbol</name></type> <name>result</name> <init>= <expr><name><name>head</name><operator>-&gt;</operator><name>lookahead_when_paused</name></name></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><name><name>head</name><operator>-&gt;</operator><name>status</name></name> <operator>=</operator> <name>StackStatusActive</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>head</name><operator>-&gt;</operator><name>lookahead_when_paused</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+<return>return <expr><name>result</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><name>void</name></type> <name>ts_stack_clear</name><parameter_list>(<parameter><decl><type><name>Stack</name> <modifier>*</modifier></type><name>self</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<expr_stmt><expr><call><name>stack_node_retain</name><argument_list>(<argument><expr><name><name>self</name><operator>-&gt;</operator><name>base_node</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<for>for <control>(<init><decl><type><name>uint32_t</name></type> <name>i</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name><name>self</name><operator>-&gt;</operator><name>heads</name><operator>.</operator><name>size</name></name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<expr_stmt><expr><call><name>stack_head_delete</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>self</name><operator>-&gt;</operator><name>heads</name><operator>.</operator><name>contents</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>self</name><operator>-&gt;</operator><name>node_pool</name></name></expr></argument>, <argument><expr><name><name>self</name><operator>-&gt;</operator><name>subtree_pool</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></for>
+<expr_stmt><expr><call><name>array_clear</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>self</name><operator>-&gt;</operator><name>heads</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<macro><name>array_push</name><argument_list>(<argument>&amp;self-&gt;heads</argument>, <argument>((StackHead){
+.node = self-&gt;base_node,
+.last_external_token = NULL_SUBTREE,
+.status = StackStatusActive,
+.lookahead_when_paused = <literal type="number">0</literal>,
+})</argument>)</argument_list></macro><empty_stmt>;</empty_stmt>
+</block_content>}</block></function>
+
+<function><type><name>bool</name></type> <name>ts_stack_print_dot_graph</name><parameter_list>(<parameter><decl><type><name>Stack</name> <modifier>*</modifier></type><name>self</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>TSLanguage</name> <modifier>*</modifier></type><name>language</name></decl></parameter>, <parameter><decl><type><name>FILE</name> <modifier>*</modifier></type><name>f</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<expr_stmt><expr><call><name>array_reserve</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>self</name><operator>-&gt;</operator><name>iterators</name></name></expr></argument>, <argument><expr><literal type="number">32</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<decl_stmt><decl><type><name>bool</name></type> <name>was_recording_allocations</name> <init>= <expr><call><name>ts_toggle_allocation_recording</name><argument_list>(<argument><expr><name>false</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>f</name></expr>)</condition><block type="pseudo"><block_content> <expr_stmt><expr><name>f</name> <operator>=</operator> <name>stderr</name></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><literal type="string">"digraph stack {\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><literal type="string">"rankdir=\"RL\";\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><literal type="string">"edge [arrowhead=none]\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<macro><name>Array</name><argument_list>(<argument>StackNode *</argument>)</argument_list></macro> <expr_stmt><expr><name>visited_nodes</name> <operator>=</operator> <call><name>array_new</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>array_clear</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>self</name><operator>-&gt;</operator><name>iterators</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<for>for <control>(<init><decl><type><name>uint32_t</name></type> <name>i</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name><name>self</name><operator>-&gt;</operator><name>heads</name><operator>.</operator><name>size</name></name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<decl_stmt><decl><type><name>StackHead</name> <modifier>*</modifier></type><name>head</name> <init>= <expr><operator>&amp;</operator><name><name>self</name><operator>-&gt;</operator><name>heads</name><operator>.</operator><name>contents</name><index>[<expr><name>i</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>head</name><operator>-&gt;</operator><name>status</name></name> <operator>==</operator> <name>StackStatusHalted</name></expr>)</condition><block type="pseudo"><block_content> <continue>continue;</continue></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><literal type="string">"node_head_%u [shape=none, label=\"\"]\n"</literal></expr></argument>, <argument><expr><name>i</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><literal type="string">"node_head_%u -&gt; node_%p ["</literal></expr></argument>, <argument><expr><name>i</name></expr></argument>, <argument><expr><name><name>head</name><operator>-&gt;</operator><name>node</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>head</name><operator>-&gt;</operator><name>status</name></name> <operator>==</operator> <name>StackStatusPaused</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><literal type="string">"color=red "</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+<expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>f</name></expr></argument>,
+<argument><expr><literal type="string">"label=%u, fontcolor=blue, weight=10000, labeltooltip=\"node_count: %u\nerror_cost: %u"</literal></expr></argument>,
+<argument><expr><name>i</name></expr></argument>,
+<argument><expr><call><name>ts_stack_node_count_since_error</name><argument_list>(<argument><expr><name>self</name></expr></argument>, <argument><expr><name>i</name></expr></argument>)</argument_list></call></expr></argument>,
+<argument><expr><call><name>ts_stack_error_cost</name><argument_list>(<argument><expr><name>self</name></expr></argument>, <argument><expr><name>i</name></expr></argument>)</argument_list></call></expr></argument>
+)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>head</name><operator>-&gt;</operator><name>last_external_token</name><operator>.</operator><name>ptr</name></name></expr>)</condition> <block>{<block_content>
+<decl_stmt><decl><type><specifier>const</specifier> <name>ExternalScannerState</name> <modifier>*</modifier></type><name>state</name> <init>= <expr><operator>&amp;</operator><name><name>head</name><operator>-&gt;</operator><name>last_external_token</name><operator>.</operator><name>ptr</name><operator>-&gt;</operator><name>external_scanner_state</name></name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>data</name> <init>= <expr><call><name>ts_external_scanner_state_data</name><argument_list>(<argument><expr><name>state</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><literal type="string">"\nexternal_scanner_state:"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<for>for <control>(<init><decl><type><name>uint32_t</name></type> <name>j</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>j</name> <operator>&lt;</operator> <name><name>state</name><operator>-&gt;</operator><name>length</name></name></expr>;</condition> <incr><expr><name>j</name><operator>++</operator></expr></incr>)</control><block type="pseudo"><block_content> <expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><literal type="string">" %2X"</literal></expr></argument>, <argument><expr><name><name>data</name><index>[<expr><name>j</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></for>
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><literal type="string">"\"]\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<macro><name>array_push</name><argument_list>(<argument>&amp;self-&gt;iterators</argument>, <argument>((StackIterator){.node = head-&gt;node })</argument>)</argument_list></macro><empty_stmt>;</empty_stmt>
+</block_content>}</block></for>
+
+<decl_stmt><decl><type><name>bool</name></type> <name>all_iterators_done</name> <init>= <expr><name>false</name></expr></init></decl>;</decl_stmt>
+<while>while <condition>(<expr><operator>!</operator><name>all_iterators_done</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name>all_iterators_done</name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+
+<for>for <control>(<init><decl><type><name>uint32_t</name></type> <name>i</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name><name>self</name><operator>-&gt;</operator><name>iterators</name><operator>.</operator><name>size</name></name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<decl_stmt><decl><type><name>StackIterator</name></type> <name>iterator</name> <init>= <expr><name><name>self</name><operator>-&gt;</operator><name>iterators</name><operator>.</operator><name>contents</name><index>[<expr><name>i</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>StackNode</name> <modifier>*</modifier></type><name>node</name> <init>= <expr><name><name>iterator</name><operator>.</operator><name>node</name></name></expr></init></decl>;</decl_stmt>
+
+<for>for <control>(<init><decl><type><name>uint32_t</name></type> <name>j</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>j</name> <operator>&lt;</operator> <name><name>visited_nodes</name><operator>.</operator><name>size</name></name></expr>;</condition> <incr><expr><name>j</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name><name>visited_nodes</name><operator>.</operator><name>contents</name><index>[<expr><name>j</name></expr>]</index></name> <operator>==</operator> <name>node</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name>node</name> <operator>=</operator> <name>NULL</name></expr>;</expr_stmt>
+<break>break;</break>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block></for>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>node</name></expr>)</condition><block type="pseudo"><block_content> <continue>continue;</continue></block_content></block></if></if_stmt>
+<expr_stmt><expr><name>all_iterators_done</name> <operator>=</operator> <name>false</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><literal type="string">"node_%p ["</literal></expr></argument>, <argument><expr><name>node</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>node</name><operator>-&gt;</operator><name>state</name></name> <operator>==</operator> <name>ERROR_STATE</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><literal type="string">"label=\"?\""</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if> <if type="elseif">else if <condition>(
+<expr><name><name>node</name><operator>-&gt;</operator><name>link_count</name></name> <operator>==</operator> <literal type="number">1</literal> <operator>&amp;&amp;</operator>
+<name><name>node</name><operator>-&gt;</operator><name>links</name><index>[<expr><literal type="number">0</literal></expr>]</index></name><operator>.</operator><name><name>subtree</name><operator>.</operator><name>ptr</name></name> <operator>&amp;&amp;</operator>
+<call><name>ts_subtree_extra</name><argument_list>(<argument><expr><name><name>node</name><operator>-&gt;</operator><name>links</name><index>[<expr><literal type="number">0</literal></expr>]</index></name><operator>.</operator><name>subtree</name></expr></argument>)</argument_list></call></expr>
+)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><literal type="string">"shape=point margin=0 label=\"\""</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><literal type="string">"label=\"%d\""</literal></expr></argument>, <argument><expr><name><name>node</name><operator>-&gt;</operator><name>state</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></else></if_stmt>
+
+<expr_stmt><expr><call><name>fprintf</name><argument_list>(
+<argument><expr><name>f</name></expr></argument>,
+<argument><expr><literal type="string">" tooltip=\"position: %u,%u\nnode_count:%u\nerror_cost: %u\ndynamic_precedence: %d\"];\n"</literal></expr></argument>,
+<argument><expr><name><name>node</name><operator>-&gt;</operator><name>position</name><operator>.</operator><name>extent</name><operator>.</operator><name>row</name></name> <operator>+</operator> <literal type="number">1</literal></expr></argument>,
+<argument><expr><name><name>node</name><operator>-&gt;</operator><name>position</name><operator>.</operator><name>extent</name><operator>.</operator><name>column</name></name></expr></argument>,
+<argument><expr><name><name>node</name><operator>-&gt;</operator><name>node_count</name></name></expr></argument>,
+<argument><expr><name><name>node</name><operator>-&gt;</operator><name>error_cost</name></name></expr></argument>,
+<argument><expr><name><name>node</name><operator>-&gt;</operator><name>dynamic_precedence</name></name></expr></argument>
+)</argument_list></call></expr>;</expr_stmt>
+
+<for>for <control>(<init><decl><type><name>int</name></type> <name>j</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>j</name> <operator>&lt;</operator> <name><name>node</name><operator>-&gt;</operator><name>link_count</name></name></expr>;</condition> <incr><expr><name>j</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<decl_stmt><decl><type><name>StackLink</name></type> <name>link</name> <init>= <expr><name><name>node</name><operator>-&gt;</operator><name>links</name><index>[<expr><name>j</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><literal type="string">"node_%p -&gt; node_%p ["</literal></expr></argument>, <argument><expr><name>node</name></expr></argument>, <argument><expr><name><name>link</name><operator>.</operator><name>node</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>link</name><operator>.</operator><name>is_pending</name></name></expr>)</condition><block type="pseudo"><block_content> <expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><literal type="string">"style=dashed "</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>link</name><operator>.</operator><name>subtree</name><operator>.</operator><name>ptr</name></name> <operator>&amp;&amp;</operator> <call><name>ts_subtree_extra</name><argument_list>(<argument><expr><name><name>link</name><operator>.</operator><name>subtree</name></name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content> <expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><literal type="string">"fontcolor=gray "</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>link</name><operator>.</operator><name>subtree</name><operator>.</operator><name>ptr</name></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><literal type="string">"color=red"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><literal type="string">"label=\""</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<decl_stmt><decl><type><name>bool</name></type> <name>quoted</name> <init>= <expr><call><name>ts_subtree_visible</name><argument_list>(<argument><expr><name><name>link</name><operator>.</operator><name>subtree</name></name></expr></argument>)</argument_list></call> <operator>&amp;&amp;</operator> <operator>!</operator><call><name>ts_subtree_named</name><argument_list>(<argument><expr><name><name>link</name><operator>.</operator><name>subtree</name></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<if_stmt><if>if <condition>(<expr><name>quoted</name></expr>)</condition><block type="pseudo"><block_content> <expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><literal type="string">"'"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+<decl_stmt><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>name</name> <init>= <expr><call><name>ts_language_symbol_name</name><argument_list>(<argument><expr><name>language</name></expr></argument>, <argument><expr><call><name>ts_subtree_symbol</name><argument_list>(<argument><expr><name><name>link</name><operator>.</operator><name>subtree</name></name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<for>for <control>(<init><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>c</name> <init>= <expr><name>name</name></expr></init></decl>;</init> <condition><expr><operator>*</operator><name>c</name></expr>;</condition> <incr><expr><name>c</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><operator>*</operator><name>c</name> <operator>==</operator> <literal type="char">'\"'</literal> <operator>||</operator> <operator>*</operator><name>c</name> <operator>==</operator> <literal type="char">'\\'</literal></expr>)</condition><block type="pseudo"><block_content> <expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><literal type="string">"\\"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+<expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><literal type="string">"%c"</literal></expr></argument>, <argument><expr><operator>*</operator><name>c</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></for>
+<if_stmt><if>if <condition>(<expr><name>quoted</name></expr>)</condition><block type="pseudo"><block_content> <expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><literal type="string">"'"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+<expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><literal type="string">"\""</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>fprintf</name><argument_list>(
+<argument><expr><name>f</name></expr></argument>,
+<argument><expr><literal type="string">"labeltooltip=\"error_cost: %u\ndynamic_precedence: %u\""</literal></expr></argument>,
+<argument><expr><call><name>ts_subtree_error_cost</name><argument_list>(<argument><expr><name><name>link</name><operator>.</operator><name>subtree</name></name></expr></argument>)</argument_list></call></expr></argument>,
+<argument><expr><call><name>ts_subtree_dynamic_precedence</name><argument_list>(<argument><expr><name><name>link</name><operator>.</operator><name>subtree</name></name></expr></argument>)</argument_list></call></expr></argument>
+)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></else></if_stmt>
+
+<expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><literal type="string">"];\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<decl_stmt><decl><type><name>StackIterator</name> <modifier>*</modifier></type><name>next_iterator</name></decl>;</decl_stmt>
+<if_stmt><if>if <condition>(<expr><name>j</name> <operator>==</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name>next_iterator</name> <operator>=</operator> <operator>&amp;</operator><name><name>self</name><operator>-&gt;</operator><name>iterators</name><operator>.</operator><name>contents</name><index>[<expr><name>i</name></expr>]</index></name></expr>;</expr_stmt>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<expr_stmt><expr><call><name>array_push</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>self</name><operator>-&gt;</operator><name>iterators</name></name></expr></argument>, <argument><expr><name>iterator</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>next_iterator</name> <operator>=</operator> <call><name>array_back</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>self</name><operator>-&gt;</operator><name>iterators</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></else></if_stmt>
+<expr_stmt><expr><name><name>next_iterator</name><operator>-&gt;</operator><name>node</name></name> <operator>=</operator> <name><name>link</name><operator>.</operator><name>node</name></name></expr>;</expr_stmt>
+</block_content>}</block></for>
+
+<expr_stmt><expr><call><name>array_push</name><argument_list>(<argument><expr><operator>&amp;</operator><name>visited_nodes</name></expr></argument>, <argument><expr><name>node</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></for>
+</block_content>}</block></while>
+
+<expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><literal type="string">"}\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>array_delete</name><argument_list>(<argument><expr><operator>&amp;</operator><name>visited_nodes</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ts_toggle_allocation_recording</name><argument_list>(<argument><expr><name>was_recording_allocations</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>true</name></expr>;</return>
+</block_content>}</block></function>
+
+<cpp:undef>#<cpp:directive>undef</cpp:directive> <name>inline</name></cpp:undef>
+</unit>

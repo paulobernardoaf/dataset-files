@@ -1,0 +1,8 @@
+#include "test.h"
+int
+main(int argc, char * argv[])
+{
+pthread_exit((void *) 0);
+assert(0);
+return 0;
+}

@@ -1,0 +1,530 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" revision="1.0.0" language="C" filename="D:\Pesquisa\Projects\ffmpeg-analysis\_cppstats\FFmpeg\libavcodec\dca_parser.c"><cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"dca.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"dca_core.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"dca_exss.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"dca_lbr.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"dca_syncwords.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"get_bits.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"parser.h"</cpp:file></cpp:include>
+
+<typedef>typedef <type><struct>struct <name>DCAParseContext</name> <block>{
+
+<decl_stmt><decl><type><name>ParseContext</name></type> <name>pc</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>uint32_t</name></type> <name>lastmarker</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>size</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>framesize</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>unsigned</name> <name>int</name></type> <name>startpos</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>DCAExssParser</name></type> <name>exss</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>unsigned</name> <name>int</name></type> <name>sr_code</name></decl>;</decl_stmt>
+
+}</block></struct></type> <name>DCAParseContext</name>;</typedef>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>IS_CORE_MARKER</name><parameter_list>(<parameter><type><name>state</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>(((state &amp; 0xFFFFFFFFF0FF) == (((uint64_t)DCA_SYNCWORD_CORE_14B_LE &lt;&lt; 16) | 0xF007)) || ((state &amp; 0xFFFFFFFFFFF0) == (((uint64_t)DCA_SYNCWORD_CORE_14B_BE &lt;&lt; 16) | 0x07F0)) || ((state &amp; 0xFFFFFFFF00FC) == (((uint64_t)DCA_SYNCWORD_CORE_LE &lt;&lt; 16) | 0x00FC)) || ((state &amp; 0xFFFFFFFFFC00) == (((uint64_t)DCA_SYNCWORD_CORE_BE &lt;&lt; 16) | 0xFC00)))</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>IS_EXSS_MARKER</name><parameter_list>(<parameter><type><name>state</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>((state &amp; 0xFFFFFFFF) == DCA_SYNCWORD_SUBSTREAM)</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>IS_MARKER</name><parameter_list>(<parameter><type><name>state</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>(IS_CORE_MARKER(state) || IS_EXSS_MARKER(state))</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>CORE_MARKER</name><parameter_list>(<parameter><type><name>state</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>((state &gt;&gt; 16) &amp; 0xFFFFFFFF)</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>EXSS_MARKER</name><parameter_list>(<parameter><type><name>state</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>(state &amp; 0xFFFFFFFF)</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>STATE_LE</name><parameter_list>(<parameter><type><name>state</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>(((state &amp; 0xFF00FF00) &gt;&gt; 8) | ((state &amp; 0x00FF00FF) &lt;&lt; 8))</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>STATE_14</name><parameter_list>(<parameter><type><name>state</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>(((state &amp; 0x3FFF0000) &gt;&gt; 8) | ((state &amp; 0x00003FFF) &gt;&gt; 6))</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>CORE_FRAMESIZE</name><parameter_list>(<parameter><type><name>state</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>(((state &gt;&gt; 4) &amp; 0x3FFF) + 1)</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>EXSS_FRAMESIZE</name><parameter_list>(<parameter><type><name>state</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>((state &amp; 0x2000000000) ? ((state &gt;&gt; 5) &amp; 0xFFFFF) + 1 : ((state &gt;&gt; 13) &amp; 0x0FFFF) + 1)</cpp:value></cpp:define>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>dca_find_frame_end</name><parameter_list>(<parameter><decl><type><name>DCAParseContext</name> <modifier>*</modifier></type><name>pc1</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>uint8_t</name> <modifier>*</modifier></type><name>buf</name></decl></parameter>,
+
+<parameter><decl><type><name>int</name></type> <name>buf_size</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>int</name></type> <name>start_found</name></decl>, <decl><type ref="prev"/><name>size</name></decl>, <decl><type ref="prev"/><name>i</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>uint64_t</name></type> <name>state</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>ParseContext</name> <modifier>*</modifier></type><name>pc</name> <init>= <expr><operator>&amp;</operator><name><name>pc1</name><operator>-&gt;</operator><name>pc</name></name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>start_found</name> <operator>=</operator> <name><name>pc</name><operator>-&gt;</operator><name>frame_start_found</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>state</name> <operator>=</operator> <name><name>pc</name><operator>-&gt;</operator><name>state64</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>size</name> <operator>=</operator> <name><name>pc1</name><operator>-&gt;</operator><name>size</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>start_found</name></expr>)</condition> <block>{<block_content>
+
+<for>for <control>(<init>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>buf_size</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+
+<expr_stmt><expr><name>size</name><operator>++</operator></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>state</name> <operator>=</operator> <operator>(</operator><name>state</name> <operator>&lt;&lt;</operator> <literal type="number">8</literal><operator>)</operator> <operator>|</operator> <name><name>buf</name><index>[<expr><name>i</name></expr>]</index></name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>IS_MARKER</name><argument_list>(<argument><expr><name>state</name></expr></argument>)</argument_list></call> <operator>&amp;&amp;</operator>
+
+<operator>(</operator><operator>!</operator><name><name>pc1</name><operator>-&gt;</operator><name>lastmarker</name></name> <operator>||</operator>
+
+<name><name>pc1</name><operator>-&gt;</operator><name>lastmarker</name></name> <operator>==</operator> <call><name>CORE_MARKER</name><argument_list>(<argument><expr><name>state</name></expr></argument>)</argument_list></call> <operator>||</operator>
+
+<name><name>pc1</name><operator>-&gt;</operator><name>lastmarker</name></name> <operator>==</operator> <name>DCA_SYNCWORD_SUBSTREAM</name><operator>)</operator></expr>)</condition> <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>pc1</name><operator>-&gt;</operator><name>lastmarker</name></name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name><name>pc1</name><operator>-&gt;</operator><name>startpos</name></name> <operator>=</operator> <ternary><condition><expr><call><name>IS_EXSS_MARKER</name><argument_list>(<argument><expr><name>state</name></expr></argument>)</argument_list></call></expr> ?</condition><then> <expr><name>size</name> <operator>-</operator> <literal type="number">4</literal></expr> </then><else>: <expr><name>size</name> <operator>-</operator> <literal type="number">6</literal></expr></else></ternary></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>IS_EXSS_MARKER</name><argument_list>(<argument><expr><name>state</name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name><name>pc1</name><operator>-&gt;</operator><name>lastmarker</name></name> <operator>=</operator> <call><name>EXSS_MARKER</name><argument_list>(<argument><expr><name>state</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if>
+
+<else>else<block type="pseudo"><block_content>
+
+<expr_stmt><expr><name><name>pc1</name><operator>-&gt;</operator><name>lastmarker</name></name> <operator>=</operator> <call><name>CORE_MARKER</name><argument_list>(<argument><expr><name>state</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></else></if_stmt>
+
+<expr_stmt><expr><name>start_found</name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>size</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>i</name><operator>++</operator></expr>;</expr_stmt>
+
+<break>break;</break>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></for>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>start_found</name></expr>)</condition> <block>{<block_content>
+
+<for>for <control>(<init>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>buf_size</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+
+<expr_stmt><expr><name>size</name><operator>++</operator></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>state</name> <operator>=</operator> <operator>(</operator><name>state</name> <operator>&lt;&lt;</operator> <literal type="number">8</literal><operator>)</operator> <operator>|</operator> <name><name>buf</name><index>[<expr><name>i</name></expr>]</index></name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>start_found</name> <operator>==</operator> <literal type="number">1</literal></expr>)</condition> <block>{<block_content>
+
+<switch>switch <condition>(<expr><name><name>pc1</name><operator>-&gt;</operator><name>lastmarker</name></name></expr>)</condition> <block>{<block_content>
+
+<case>case <expr><name>DCA_SYNCWORD_CORE_BE</name></expr>:</case>
+
+<if_stmt><if>if <condition>(<expr><name>size</name> <operator>==</operator> <literal type="number">2</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name><name>pc1</name><operator>-&gt;</operator><name>framesize</name></name> <operator>=</operator> <call><name>CORE_FRAMESIZE</name><argument_list>(<argument><expr><name>state</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>start_found</name> <operator>=</operator> <literal type="number">2</literal></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<break>break;</break>
+
+<case>case <expr><name>DCA_SYNCWORD_CORE_LE</name></expr>:</case>
+
+<if_stmt><if>if <condition>(<expr><name>size</name> <operator>==</operator> <literal type="number">2</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name><name>pc1</name><operator>-&gt;</operator><name>framesize</name></name> <operator>=</operator> <call><name>CORE_FRAMESIZE</name><argument_list>(<argument><expr><call><name>STATE_LE</name><argument_list>(<argument><expr><name>state</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>start_found</name> <operator>=</operator> <literal type="number">4</literal></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<break>break;</break>
+
+<case>case <expr><name>DCA_SYNCWORD_CORE_14B_BE</name></expr>:</case>
+
+<if_stmt><if>if <condition>(<expr><name>size</name> <operator>==</operator> <literal type="number">4</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name><name>pc1</name><operator>-&gt;</operator><name>framesize</name></name> <operator>=</operator> <call><name>CORE_FRAMESIZE</name><argument_list>(<argument><expr><call><name>STATE_14</name><argument_list>(<argument><expr><name>state</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>start_found</name> <operator>=</operator> <literal type="number">4</literal></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<break>break;</break>
+
+<case>case <expr><name>DCA_SYNCWORD_CORE_14B_LE</name></expr>:</case>
+
+<if_stmt><if>if <condition>(<expr><name>size</name> <operator>==</operator> <literal type="number">4</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name><name>pc1</name><operator>-&gt;</operator><name>framesize</name></name> <operator>=</operator> <call><name>CORE_FRAMESIZE</name><argument_list>(<argument><expr><call><name>STATE_14</name><argument_list>(<argument><expr><call><name>STATE_LE</name><argument_list>(<argument><expr><name>state</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>start_found</name> <operator>=</operator> <literal type="number">4</literal></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<break>break;</break>
+
+<case>case <expr><name>DCA_SYNCWORD_SUBSTREAM</name></expr>:</case>
+
+<if_stmt><if>if <condition>(<expr><name>size</name> <operator>==</operator> <literal type="number">6</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name><name>pc1</name><operator>-&gt;</operator><name>framesize</name></name> <operator>=</operator> <call><name>EXSS_FRAMESIZE</name><argument_list>(<argument><expr><name>state</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>start_found</name> <operator>=</operator> <literal type="number">4</literal></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<break>break;</break>
+
+<default>default:</default>
+
+<expr_stmt><expr><call><name>av_assert0</name><argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></switch>
+
+<continue>continue;</continue>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>start_found</name> <operator>==</operator> <literal type="number">2</literal> <operator>&amp;&amp;</operator> <call><name>IS_EXSS_MARKER</name><argument_list>(<argument><expr><name>state</name></expr></argument>)</argument_list></call> <operator>&amp;&amp;</operator>
+
+<name><name>pc1</name><operator>-&gt;</operator><name>framesize</name></name> <operator>&lt;=</operator> <name>size</name> <operator>+</operator> <literal type="number">2</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name><name>pc1</name><operator>-&gt;</operator><name>framesize</name></name> <operator>=</operator> <name>size</name> <operator>+</operator> <literal type="number">2</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>start_found</name> <operator>=</operator> <literal type="number">3</literal></expr>;</expr_stmt>
+
+<continue>continue;</continue>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>start_found</name> <operator>==</operator> <literal type="number">3</literal></expr>)</condition> <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><name>size</name> <operator>==</operator> <name><name>pc1</name><operator>-&gt;</operator><name>framesize</name></name> <operator>+</operator> <literal type="number">4</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name><name>pc1</name><operator>-&gt;</operator><name>framesize</name></name> <operator>+=</operator> <call><name>EXSS_FRAMESIZE</name><argument_list>(<argument><expr><name>state</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>start_found</name> <operator>=</operator> <literal type="number">4</literal></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<continue>continue;</continue>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>pc1</name><operator>-&gt;</operator><name>framesize</name></name> <operator>&gt;</operator> <name>size</name></expr>)</condition><block type="pseudo"><block_content>
+
+<continue>continue;</continue></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>IS_MARKER</name><argument_list>(<argument><expr><name>state</name></expr></argument>)</argument_list></call> <operator>&amp;&amp;</operator>
+
+<operator>(</operator><name><name>pc1</name><operator>-&gt;</operator><name>lastmarker</name></name> <operator>==</operator> <call><name>CORE_MARKER</name><argument_list>(<argument><expr><name>state</name></expr></argument>)</argument_list></call> <operator>||</operator>
+
+<name><name>pc1</name><operator>-&gt;</operator><name>lastmarker</name></name> <operator>==</operator> <name>DCA_SYNCWORD_SUBSTREAM</name><operator>)</operator></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name><name>pc</name><operator>-&gt;</operator><name>frame_start_found</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>pc</name><operator>-&gt;</operator><name>state64</name></name> <operator>=</operator> <operator>-</operator><literal type="number">1</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>pc1</name><operator>-&gt;</operator><name>size</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<return>return <expr><ternary><condition><expr><call><name>IS_EXSS_MARKER</name><argument_list>(<argument><expr><name>state</name></expr></argument>)</argument_list></call></expr> ?</condition><then> <expr><name>i</name> <operator>-</operator> <literal type="number">3</literal></expr> </then><else>: <expr><name>i</name> <operator>-</operator> <literal type="number">5</literal></expr></else></ternary></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></for>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>pc</name><operator>-&gt;</operator><name>frame_start_found</name></name> <operator>=</operator> <name>start_found</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>pc</name><operator>-&gt;</operator><name>state64</name></name> <operator>=</operator> <name>state</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>pc1</name><operator>-&gt;</operator><name>size</name></name> <operator>=</operator> <name>size</name></expr>;</expr_stmt>
+
+<return>return <expr><name>END_NOT_FOUND</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>av_cold</name> <name>int</name></type> <name>dca_parse_init</name><parameter_list>(<parameter><decl><type><name>AVCodecParserContext</name> <modifier>*</modifier></type><name>s</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>DCAParseContext</name> <modifier>*</modifier></type><name>pc1</name> <init>= <expr><name><name>s</name><operator>-&gt;</operator><name>priv_data</name></name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>pc1</name><operator>-&gt;</operator><name>lastmarker</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>pc1</name><operator>-&gt;</operator><name>sr_code</name></name> <operator>=</operator> <operator>-</operator><literal type="number">1</literal></expr>;</expr_stmt>
+
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>dca_parse_params</name><parameter_list>(<parameter><decl><type><name>DCAParseContext</name> <modifier>*</modifier></type><name>pc1</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>uint8_t</name> <modifier>*</modifier></type><name>buf</name></decl></parameter>,
+
+<parameter><decl><type><name>int</name></type> <name>buf_size</name></decl></parameter>, <parameter><decl><type><name>int</name> <modifier>*</modifier></type><name>duration</name></decl></parameter>, <parameter><decl><type><name>int</name> <modifier>*</modifier></type><name>sample_rate</name></decl></parameter>,
+
+<parameter><decl><type><name>int</name> <modifier>*</modifier></type><name>profile</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>DCAExssAsset</name> <modifier>*</modifier></type><name>asset</name> <init>= <expr><operator>&amp;</operator><name><name>pc1</name><operator>-&gt;</operator><name>exss</name><operator>.</operator><name>assets</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>GetBitContext</name></type> <name>gb</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>DCACoreFrameHeader</name></type> <name>h</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>uint8_t</name></type> <name><name>hdr</name><index>[<expr><name>DCA_CORE_FRAME_HEADER_SIZE</name> <operator>+</operator> <name>AV_INPUT_BUFFER_PADDING_SIZE</name></expr>]</index></name> <init>= <expr><block>{ <expr><literal type="number">0</literal></expr> }</block></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>ret</name></decl>, <decl><type ref="prev"/><name>frame_size</name></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>buf_size</name> <operator>&lt;</operator> <name>DCA_CORE_FRAME_HEADER_SIZE</name></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>AVERROR_INVALIDDATA</name></expr>;</return></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>AV_RB32</name><argument_list>(<argument><expr><name>buf</name></expr></argument>)</argument_list></call> <operator>==</operator> <name>DCA_SYNCWORD_SUBSTREAM</name></expr>)</condition> <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><operator>(</operator><name>ret</name> <operator>=</operator> <call><name>ff_dca_exss_parse</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>pc1</name><operator>-&gt;</operator><name>exss</name></name></expr></argument>, <argument><expr><name>buf</name></expr></argument>, <argument><expr><name>buf_size</name></expr></argument>)</argument_list></call><operator>)</operator> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>ret</name></expr>;</return></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>asset</name><operator>-&gt;</operator><name>extension_mask</name></name> <operator>&amp;</operator> <name>DCA_EXSS_LBR</name></expr>)</condition> <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><operator>(</operator><name>ret</name> <operator>=</operator> <call><name>init_get_bits8</name><argument_list>(<argument><expr><operator>&amp;</operator><name>gb</name></expr></argument>, <argument><expr><name>buf</name> <operator>+</operator> <name><name>asset</name><operator>-&gt;</operator><name>lbr_offset</name></name></expr></argument>, <argument><expr><name><name>asset</name><operator>-&gt;</operator><name>lbr_size</name></name></expr></argument>)</argument_list></call><operator>)</operator> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>ret</name></expr>;</return></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>get_bits_long</name><argument_list>(<argument><expr><operator>&amp;</operator><name>gb</name></expr></argument>, <argument><expr><literal type="number">32</literal></expr></argument>)</argument_list></call> <operator>!=</operator> <name>DCA_SYNCWORD_LBR</name></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>AVERROR_INVALIDDATA</name></expr>;</return></block_content></block></if></if_stmt>
+
+<switch>switch <condition>(<expr><call><name>get_bits</name><argument_list>(<argument><expr><operator>&amp;</operator><name>gb</name></expr></argument>, <argument><expr><literal type="number">8</literal></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<case>case <expr><name>DCA_LBR_HEADER_DECODER_INIT</name></expr>:</case>
+
+<expr_stmt><expr><name><name>pc1</name><operator>-&gt;</operator><name>sr_code</name></name> <operator>=</operator> <call><name>get_bits</name><argument_list>(<argument><expr><operator>&amp;</operator><name>gb</name></expr></argument>, <argument><expr><literal type="number">8</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<case>case <expr><name>DCA_LBR_HEADER_SYNC_ONLY</name></expr>:</case>
+
+<break>break;</break>
+
+<default>default:</default>
+
+<return>return <expr><name>AVERROR_INVALIDDATA</name></expr>;</return>
+
+</block_content>}</block></switch>
+
+<if_stmt><if>if <condition>(<expr><name><name>pc1</name><operator>-&gt;</operator><name>sr_code</name></name> <operator>&gt;=</operator> <call><name>FF_ARRAY_ELEMS</name><argument_list>(<argument><expr><name>ff_dca_sampling_freqs</name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>AVERROR_INVALIDDATA</name></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><operator>*</operator><name>sample_rate</name> <operator>=</operator> <name><name>ff_dca_sampling_freqs</name><index>[<expr><name><name>pc1</name><operator>-&gt;</operator><name>sr_code</name></name></expr>]</index></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><operator>*</operator><name>duration</name> <operator>=</operator> <literal type="number">1024</literal> <operator>&lt;&lt;</operator> <name><name>ff_dca_freq_ranges</name><index>[<expr><name><name>pc1</name><operator>-&gt;</operator><name>sr_code</name></name></expr>]</index></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><operator>*</operator><name>profile</name> <operator>=</operator> <name>FF_PROFILE_DTS_EXPRESS</name></expr>;</expr_stmt>
+
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>asset</name><operator>-&gt;</operator><name>extension_mask</name></name> <operator>&amp;</operator> <name>DCA_EXSS_XLL</name></expr>)</condition> <block>{<block_content>
+
+<decl_stmt><decl><type><name>int</name></type> <name>nsamples_log2</name></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>(</operator><name>ret</name> <operator>=</operator> <call><name>init_get_bits8</name><argument_list>(<argument><expr><operator>&amp;</operator><name>gb</name></expr></argument>, <argument><expr><name>buf</name> <operator>+</operator> <name><name>asset</name><operator>-&gt;</operator><name>xll_offset</name></name></expr></argument>, <argument><expr><name><name>asset</name><operator>-&gt;</operator><name>xll_size</name></name></expr></argument>)</argument_list></call><operator>)</operator> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>ret</name></expr>;</return></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>get_bits_long</name><argument_list>(<argument><expr><operator>&amp;</operator><name>gb</name></expr></argument>, <argument><expr><literal type="number">32</literal></expr></argument>)</argument_list></call> <operator>!=</operator> <name>DCA_SYNCWORD_XLL</name></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>AVERROR_INVALIDDATA</name></expr>;</return></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>get_bits</name><argument_list>(<argument><expr><operator>&amp;</operator><name>gb</name></expr></argument>, <argument><expr><literal type="number">4</literal></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>AVERROR_INVALIDDATA</name></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>skip_bits</name><argument_list>(<argument><expr><operator>&amp;</operator><name>gb</name></expr></argument>, <argument><expr><literal type="number">8</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>skip_bits_long</name><argument_list>(<argument><expr><operator>&amp;</operator><name>gb</name></expr></argument>, <argument><expr><call><name>get_bits</name><argument_list>(<argument><expr><operator>&amp;</operator><name>gb</name></expr></argument>, <argument><expr><literal type="number">5</literal></expr></argument>)</argument_list></call> <operator>+</operator> <literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>skip_bits</name><argument_list>(<argument><expr><operator>&amp;</operator><name>gb</name></expr></argument>, <argument><expr><literal type="number">4</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>nsamples_log2</name> <operator>=</operator> <call><name>get_bits</name><argument_list>(<argument><expr><operator>&amp;</operator><name>gb</name></expr></argument>, <argument><expr><literal type="number">4</literal></expr></argument>)</argument_list></call> <operator>+</operator> <call><name>get_bits</name><argument_list>(<argument><expr><operator>&amp;</operator><name>gb</name></expr></argument>, <argument><expr><literal type="number">4</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>nsamples_log2</name> <operator>&gt;</operator> <literal type="number">24</literal></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>AVERROR_INVALIDDATA</name></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><operator>*</operator><name>sample_rate</name> <operator>=</operator> <name><name>asset</name><operator>-&gt;</operator><name>max_sample_rate</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><operator>*</operator><name>duration</name> <operator>=</operator> <operator>(</operator><literal type="number">1</literal> <operator>+</operator> <operator>(</operator><operator>*</operator><name>sample_rate</name> <operator>&gt;</operator> <literal type="number">96000</literal><operator>)</operator><operator>)</operator> <operator>&lt;&lt;</operator> <name>nsamples_log2</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><operator>*</operator><name>profile</name> <operator>=</operator> <name>FF_PROFILE_DTS_HD_MA</name></expr>;</expr_stmt>
+
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<return>return <expr><name>AVERROR_INVALIDDATA</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>(</operator><name>ret</name> <operator>=</operator> <call><name>avpriv_dca_convert_bitstream</name><argument_list>(<argument><expr><name>buf</name></expr></argument>, <argument><expr><name>DCA_CORE_FRAME_HEADER_SIZE</name></expr></argument>,
+
+<argument><expr><name>hdr</name></expr></argument>, <argument><expr><name>DCA_CORE_FRAME_HEADER_SIZE</name></expr></argument>)</argument_list></call><operator>)</operator> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>ret</name></expr>;</return></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>avpriv_dca_parse_core_frame_header</name><argument_list>(<argument><expr><operator>&amp;</operator><name>h</name></expr></argument>, <argument><expr><name>hdr</name></expr></argument>, <argument><expr><name>ret</name></expr></argument>)</argument_list></call> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>AVERROR_INVALIDDATA</name></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><operator>*</operator><name>duration</name> <operator>=</operator> <name><name>h</name><operator>.</operator><name>npcmblocks</name></name> <operator>*</operator> <name>DCA_PCMBLOCK_SAMPLES</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><operator>*</operator><name>sample_rate</name> <operator>=</operator> <name><name>avpriv_dca_sample_rates</name><index>[<expr><name><name>h</name><operator>.</operator><name>sr_code</name></name></expr>]</index></name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>*</operator><name>profile</name> <operator>!=</operator> <name>FF_PROFILE_UNKNOWN</name></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><literal type="number">0</literal></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><operator>*</operator><name>profile</name> <operator>=</operator> <name>FF_PROFILE_DTS</name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>h</name><operator>.</operator><name>ext_audio_present</name></name></expr>)</condition> <block>{<block_content>
+
+<switch>switch <condition>(<expr><name><name>h</name><operator>.</operator><name>ext_audio_type</name></name></expr>)</condition> <block>{<block_content>
+
+<case>case <expr><name>DCA_EXT_AUDIO_XCH</name></expr>:</case>
+
+<case>case <expr><name>DCA_EXT_AUDIO_XXCH</name></expr>:</case>
+
+<expr_stmt><expr><operator>*</operator><name>profile</name> <operator>=</operator> <name>FF_PROFILE_DTS_ES</name></expr>;</expr_stmt>
+
+<break>break;</break>
+
+<case>case <expr><name>DCA_EXT_AUDIO_X96</name></expr>:</case>
+
+<expr_stmt><expr><operator>*</operator><name>profile</name> <operator>=</operator> <name>FF_PROFILE_DTS_96_24</name></expr>;</expr_stmt>
+
+<break>break;</break>
+
+</block_content>}</block></switch>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name>frame_size</name> <operator>=</operator> <call><name>FFALIGN</name><argument_list>(<argument><expr><name><name>h</name><operator>.</operator><name>frame_size</name></name></expr></argument>, <argument><expr><literal type="number">4</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>buf_size</name> <operator>-</operator> <literal type="number">4</literal> <operator>&lt;</operator> <name>frame_size</name></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><literal type="number">0</literal></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>buf</name> <operator>+=</operator> <name>frame_size</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>buf_size</name> <operator>-=</operator> <name>frame_size</name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>AV_RB32</name><argument_list>(<argument><expr><name>buf</name></expr></argument>)</argument_list></call> <operator>!=</operator> <name>DCA_SYNCWORD_SUBSTREAM</name></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><literal type="number">0</literal></expr>;</return></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>ff_dca_exss_parse</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>pc1</name><operator>-&gt;</operator><name>exss</name></name></expr></argument>, <argument><expr><name>buf</name></expr></argument>, <argument><expr><name>buf_size</name></expr></argument>)</argument_list></call> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><literal type="number">0</literal></expr>;</return></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>asset</name><operator>-&gt;</operator><name>extension_mask</name></name> <operator>&amp;</operator> <name>DCA_EXSS_XLL</name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><operator>*</operator><name>profile</name> <operator>=</operator> <name>FF_PROFILE_DTS_HD_MA</name></expr>;</expr_stmt></block_content></block></if>
+
+<if type="elseif">else if <condition>(<expr><name><name>asset</name><operator>-&gt;</operator><name>extension_mask</name></name> <operator>&amp;</operator> <operator>(</operator><name>DCA_EXSS_XBR</name> <operator>|</operator> <name>DCA_EXSS_XXCH</name> <operator>|</operator> <name>DCA_EXSS_X96</name><operator>)</operator></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><operator>*</operator><name>profile</name> <operator>=</operator> <name>FF_PROFILE_DTS_HD_HRA</name></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>dca_parse</name><parameter_list>(<parameter><decl><type><name>AVCodecParserContext</name> <modifier>*</modifier></type><name>s</name></decl></parameter>, <parameter><decl><type><name>AVCodecContext</name> <modifier>*</modifier></type><name>avctx</name></decl></parameter>,
+
+<parameter><decl><type><specifier>const</specifier> <name>uint8_t</name> <modifier>*</modifier><modifier>*</modifier></type><name>poutbuf</name></decl></parameter>, <parameter><decl><type><name>int</name> <modifier>*</modifier></type><name>poutbuf_size</name></decl></parameter>,
+
+<parameter><decl><type><specifier>const</specifier> <name>uint8_t</name> <modifier>*</modifier></type><name>buf</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>buf_size</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>DCAParseContext</name> <modifier>*</modifier></type><name>pc1</name> <init>= <expr><name><name>s</name><operator>-&gt;</operator><name>priv_data</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>ParseContext</name> <modifier>*</modifier></type><name>pc</name> <init>= <expr><operator>&amp;</operator><name><name>pc1</name><operator>-&gt;</operator><name>pc</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>next</name></decl>, <decl><type ref="prev"/><name>duration</name></decl>, <decl><type ref="prev"/><name>sample_rate</name></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>s</name><operator>-&gt;</operator><name>flags</name></name> <operator>&amp;</operator> <name>PARSER_FLAG_COMPLETE_FRAMES</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>next</name> <operator>=</operator> <name>buf_size</name></expr>;</expr_stmt>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<expr_stmt><expr><name>next</name> <operator>=</operator> <call><name>dca_find_frame_end</name><argument_list>(<argument><expr><name>pc1</name></expr></argument>, <argument><expr><name>buf</name></expr></argument>, <argument><expr><name>buf_size</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>ff_combine_frame</name><argument_list>(<argument><expr><name>pc</name></expr></argument>, <argument><expr><name>next</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>buf</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>buf_size</name></expr></argument>)</argument_list></call> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><operator>*</operator><name>poutbuf</name> <operator>=</operator> <name>NULL</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><operator>*</operator><name>poutbuf_size</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<return>return <expr><name>buf_size</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>buf_size</name> <operator>&gt;</operator> <name><name>pc1</name><operator>-&gt;</operator><name>startpos</name></name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>buf</name> <operator>+=</operator> <name><name>pc1</name><operator>-&gt;</operator><name>startpos</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>buf_size</name> <operator>-=</operator> <name><name>pc1</name><operator>-&gt;</operator><name>startpos</name></name></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>pc1</name><operator>-&gt;</operator><name>startpos</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>dca_parse_params</name><argument_list>(<argument><expr><name>pc1</name></expr></argument>, <argument><expr><name>buf</name></expr></argument>, <argument><expr><name>buf_size</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>duration</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>sample_rate</name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>avctx</name><operator>-&gt;</operator><name>profile</name></name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>avctx</name><operator>-&gt;</operator><name>sample_rate</name></name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name><name>avctx</name><operator>-&gt;</operator><name>sample_rate</name></name> <operator>=</operator> <name>sample_rate</name></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>duration</name></name> <operator>=</operator> <call><name>av_rescale</name><argument_list>(<argument><expr><name>duration</name></expr></argument>, <argument><expr><name><name>avctx</name><operator>-&gt;</operator><name>sample_rate</name></name></expr></argument>, <argument><expr><name>sample_rate</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if> <else>else<block type="pseudo"><block_content>
+
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>duration</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt></block_content></block></else></if_stmt>
+
+<expr_stmt><expr><operator>*</operator><name>poutbuf</name> <operator>=</operator> <name>buf</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><operator>*</operator><name>poutbuf_size</name> <operator>=</operator> <name>buf_size</name></expr>;</expr_stmt>
+
+<return>return <expr><name>next</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<decl_stmt><decl><type><name>AVCodecParser</name></type> <name>ff_dca_parser</name> <init>= <expr><block>{
+
+<expr><operator>.</operator><name>codec_ids</name> <operator>=</operator> <block>{ <expr><name>AV_CODEC_ID_DTS</name></expr> }</block></expr>,
+
+<expr><operator>.</operator><name>priv_data_size</name> <operator>=</operator> <sizeof>sizeof<argument_list>(<argument><expr><name>DCAParseContext</name></expr></argument>)</argument_list></sizeof></expr>,
+
+<expr><operator>.</operator><name>parser_init</name> <operator>=</operator> <name>dca_parse_init</name></expr>,
+
+<expr><operator>.</operator><name>parser_parse</name> <operator>=</operator> <name>dca_parse</name></expr>,
+
+<expr><operator>.</operator><name>parser_close</name> <operator>=</operator> <name>ff_parse_close</name></expr>,
+
+}</block></expr></init></decl>;</decl_stmt>
+
+</unit>

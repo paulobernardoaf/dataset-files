@@ -1,0 +1,428 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" revision="1.0.0" language="C" filename="D:\Pesquisa\Projects\obs-analysis\_cppstats_featurelocations\obs-studio\plugins\obs-ffmpeg\obs-ffmpeg-audio-encoders.c">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;util/base.h&gt;</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;util/circlebuf.h&gt;</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;util/darray.h&gt;</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;obs-module.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;libavutil/opt.h&gt;</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;libavformat/avformat.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"obs-ffmpeg-formats.h"</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"obs-ffmpeg-compat.h"</cpp:file></cpp:include>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>do_log</name><parameter_list>(<parameter><type><name>level</name></type></parameter>, <parameter><type><name>format</name></type></parameter>, <parameter><type><modifier>...</modifier></type></parameter>)</parameter_list></cpp:macro> <cpp:value>blog(level, "[FFmpeg %s encoder: '%s'] " format, enc-&gt;type, obs_encoder_get_name(enc-&gt;encoder), ##__VA_ARGS__)</cpp:value></cpp:define>
+
+
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>warn</name><parameter_list>(<parameter><type><name>format</name></type></parameter>, <parameter><type><modifier>...</modifier></type></parameter>)</parameter_list></cpp:macro> <cpp:value>do_log(LOG_WARNING, format, ##__VA_ARGS__)</cpp:value></cpp:define>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>info</name><parameter_list>(<parameter><type><name>format</name></type></parameter>, <parameter><type><modifier>...</modifier></type></parameter>)</parameter_list></cpp:macro> <cpp:value>do_log(LOG_INFO, format, ##__VA_ARGS__)</cpp:value></cpp:define>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>debug</name><parameter_list>(<parameter><type><name>format</name></type></parameter>, <parameter><type><modifier>...</modifier></type></parameter>)</parameter_list></cpp:macro> <cpp:value>do_log(LOG_DEBUG, format, ##__VA_ARGS__)</cpp:value></cpp:define>
+
+<struct>struct <name>enc_encoder</name> <block>{
+<decl_stmt><decl><type><name>obs_encoder_t</name> <modifier>*</modifier></type><name>encoder</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>type</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>AVCodec</name> <modifier>*</modifier></type><name>codec</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>AVCodecContext</name> <modifier>*</modifier></type><name>context</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>uint8_t</name> <modifier>*</modifier></type><name><name>samples</name><index>[<expr><name>MAX_AV_PLANES</name></expr>]</index></name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>AVFrame</name> <modifier>*</modifier></type><name>aframe</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int64_t</name></type> <name>total_samples</name></decl>;</decl_stmt>
+
+<macro><name>DARRAY</name><argument_list>(<argument>uint8_t</argument>)</argument_list></macro> <expr_stmt><expr><name>packet_buffer</name></expr>;</expr_stmt>
+
+<decl_stmt><decl><type><name>size_t</name></type> <name>audio_planes</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>size_t</name></type> <name>audio_size</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>frame_size</name></decl>;</decl_stmt> 
+<decl_stmt><decl><type><name>int</name></type> <name>frame_size_bytes</name></decl>;</decl_stmt>
+}</block>;</struct>
+
+<function><type><specifier>static</specifier> <specifier>inline</specifier> <name>uint64_t</name></type> <name>convert_speaker_layout</name><parameter_list>(<parameter><decl><type><name><name>enum</name> <name>speaker_layout</name></name></type> <name>layout</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<switch>switch <condition>(<expr><name>layout</name></expr>)</condition> <block>{<block_content>
+<case>case <expr><name>SPEAKERS_UNKNOWN</name></expr>:</case>
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+<case>case <expr><name>SPEAKERS_MONO</name></expr>:</case>
+<return>return <expr><name>AV_CH_LAYOUT_MONO</name></expr>;</return>
+<case>case <expr><name>SPEAKERS_STEREO</name></expr>:</case>
+<return>return <expr><name>AV_CH_LAYOUT_STEREO</name></expr>;</return>
+<case>case <expr><name>SPEAKERS_2POINT1</name></expr>:</case>
+<return>return <expr><name>AV_CH_LAYOUT_SURROUND</name></expr>;</return>
+<case>case <expr><name>SPEAKERS_4POINT0</name></expr>:</case>
+<return>return <expr><name>AV_CH_LAYOUT_4POINT0</name></expr>;</return>
+<case>case <expr><name>SPEAKERS_4POINT1</name></expr>:</case>
+<return>return <expr><name>AV_CH_LAYOUT_4POINT1</name></expr>;</return>
+<case>case <expr><name>SPEAKERS_5POINT1</name></expr>:</case>
+<return>return <expr><name>AV_CH_LAYOUT_5POINT1_BACK</name></expr>;</return>
+<case>case <expr><name>SPEAKERS_7POINT1</name></expr>:</case>
+<return>return <expr><name>AV_CH_LAYOUT_7POINT1</name></expr>;</return>
+</block_content>}</block></switch>
+
+
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <specifier>inline</specifier> <name><name>enum</name> <name>speaker_layout</name></name></type>
+<name>convert_ff_channel_layout</name><parameter_list>(<parameter><decl><type><name>uint64_t</name></type> <name>channel_layout</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<switch>switch <condition>(<expr><name>channel_layout</name></expr>)</condition> <block>{<block_content>
+<case>case <expr><name>AV_CH_LAYOUT_MONO</name></expr>:</case>
+<return>return <expr><name>SPEAKERS_MONO</name></expr>;</return>
+<case>case <expr><name>AV_CH_LAYOUT_STEREO</name></expr>:</case>
+<return>return <expr><name>SPEAKERS_STEREO</name></expr>;</return>
+<case>case <expr><name>AV_CH_LAYOUT_SURROUND</name></expr>:</case>
+<return>return <expr><name>SPEAKERS_2POINT1</name></expr>;</return>
+<case>case <expr><name>AV_CH_LAYOUT_4POINT0</name></expr>:</case>
+<return>return <expr><name>SPEAKERS_4POINT0</name></expr>;</return>
+<case>case <expr><name>AV_CH_LAYOUT_4POINT1</name></expr>:</case>
+<return>return <expr><name>SPEAKERS_4POINT1</name></expr>;</return>
+<case>case <expr><name>AV_CH_LAYOUT_5POINT1_BACK</name></expr>:</case>
+<return>return <expr><name>SPEAKERS_5POINT1</name></expr>;</return>
+<case>case <expr><name>AV_CH_LAYOUT_7POINT1</name></expr>:</case>
+<return>return <expr><name>SPEAKERS_7POINT1</name></expr>;</return>
+</block_content>}</block></switch>
+
+
+<return>return <expr><name>SPEAKERS_UNKNOWN</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>aac_getname</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>unused</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<expr_stmt><expr><call><name>UNUSED_PARAMETER</name><argument_list>(<argument><expr><name>unused</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><call><name>obs_module_text</name><argument_list>(<argument><expr><literal type="string">"FFmpegAAC"</literal></expr></argument>)</argument_list></call></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>opus_getname</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>unused</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<expr_stmt><expr><call><name>UNUSED_PARAMETER</name><argument_list>(<argument><expr><name>unused</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><call><name>obs_module_text</name><argument_list>(<argument><expr><literal type="string">"FFmpegOpus"</literal></expr></argument>)</argument_list></call></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>enc_destroy</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>enc_encoder</name></name> <modifier>*</modifier></type><name>enc</name> <init>= <expr><name>data</name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>enc</name><operator>-&gt;</operator><name>samples</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>av_freep</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>enc</name><operator>-&gt;</operator><name>samples</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>enc</name><operator>-&gt;</operator><name>context</name></name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>avcodec_close</name><argument_list>(<argument><expr><name><name>enc</name><operator>-&gt;</operator><name>context</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>enc</name><operator>-&gt;</operator><name>aframe</name></name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>av_frame_free</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>enc</name><operator>-&gt;</operator><name>aframe</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>da_free</name><argument_list>(<argument><expr><name><name>enc</name><operator>-&gt;</operator><name>packet_buffer</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>bfree</name><argument_list>(<argument><expr><name>enc</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>bool</name></type> <name>initialize_codec</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>enc_encoder</name></name> <modifier>*</modifier></type><name>enc</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>int</name></type> <name>ret</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>enc</name><operator>-&gt;</operator><name>aframe</name></name> <operator>=</operator> <call><name>av_frame_alloc</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>enc</name><operator>-&gt;</operator><name>aframe</name></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>warn</name><argument_list>(<argument><expr><literal type="string">"Failed to allocate audio frame"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>false</name></expr>;</return>
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <call><name>avcodec_open2</name><argument_list>(<argument><expr><name><name>enc</name><operator>-&gt;</operator><name>context</name></name></expr></argument>, <argument><expr><name><name>enc</name><operator>-&gt;</operator><name>codec</name></name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name>ret</name> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>warn</name><argument_list>(<argument><expr><literal type="string">"Failed to open AAC codec: %s"</literal></expr></argument>, <argument><expr><call><name>av_err2str</name><argument_list>(<argument><expr><name>ret</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>false</name></expr>;</return>
+</block_content>}</block></if></if_stmt>
+<expr_stmt><expr><name><name>enc</name><operator>-&gt;</operator><name>aframe</name><operator>-&gt;</operator><name>format</name></name> <operator>=</operator> <name><name>enc</name><operator>-&gt;</operator><name>context</name><operator>-&gt;</operator><name>sample_fmt</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>enc</name><operator>-&gt;</operator><name>aframe</name><operator>-&gt;</operator><name>channels</name></name> <operator>=</operator> <name><name>enc</name><operator>-&gt;</operator><name>context</name><operator>-&gt;</operator><name>channels</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>enc</name><operator>-&gt;</operator><name>aframe</name><operator>-&gt;</operator><name>channel_layout</name></name> <operator>=</operator> <name><name>enc</name><operator>-&gt;</operator><name>context</name><operator>-&gt;</operator><name>channel_layout</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>enc</name><operator>-&gt;</operator><name>aframe</name><operator>-&gt;</operator><name>sample_rate</name></name> <operator>=</operator> <name><name>enc</name><operator>-&gt;</operator><name>context</name><operator>-&gt;</operator><name>sample_rate</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>enc</name><operator>-&gt;</operator><name>frame_size</name></name> <operator>=</operator> <name><name>enc</name><operator>-&gt;</operator><name>context</name><operator>-&gt;</operator><name>frame_size</name></name></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>enc</name><operator>-&gt;</operator><name>frame_size</name></name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name><name>enc</name><operator>-&gt;</operator><name>frame_size</name></name> <operator>=</operator> <literal type="number">1024</literal></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name><name>enc</name><operator>-&gt;</operator><name>frame_size_bytes</name></name> <operator>=</operator> <name><name>enc</name><operator>-&gt;</operator><name>frame_size</name></name> <operator>*</operator> <operator>(</operator><name>int</name><operator>)</operator><name><name>enc</name><operator>-&gt;</operator><name>audio_size</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <call><name>av_samples_alloc</name><argument_list>(<argument><expr><name><name>enc</name><operator>-&gt;</operator><name>samples</name></name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>, <argument><expr><name><name>enc</name><operator>-&gt;</operator><name>context</name><operator>-&gt;</operator><name>channels</name></name></expr></argument>,
+<argument><expr><name><name>enc</name><operator>-&gt;</operator><name>frame_size</name></name></expr></argument>, <argument><expr><name><name>enc</name><operator>-&gt;</operator><name>context</name><operator>-&gt;</operator><name>sample_fmt</name></name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name>ret</name> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>warn</name><argument_list>(<argument><expr><literal type="string">"Failed to create audio buffer: %s"</literal></expr></argument>, <argument><expr><call><name>av_err2str</name><argument_list>(<argument><expr><name>ret</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>false</name></expr>;</return>
+</block_content>}</block></if></if_stmt>
+
+<return>return <expr><name>true</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>init_sizes</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>enc_encoder</name></name> <modifier>*</modifier></type><name>enc</name></decl></parameter>, <parameter><decl><type><name>audio_t</name> <modifier>*</modifier></type><name>audio</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><specifier>const</specifier> <name><name>struct</name> <name>audio_output_info</name></name> <modifier>*</modifier></type><name>aoi</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name><name>enum</name> <name>audio_format</name></name></type> <name>format</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>aoi</name> <operator>=</operator> <call><name>audio_output_get_info</name><argument_list>(<argument><expr><name>audio</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>format</name> <operator>=</operator> <call><name>convert_ffmpeg_sample_format</name><argument_list>(<argument><expr><name><name>enc</name><operator>-&gt;</operator><name>context</name><operator>-&gt;</operator><name>sample_fmt</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>enc</name><operator>-&gt;</operator><name>audio_planes</name></name> <operator>=</operator> <call><name>get_audio_planes</name><argument_list>(<argument><expr><name>format</name></expr></argument>, <argument><expr><name><name>aoi</name><operator>-&gt;</operator><name>speakers</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>enc</name><operator>-&gt;</operator><name>audio_size</name></name> <operator>=</operator> <call><name>get_audio_size</name><argument_list>(<argument><expr><name>format</name></expr></argument>, <argument><expr><name><name>aoi</name><operator>-&gt;</operator><name>speakers</name></name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><operator>!</operator><call><name>defined</name><argument_list>(<argument><expr><name>MIN</name></expr></argument>)</argument_list></call></expr></cpp:if>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>MIN</name><parameter_list>(<parameter><type><name>x</name></type></parameter>, <parameter><type><name>y</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>((x) &lt; (y) ? (x) : (y))</cpp:value></cpp:define>
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+<function><type><specifier>static</specifier> <name>void</name> <modifier>*</modifier></type><name>enc_create</name><parameter_list>(<parameter><decl><type><name>obs_data_t</name> <modifier>*</modifier></type><name>settings</name></decl></parameter>, <parameter><decl><type><name>obs_encoder_t</name> <modifier>*</modifier></type><name>encoder</name></decl></parameter>,
+<parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>type</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>alt</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>enc_encoder</name></name> <modifier>*</modifier></type><name>enc</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>bitrate</name> <init>= <expr><operator>(</operator><name>int</name><operator>)</operator><call><name>obs_data_get_int</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"bitrate"</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>audio_t</name> <modifier>*</modifier></type><name>audio</name> <init>= <expr><call><name>obs_encoder_audio</name><argument_list>(<argument><expr><name>encoder</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><name>LIBAVCODEC_VERSION_INT</name> <operator>&lt;</operator> <call><name>AV_VERSION_INT</name><argument_list>(<argument><expr><literal type="number">58</literal><operator>,</operator> <literal type="number">9</literal><operator>,</operator> <literal type="number">100</literal></expr></argument>)</argument_list></call></expr></cpp:if>
+<expr_stmt><expr><call><name>avcodec_register_all</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+<expr_stmt><expr><name>enc</name> <operator>=</operator> <call><name>bzalloc</name><argument_list>(<argument><expr><sizeof>sizeof<argument_list>(<argument><expr>struct <name>enc_encoder</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>enc</name><operator>-&gt;</operator><name>encoder</name></name> <operator>=</operator> <name>encoder</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>enc</name><operator>-&gt;</operator><name>codec</name></name> <operator>=</operator> <call><name>avcodec_find_encoder_by_name</name><argument_list>(<argument><expr><name>type</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>enc</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>type</name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>enc</name><operator>-&gt;</operator><name>codec</name></name> <operator>&amp;&amp;</operator> <name>alt</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name><name>enc</name><operator>-&gt;</operator><name>codec</name></name> <operator>=</operator> <call><name>avcodec_find_encoder_by_name</name><argument_list>(<argument><expr><name>alt</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>enc</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>alt</name></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>blog</name><argument_list>(<argument><expr><name>LOG_INFO</name></expr></argument>, <argument><expr><literal type="string">"---------------------------------"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>enc</name><operator>-&gt;</operator><name>codec</name></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>warn</name><argument_list>(<argument><expr><literal type="string">"Couldn't find encoder"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<goto>goto <name>fail</name>;</goto>
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>bitrate</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>warn</name><argument_list>(<argument><expr><literal type="string">"Invalid bitrate specified"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>NULL</name></expr>;</return>
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>enc</name><operator>-&gt;</operator><name>context</name></name> <operator>=</operator> <call><name>avcodec_alloc_context3</name><argument_list>(<argument><expr><name><name>enc</name><operator>-&gt;</operator><name>codec</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>enc</name><operator>-&gt;</operator><name>context</name></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>warn</name><argument_list>(<argument><expr><literal type="string">"Failed to create codec context"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<goto>goto <name>fail</name>;</goto>
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>enc</name><operator>-&gt;</operator><name>context</name><operator>-&gt;</operator><name>bit_rate</name></name> <operator>=</operator> <name>bitrate</name> <operator>*</operator> <literal type="number">1000</literal></expr>;</expr_stmt>
+<decl_stmt><decl><type><specifier>const</specifier> <name><name>struct</name> <name>audio_output_info</name></name> <modifier>*</modifier></type><name>aoi</name></decl>;</decl_stmt>
+<expr_stmt><expr><name>aoi</name> <operator>=</operator> <call><name>audio_output_get_info</name><argument_list>(<argument><expr><name>audio</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>enc</name><operator>-&gt;</operator><name>context</name><operator>-&gt;</operator><name>channels</name></name> <operator>=</operator> <operator>(</operator><name>int</name><operator>)</operator><call><name>audio_output_get_channels</name><argument_list>(<argument><expr><name>audio</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>enc</name><operator>-&gt;</operator><name>context</name><operator>-&gt;</operator><name>channel_layout</name></name> <operator>=</operator> <call><name>convert_speaker_layout</name><argument_list>(<argument><expr><name><name>aoi</name><operator>-&gt;</operator><name>speakers</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>enc</name><operator>-&gt;</operator><name>context</name><operator>-&gt;</operator><name>sample_rate</name></name> <operator>=</operator> <call><name>audio_output_get_sample_rate</name><argument_list>(<argument><expr><name>audio</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>enc</name><operator>-&gt;</operator><name>context</name><operator>-&gt;</operator><name>sample_fmt</name></name> <operator>=</operator> <ternary><condition><expr><name><name>enc</name><operator>-&gt;</operator><name>codec</name><operator>-&gt;</operator><name>sample_fmts</name></name></expr>
+?</condition><then> <expr><name><name>enc</name><operator>-&gt;</operator><name>codec</name><operator>-&gt;</operator><name>sample_fmts</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr>
+</then><else>: <expr><name>AV_SAMPLE_FMT_FLTP</name></expr></else></ternary></expr>;</expr_stmt>
+
+
+<if_stmt><if>if <condition>(<expr><name><name>enc</name><operator>-&gt;</operator><name>codec</name><operator>-&gt;</operator><name>supported_samplerates</name></name></expr>)</condition> <block>{<block_content>
+<decl_stmt><decl><type><specifier>const</specifier> <name>int</name> <modifier>*</modifier></type><name>rate</name> <init>= <expr><name><name>enc</name><operator>-&gt;</operator><name>codec</name><operator>-&gt;</operator><name>supported_samplerates</name></name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>cur_rate</name> <init>= <expr><name><name>enc</name><operator>-&gt;</operator><name>context</name><operator>-&gt;</operator><name>sample_rate</name></name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>closest</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+
+<while>while <condition>(<expr><operator>*</operator><name>rate</name></expr>)</condition> <block>{<block_content>
+<decl_stmt><decl><type><name>int</name></type> <name>dist</name> <init>= <expr><call><name>abs</name><argument_list>(<argument><expr><name>cur_rate</name> <operator>-</operator> <operator>*</operator><name>rate</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>closest_dist</name> <init>= <expr><call><name>abs</name><argument_list>(<argument><expr><name>cur_rate</name> <operator>-</operator> <name>closest</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>dist</name> <operator>&lt;</operator> <name>closest_dist</name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name>closest</name> <operator>=</operator> <operator>*</operator><name>rate</name></expr>;</expr_stmt></block_content></block></if></if_stmt>
+<expr_stmt><expr><name>rate</name><operator>++</operator></expr>;</expr_stmt>
+</block_content>}</block></while>
+
+<if_stmt><if>if <condition>(<expr><name>closest</name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name><name>enc</name><operator>-&gt;</operator><name>context</name><operator>-&gt;</operator><name>sample_rate</name></name> <operator>=</operator> <name>closest</name></expr>;</expr_stmt></block_content></block></if></if_stmt>
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>strcmp</name><argument_list>(<argument><expr><name><name>enc</name><operator>-&gt;</operator><name>codec</name><operator>-&gt;</operator><name>name</name></name></expr></argument>, <argument><expr><literal type="string">"aac"</literal></expr></argument>)</argument_list></call> <operator>==</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>av_opt_set</name><argument_list>(<argument><expr><name><name>enc</name><operator>-&gt;</operator><name>context</name><operator>-&gt;</operator><name>priv_data</name></name></expr></argument>, <argument><expr><literal type="string">"aac_coder"</literal></expr></argument>, <argument><expr><literal type="string">"fast"</literal></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>info</name><argument_list>(<argument><expr><literal type="string">"bitrate: %"</literal> <name>PRId64</name> <literal type="string">", channels: %d, channel_layout: %x\n"</literal></expr></argument>,
+<argument><expr><operator>(</operator><name>int64_t</name><operator>)</operator><name><name>enc</name><operator>-&gt;</operator><name>context</name><operator>-&gt;</operator><name>bit_rate</name></name> <operator>/</operator> <literal type="number">1000</literal></expr></argument>,
+<argument><expr><operator>(</operator><name>int</name><operator>)</operator><name><name>enc</name><operator>-&gt;</operator><name>context</name><operator>-&gt;</operator><name>channels</name></name></expr></argument>,
+<argument><expr><operator>(</operator><name>unsigned</name> <name>int</name><operator>)</operator><name><name>enc</name><operator>-&gt;</operator><name>context</name><operator>-&gt;</operator><name>channel_layout</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>init_sizes</name><argument_list>(<argument><expr><name>enc</name></expr></argument>, <argument><expr><name>audio</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+
+<expr_stmt><expr><name><name>enc</name><operator>-&gt;</operator><name>context</name><operator>-&gt;</operator><name>strict_std_compliance</name></name> <operator>=</operator> <operator>-</operator><literal type="number">2</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>enc</name><operator>-&gt;</operator><name>context</name><operator>-&gt;</operator><name>flags</name></name> <operator>=</operator> <name>CODEC_FLAG_GLOBAL_H</name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>initialize_codec</name><argument_list>(<argument><expr><name>enc</name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><name>enc</name></expr>;</return></block_content></block></if></if_stmt>
+
+<label><name>fail</name>:</label>
+<expr_stmt><expr><call><name>enc_destroy</name><argument_list>(<argument><expr><name>enc</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>NULL</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name> <modifier>*</modifier></type><name>aac_create</name><parameter_list>(<parameter><decl><type><name>obs_data_t</name> <modifier>*</modifier></type><name>settings</name></decl></parameter>, <parameter><decl><type><name>obs_encoder_t</name> <modifier>*</modifier></type><name>encoder</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<return>return <expr><call><name>enc_create</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><name>encoder</name></expr></argument>, <argument><expr><literal type="string">"aac"</literal></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name> <modifier>*</modifier></type><name>opus_create</name><parameter_list>(<parameter><decl><type><name>obs_data_t</name> <modifier>*</modifier></type><name>settings</name></decl></parameter>, <parameter><decl><type><name>obs_encoder_t</name> <modifier>*</modifier></type><name>encoder</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<return>return <expr><call><name>enc_create</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><name>encoder</name></expr></argument>, <argument><expr><literal type="string">"libopus"</literal></expr></argument>, <argument><expr><literal type="string">"opus"</literal></expr></argument>)</argument_list></call></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>bool</name></type> <name>do_encode</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>enc_encoder</name></name> <modifier>*</modifier></type><name>enc</name></decl></parameter>, <parameter><decl><type><name><name>struct</name> <name>encoder_packet</name></name> <modifier>*</modifier></type><name>packet</name></decl></parameter>,
+<parameter><decl><type><name>bool</name> <modifier>*</modifier></type><name>received_packet</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>AVRational</name></type> <name>time_base</name> <init>= <expr><block>{<expr><literal type="number">1</literal></expr>, <expr><name><name>enc</name><operator>-&gt;</operator><name>context</name><operator>-&gt;</operator><name>sample_rate</name></name></expr>}</block></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>AVPacket</name></type> <name>avpacket</name> <init>= <expr><block>{<expr><literal type="number">0</literal></expr>}</block></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>got_packet</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>ret</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>enc</name><operator>-&gt;</operator><name>aframe</name><operator>-&gt;</operator><name>nb_samples</name></name> <operator>=</operator> <name><name>enc</name><operator>-&gt;</operator><name>frame_size</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>enc</name><operator>-&gt;</operator><name>aframe</name><operator>-&gt;</operator><name>pts</name></name> <operator>=</operator> <macro><name>av_rescale_q</name><argument_list>(
+<argument>enc-&gt;total_samples</argument>, <argument>(AVRational){<literal type="number">1</literal></argument>, <argument>enc-&gt;context-&gt;sample_rate}</argument>,
+<argument>enc-&gt;context-&gt;time_base</argument>)</argument_list></macro></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <call><name>avcodec_fill_audio_frame</name><argument_list>(
+<argument><expr><name><name>enc</name><operator>-&gt;</operator><name>aframe</name></name></expr></argument>, <argument><expr><name><name>enc</name><operator>-&gt;</operator><name>context</name><operator>-&gt;</operator><name>channels</name></name></expr></argument>, <argument><expr><name><name>enc</name><operator>-&gt;</operator><name>context</name><operator>-&gt;</operator><name>sample_fmt</name></name></expr></argument>,
+<argument><expr><name><name>enc</name><operator>-&gt;</operator><name>samples</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>, <argument><expr><name><name>enc</name><operator>-&gt;</operator><name>frame_size_bytes</name></name> <operator>*</operator> <name><name>enc</name><operator>-&gt;</operator><name>context</name><operator>-&gt;</operator><name>channels</name></name></expr></argument>,
+<argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name>ret</name> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>warn</name><argument_list>(<argument><expr><literal type="string">"avcodec_fill_audio_frame failed: %s"</literal></expr></argument>, <argument><expr><call><name>av_err2str</name><argument_list>(<argument><expr><name>ret</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>false</name></expr>;</return>
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>enc</name><operator>-&gt;</operator><name>total_samples</name></name> <operator>+=</operator> <name><name>enc</name><operator>-&gt;</operator><name>frame_size</name></name></expr>;</expr_stmt>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><name>LIBAVFORMAT_VERSION_INT</name> <operator>&gt;=</operator> <call><name>AV_VERSION_INT</name><argument_list>(<argument><expr><literal type="number">57</literal><operator>,</operator> <literal type="number">40</literal><operator>,</operator> <literal type="number">101</literal></expr></argument>)</argument_list></call></expr></cpp:if>
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <call><name>avcodec_send_frame</name><argument_list>(<argument><expr><name><name>enc</name><operator>-&gt;</operator><name>context</name></name></expr></argument>, <argument><expr><name><name>enc</name><operator>-&gt;</operator><name>aframe</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name>ret</name> <operator>==</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <call><name>avcodec_receive_packet</name><argument_list>(<argument><expr><name><name>enc</name><operator>-&gt;</operator><name>context</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name>avpacket</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>got_packet</name> <operator>=</operator> <operator>(</operator><name>ret</name> <operator>==</operator> <literal type="number">0</literal><operator>)</operator></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>ret</name> <operator>==</operator> <name>AVERROR_EOF</name> <operator>||</operator> <name>ret</name> <operator>==</operator> <call><name>AVERROR</name><argument_list>(<argument><expr><name>EAGAIN</name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt></block_content></block></if></if_stmt>
+<cpp:else>#<cpp:directive>else</cpp:directive></cpp:else>
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <call><name>avcodec_encode_audio2</name><argument_list>(<argument><expr><name><name>enc</name><operator>-&gt;</operator><name>context</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name>avpacket</name></expr></argument>, <argument><expr><name><name>enc</name><operator>-&gt;</operator><name>aframe</name></name></expr></argument>,
+<argument><expr><operator>&amp;</operator><name>got_packet</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+<if_stmt><if>if <condition>(<expr><name>ret</name> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>warn</name><argument_list>(<argument><expr><literal type="string">"avcodec_encode_audio2 failed: %s"</literal></expr></argument>, <argument><expr><call><name>av_err2str</name><argument_list>(<argument><expr><name>ret</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>false</name></expr>;</return>
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><operator>*</operator><name>received_packet</name> <operator>=</operator> <operator>!</operator><operator>!</operator><name>got_packet</name></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>got_packet</name></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><name>true</name></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>da_resize</name><argument_list>(<argument><expr><name><name>enc</name><operator>-&gt;</operator><name>packet_buffer</name></name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>da_push_back_array</name><argument_list>(<argument><expr><name><name>enc</name><operator>-&gt;</operator><name>packet_buffer</name></name></expr></argument>, <argument><expr><name><name>avpacket</name><operator>.</operator><name>data</name></name></expr></argument>, <argument><expr><name><name>avpacket</name><operator>.</operator><name>size</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>packet</name><operator>-&gt;</operator><name>pts</name></name> <operator>=</operator> <call><name>rescale_ts</name><argument_list>(<argument><expr><name><name>avpacket</name><operator>.</operator><name>pts</name></name></expr></argument>, <argument><expr><name><name>enc</name><operator>-&gt;</operator><name>context</name></name></expr></argument>, <argument><expr><name>time_base</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>packet</name><operator>-&gt;</operator><name>dts</name></name> <operator>=</operator> <call><name>rescale_ts</name><argument_list>(<argument><expr><name><name>avpacket</name><operator>.</operator><name>dts</name></name></expr></argument>, <argument><expr><name><name>enc</name><operator>-&gt;</operator><name>context</name></name></expr></argument>, <argument><expr><name>time_base</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>packet</name><operator>-&gt;</operator><name>data</name></name> <operator>=</operator> <name><name>enc</name><operator>-&gt;</operator><name>packet_buffer</name><operator>.</operator><name>array</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>packet</name><operator>-&gt;</operator><name>size</name></name> <operator>=</operator> <name><name>avpacket</name><operator>.</operator><name>size</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>packet</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>OBS_ENCODER_AUDIO</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>packet</name><operator>-&gt;</operator><name>timebase_num</name></name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>packet</name><operator>-&gt;</operator><name>timebase_den</name></name> <operator>=</operator> <operator>(</operator><name>int32_t</name><operator>)</operator><name><name>enc</name><operator>-&gt;</operator><name>context</name><operator>-&gt;</operator><name>sample_rate</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>av_free_packet</name><argument_list>(<argument><expr><operator>&amp;</operator><name>avpacket</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>true</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>bool</name></type> <name>enc_encode</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>, <parameter><decl><type><name><name>struct</name> <name>encoder_frame</name></name> <modifier>*</modifier></type><name>frame</name></decl></parameter>,
+<parameter><decl><type><name><name>struct</name> <name>encoder_packet</name></name> <modifier>*</modifier></type><name>packet</name></decl></parameter>, <parameter><decl><type><name>bool</name> <modifier>*</modifier></type><name>received_packet</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>enc_encoder</name></name> <modifier>*</modifier></type><name>enc</name> <init>= <expr><name>data</name></expr></init></decl>;</decl_stmt>
+
+<for>for <control>(<init><decl><type><name>size_t</name></type> <name>i</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name><name>enc</name><operator>-&gt;</operator><name>audio_planes</name></name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>memcpy</name><argument_list>(<argument><expr><name><name>enc</name><operator>-&gt;</operator><name>samples</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>, <argument><expr><name><name>frame</name><operator>-&gt;</operator><name>data</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>, <argument><expr><name><name>enc</name><operator>-&gt;</operator><name>frame_size_bytes</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></for>
+
+<return>return <expr><call><name>do_encode</name><argument_list>(<argument><expr><name>enc</name></expr></argument>, <argument><expr><name>packet</name></expr></argument>, <argument><expr><name>received_packet</name></expr></argument>)</argument_list></call></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>enc_defaults</name><parameter_list>(<parameter><decl><type><name>obs_data_t</name> <modifier>*</modifier></type><name>settings</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<expr_stmt><expr><call><name>obs_data_set_default_int</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"bitrate"</literal></expr></argument>, <argument><expr><literal type="number">128</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>obs_properties_t</name> <modifier>*</modifier></type><name>enc_properties</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>unused</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<expr_stmt><expr><call><name>UNUSED_PARAMETER</name><argument_list>(<argument><expr><name>unused</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<decl_stmt><decl><type><name>obs_properties_t</name> <modifier>*</modifier></type><name>props</name> <init>= <expr><call><name>obs_properties_create</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><call><name>obs_properties_add_int</name><argument_list>(<argument><expr><name>props</name></expr></argument>, <argument><expr><literal type="string">"bitrate"</literal></expr></argument>, <argument><expr><call><name>obs_module_text</name><argument_list>(<argument><expr><literal type="string">"Bitrate"</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><literal type="number">64</literal></expr></argument>,
+<argument><expr><literal type="number">1024</literal></expr></argument>, <argument><expr><literal type="number">32</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>props</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>bool</name></type> <name>enc_extra_data</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>, <parameter><decl><type><name>uint8_t</name> <modifier>*</modifier><modifier>*</modifier></type><name>extra_data</name></decl></parameter>, <parameter><decl><type><name>size_t</name> <modifier>*</modifier></type><name>size</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>enc_encoder</name></name> <modifier>*</modifier></type><name>enc</name> <init>= <expr><name>data</name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><operator>*</operator><name>extra_data</name> <operator>=</operator> <name><name>enc</name><operator>-&gt;</operator><name>context</name><operator>-&gt;</operator><name>extradata</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><operator>*</operator><name>size</name> <operator>=</operator> <name><name>enc</name><operator>-&gt;</operator><name>context</name><operator>-&gt;</operator><name>extradata_size</name></name></expr>;</expr_stmt>
+<return>return <expr><name>true</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>enc_audio_info</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>, <parameter><decl><type><name><name>struct</name> <name>audio_convert_info</name></name> <modifier>*</modifier></type><name>info</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>enc_encoder</name></name> <modifier>*</modifier></type><name>enc</name> <init>= <expr><name>data</name></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><name><name>info</name><operator>-&gt;</operator><name>format</name></name> <operator>=</operator> <call><name>convert_ffmpeg_sample_format</name><argument_list>(<argument><expr><name><name>enc</name><operator>-&gt;</operator><name>context</name><operator>-&gt;</operator><name>sample_fmt</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>info</name><operator>-&gt;</operator><name>samples_per_sec</name></name> <operator>=</operator> <operator>(</operator><name>uint32_t</name><operator>)</operator><name><name>enc</name><operator>-&gt;</operator><name>context</name><operator>-&gt;</operator><name>sample_rate</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>info</name><operator>-&gt;</operator><name>speakers</name></name> <operator>=</operator>
+<call><name>convert_ff_channel_layout</name><argument_list>(<argument><expr><name><name>enc</name><operator>-&gt;</operator><name>context</name><operator>-&gt;</operator><name>channel_layout</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>size_t</name></type> <name>enc_frame_size</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>enc_encoder</name></name> <modifier>*</modifier></type><name>enc</name> <init>= <expr><name>data</name></expr></init></decl>;</decl_stmt>
+<return>return <expr><name><name>enc</name><operator>-&gt;</operator><name>frame_size</name></name></expr>;</return>
+</block_content>}</block></function>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>obs_encoder_info</name></name></type> <name>aac_encoder_info</name> <init>= <expr><block>{
+<expr><operator>.</operator><name>id</name> <operator>=</operator> <literal type="string">"ffmpeg_aac"</literal></expr>,
+<expr><operator>.</operator><name>type</name> <operator>=</operator> <name>OBS_ENCODER_AUDIO</name></expr>,
+<expr><operator>.</operator><name>codec</name> <operator>=</operator> <literal type="string">"AAC"</literal></expr>,
+<expr><operator>.</operator><name>get_name</name> <operator>=</operator> <name>aac_getname</name></expr>,
+<expr><operator>.</operator><name>create</name> <operator>=</operator> <name>aac_create</name></expr>,
+<expr><operator>.</operator><name>destroy</name> <operator>=</operator> <name>enc_destroy</name></expr>,
+<expr><operator>.</operator><name>encode</name> <operator>=</operator> <name>enc_encode</name></expr>,
+<expr><operator>.</operator><name>get_frame_size</name> <operator>=</operator> <name>enc_frame_size</name></expr>,
+<expr><operator>.</operator><name>get_defaults</name> <operator>=</operator> <name>enc_defaults</name></expr>,
+<expr><operator>.</operator><name>get_properties</name> <operator>=</operator> <name>enc_properties</name></expr>,
+<expr><operator>.</operator><name>get_extra_data</name> <operator>=</operator> <name>enc_extra_data</name></expr>,
+<expr><operator>.</operator><name>get_audio_info</name> <operator>=</operator> <name>enc_audio_info</name></expr>,
+}</block></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>obs_encoder_info</name></name></type> <name>opus_encoder_info</name> <init>= <expr><block>{
+<expr><operator>.</operator><name>id</name> <operator>=</operator> <literal type="string">"ffmpeg_opus"</literal></expr>,
+<expr><operator>.</operator><name>type</name> <operator>=</operator> <name>OBS_ENCODER_AUDIO</name></expr>,
+<expr><operator>.</operator><name>codec</name> <operator>=</operator> <literal type="string">"opus"</literal></expr>,
+<expr><operator>.</operator><name>get_name</name> <operator>=</operator> <name>opus_getname</name></expr>,
+<expr><operator>.</operator><name>create</name> <operator>=</operator> <name>opus_create</name></expr>,
+<expr><operator>.</operator><name>destroy</name> <operator>=</operator> <name>enc_destroy</name></expr>,
+<expr><operator>.</operator><name>encode</name> <operator>=</operator> <name>enc_encode</name></expr>,
+<expr><operator>.</operator><name>get_frame_size</name> <operator>=</operator> <name>enc_frame_size</name></expr>,
+<expr><operator>.</operator><name>get_defaults</name> <operator>=</operator> <name>enc_defaults</name></expr>,
+<expr><operator>.</operator><name>get_properties</name> <operator>=</operator> <name>enc_properties</name></expr>,
+<expr><operator>.</operator><name>get_extra_data</name> <operator>=</operator> <name>enc_extra_data</name></expr>,
+<expr><operator>.</operator><name>get_audio_info</name> <operator>=</operator> <name>enc_audio_info</name></expr>,
+}</block></expr></init></decl>;</decl_stmt>
+</unit>

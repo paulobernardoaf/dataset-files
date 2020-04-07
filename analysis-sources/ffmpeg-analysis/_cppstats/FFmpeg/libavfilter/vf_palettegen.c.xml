@@ -1,0 +1,824 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" revision="1.0.0" language="C" filename="D:\Pesquisa\Projects\ffmpeg-analysis\_cppstats\FFmpeg\libavfilter\vf_palettegen.c"><cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"libavutil/avassert.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"libavutil/internal.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"libavutil/opt.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"libavutil/qsort.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"libavutil/intreadwrite.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"avfilter.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"internal.h"</cpp:file></cpp:include>
+
+<struct>struct <name>color_ref</name> <block>{
+
+<decl_stmt><decl><type><name>uint32_t</name></type> <name>color</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>uint64_t</name></type> <name>count</name></decl>;</decl_stmt>
+
+}</block>;</struct>
+
+<struct>struct <name>range_box</name> <block>{
+
+<decl_stmt><decl><type><name>uint32_t</name></type> <name>color</name></decl>;</decl_stmt> 
+
+<decl_stmt><decl><type><name>int64_t</name></type> <name>variance</name></decl>;</decl_stmt> 
+
+<decl_stmt><decl><type><name>int</name></type> <name>start</name></decl>;</decl_stmt> 
+
+<decl_stmt><decl><type><name>int</name></type> <name>len</name></decl>;</decl_stmt> 
+
+<decl_stmt><decl><type><name>int</name></type> <name>sorted_by</name></decl>;</decl_stmt> 
+
+}</block>;</struct>
+
+<struct>struct <name>hist_node</name> <block>{
+
+<decl_stmt><decl><type><name><name>struct</name> <name>color_ref</name></name> <modifier>*</modifier></type><name>entries</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>nb_entries</name></decl>;</decl_stmt>
+
+}</block>;</struct>
+
+<enum>enum <block>{
+
+<decl><name>STATS_MODE_ALL_FRAMES</name></decl>,
+
+<decl><name>STATS_MODE_DIFF_FRAMES</name></decl>,
+
+<decl><name>STATS_MODE_SINGLE_FRAMES</name></decl>,
+
+<decl><name>NB_STATS_MODE</name></decl>
+
+}</block>;</enum>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>NBITS</name></cpp:macro> <cpp:value>5</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>HIST_SIZE</name></cpp:macro> <cpp:value>(1&lt;&lt;(3*NBITS))</cpp:value></cpp:define>
+
+<typedef>typedef <type><struct>struct <name>PaletteGenContext</name> <block>{
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>AVClass</name> <modifier>*</modifier></type><name>class</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>max_colors</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>reserve_transparent</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>stats_mode</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>AVFrame</name> <modifier>*</modifier></type><name>prev_frame</name></decl>;</decl_stmt> 
+
+<decl_stmt><decl><type><name><name>struct</name> <name>hist_node</name></name></type> <name><name>histogram</name><index>[<expr><name>HIST_SIZE</name></expr>]</index></name></decl>;</decl_stmt> 
+
+<decl_stmt><decl><type><name><name>struct</name> <name>color_ref</name></name> <modifier>*</modifier><modifier>*</modifier></type><name>refs</name></decl>;</decl_stmt> 
+
+<decl_stmt><decl><type><name>int</name></type> <name>nb_refs</name></decl>;</decl_stmt> 
+
+<decl_stmt><decl><type><name><name>struct</name> <name>range_box</name></name></type> <name><name>boxes</name><index>[<expr><literal type="number">256</literal></expr>]</index></name></decl>;</decl_stmt> 
+
+<decl_stmt><decl><type><name>int</name></type> <name>nb_boxes</name></decl>;</decl_stmt> 
+
+<decl_stmt><decl><type><name>int</name></type> <name>palette_pushed</name></decl>;</decl_stmt> 
+
+<decl_stmt><decl><type><name>uint8_t</name></type> <name><name>transparency_color</name><index>[<expr><literal type="number">4</literal></expr>]</index></name></decl>;</decl_stmt> 
+
+}</block></struct></type> <name>PaletteGenContext</name>;</typedef>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>OFFSET</name><parameter_list>(<parameter><type><name>x</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>offsetof(PaletteGenContext, x)</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>FLAGS</name></cpp:macro> <cpp:value>AV_OPT_FLAG_FILTERING_PARAM|AV_OPT_FLAG_VIDEO_PARAM</cpp:value></cpp:define>
+
+<decl_stmt><decl><type><specifier>static</specifier> <specifier>const</specifier> <name>AVOption</name></type> <name><name>palettegen_options</name><index>[]</index></name> <init>= <expr><block>{
+
+<expr><block>{ <expr><literal type="string">"max_colors"</literal></expr>, <expr><literal type="string">"set the maximum number of colors to use in the palette"</literal></expr>, <expr><call><name>OFFSET</name><argument_list>(<argument><expr><name>max_colors</name></expr></argument>)</argument_list></call></expr>, <expr><name>AV_OPT_TYPE_INT</name></expr>, <expr><block>{<expr><operator>.</operator><name>i64</name><operator>=</operator><literal type="number">256</literal></expr>}</block></expr>, <expr><literal type="number">4</literal></expr>, <expr><literal type="number">256</literal></expr>, <expr><name>FLAGS</name></expr> }</block></expr>,
+
+<expr><block>{ <expr><literal type="string">"reserve_transparent"</literal></expr>, <expr><literal type="string">"reserve a palette entry for transparency"</literal></expr>, <expr><call><name>OFFSET</name><argument_list>(<argument><expr><name>reserve_transparent</name></expr></argument>)</argument_list></call></expr>, <expr><name>AV_OPT_TYPE_BOOL</name></expr>, <expr><block>{<expr><operator>.</operator><name>i64</name><operator>=</operator><literal type="number">1</literal></expr>}</block></expr>, <expr><literal type="number">0</literal></expr>, <expr><literal type="number">1</literal></expr>, <expr><name>FLAGS</name></expr> }</block></expr>,
+
+<expr><block>{ <expr><literal type="string">"transparency_color"</literal></expr>, <expr><literal type="string">"set a background color for transparency"</literal></expr>, <expr><call><name>OFFSET</name><argument_list>(<argument><expr><name>transparency_color</name></expr></argument>)</argument_list></call></expr>, <expr><name>AV_OPT_TYPE_COLOR</name></expr>, <expr><block>{<expr><operator>.</operator><name>str</name><operator>=</operator><literal type="string">"lime"</literal></expr>}</block></expr>, <expr><literal type="number">0</literal></expr>, <expr><literal type="number">0</literal></expr>, <expr><name>FLAGS</name></expr> }</block></expr>,
+
+<expr><block>{ <expr><literal type="string">"stats_mode"</literal></expr>, <expr><literal type="string">"set statistics mode"</literal></expr>, <expr><call><name>OFFSET</name><argument_list>(<argument><expr><name>stats_mode</name></expr></argument>)</argument_list></call></expr>, <expr><name>AV_OPT_TYPE_INT</name></expr>, <expr><block>{<expr><operator>.</operator><name>i64</name><operator>=</operator><name>STATS_MODE_ALL_FRAMES</name></expr>}</block></expr>, <expr><literal type="number">0</literal></expr>, <expr><name>NB_STATS_MODE</name><operator>-</operator><literal type="number">1</literal></expr>, <expr><name>FLAGS</name></expr>, <expr><literal type="string">"mode"</literal></expr> }</block></expr>,
+
+<expr><block>{ <expr><literal type="string">"full"</literal></expr>, <expr><literal type="string">"compute full frame histograms"</literal></expr>, <expr><literal type="number">0</literal></expr>, <expr><name>AV_OPT_TYPE_CONST</name></expr>, <expr><block>{<expr><operator>.</operator><name>i64</name><operator>=</operator><name>STATS_MODE_ALL_FRAMES</name></expr>}</block></expr>, <expr><name>INT_MIN</name></expr>, <expr><name>INT_MAX</name></expr>, <expr><name>FLAGS</name></expr>, <expr><literal type="string">"mode"</literal></expr> }</block></expr>,
+
+<expr><block>{ <expr><literal type="string">"diff"</literal></expr>, <expr><literal type="string">"compute histograms only for the part that differs from previous frame"</literal></expr>, <expr><literal type="number">0</literal></expr>, <expr><name>AV_OPT_TYPE_CONST</name></expr>, <expr><block>{<expr><operator>.</operator><name>i64</name><operator>=</operator><name>STATS_MODE_DIFF_FRAMES</name></expr>}</block></expr>, <expr><name>INT_MIN</name></expr>, <expr><name>INT_MAX</name></expr>, <expr><name>FLAGS</name></expr>, <expr><literal type="string">"mode"</literal></expr> }</block></expr>,
+
+<expr><block>{ <expr><literal type="string">"single"</literal></expr>, <expr><literal type="string">"compute new histogram for each frame"</literal></expr>, <expr><literal type="number">0</literal></expr>, <expr><name>AV_OPT_TYPE_CONST</name></expr>, <expr><block>{<expr><operator>.</operator><name>i64</name><operator>=</operator><name>STATS_MODE_SINGLE_FRAMES</name></expr>}</block></expr>, <expr><name>INT_MIN</name></expr>, <expr><name>INT_MAX</name></expr>, <expr><name>FLAGS</name></expr>, <expr><literal type="string">"mode"</literal></expr> }</block></expr>,
+
+<expr><block>{ <expr><name>NULL</name></expr> }</block></expr>
+
+}</block></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>AVFILTER_DEFINE_CLASS</name><argument_list>(<argument><expr><name>palettegen</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>query_formats</name><parameter_list>(<parameter><decl><type><name>AVFilterContext</name> <modifier>*</modifier></type><name>ctx</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><specifier>static</specifier> <specifier>const</specifier> <name><name>enum</name> <name>AVPixelFormat</name></name></type> <name><name>in_fmts</name><index>[]</index></name> <init>= <expr><block>{<expr><name>AV_PIX_FMT_RGB32</name></expr>, <expr><name>AV_PIX_FMT_NONE</name></expr>}</block></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <specifier>const</specifier> <name><name>enum</name> <name>AVPixelFormat</name></name></type> <name><name>out_fmts</name><index>[]</index></name> <init>= <expr><block>{<expr><name>AV_PIX_FMT_RGB32</name></expr>, <expr><name>AV_PIX_FMT_NONE</name></expr>}</block></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>ret</name></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>(</operator><name>ret</name> <operator>=</operator> <call><name>ff_formats_ref</name><argument_list>(<argument><expr><call><name>ff_make_format_list</name><argument_list>(<argument><expr><name>in_fmts</name></expr></argument>)</argument_list></call></expr></argument> , <argument><expr><operator>&amp;</operator><name><name>ctx</name><operator>-&gt;</operator><name>inputs</name><index>[<expr><literal type="number">0</literal></expr>]</index></name><operator>-&gt;</operator><name>out_formats</name></expr></argument>)</argument_list></call><operator>)</operator> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>ret</name></expr>;</return></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>(</operator><name>ret</name> <operator>=</operator> <call><name>ff_formats_ref</name><argument_list>(<argument><expr><call><name>ff_make_format_list</name><argument_list>(<argument><expr><name>out_fmts</name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>ctx</name><operator>-&gt;</operator><name>outputs</name><index>[<expr><literal type="number">0</literal></expr>]</index></name><operator>-&gt;</operator><name>in_formats</name></expr></argument>)</argument_list></call><operator>)</operator> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>ret</name></expr>;</return></block_content></block></if></if_stmt>
+
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+
+</block_content>}</block></function>
+
+<typedef>typedef <function_decl><type><name>int</name></type> (<modifier>*</modifier><name>cmp_func</name>)<parameter_list>(<parameter><decl><type><specifier>const</specifier> <name>void</name> <modifier>*</modifier></type></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>void</name> <modifier>*</modifier></type></decl></parameter>)</parameter_list>;</function_decl></typedef>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>DECLARE_CMP_FUNC</name><parameter_list>(<parameter><type><name>name</name></type></parameter>, <parameter><type><name>pos</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>static int cmp_##name(const void *pa, const void *pb) { const struct color_ref * const *a = pa; const struct color_ref * const *b = pb; return ((*a)-&gt;color &gt;&gt; (8 * (2 - (pos))) &amp; 0xff) - ((*b)-&gt;color &gt;&gt; (8 * (2 - (pos))) &amp; 0xff); }</cpp:value></cpp:define>
+
+<macro><name>DECLARE_CMP_FUNC</name><argument_list>(<argument>r</argument>, <argument><literal type="number">0</literal></argument>)</argument_list></macro>
+
+<macro><name>DECLARE_CMP_FUNC</name><argument_list>(<argument>g</argument>, <argument><literal type="number">1</literal></argument>)</argument_list></macro>
+
+<macro><name>DECLARE_CMP_FUNC</name><argument_list>(<argument>b</argument>, <argument><literal type="number">2</literal></argument>)</argument_list></macro>
+
+<decl_stmt><decl><type><specifier>static</specifier> <specifier>const</specifier> <name>cmp_func</name></type> <name><name>cmp_funcs</name><index>[]</index></name> <init>= <expr><block>{<expr><name>cmp_r</name></expr>, <expr><name>cmp_g</name></expr>, <expr><name>cmp_b</name></expr>}</block></expr></init></decl>;</decl_stmt>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>cmp_color</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name>void</name> <modifier>*</modifier></type><name>a</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>void</name> <modifier>*</modifier></type><name>b</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name><name>struct</name> <name>range_box</name></name> <modifier>*</modifier></type><name>box1</name> <init>= <expr><name>a</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name><name>struct</name> <name>range_box</name></name> <modifier>*</modifier></type><name>box2</name> <init>= <expr><name>b</name></expr></init></decl>;</decl_stmt>
+
+<return>return <expr><call><name>FFDIFFSIGN</name><argument_list>(<argument><expr><name><name>box1</name><operator>-&gt;</operator><name>color</name></name></expr></argument> , <argument><expr><name><name>box2</name><operator>-&gt;</operator><name>color</name></name></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>av_always_inline</name> <name>int</name></type> <name>diff</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name>uint32_t</name></type> <name>a</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>uint32_t</name></type> <name>b</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>uint8_t</name></type> <name><name>c1</name><index>[]</index></name> <init>= <expr><block>{<expr><name>a</name> <operator>&gt;&gt;</operator> <literal type="number">16</literal> <operator>&amp;</operator> <literal type="number">0xff</literal></expr>, <expr><name>a</name> <operator>&gt;&gt;</operator> <literal type="number">8</literal> <operator>&amp;</operator> <literal type="number">0xff</literal></expr>, <expr><name>a</name> <operator>&amp;</operator> <literal type="number">0xff</literal></expr>}</block></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>uint8_t</name></type> <name><name>c2</name><index>[]</index></name> <init>= <expr><block>{<expr><name>b</name> <operator>&gt;&gt;</operator> <literal type="number">16</literal> <operator>&amp;</operator> <literal type="number">0xff</literal></expr>, <expr><name>b</name> <operator>&gt;&gt;</operator> <literal type="number">8</literal> <operator>&amp;</operator> <literal type="number">0xff</literal></expr>, <expr><name>b</name> <operator>&amp;</operator> <literal type="number">0xff</literal></expr>}</block></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>int</name></type> <name>dr</name> <init>= <expr><name><name>c1</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>-</operator> <name><name>c2</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>int</name></type> <name>dg</name> <init>= <expr><name><name>c1</name><index>[<expr><literal type="number">1</literal></expr>]</index></name> <operator>-</operator> <name><name>c2</name><index>[<expr><literal type="number">1</literal></expr>]</index></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>int</name></type> <name>db</name> <init>= <expr><name><name>c1</name><index>[<expr><literal type="number">2</literal></expr>]</index></name> <operator>-</operator> <name><name>c2</name><index>[<expr><literal type="number">2</literal></expr>]</index></name></expr></init></decl>;</decl_stmt>
+
+<return>return <expr><name>dr</name><operator>*</operator><name>dr</name> <operator>+</operator> <name>dg</name><operator>*</operator><name>dg</name> <operator>+</operator> <name>db</name><operator>*</operator><name>db</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>get_next_box_id_to_split</name><parameter_list>(<parameter><decl><type><name>PaletteGenContext</name> <modifier>*</modifier></type><name>s</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>int</name></type> <name>box_id</name></decl>, <decl><type ref="prev"/><name>i</name></decl>, <decl><type ref="prev"/><name>best_box_id</name> <init>= <expr><operator>-</operator><literal type="number">1</literal></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int64_t</name></type> <name>max_variance</name> <init>= <expr><operator>-</operator><literal type="number">1</literal></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>s</name><operator>-&gt;</operator><name>nb_boxes</name></name> <operator>==</operator> <name><name>s</name><operator>-&gt;</operator><name>max_colors</name></name> <operator>-</operator> <name><name>s</name><operator>-&gt;</operator><name>reserve_transparent</name></name></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><operator>-</operator><literal type="number">1</literal></expr>;</return></block_content></block></if></if_stmt>
+
+<for>for <control>(<init><expr><name>box_id</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>box_id</name> <operator>&lt;</operator> <name><name>s</name><operator>-&gt;</operator><name>nb_boxes</name></name></expr>;</condition> <incr><expr><name>box_id</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>range_box</name></name> <modifier>*</modifier></type><name>box</name> <init>= <expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>boxes</name><index>[<expr><name>box_id</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>s</name><operator>-&gt;</operator><name>boxes</name><index>[<expr><name>box_id</name></expr>]</index></name><operator>.</operator><name>len</name> <operator>&gt;=</operator> <literal type="number">2</literal></expr>)</condition> <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><name><name>box</name><operator>-&gt;</operator><name>variance</name></name> <operator>==</operator> <operator>-</operator><literal type="number">1</literal></expr>)</condition> <block>{<block_content>
+
+<decl_stmt><decl><type><name>int64_t</name></type> <name>variance</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name><name>box</name><operator>-&gt;</operator><name>len</name></name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name><name>struct</name> <name>color_ref</name></name> <modifier>*</modifier></type><name>ref</name> <init>= <expr><name><name>s</name><operator>-&gt;</operator><name>refs</name><index>[<expr><name><name>box</name><operator>-&gt;</operator><name>start</name></name> <operator>+</operator> <name>i</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>variance</name> <operator>+=</operator> <call><name>diff</name><argument_list>(<argument><expr><name><name>ref</name><operator>-&gt;</operator><name>color</name></name></expr></argument>, <argument><expr><name><name>box</name><operator>-&gt;</operator><name>color</name></name></expr></argument>)</argument_list></call> <operator>*</operator> <name><name>ref</name><operator>-&gt;</operator><name>count</name></name></expr>;</expr_stmt>
+
+</block_content>}</block></for>
+
+<expr_stmt><expr><name><name>box</name><operator>-&gt;</operator><name>variance</name></name> <operator>=</operator> <name>variance</name></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>box</name><operator>-&gt;</operator><name>variance</name></name> <operator>&gt;</operator> <name>max_variance</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>best_box_id</name> <operator>=</operator> <name>box_id</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>max_variance</name> <operator>=</operator> <name><name>box</name><operator>-&gt;</operator><name>variance</name></name></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<expr_stmt><expr><name><name>box</name><operator>-&gt;</operator><name>variance</name></name> <operator>=</operator> <operator>-</operator><literal type="number">1</literal></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+</block_content>}</block></for>
+
+<return>return <expr><name>best_box_id</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>uint32_t</name></type> <name>get_avg_color</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>color_ref</name></name> <modifier>*</modifier> <specifier>const</specifier> <modifier>*</modifier></type><name>refs</name></decl></parameter>,
+
+<parameter><decl><type><specifier>const</specifier> <name><name>struct</name> <name>range_box</name></name> <modifier>*</modifier></type><name>box</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>int</name></type> <name>i</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>int</name></type> <name>n</name> <init>= <expr><name><name>box</name><operator>-&gt;</operator><name>len</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>uint64_t</name></type> <name>r</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>, <decl><type ref="prev"/><name>g</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>, <decl><type ref="prev"/><name>b</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>, <decl><type ref="prev"/><name>div</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>n</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name><name>struct</name> <name>color_ref</name></name> <modifier>*</modifier></type><name>ref</name> <init>= <expr><name><name>refs</name><index>[<expr><name><name>box</name><operator>-&gt;</operator><name>start</name></name> <operator>+</operator> <name>i</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>r</name> <operator>+=</operator> <operator>(</operator><name><name>ref</name><operator>-&gt;</operator><name>color</name></name> <operator>&gt;&gt;</operator> <literal type="number">16</literal> <operator>&amp;</operator> <literal type="number">0xff</literal><operator>)</operator> <operator>*</operator> <name><name>ref</name><operator>-&gt;</operator><name>count</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>g</name> <operator>+=</operator> <operator>(</operator><name><name>ref</name><operator>-&gt;</operator><name>color</name></name> <operator>&gt;&gt;</operator> <literal type="number">8</literal> <operator>&amp;</operator> <literal type="number">0xff</literal><operator>)</operator> <operator>*</operator> <name><name>ref</name><operator>-&gt;</operator><name>count</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>b</name> <operator>+=</operator> <operator>(</operator><name><name>ref</name><operator>-&gt;</operator><name>color</name></name> <operator>&amp;</operator> <literal type="number">0xff</literal><operator>)</operator> <operator>*</operator> <name><name>ref</name><operator>-&gt;</operator><name>count</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>div</name> <operator>+=</operator> <name><name>ref</name><operator>-&gt;</operator><name>count</name></name></expr>;</expr_stmt>
+
+</block_content>}</block></for>
+
+<expr_stmt><expr><name>r</name> <operator>=</operator> <name>r</name> <operator>/</operator> <name>div</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>g</name> <operator>=</operator> <name>g</name> <operator>/</operator> <name>div</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>b</name> <operator>=</operator> <name>b</name> <operator>/</operator> <name>div</name></expr>;</expr_stmt>
+
+<return>return <expr><literal type="number">0xffU</literal><operator>&lt;&lt;</operator><literal type="number">24</literal> <operator>|</operator> <name>r</name><operator>&lt;&lt;</operator><literal type="number">16</literal> <operator>|</operator> <name>g</name><operator>&lt;&lt;</operator><literal type="number">8</literal> <operator>|</operator> <name>b</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>split_box</name><parameter_list>(<parameter><decl><type><name>PaletteGenContext</name> <modifier>*</modifier></type><name>s</name></decl></parameter>, <parameter><decl><type><name><name>struct</name> <name>range_box</name></name> <modifier>*</modifier></type><name>box</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>n</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>range_box</name></name> <modifier>*</modifier></type><name>new_box</name> <init>= <expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>boxes</name><index>[<expr><name><name>s</name><operator>-&gt;</operator><name>nb_boxes</name></name><operator>++</operator></expr>]</index></name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>new_box</name><operator>-&gt;</operator><name>start</name></name> <operator>=</operator> <name>n</name> <operator>+</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>new_box</name><operator>-&gt;</operator><name>len</name></name> <operator>=</operator> <name><name>box</name><operator>-&gt;</operator><name>start</name></name> <operator>+</operator> <name><name>box</name><operator>-&gt;</operator><name>len</name></name> <operator>-</operator> <name><name>new_box</name><operator>-&gt;</operator><name>start</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>new_box</name><operator>-&gt;</operator><name>sorted_by</name></name> <operator>=</operator> <name><name>box</name><operator>-&gt;</operator><name>sorted_by</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>box</name><operator>-&gt;</operator><name>len</name></name> <operator>-=</operator> <name><name>new_box</name><operator>-&gt;</operator><name>len</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>av_assert0</name><argument_list>(<argument><expr><name><name>box</name><operator>-&gt;</operator><name>len</name></name> <operator>&gt;=</operator> <literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>av_assert0</name><argument_list>(<argument><expr><name><name>new_box</name><operator>-&gt;</operator><name>len</name></name> <operator>&gt;=</operator> <literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>box</name><operator>-&gt;</operator><name>color</name></name> <operator>=</operator> <call><name>get_avg_color</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>refs</name></name></expr></argument>, <argument><expr><name>box</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>new_box</name><operator>-&gt;</operator><name>color</name></name> <operator>=</operator> <call><name>get_avg_color</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>refs</name></name></expr></argument>, <argument><expr><name>new_box</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>box</name><operator>-&gt;</operator><name>variance</name></name> <operator>=</operator> <operator>-</operator><literal type="number">1</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>new_box</name><operator>-&gt;</operator><name>variance</name></name> <operator>=</operator> <operator>-</operator><literal type="number">1</literal></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>write_palette</name><parameter_list>(<parameter><decl><type><name>AVFilterContext</name> <modifier>*</modifier></type><name>ctx</name></decl></parameter>, <parameter><decl><type><name>AVFrame</name> <modifier>*</modifier></type><name>out</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>PaletteGenContext</name> <modifier>*</modifier></type><name>s</name> <init>= <expr><name><name>ctx</name><operator>-&gt;</operator><name>priv</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>x</name></decl>, <decl><type ref="prev"/><name>y</name></decl>, <decl><type ref="prev"/><name>box_id</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>uint32_t</name> <modifier>*</modifier></type><name>pal</name> <init>= <expr><operator>(</operator><name>uint32_t</name> <operator>*</operator><operator>)</operator><name><name>out</name><operator>-&gt;</operator><name>data</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>int</name></type> <name>pal_linesize</name> <init>= <expr><name><name>out</name><operator>-&gt;</operator><name>linesize</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>&gt;&gt;</operator> <literal type="number">2</literal></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>uint32_t</name></type> <name>last_color</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+
+<for>for <control>(<init><expr><name>y</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>y</name> <operator>&lt;</operator> <name><name>out</name><operator>-&gt;</operator><name>height</name></name></expr>;</condition> <incr><expr><name>y</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+
+<for>for <control>(<init><expr><name>x</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>x</name> <operator>&lt;</operator> <name><name>out</name><operator>-&gt;</operator><name>width</name></name></expr>;</condition> <incr><expr><name>x</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><name>box_id</name> <operator>&lt;</operator> <name><name>s</name><operator>-&gt;</operator><name>nb_boxes</name></name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name><name>pal</name><index>[<expr><name>x</name></expr>]</index></name> <operator>=</operator> <name><name>s</name><operator>-&gt;</operator><name>boxes</name><index>[<expr><name>box_id</name><operator>++</operator></expr>]</index></name><operator>.</operator><name>color</name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>(</operator><name>x</name> <operator>||</operator> <name>y</name><operator>)</operator> <operator>&amp;&amp;</operator> <name><name>pal</name><index>[<expr><name>x</name></expr>]</index></name> <operator>==</operator> <name>last_color</name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>av_log</name><argument_list>(<argument><expr><name>ctx</name></expr></argument>, <argument><expr><name>AV_LOG_WARNING</name></expr></argument>, <argument><expr><literal type="string">"Dupped color: %08"</literal><name>PRIX32</name><literal type="string">"\n"</literal></expr></argument>, <argument><expr><name><name>pal</name><index>[<expr><name>x</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>last_color</name> <operator>=</operator> <name><name>pal</name><index>[<expr><name>x</name></expr>]</index></name></expr>;</expr_stmt>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<expr_stmt><expr><name><name>pal</name><index>[<expr><name>x</name></expr>]</index></name> <operator>=</operator> <name>last_color</name></expr>;</expr_stmt> 
+
+</block_content>}</block></else></if_stmt>
+
+</block_content>}</block></for>
+
+<expr_stmt><expr><name>pal</name> <operator>+=</operator> <name>pal_linesize</name></expr>;</expr_stmt>
+
+</block_content>}</block></for>
+
+<if_stmt><if>if <condition>(<expr><name><name>s</name><operator>-&gt;</operator><name>reserve_transparent</name></name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>av_assert0</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>nb_boxes</name></name> <operator>&lt;</operator> <literal type="number">256</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>pal</name><index>[<expr><name><name>out</name><operator>-&gt;</operator><name>width</name></name> <operator>-</operator> <name>pal_linesize</name> <operator>-</operator> <literal type="number">1</literal></expr>]</index></name> <operator>=</operator> <call><name>AV_RB32</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>transparency_color</name></name></expr></argument>)</argument_list></call> <operator>&gt;&gt;</operator> <literal type="number">8</literal></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name><name>struct</name> <name>color_ref</name></name> <modifier>*</modifier><modifier>*</modifier></type><name>load_color_refs</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name><name>struct</name> <name>hist_node</name></name> <modifier>*</modifier></type><name>hist</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>nb_refs</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>int</name></type> <name>i</name></decl>, <decl><type ref="prev"/><name>j</name></decl>, <decl><type ref="prev"/><name>k</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>color_ref</name></name> <modifier>*</modifier><modifier>*</modifier></type><name>refs</name> <init>= <expr><call><name>av_malloc_array</name><argument_list>(<argument><expr><name>nb_refs</name></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr><operator>*</operator><name>refs</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>refs</name></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>NULL</name></expr>;</return></block_content></block></if></if_stmt>
+
+<for>for <control>(<init><expr><name>j</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>j</name> <operator>&lt;</operator> <name>HIST_SIZE</name></expr>;</condition> <incr><expr><name>j</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name><name>struct</name> <name>hist_node</name></name> <modifier>*</modifier></type><name>node</name> <init>= <expr><operator>&amp;</operator><name><name>hist</name><index>[<expr><name>j</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name><name>node</name><operator>-&gt;</operator><name>nb_entries</name></name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name><name>refs</name><index>[<expr><name>k</name><operator>++</operator></expr>]</index></name> <operator>=</operator> <operator>&amp;</operator><name><name>node</name><operator>-&gt;</operator><name>entries</name><index>[<expr><name>i</name></expr>]</index></name></expr>;</expr_stmt></block_content></block></for>
+
+</block_content>}</block></for>
+
+<return>return <expr><name>refs</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>double</name></type> <name>set_colorquant_ratio_meta</name><parameter_list>(<parameter><decl><type><name>AVFrame</name> <modifier>*</modifier></type><name>out</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>nb_out</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>nb_in</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>char</name></type> <name><name>buf</name><index>[<expr><literal type="number">32</literal></expr>]</index></name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>double</name></type> <name>ratio</name> <init>= <expr><operator>(</operator><name>double</name><operator>)</operator><name>nb_out</name> <operator>/</operator> <name>nb_in</name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>snprintf</name><argument_list>(<argument><expr><name>buf</name></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr><name>buf</name></expr></argument>)</argument_list></sizeof></expr></argument>, <argument><expr><literal type="string">"%f"</literal></expr></argument>, <argument><expr><name>ratio</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>av_dict_set</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>out</name><operator>-&gt;</operator><name>metadata</name></name></expr></argument>, <argument><expr><literal type="string">"lavfi.color_quant_ratio"</literal></expr></argument>, <argument><expr><name>buf</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>ratio</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>AVFrame</name> <modifier>*</modifier></type><name>get_palette_frame</name><parameter_list>(<parameter><decl><type><name>AVFilterContext</name> <modifier>*</modifier></type><name>ctx</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>AVFrame</name> <modifier>*</modifier></type><name>out</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>PaletteGenContext</name> <modifier>*</modifier></type><name>s</name> <init>= <expr><name><name>ctx</name><operator>-&gt;</operator><name>priv</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>AVFilterLink</name> <modifier>*</modifier></type><name>outlink</name> <init>= <expr><name><name>ctx</name><operator>-&gt;</operator><name>outputs</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>double</name></type> <name>ratio</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>box_id</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>range_box</name></name> <modifier>*</modifier></type><name>box</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>refs</name></name> <operator>=</operator> <call><name>load_color_refs</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>histogram</name></name></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>nb_refs</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>s</name><operator>-&gt;</operator><name>refs</name></name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>av_log</name><argument_list>(<argument><expr><name>ctx</name></expr></argument>, <argument><expr><name>AV_LOG_ERROR</name></expr></argument>, <argument><expr><literal type="string">"Unable to allocate references for %d different colors\n"</literal></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>nb_refs</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>NULL</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name>out</name> <operator>=</operator> <call><name>ff_get_video_buffer</name><argument_list>(<argument><expr><name>outlink</name></expr></argument>, <argument><expr><name><name>outlink</name><operator>-&gt;</operator><name>w</name></name></expr></argument>, <argument><expr><name><name>outlink</name><operator>-&gt;</operator><name>h</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>out</name></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>NULL</name></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name><name>out</name><operator>-&gt;</operator><name>pts</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>box</name> <operator>=</operator> <operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>boxes</name><index>[<expr><name>box_id</name></expr>]</index></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>box</name><operator>-&gt;</operator><name>len</name></name> <operator>=</operator> <name><name>s</name><operator>-&gt;</operator><name>nb_refs</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>box</name><operator>-&gt;</operator><name>sorted_by</name></name> <operator>=</operator> <operator>-</operator><literal type="number">1</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>box</name><operator>-&gt;</operator><name>color</name></name> <operator>=</operator> <call><name>get_avg_color</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>refs</name></name></expr></argument>, <argument><expr><name>box</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>box</name><operator>-&gt;</operator><name>variance</name></name> <operator>=</operator> <operator>-</operator><literal type="number">1</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>nb_boxes</name></name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+
+<while>while <condition>(<expr><name>box</name> <operator>&amp;&amp;</operator> <name><name>box</name><operator>-&gt;</operator><name>len</name></name> <operator>&gt;</operator> <literal type="number">1</literal></expr>)</condition> <block>{<block_content>
+
+<decl_stmt><decl><type><name>int</name></type> <name>i</name></decl>, <decl><type ref="prev"/><name>rr</name></decl>, <decl><type ref="prev"/><name>gr</name></decl>, <decl><type ref="prev"/><name>br</name></decl>, <decl><type ref="prev"/><name>longest</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>uint64_t</name></type> <name>median</name></decl>, <decl><type ref="prev"/><name>box_weight</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>uint8_t</name></type> <name><name>min</name><index>[<expr><literal type="number">3</literal></expr>]</index></name> <init>= <expr><block>{<expr><literal type="number">0xff</literal></expr>, <expr><literal type="number">0xff</literal></expr>, <expr><literal type="number">0xff</literal></expr>}</block></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>uint8_t</name></type> <name><name>max</name><index>[<expr><literal type="number">3</literal></expr>]</index></name> <init>= <expr><block>{<expr><literal type="number">0x00</literal></expr>, <expr><literal type="number">0x00</literal></expr>, <expr><literal type="number">0x00</literal></expr>}</block></expr></init></decl>;</decl_stmt>
+
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <name><name>box</name><operator>-&gt;</operator><name>start</name></name></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name><name>box</name><operator>-&gt;</operator><name>start</name></name> <operator>+</operator> <name><name>box</name><operator>-&gt;</operator><name>len</name></name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name><name>struct</name> <name>color_ref</name></name> <modifier>*</modifier></type><name>ref</name> <init>= <expr><name><name>s</name><operator>-&gt;</operator><name>refs</name><index>[<expr><name>i</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>uint32_t</name></type> <name>rgb</name> <init>= <expr><name><name>ref</name><operator>-&gt;</operator><name>color</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>uint8_t</name></type> <name>r</name> <init>= <expr><name>rgb</name> <operator>&gt;&gt;</operator> <literal type="number">16</literal> <operator>&amp;</operator> <literal type="number">0xff</literal></expr></init></decl>, <decl><type ref="prev"/><name>g</name> <init>= <expr><name>rgb</name> <operator>&gt;&gt;</operator> <literal type="number">8</literal> <operator>&amp;</operator> <literal type="number">0xff</literal></expr></init></decl>, <decl><type ref="prev"/><name>b</name> <init>= <expr><name>rgb</name> <operator>&amp;</operator> <literal type="number">0xff</literal></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>min</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>=</operator> <call><name>FFMIN</name><argument_list>(<argument><expr><name>r</name></expr></argument>, <argument><expr><name><name>min</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>)</argument_list></call></expr><operator>,</operator> <expr><name><name>max</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>=</operator> <call><name>FFMAX</name><argument_list>(<argument><expr><name>r</name></expr></argument>, <argument><expr><name><name>max</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>min</name><index>[<expr><literal type="number">1</literal></expr>]</index></name> <operator>=</operator> <call><name>FFMIN</name><argument_list>(<argument><expr><name>g</name></expr></argument>, <argument><expr><name><name>min</name><index>[<expr><literal type="number">1</literal></expr>]</index></name></expr></argument>)</argument_list></call></expr><operator>,</operator> <expr><name><name>max</name><index>[<expr><literal type="number">1</literal></expr>]</index></name> <operator>=</operator> <call><name>FFMAX</name><argument_list>(<argument><expr><name>g</name></expr></argument>, <argument><expr><name><name>max</name><index>[<expr><literal type="number">1</literal></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>min</name><index>[<expr><literal type="number">2</literal></expr>]</index></name> <operator>=</operator> <call><name>FFMIN</name><argument_list>(<argument><expr><name>b</name></expr></argument>, <argument><expr><name><name>min</name><index>[<expr><literal type="number">2</literal></expr>]</index></name></expr></argument>)</argument_list></call></expr><operator>,</operator> <expr><name><name>max</name><index>[<expr><literal type="number">2</literal></expr>]</index></name> <operator>=</operator> <call><name>FFMAX</name><argument_list>(<argument><expr><name>b</name></expr></argument>, <argument><expr><name><name>max</name><index>[<expr><literal type="number">2</literal></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>box_weight</name> <operator>+=</operator> <name><name>ref</name><operator>-&gt;</operator><name>count</name></name></expr>;</expr_stmt>
+
+</block_content>}</block></for>
+
+<expr_stmt><expr><name>rr</name> <operator>=</operator> <name><name>max</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>-</operator> <name><name>min</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>gr</name> <operator>=</operator> <name><name>max</name><index>[<expr><literal type="number">1</literal></expr>]</index></name> <operator>-</operator> <name><name>min</name><index>[<expr><literal type="number">1</literal></expr>]</index></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>br</name> <operator>=</operator> <name><name>max</name><index>[<expr><literal type="number">2</literal></expr>]</index></name> <operator>-</operator> <name><name>min</name><index>[<expr><literal type="number">2</literal></expr>]</index></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>longest</name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt> 
+
+<if_stmt><if>if <condition>(<expr><name>br</name> <operator>&gt;=</operator> <name>rr</name> <operator>&amp;&amp;</operator> <name>br</name> <operator>&gt;=</operator> <name>gr</name></expr>)</condition><block type="pseudo"><block_content> <expr_stmt><expr><name>longest</name> <operator>=</operator> <literal type="number">2</literal></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>rr</name> <operator>&gt;=</operator> <name>gr</name> <operator>&amp;&amp;</operator> <name>rr</name> <operator>&gt;=</operator> <name>br</name></expr>)</condition><block type="pseudo"><block_content> <expr_stmt><expr><name>longest</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>gr</name> <operator>&gt;=</operator> <name>rr</name> <operator>&amp;&amp;</operator> <name>gr</name> <operator>&gt;=</operator> <name>br</name></expr>)</condition><block type="pseudo"><block_content> <expr_stmt><expr><name>longest</name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt></block_content></block></if></if_stmt> 
+
+<expr_stmt><expr><call><name>ff_dlog</name><argument_list>(<argument><expr><name>ctx</name></expr></argument>, <argument><expr><literal type="string">"box #%02X [%6d..%-6d] (%6d) w:%-6"</literal><name>PRIu64</name><literal type="string">" ranges:[%2x %2x %2x] sort by %c (already sorted:%c) "</literal></expr></argument>,
+
+<argument><expr><name>box_id</name></expr></argument>, <argument><expr><name><name>box</name><operator>-&gt;</operator><name>start</name></name></expr></argument>, <argument><expr><name><name>box</name><operator>-&gt;</operator><name>start</name></name> <operator>+</operator> <name><name>box</name><operator>-&gt;</operator><name>len</name></name> <operator>-</operator> <literal type="number">1</literal></expr></argument>, <argument><expr><name><name>box</name><operator>-&gt;</operator><name>len</name></name></expr></argument>, <argument><expr><name>box_weight</name></expr></argument>,
+
+<argument><expr><name>rr</name></expr></argument>, <argument><expr><name>gr</name></expr></argument>, <argument><expr><name>br</name></expr></argument>, <argument><expr><literal type="string">"rgb"</literal><index>[<expr><name>longest</name></expr>]</index></expr></argument>, <argument><expr><ternary><condition><expr><name><name>box</name><operator>-&gt;</operator><name>sorted_by</name></name> <operator>==</operator> <name>longest</name></expr> ?</condition><then> <expr><literal type="char">'y'</literal></expr></then><else>:<expr><literal type="char">'n'</literal></expr></else></ternary></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>box</name><operator>-&gt;</operator><name>sorted_by</name></name> <operator>!=</operator> <name>longest</name></expr>)</condition> <block>{<block_content>
+
+<decl_stmt><decl><type><name>cmp_func</name></type> <name>cmpf</name> <init>= <expr><name><name>cmp_funcs</name><index>[<expr><name>longest</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>AV_QSORT</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>refs</name><index>[<expr><name><name>box</name><operator>-&gt;</operator><name>start</name></name></expr>]</index></name></expr></argument>, <argument><expr><name><name>box</name><operator>-&gt;</operator><name>len</name></name></expr></argument>, <argument><expr><specifier>const</specifier> struct <name>color_ref</name> <operator>*</operator></expr></argument>, <argument><expr><name>cmpf</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>box</name><operator>-&gt;</operator><name>sorted_by</name></name> <operator>=</operator> <name>longest</name></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name>median</name> <operator>=</operator> <operator>(</operator><name>box_weight</name> <operator>+</operator> <literal type="number">1</literal><operator>)</operator> <operator>&gt;&gt;</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>box_weight</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <name><name>box</name><operator>-&gt;</operator><name>start</name></name></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name><name>box</name><operator>-&gt;</operator><name>start</name></name> <operator>+</operator> <name><name>box</name><operator>-&gt;</operator><name>len</name></name> <operator>-</operator> <literal type="number">2</literal></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+
+<expr_stmt><expr><name>box_weight</name> <operator>+=</operator> <name><name>s</name><operator>-&gt;</operator><name>refs</name><index>[<expr><name>i</name></expr>]</index></name><operator>-&gt;</operator><name>count</name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>box_weight</name> <operator>&gt;</operator> <name>median</name></expr>)</condition><block type="pseudo"><block_content>
+
+<break>break;</break></block_content></block></if></if_stmt>
+
+</block_content>}</block></for>
+
+<expr_stmt><expr><call><name>ff_dlog</name><argument_list>(<argument><expr><name>ctx</name></expr></argument>, <argument><expr><literal type="string">"split @ i=%-6d with w=%-6"</literal><name>PRIu64</name><literal type="string">" (target=%6"</literal><name>PRIu64</name><literal type="string">")\n"</literal></expr></argument>, <argument><expr><name>i</name></expr></argument>, <argument><expr><name>box_weight</name></expr></argument>, <argument><expr><name>median</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>split_box</name><argument_list>(<argument><expr><name>s</name></expr></argument>, <argument><expr><name>box</name></expr></argument>, <argument><expr><name>i</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>box_id</name> <operator>=</operator> <call><name>get_next_box_id_to_split</name><argument_list>(<argument><expr><name>s</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>box</name> <operator>=</operator> <ternary><condition><expr><name>box_id</name> <operator>&gt;=</operator> <literal type="number">0</literal></expr> ?</condition><then> <expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>boxes</name><index>[<expr><name>box_id</name></expr>]</index></name></expr> </then><else>: <expr><name>NULL</name></expr></else></ternary></expr>;</expr_stmt>
+
+</block_content>}</block></while>
+
+<expr_stmt><expr><name>ratio</name> <operator>=</operator> <call><name>set_colorquant_ratio_meta</name><argument_list>(<argument><expr><name>out</name></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>nb_boxes</name></name></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>nb_refs</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>av_log</name><argument_list>(<argument><expr><name>ctx</name></expr></argument>, <argument><expr><name>AV_LOG_INFO</name></expr></argument>, <argument><expr><literal type="string">"%d%s colors generated out of %d colors; ratio=%f\n"</literal></expr></argument>,
+
+<argument><expr><name><name>s</name><operator>-&gt;</operator><name>nb_boxes</name></name></expr></argument>, <argument><expr><ternary><condition><expr><name><name>s</name><operator>-&gt;</operator><name>reserve_transparent</name></name></expr> ?</condition><then> <expr><literal type="string">"(+1)"</literal></expr> </then><else>: <expr><literal type="string">""</literal></expr></else></ternary></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>nb_refs</name></name></expr></argument>, <argument><expr><name>ratio</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>qsort</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>boxes</name></name></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>nb_boxes</name></name></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr><operator>*</operator><name><name>s</name><operator>-&gt;</operator><name>boxes</name></name></expr></argument>)</argument_list></sizeof></expr></argument>, <argument><expr><name>cmp_color</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>write_palette</name><argument_list>(<argument><expr><name>ctx</name></expr></argument>, <argument><expr><name>out</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>out</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <specifier>inline</specifier> <name>unsigned</name></type> <name>color_hash</name><parameter_list>(<parameter><decl><type><name>uint32_t</name></type> <name>color</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>uint8_t</name></type> <name>r</name> <init>= <expr><name>color</name> <operator>&gt;&gt;</operator> <literal type="number">16</literal> <operator>&amp;</operator> <operator>(</operator><operator>(</operator><literal type="number">1</literal><operator>&lt;&lt;</operator><name>NBITS</name><operator>)</operator><operator>-</operator><literal type="number">1</literal><operator>)</operator></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>uint8_t</name></type> <name>g</name> <init>= <expr><name>color</name> <operator>&gt;&gt;</operator> <literal type="number">8</literal> <operator>&amp;</operator> <operator>(</operator><operator>(</operator><literal type="number">1</literal><operator>&lt;&lt;</operator><name>NBITS</name><operator>)</operator><operator>-</operator><literal type="number">1</literal><operator>)</operator></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>uint8_t</name></type> <name>b</name> <init>= <expr><name>color</name> <operator>&amp;</operator> <operator>(</operator><operator>(</operator><literal type="number">1</literal><operator>&lt;&lt;</operator><name>NBITS</name><operator>)</operator><operator>-</operator><literal type="number">1</literal><operator>)</operator></expr></init></decl>;</decl_stmt>
+
+<return>return <expr><name>r</name><operator>&lt;&lt;</operator><operator>(</operator><name>NBITS</name><operator>*</operator><literal type="number">2</literal><operator>)</operator> <operator>|</operator> <name>g</name><operator>&lt;&lt;</operator><name>NBITS</name> <operator>|</operator> <name>b</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>color_inc</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>hist_node</name></name> <modifier>*</modifier></type><name>hist</name></decl></parameter>, <parameter><decl><type><name>uint32_t</name></type> <name>color</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>int</name></type> <name>i</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>unsigned</name></type> <name>hash</name> <init>= <expr><call><name>color_hash</name><argument_list>(<argument><expr><name>color</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>hist_node</name></name> <modifier>*</modifier></type><name>node</name> <init>= <expr><operator>&amp;</operator><name><name>hist</name><index>[<expr><name>hash</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>color_ref</name></name> <modifier>*</modifier></type><name>e</name></decl>;</decl_stmt>
+
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name><name>node</name><operator>-&gt;</operator><name>nb_entries</name></name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+
+<expr_stmt><expr><name>e</name> <operator>=</operator> <operator>&amp;</operator><name><name>node</name><operator>-&gt;</operator><name>entries</name><index>[<expr><name>i</name></expr>]</index></name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>e</name><operator>-&gt;</operator><name>color</name></name> <operator>==</operator> <name>color</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name><name>e</name><operator>-&gt;</operator><name>count</name></name><operator>++</operator></expr>;</expr_stmt>
+
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></for>
+
+<expr_stmt><expr><name>e</name> <operator>=</operator> <call><name>av_dynarray2_add</name><argument_list>(<argument><expr><operator>(</operator><name>void</name><operator>*</operator><operator>*</operator><operator>)</operator><operator>&amp;</operator><name><name>node</name><operator>-&gt;</operator><name>entries</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>node</name><operator>-&gt;</operator><name>nb_entries</name></name></expr></argument>,
+
+<argument><expr><sizeof>sizeof<argument_list>(<argument><expr><operator>*</operator><name><name>node</name><operator>-&gt;</operator><name>entries</name></name></expr></argument>)</argument_list></sizeof></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>e</name></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><call><name>AVERROR</name><argument_list>(<argument><expr><name>ENOMEM</name></expr></argument>)</argument_list></call></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name><name>e</name><operator>-&gt;</operator><name>color</name></name> <operator>=</operator> <name>color</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>e</name><operator>-&gt;</operator><name>count</name></name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+
+<return>return <expr><literal type="number">1</literal></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>update_histogram_diff</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>hist_node</name></name> <modifier>*</modifier></type><name>hist</name></decl></parameter>,
+
+<parameter><decl><type><specifier>const</specifier> <name>AVFrame</name> <modifier>*</modifier></type><name>f1</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>AVFrame</name> <modifier>*</modifier></type><name>f2</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>int</name></type> <name>x</name></decl>, <decl><type ref="prev"/><name>y</name></decl>, <decl><type ref="prev"/><name>ret</name></decl>, <decl><type ref="prev"/><name>nb_diff_colors</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+
+<for>for <control>(<init><expr><name>y</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>y</name> <operator>&lt;</operator> <name><name>f1</name><operator>-&gt;</operator><name>height</name></name></expr>;</condition> <incr><expr><name>y</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>uint32_t</name> <modifier>*</modifier></type><name>p</name> <init>= <expr><operator>(</operator><specifier>const</specifier> <name>uint32_t</name> <operator>*</operator><operator>)</operator><operator>(</operator><name><name>f1</name><operator>-&gt;</operator><name>data</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>+</operator> <name>y</name><operator>*</operator><name><name>f1</name><operator>-&gt;</operator><name>linesize</name><index>[<expr><literal type="number">0</literal></expr>]</index></name><operator>)</operator></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>uint32_t</name> <modifier>*</modifier></type><name>q</name> <init>= <expr><operator>(</operator><specifier>const</specifier> <name>uint32_t</name> <operator>*</operator><operator>)</operator><operator>(</operator><name><name>f2</name><operator>-&gt;</operator><name>data</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>+</operator> <name>y</name><operator>*</operator><name><name>f2</name><operator>-&gt;</operator><name>linesize</name><index>[<expr><literal type="number">0</literal></expr>]</index></name><operator>)</operator></expr></init></decl>;</decl_stmt>
+
+<for>for <control>(<init><expr><name>x</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>x</name> <operator>&lt;</operator> <name><name>f1</name><operator>-&gt;</operator><name>width</name></name></expr>;</condition> <incr><expr><name>x</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><name><name>p</name><index>[<expr><name>x</name></expr>]</index></name> <operator>==</operator> <name><name>q</name><index>[<expr><name>x</name></expr>]</index></name></expr>)</condition><block type="pseudo"><block_content>
+
+<continue>continue;</continue></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <call><name>color_inc</name><argument_list>(<argument><expr><name>hist</name></expr></argument>, <argument><expr><name><name>p</name><index>[<expr><name>x</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>ret</name> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>ret</name></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>nb_diff_colors</name> <operator>+=</operator> <name>ret</name></expr>;</expr_stmt>
+
+</block_content>}</block></for>
+
+</block_content>}</block></for>
+
+<return>return <expr><name>nb_diff_colors</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>update_histogram_frame</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>hist_node</name></name> <modifier>*</modifier></type><name>hist</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>AVFrame</name> <modifier>*</modifier></type><name>f</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>int</name></type> <name>x</name></decl>, <decl><type ref="prev"/><name>y</name></decl>, <decl><type ref="prev"/><name>ret</name></decl>, <decl><type ref="prev"/><name>nb_diff_colors</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+
+<for>for <control>(<init><expr><name>y</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>y</name> <operator>&lt;</operator> <name><name>f</name><operator>-&gt;</operator><name>height</name></name></expr>;</condition> <incr><expr><name>y</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>uint32_t</name> <modifier>*</modifier></type><name>p</name> <init>= <expr><operator>(</operator><specifier>const</specifier> <name>uint32_t</name> <operator>*</operator><operator>)</operator><operator>(</operator><name><name>f</name><operator>-&gt;</operator><name>data</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>+</operator> <name>y</name><operator>*</operator><name><name>f</name><operator>-&gt;</operator><name>linesize</name><index>[<expr><literal type="number">0</literal></expr>]</index></name><operator>)</operator></expr></init></decl>;</decl_stmt>
+
+<for>for <control>(<init><expr><name>x</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>x</name> <operator>&lt;</operator> <name><name>f</name><operator>-&gt;</operator><name>width</name></name></expr>;</condition> <incr><expr><name>x</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <call><name>color_inc</name><argument_list>(<argument><expr><name>hist</name></expr></argument>, <argument><expr><name><name>p</name><index>[<expr><name>x</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>ret</name> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>ret</name></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>nb_diff_colors</name> <operator>+=</operator> <name>ret</name></expr>;</expr_stmt>
+
+</block_content>}</block></for>
+
+</block_content>}</block></for>
+
+<return>return <expr><name>nb_diff_colors</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>filter_frame</name><parameter_list>(<parameter><decl><type><name>AVFilterLink</name> <modifier>*</modifier></type><name>inlink</name></decl></parameter>, <parameter><decl><type><name>AVFrame</name> <modifier>*</modifier></type><name>in</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>AVFilterContext</name> <modifier>*</modifier></type><name>ctx</name> <init>= <expr><name><name>inlink</name><operator>-&gt;</operator><name>dst</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>PaletteGenContext</name> <modifier>*</modifier></type><name>s</name> <init>= <expr><name><name>ctx</name><operator>-&gt;</operator><name>priv</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>ret</name> <init>= <expr><ternary><condition><expr><name><name>s</name><operator>-&gt;</operator><name>prev_frame</name></name></expr> ?</condition><then> <expr><call><name>update_histogram_diff</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>histogram</name></name></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>prev_frame</name></name></expr></argument>, <argument><expr><name>in</name></expr></argument>)</argument_list></call></expr>
+
+</then><else>: <expr><call><name>update_histogram_frame</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>histogram</name></name></expr></argument>, <argument><expr><name>in</name></expr></argument>)</argument_list></call></expr></else></ternary></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>ret</name> <operator>&gt;</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>nb_refs</name></name> <operator>+=</operator> <name>ret</name></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>s</name><operator>-&gt;</operator><name>stats_mode</name></name> <operator>==</operator> <name>STATS_MODE_DIFF_FRAMES</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>av_frame_free</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>prev_frame</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>prev_frame</name></name> <operator>=</operator> <name>in</name></expr>;</expr_stmt>
+
+</block_content>}</block></if> <if type="elseif">else if <condition>(<expr><name><name>s</name><operator>-&gt;</operator><name>stats_mode</name></name> <operator>==</operator> <name>STATS_MODE_SINGLE_FRAMES</name></expr>)</condition> <block>{<block_content>
+
+<decl_stmt><decl><type><name>AVFrame</name> <modifier>*</modifier></type><name>out</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>i</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>out</name> <operator>=</operator> <call><name>get_palette_frame</name><argument_list>(<argument><expr><name>ctx</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>out</name><operator>-&gt;</operator><name>pts</name></name> <operator>=</operator> <name><name>in</name><operator>-&gt;</operator><name>pts</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>av_frame_free</name><argument_list>(<argument><expr><operator>&amp;</operator><name>in</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <call><name>ff_filter_frame</name><argument_list>(<argument><expr><name><name>ctx</name><operator>-&gt;</operator><name>outputs</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>, <argument><expr><name>out</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>HIST_SIZE</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>av_freep</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>histogram</name><index>[<expr><name>i</name></expr>]</index></name><operator>.</operator><name>entries</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></for>
+
+<expr_stmt><expr><call><name>av_freep</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>refs</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>nb_refs</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>nb_boxes</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>memset</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>boxes</name></name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>boxes</name></name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>memset</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>histogram</name></name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>histogram</name></name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<expr_stmt><expr><call><name>av_frame_free</name><argument_list>(<argument><expr><operator>&amp;</operator><name>in</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+<return>return <expr><name>ret</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>request_frame</name><parameter_list>(<parameter><decl><type><name>AVFilterLink</name> <modifier>*</modifier></type><name>outlink</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>AVFilterContext</name> <modifier>*</modifier></type><name>ctx</name> <init>= <expr><name><name>outlink</name><operator>-&gt;</operator><name>src</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>AVFilterLink</name> <modifier>*</modifier></type><name>inlink</name> <init>= <expr><name><name>ctx</name><operator>-&gt;</operator><name>inputs</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>PaletteGenContext</name> <modifier>*</modifier></type><name>s</name> <init>= <expr><name><name>ctx</name><operator>-&gt;</operator><name>priv</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>r</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>r</name> <operator>=</operator> <call><name>ff_request_frame</name><argument_list>(<argument><expr><name>inlink</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>r</name> <operator>==</operator> <name>AVERROR_EOF</name> <operator>&amp;&amp;</operator> <operator>!</operator><name><name>s</name><operator>-&gt;</operator><name>palette_pushed</name></name> <operator>&amp;&amp;</operator> <name><name>s</name><operator>-&gt;</operator><name>nb_refs</name></name> <operator>&amp;&amp;</operator> <name><name>s</name><operator>-&gt;</operator><name>stats_mode</name></name> <operator>!=</operator> <name>STATS_MODE_SINGLE_FRAMES</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>r</name> <operator>=</operator> <call><name>ff_filter_frame</name><argument_list>(<argument><expr><name>outlink</name></expr></argument>, <argument><expr><call><name>get_palette_frame</name><argument_list>(<argument><expr><name>ctx</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>palette_pushed</name></name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+
+<return>return <expr><name>r</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<return>return <expr><name>r</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>config_output</name><parameter_list>(<parameter><decl><type><name>AVFilterLink</name> <modifier>*</modifier></type><name>outlink</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><name><name>outlink</name><operator>-&gt;</operator><name>w</name></name> <operator>=</operator> <name><name>outlink</name><operator>-&gt;</operator><name>h</name></name> <operator>=</operator> <literal type="number">16</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>outlink</name><operator>-&gt;</operator><name>sample_aspect_ratio</name></name> <operator>=</operator> <call><name>av_make_q</name><argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>av_cold</name> <name>void</name></type> <name>uninit</name><parameter_list>(<parameter><decl><type><name>AVFilterContext</name> <modifier>*</modifier></type><name>ctx</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>int</name></type> <name>i</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>PaletteGenContext</name> <modifier>*</modifier></type><name>s</name> <init>= <expr><name><name>ctx</name><operator>-&gt;</operator><name>priv</name></name></expr></init></decl>;</decl_stmt>
+
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>HIST_SIZE</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>av_freep</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>histogram</name><index>[<expr><name>i</name></expr>]</index></name><operator>.</operator><name>entries</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></for>
+
+<expr_stmt><expr><call><name>av_freep</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>refs</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>av_frame_free</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>prev_frame</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<decl_stmt><decl><type><specifier>static</specifier> <specifier>const</specifier> <name>AVFilterPad</name></type> <name><name>palettegen_inputs</name><index>[]</index></name> <init>= <expr><block>{
+
+<expr><block>{
+
+<expr><operator>.</operator><name>name</name> <operator>=</operator> <literal type="string">"default"</literal></expr>,
+
+<expr><operator>.</operator><name>type</name> <operator>=</operator> <name>AVMEDIA_TYPE_VIDEO</name></expr>,
+
+<expr><operator>.</operator><name>filter_frame</name> <operator>=</operator> <name>filter_frame</name></expr>,
+
+}</block></expr>,
+
+<expr><block>{ <expr><name>NULL</name></expr> }</block></expr>
+
+}</block></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <specifier>const</specifier> <name>AVFilterPad</name></type> <name><name>palettegen_outputs</name><index>[]</index></name> <init>= <expr><block>{
+
+<expr><block>{
+
+<expr><operator>.</operator><name>name</name> <operator>=</operator> <literal type="string">"default"</literal></expr>,
+
+<expr><operator>.</operator><name>type</name> <operator>=</operator> <name>AVMEDIA_TYPE_VIDEO</name></expr>,
+
+<expr><operator>.</operator><name>config_props</name> <operator>=</operator> <name>config_output</name></expr>,
+
+<expr><operator>.</operator><name>request_frame</name> <operator>=</operator> <name>request_frame</name></expr>,
+
+}</block></expr>,
+
+<expr><block>{ <expr><name>NULL</name></expr> }</block></expr>
+
+}</block></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>AVFilter</name></type> <name>ff_vf_palettegen</name> <init>= <expr><block>{
+
+<expr><operator>.</operator><name>name</name> <operator>=</operator> <literal type="string">"palettegen"</literal></expr>,
+
+<expr><operator>.</operator><name>description</name> <operator>=</operator> <call><name>NULL_IF_CONFIG_SMALL</name><argument_list>(<argument><expr><literal type="string">"Find the optimal palette for a given stream."</literal></expr></argument>)</argument_list></call></expr>,
+
+<expr><operator>.</operator><name>priv_size</name> <operator>=</operator> <sizeof>sizeof<argument_list>(<argument><expr><name>PaletteGenContext</name></expr></argument>)</argument_list></sizeof></expr>,
+
+<expr><operator>.</operator><name>uninit</name> <operator>=</operator> <name>uninit</name></expr>,
+
+<expr><operator>.</operator><name>query_formats</name> <operator>=</operator> <name>query_formats</name></expr>,
+
+<expr><operator>.</operator><name>inputs</name> <operator>=</operator> <name>palettegen_inputs</name></expr>,
+
+<expr><operator>.</operator><name>outputs</name> <operator>=</operator> <name>palettegen_outputs</name></expr>,
+
+<expr><operator>.</operator><name>priv_class</name> <operator>=</operator> <operator>&amp;</operator><name>palettegen_class</name></expr>,
+
+}</block></expr></init></decl>;</decl_stmt>
+
+</unit>

@@ -1,0 +1,32 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#if !defined(AVFORMAT_RSO_H)
+#define AVFORMAT_RSO_H
+
+#include "internal.h"
+
+#define RSO_HEADER_SIZE 8
+
+
+extern const AVCodecTag ff_codec_rso_tags[];
+
+#endif 

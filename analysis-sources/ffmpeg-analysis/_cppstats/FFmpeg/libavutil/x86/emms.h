@@ -1,0 +1,19 @@
+#include "config.h"
+#include "libavutil/attributes.h"
+#include "libavutil/cpu.h"
+void avpriv_emms_asm(void);
+#if HAVE_MMX_INLINE
+#define emms_c emms_c
+static av_always_inline void emms_c(void)
+{
+#if !defined(__MMX__)
+if(av_get_cpu_flags() & AV_CPU_FLAG_MMX)
+#endif
+__asm__ volatile ("emms" ::: "memory");
+}
+#elif HAVE_MMX && HAVE_MM_EMPTY
+#include <mmintrin.h>
+#define emms_c _mm_empty
+#elif HAVE_MMX_EXTERNAL
+#define emms_c avpriv_emms_asm
+#endif 

@@ -1,0 +1,3 @@
+printf("Begin of second part\n");
+return 0;
+} 

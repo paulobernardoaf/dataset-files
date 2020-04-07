@@ -1,0 +1,18 @@
+#include "test.h"
+#include <string.h>
+static pthread_t me;
+void *
+entry(void * arg)
+{
+me = pthread_self();
+return arg;
+}
+int
+main()
+{
+pthread_t t;
+assert(pthread_create(&t, NULL, entry, NULL) == 0);
+Sleep(100);
+assert(pthread_equal(t, me) != 0);
+return 0;
+}

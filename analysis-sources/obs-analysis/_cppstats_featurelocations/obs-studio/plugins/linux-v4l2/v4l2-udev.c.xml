@@ -1,0 +1,198 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" revision="1.0.0" language="C" filename="D:\Pesquisa\Projects\obs-analysis\_cppstats_featurelocations\obs-studio\plugins\linux-v4l2\v4l2-udev.c">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;libudev.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;util/threading.h&gt;</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;util/darray.h&gt;</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;obs.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"v4l2-udev.h"</cpp:file></cpp:include>
+
+
+<enum>enum <name>udev_action</name> <block>{
+<decl><name>UDEV_ACTION_ADDED</name></decl>,
+<decl><name>UDEV_ACTION_REMOVED</name></decl>,
+<decl><name>UDEV_ACTION_UNKNOWN</name></decl>
+}</block>;</enum>
+
+<decl_stmt><decl><type><specifier>static</specifier> <specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name><name>udev_signals</name><index>[]</index></name> <init>= <expr><block>{<expr><literal type="string">"void device_added(string device)"</literal></expr>,
+<expr><literal type="string">"void device_removed(string device)"</literal></expr>,
+<expr><name>NULL</name></expr>}</block></expr></init></decl>;</decl_stmt>
+
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>uint_fast32_t</name></type> <name>udev_refs</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><specifier>static</specifier> <name>pthread_mutex_t</name></type> <name>udev_mutex</name> <init>= <expr><name>PTHREAD_MUTEX_INITIALIZER</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>pthread_t</name></type> <name>udev_thread</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><specifier>static</specifier> <name>os_event_t</name> <modifier>*</modifier></type><name>udev_event</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>signal_handler_t</name> <modifier>*</modifier></type><name>udev_signalhandler</name> <init>= <expr><name>NULL</name></expr></init></decl>;</decl_stmt>
+
+
+
+
+
+
+
+<function><type><specifier>static</specifier> <name><name>enum</name> <name>udev_action</name></name></type> <name>udev_action_to_enum</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>action</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>action</name></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><name>UDEV_ACTION_UNKNOWN</name></expr>;</return></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>strncmp</name><argument_list>(<argument><expr><literal type="string">"add"</literal></expr></argument>, <argument><expr><name>action</name></expr></argument>, <argument><expr><literal type="number">3</literal></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><name>UDEV_ACTION_ADDED</name></expr>;</return></block_content></block></if></if_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>strncmp</name><argument_list>(<argument><expr><literal type="string">"remove"</literal></expr></argument>, <argument><expr><name>action</name></expr></argument>, <argument><expr><literal type="number">6</literal></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><name>UDEV_ACTION_REMOVED</name></expr>;</return></block_content></block></if></if_stmt>
+
+<return>return <expr><name>UDEV_ACTION_UNKNOWN</name></expr>;</return>
+</block_content>}</block></function>
+
+
+
+
+
+
+<function><type><specifier>static</specifier> <specifier>inline</specifier> <name>void</name></type> <name>udev_signal_event</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>udev_device</name></name> <modifier>*</modifier></type><name>dev</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>node</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name><name>enum</name> <name>udev_action</name></name></type> <name>action</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name><name>struct</name> <name>calldata</name></name></type> <name>data</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_lock</name><argument_list>(<argument><expr><operator>&amp;</operator><name>udev_mutex</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>node</name> <operator>=</operator> <call><name>udev_device_get_devnode</name><argument_list>(<argument><expr><name>dev</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>action</name> <operator>=</operator> <call><name>udev_action_to_enum</name><argument_list>(<argument><expr><call><name>udev_device_get_action</name><argument_list>(<argument><expr><name>dev</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>calldata_init</name><argument_list>(<argument><expr><operator>&amp;</operator><name>data</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>calldata_set_string</name><argument_list>(<argument><expr><operator>&amp;</operator><name>data</name></expr></argument>, <argument><expr><literal type="string">"device"</literal></expr></argument>, <argument><expr><name>node</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<switch>switch <condition>(<expr><name>action</name></expr>)</condition> <block>{<block_content>
+<case>case <expr><name>UDEV_ACTION_ADDED</name></expr>:</case>
+<expr_stmt><expr><call><name>signal_handler_signal</name><argument_list>(<argument><expr><name>udev_signalhandler</name></expr></argument>, <argument><expr><literal type="string">"device_added"</literal></expr></argument>,
+<argument><expr><operator>&amp;</operator><name>data</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>UDEV_ACTION_REMOVED</name></expr>:</case>
+<expr_stmt><expr><call><name>signal_handler_signal</name><argument_list>(<argument><expr><name>udev_signalhandler</name></expr></argument>, <argument><expr><literal type="string">"device_removed"</literal></expr></argument>,
+<argument><expr><operator>&amp;</operator><name>data</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+<default>default:</default>
+<break>break;</break>
+</block_content>}</block></switch>
+
+<expr_stmt><expr><call><name>calldata_free</name><argument_list>(<argument><expr><operator>&amp;</operator><name>data</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_unlock</name><argument_list>(<argument><expr><operator>&amp;</operator><name>udev_mutex</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+
+
+
+<function><type><specifier>static</specifier> <name>void</name> <modifier>*</modifier></type><name>udev_event_thread</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>vptr</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<expr_stmt><expr><call><name>UNUSED_PARAMETER</name><argument_list>(<argument><expr><name>vptr</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>fd</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>fd_set</name></type> <name>fds</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name><name>struct</name> <name>timeval</name></name></type> <name>tv</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name><name>struct</name> <name>udev</name></name> <modifier>*</modifier></type><name>udev</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name><name>struct</name> <name>udev_monitor</name></name> <modifier>*</modifier></type><name>mon</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name><name>struct</name> <name>udev_device</name></name> <modifier>*</modifier></type><name>dev</name></decl>;</decl_stmt>
+
+
+<expr_stmt><expr><name>udev</name> <operator>=</operator> <call><name>udev_new</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>mon</name> <operator>=</operator> <call><name>udev_monitor_new_from_netlink</name><argument_list>(<argument><expr><name>udev</name></expr></argument>, <argument><expr><literal type="string">"udev"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>udev_monitor_filter_add_match_subsystem_devtype</name><argument_list>(<argument><expr><name>mon</name></expr></argument>, <argument><expr><literal type="string">"video4linux"</literal></expr></argument>,
+<argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><call><name>udev_monitor_enable_receiving</name><argument_list>(<argument><expr><name>mon</name></expr></argument>)</argument_list></call> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><name>NULL</name></expr>;</return></block_content></block></if></if_stmt>
+
+
+<expr_stmt><expr><name>fd</name> <operator>=</operator> <call><name>udev_monitor_get_fd</name><argument_list>(<argument><expr><name>mon</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<while>while <condition>(<expr><call><name>os_event_try</name><argument_list>(<argument><expr><name>udev_event</name></expr></argument>)</argument_list></call> <operator>==</operator> <name>EAGAIN</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>FD_ZERO</name><argument_list>(<argument><expr><operator>&amp;</operator><name>fds</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>FD_SET</name><argument_list>(<argument><expr><name>fd</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>fds</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>tv</name><operator>.</operator><name>tv_sec</name></name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>tv</name><operator>.</operator><name>tv_usec</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>select</name><argument_list>(<argument><expr><name>fd</name> <operator>+</operator> <literal type="number">1</literal></expr></argument>, <argument><expr><operator>&amp;</operator><name>fds</name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>tv</name></expr></argument>)</argument_list></call> <operator>&lt;=</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+<continue>continue;</continue></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>dev</name> <operator>=</operator> <call><name>udev_monitor_receive_device</name><argument_list>(<argument><expr><name>mon</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>dev</name></expr>)</condition><block type="pseudo"><block_content>
+<continue>continue;</continue></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>udev_signal_event</name><argument_list>(<argument><expr><name>dev</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>udev_device_unref</name><argument_list>(<argument><expr><name>dev</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></while>
+
+<expr_stmt><expr><call><name>udev_monitor_unref</name><argument_list>(<argument><expr><name>mon</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>udev_unref</name><argument_list>(<argument><expr><name>udev</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>NULL</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><name>void</name></type> <name>v4l2_init_udev</name><parameter_list>(<parameter><decl><type><name>void</name></type></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<expr_stmt><expr><call><name>pthread_mutex_lock</name><argument_list>(<argument><expr><operator>&amp;</operator><name>udev_mutex</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+
+<if_stmt><if>if <condition>(<expr><name>udev_refs</name> <operator>==</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><call><name>os_event_init</name><argument_list>(<argument><expr><operator>&amp;</operator><name>udev_event</name></expr></argument>, <argument><expr><name>OS_EVENT_TYPE_MANUAL</name></expr></argument>)</argument_list></call> <operator>!=</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+<goto>goto <name>fail</name>;</goto></block_content></block></if></if_stmt>
+<if_stmt><if>if <condition>(<expr><call><name>pthread_create</name><argument_list>(<argument><expr><operator>&amp;</operator><name>udev_thread</name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>, <argument><expr><name>udev_event_thread</name></expr></argument>,
+<argument><expr><name>NULL</name></expr></argument>)</argument_list></call> <operator>!=</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+<goto>goto <name>fail</name>;</goto></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>udev_signalhandler</name> <operator>=</operator> <call><name>signal_handler_create</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>udev_signalhandler</name></expr>)</condition><block type="pseudo"><block_content>
+<goto>goto <name>fail</name>;</goto></block_content></block></if></if_stmt>
+<expr_stmt><expr><call><name>signal_handler_add_array</name><argument_list>(<argument><expr><name>udev_signalhandler</name></expr></argument>, <argument><expr><name>udev_signals</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+<expr_stmt><expr><name>udev_refs</name><operator>++</operator></expr>;</expr_stmt>
+
+<label><name>fail</name>:</label>
+<expr_stmt><expr><call><name>pthread_mutex_unlock</name><argument_list>(<argument><expr><operator>&amp;</operator><name>udev_mutex</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><name>void</name></type> <name>v4l2_unref_udev</name><parameter_list>(<parameter><decl><type><name>void</name></type></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<expr_stmt><expr><call><name>pthread_mutex_lock</name><argument_list>(<argument><expr><operator>&amp;</operator><name>udev_mutex</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+
+<if_stmt><if>if <condition>(<expr><name>udev_refs</name> <operator>&amp;&amp;</operator> <operator>--</operator><name>udev_refs</name> <operator>==</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>os_event_signal</name><argument_list>(<argument><expr><name>udev_event</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>pthread_join</name><argument_list>(<argument><expr><name>udev_thread</name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>os_event_destroy</name><argument_list>(<argument><expr><name>udev_event</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>udev_signalhandler</name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>signal_handler_destroy</name><argument_list>(<argument><expr><name>udev_signalhandler</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+<expr_stmt><expr><name>udev_signalhandler</name> <operator>=</operator> <name>NULL</name></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_unlock</name><argument_list>(<argument><expr><operator>&amp;</operator><name>udev_mutex</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><name>signal_handler_t</name> <modifier>*</modifier></type><name>v4l2_get_udev_signalhandler</name><parameter_list>(<parameter><decl><type><name>void</name></type></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<return>return <expr><name>udev_signalhandler</name></expr>;</return>
+</block_content>}</block></function>
+</unit>

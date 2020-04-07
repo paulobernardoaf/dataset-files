@@ -1,0 +1,304 @@
+
+
+#if !defined(R2_MAGIC_H)
+#define R2_MAGIC_H
+
+#include <r_types.h>
+
+#if defined(__cplusplus)
+extern "C" {
+#endif
+
+R_LIB_VERSION_HEADER(r_magic);
+
+#if !defined(MAGICFILE)
+#define MAGICFILE "/etc/magic"
+#endif
+
+#if defined(R_API)
+
+#if defined(__EMX__)
+#define PATHSEP ';'
+#else
+#define PATHSEP ':'
+#endif
+
+
+#if !defined(HOWMANY)
+#define HOWMANY (256 * 1024) 
+#endif
+#define MAXDESC 64
+#define MAXMAGIS 8192 
+#define MAXstring 32 
+
+
+union VALUETYPE {
+ut8 b;
+ut16 h;
+ut32 l;
+ut64 q;
+ut8 hs[2]; 
+ut8 hl[4]; 
+ut8 hq[8]; 
+char s[MAXstring]; 
+float f;
+double d;
+}; 
+
+
+#define MAGICNO 0xF11E041C
+#define VERSIONNO 5
+#define FILE_MAGICSIZE (32 * 6)
+
+#define FILE_LOAD 0
+#define FILE_CHECK 1
+#define FILE_COMPILE 2
+
+struct r_magic {
+
+ut16 cont_level; 
+ut8 flag;
+
+#define INDIR 0x01 
+#define OFFADD 0x02 
+#define INDIROFFADD 0x04 
+#define UNSIGNED 0x08 
+#define NOSPACE 0x10 
+#define BINTEST 0x20 
+
+#define TEXTTEST 0 
+
+ut8 dummy1;
+
+
+ut8 reln; 
+ut8 vallen; 
+ut8 type; 
+ut8 in_type; 
+#define FILE_INVALID 0
+#define FILE_BYTE 1
+#define FILE_SHORT 2
+#define FILE_DEFAULT 3
+#define FILE_LONG 4
+#define FILE_STRING 5
+#define FILE_DATE 6
+#define FILE_BESHORT 7
+#define FILE_BELONG 8
+#define FILE_BEDATE 9
+#define FILE_LESHORT 10
+#define FILE_LELONG 11
+#define FILE_LEDATE 12
+#define FILE_PSTRING 13
+#define FILE_LDATE 14
+#define FILE_BELDATE 15
+#define FILE_LELDATE 16
+#define FILE_REGEX 17
+#define FILE_BESTRING16 18
+#define FILE_LESTRING16 19
+#define FILE_SEARCH 20
+#define FILE_MEDATE 21
+#define FILE_MELDATE 22
+#define FILE_MELONG 23
+#define FILE_QUAD 24
+#define FILE_LEQUAD 25
+#define FILE_BEQUAD 26
+#define FILE_QDATE 27
+#define FILE_LEQDATE 28
+#define FILE_BEQDATE 29
+#define FILE_QLDATE 30
+#define FILE_LEQLDATE 31
+#define FILE_BEQLDATE 32
+#define FILE_FLOAT 33
+#define FILE_BEFLOAT 34
+#define FILE_LEFLOAT 35
+#define FILE_DOUBLE 36
+#define FILE_BEDOUBLE 37
+#define FILE_LEDOUBLE 38
+#define FILE_NAMES_SIZE 39 
+
+#define MAGIC_IS_STRING(t) ((t) == FILE_STRING || (t) == FILE_PSTRING || (t) == FILE_BESTRING16 || (t) == FILE_LESTRING16 || (t) == FILE_REGEX || (t) == FILE_SEARCH || (t) == FILE_DEFAULT)
+
+
+
+
+
+
+
+
+#define FILE_FMT_NONE 0
+#define FILE_FMT_NUM 1 
+#define FILE_FMT_STR 2 
+#define FILE_FMT_QUAD 3 
+#define FILE_FMT_FLOAT 4 
+#define FILE_FMT_DOUBLE 5 
+
+
+ut8 in_op; 
+ut8 mask_op; 
+ut8 cond; 
+ut8 dummy2;
+
+#define FILE_OPS "&|^+-*/%"
+#define FILE_OPAND 0
+#define FILE_OPOR 1
+#define FILE_OPXOR 2
+#define FILE_OPADD 3
+#define FILE_OPMINUS 4
+#define FILE_OPMULTIPLY 5
+#define FILE_OPDIVIDE 6
+#define FILE_OPMODULO 7
+#define FILE_OPS_MASK 0x07 
+#define FILE_UNUSED_1 0x08
+#define FILE_UNUSED_2 0x10
+#define FILE_UNUSED_3 0x20
+#define FILE_OPINVERSE 0x40
+#define FILE_OPINDIRECT 0x80
+
+#define COND_NONE 0
+#define COND_IF 1
+#define COND_ELIF 2
+#define COND_ELSE 3
+
+
+ut32 offset; 
+
+ut32 in_offset; 
+
+ut32 lineno; 
+
+union {
+ut64 _mask; 
+struct {
+ut32 _count; 
+ut32 _flags; 
+} _s; 
+} _u;
+
+#define num_mask _u._mask
+#define str_range _u._s._count
+#define str_flags _u._s._flags
+
+
+union VALUETYPE value;
+
+char desc[MAXDESC]; 
+
+char mimetype[MAXDESC]; 
+};
+
+#define BIT(A) (1 << (A))
+#define STRING_COMPACT_BLANK BIT(0)
+#define STRING_COMPACT_OPTIONAL_BLANK BIT(1)
+#define STRING_IGNORE_LOWERCASE BIT(2)
+#define STRING_IGNORE_UPPERCASE BIT(3)
+#define REGEX_OFFSET_START BIT(4)
+#define CHAR_COMPACT_BLANK 'B'
+#define CHAR_COMPACT_OPTIONAL_BLANK 'b'
+#define CHAR_IGNORE_LOWERCASE 'c'
+#define CHAR_IGNORE_UPPERCASE 'C'
+#define CHAR_REGEX_OFFSET_START 's'
+#define STRING_IGNORE_CASE (STRING_IGNORE_LOWERCASE|STRING_IGNORE_UPPERCASE)
+#define STRING_DEFAULT_RANGE 100
+
+
+struct mlist {
+struct r_magic *magic; 
+ut32 nmagic; 
+int mapped; 
+
+
+struct mlist *next, *prev;
+};
+
+#define R_MAGIC_NONE 0x000000 
+#define R_MAGIC_DEBUG 0x000001 
+#define R_MAGIC_SYMLINK 0x000002 
+#define R_MAGIC_COMPRESS 0x000004 
+#define R_MAGIC_DEVICES 0x000008 
+#define R_MAGIC_MIME_TYPE 0x000010 
+#define R_MAGIC_CONTINUE 0x000020 
+#define R_MAGIC_CHECK 0x000040 
+#define R_MAGIC_PRESERVE_ATIME 0x000080 
+#define R_MAGIC_RAW 0x000100 
+#define R_MAGIC_ERROR 0x000200 
+#define R_MAGIC_MIME_ENCODING 0x000400 
+#define R_MAGIC_MIME (R_MAGIC_MIME_TYPE|R_MAGIC_MIME_ENCODING)
+#define R_MAGIC_NO_CHECK_COMPRESS 0x001000 
+#define R_MAGIC_NO_CHECK_TAR 0x002000 
+#define R_MAGIC_NO_CHECK_SOFT 0x004000 
+#define R_MAGIC_NO_CHECK_APPTYPE 0x008000 
+#define R_MAGIC_NO_CHECK_ELF 0x010000 
+#define R_MAGIC_NO_CHECK_ASCII 0x020000 
+#define R_MAGIC_NO_CHECK_TOKENS 0x100000 
+
+
+#define MAGIC_NO_CHECK_FORTRAN 0x000000 
+#define MAGIC_NO_CHECK_TROFF 0x000000 
+
+struct r_magic_set {
+struct mlist *mlist;
+struct cont {
+size_t len;
+struct level_info {
+st32 off;
+int got_match;
+int last_match;
+int last_cond; 
+} *li;
+} c;
+struct out {
+char *buf; 
+char *pbuf; 
+} o;
+ut32 offset;
+int error;
+int flags;
+int haderr;
+const char *file;
+size_t line; 
+
+
+struct {
+const char *s; 
+size_t s_len; 
+size_t offset; 
+size_t rm_len; 
+} search;
+
+
+
+union VALUETYPE ms_value; 
+};
+
+#if USE_LIB_MAGIC
+#define RMagic struct magic_set
+#else
+typedef struct r_magic_set RMagic;
+#endif
+
+#if defined(R_API)
+R_API RMagic* r_magic_new(int flags);
+R_API void r_magic_free(RMagic*);
+
+R_API const char *r_magic_file(RMagic*, const char *);
+R_API const char *r_magic_descriptor(RMagic*, int);
+R_API const char *r_magic_buffer(RMagic*, const void *, size_t);
+
+R_API const char *r_magic_error(RMagic*);
+R_API void r_magic_setflags(RMagic*, int);
+
+R_API bool r_magic_load(RMagic*, const char *);
+R_API bool r_magic_load_buffer(RMagic*, const char *);
+R_API bool r_magic_compile(RMagic*, const char *);
+R_API bool r_magic_check(RMagic*, const char *);
+R_API int r_magic_errno(RMagic*);
+#endif
+
+
+#endif
+
+#if defined(__cplusplus)
+}
+#endif
+
+#endif 

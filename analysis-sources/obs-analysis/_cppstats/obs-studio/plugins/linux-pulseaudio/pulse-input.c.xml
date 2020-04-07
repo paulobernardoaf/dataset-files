@@ -1,0 +1,850 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" revision="1.0.0" language="C" filename="D:\Pesquisa\Projects\obs-analysis\_cppstats\obs-studio\plugins\linux-pulseaudio\pulse-input.c"><cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;util/platform.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;util/bmem.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;obs-module.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"pulse-wrapper.h"</cpp:file></cpp:include>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>NSEC_PER_SEC</name></cpp:macro> <cpp:value>1000000000LL</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>NSEC_PER_MSEC</name></cpp:macro> <cpp:value>1000000L</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>PULSE_DATA</name><parameter_list>(<parameter><type><name>voidptr</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>struct pulse_data *data = voidptr;</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>blog</name><parameter_list>(<parameter><type><name>level</name></type></parameter>, <parameter><type><name>msg</name></type></parameter>, <parameter><type><modifier>...</modifier></type></parameter>)</parameter_list></cpp:macro> <cpp:value>blog(level, "pulse-input: " msg, ##__VA_ARGS__)</cpp:value></cpp:define>
+
+<struct>struct <name>pulse_data</name> <block>{
+
+<decl_stmt><decl><type><name>obs_source_t</name> <modifier>*</modifier></type><name>source</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>pa_stream</name> <modifier>*</modifier></type><name>stream</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>char</name> <modifier>*</modifier></type><name>device</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>bool</name></type> <name>input</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name><name>enum</name> <name>speaker_layout</name></name></type> <name>speakers</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>pa_sample_format_t</name></type> <name>format</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>uint_fast32_t</name></type> <name>samples_per_sec</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>uint_fast32_t</name></type> <name>bytes_per_frame</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>uint_fast8_t</name></type> <name>channels</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>uint64_t</name></type> <name>first_ts</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>uint_fast32_t</name></type> <name>packets</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>uint_fast64_t</name></type> <name>frames</name></decl>;</decl_stmt>
+
+}</block>;</struct>
+
+<function_decl><type><specifier>static</specifier> <name>void</name></type> <name>pulse_stop_recording</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>pulse_data</name></name> <modifier>*</modifier></type><name>data</name></decl></parameter>)</parameter_list>;</function_decl>
+
+<function><type><specifier>static</specifier> <name><name>enum</name> <name>audio_format</name></name></type> <name>pulse_to_obs_audio_format</name><parameter_list>(<parameter><decl><type><name>pa_sample_format_t</name></type> <name>format</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<switch>switch <condition>(<expr><name>format</name></expr>)</condition> <block>{<block_content>
+
+<case>case <expr><name>PA_SAMPLE_U8</name></expr>:</case>
+
+<return>return <expr><name>AUDIO_FORMAT_U8BIT</name></expr>;</return>
+
+<case>case <expr><name>PA_SAMPLE_S16LE</name></expr>:</case>
+
+<return>return <expr><name>AUDIO_FORMAT_16BIT</name></expr>;</return>
+
+<case>case <expr><name>PA_SAMPLE_S32LE</name></expr>:</case>
+
+<return>return <expr><name>AUDIO_FORMAT_32BIT</name></expr>;</return>
+
+<case>case <expr><name>PA_SAMPLE_FLOAT32LE</name></expr>:</case>
+
+<return>return <expr><name>AUDIO_FORMAT_FLOAT</name></expr>;</return>
+
+<default>default:</default>
+
+<return>return <expr><name>AUDIO_FORMAT_UNKNOWN</name></expr>;</return>
+
+</block_content>}</block></switch>
+
+<return>return <expr><name>AUDIO_FORMAT_UNKNOWN</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name><name>enum</name> <name>speaker_layout</name></name></type>
+
+<name>pulse_channels_to_obs_speakers</name><parameter_list>(<parameter><decl><type><name>uint_fast32_t</name></type> <name>channels</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<switch>switch <condition>(<expr><name>channels</name></expr>)</condition> <block>{<block_content>
+
+<case>case <expr><literal type="number">1</literal></expr>:</case>
+
+<return>return <expr><name>SPEAKERS_MONO</name></expr>;</return>
+
+<case>case <expr><literal type="number">2</literal></expr>:</case>
+
+<return>return <expr><name>SPEAKERS_STEREO</name></expr>;</return>
+
+<case>case <expr><literal type="number">3</literal></expr>:</case>
+
+<return>return <expr><name>SPEAKERS_2POINT1</name></expr>;</return>
+
+<case>case <expr><literal type="number">4</literal></expr>:</case>
+
+<return>return <expr><name>SPEAKERS_4POINT0</name></expr>;</return>
+
+<case>case <expr><literal type="number">5</literal></expr>:</case>
+
+<return>return <expr><name>SPEAKERS_4POINT1</name></expr>;</return>
+
+<case>case <expr><literal type="number">6</literal></expr>:</case>
+
+<return>return <expr><name>SPEAKERS_5POINT1</name></expr>;</return>
+
+<case>case <expr><literal type="number">8</literal></expr>:</case>
+
+<return>return <expr><name>SPEAKERS_7POINT1</name></expr>;</return>
+
+</block_content>}</block></switch>
+
+<return>return <expr><name>SPEAKERS_UNKNOWN</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>pa_channel_map</name></type> <name>pulse_channel_map</name><parameter_list>(<parameter><decl><type><name><name>enum</name> <name>speaker_layout</name></name></type> <name>layout</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>pa_channel_map</name></type> <name>ret</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>ret</name><operator>.</operator><name>map</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>=</operator> <name>PA_CHANNEL_POSITION_FRONT_LEFT</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>ret</name><operator>.</operator><name>map</name><index>[<expr><literal type="number">1</literal></expr>]</index></name> <operator>=</operator> <name>PA_CHANNEL_POSITION_FRONT_RIGHT</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>ret</name><operator>.</operator><name>map</name><index>[<expr><literal type="number">2</literal></expr>]</index></name> <operator>=</operator> <name>PA_CHANNEL_POSITION_FRONT_CENTER</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>ret</name><operator>.</operator><name>map</name><index>[<expr><literal type="number">3</literal></expr>]</index></name> <operator>=</operator> <name>PA_CHANNEL_POSITION_LFE</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>ret</name><operator>.</operator><name>map</name><index>[<expr><literal type="number">4</literal></expr>]</index></name> <operator>=</operator> <name>PA_CHANNEL_POSITION_REAR_LEFT</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>ret</name><operator>.</operator><name>map</name><index>[<expr><literal type="number">5</literal></expr>]</index></name> <operator>=</operator> <name>PA_CHANNEL_POSITION_REAR_RIGHT</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>ret</name><operator>.</operator><name>map</name><index>[<expr><literal type="number">6</literal></expr>]</index></name> <operator>=</operator> <name>PA_CHANNEL_POSITION_SIDE_LEFT</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>ret</name><operator>.</operator><name>map</name><index>[<expr><literal type="number">7</literal></expr>]</index></name> <operator>=</operator> <name>PA_CHANNEL_POSITION_SIDE_RIGHT</name></expr>;</expr_stmt>
+
+<switch>switch <condition>(<expr><name>layout</name></expr>)</condition> <block>{<block_content>
+
+<case>case <expr><name>SPEAKERS_MONO</name></expr>:</case>
+
+<expr_stmt><expr><name><name>ret</name><operator>.</operator><name>channels</name></name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>ret</name><operator>.</operator><name>map</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>=</operator> <name>PA_CHANNEL_POSITION_MONO</name></expr>;</expr_stmt>
+
+<break>break;</break>
+
+<case>case <expr><name>SPEAKERS_STEREO</name></expr>:</case>
+
+<expr_stmt><expr><name><name>ret</name><operator>.</operator><name>channels</name></name> <operator>=</operator> <literal type="number">2</literal></expr>;</expr_stmt>
+
+<break>break;</break>
+
+<case>case <expr><name>SPEAKERS_2POINT1</name></expr>:</case>
+
+<expr_stmt><expr><name><name>ret</name><operator>.</operator><name>channels</name></name> <operator>=</operator> <literal type="number">3</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>ret</name><operator>.</operator><name>map</name><index>[<expr><literal type="number">2</literal></expr>]</index></name> <operator>=</operator> <name>PA_CHANNEL_POSITION_LFE</name></expr>;</expr_stmt>
+
+<break>break;</break>
+
+<case>case <expr><name>SPEAKERS_4POINT0</name></expr>:</case>
+
+<expr_stmt><expr><name><name>ret</name><operator>.</operator><name>channels</name></name> <operator>=</operator> <literal type="number">4</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>ret</name><operator>.</operator><name>map</name><index>[<expr><literal type="number">3</literal></expr>]</index></name> <operator>=</operator> <name>PA_CHANNEL_POSITION_REAR_CENTER</name></expr>;</expr_stmt>
+
+<break>break;</break>
+
+<case>case <expr><name>SPEAKERS_4POINT1</name></expr>:</case>
+
+<expr_stmt><expr><name><name>ret</name><operator>.</operator><name>channels</name></name> <operator>=</operator> <literal type="number">5</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>ret</name><operator>.</operator><name>map</name><index>[<expr><literal type="number">4</literal></expr>]</index></name> <operator>=</operator> <name>PA_CHANNEL_POSITION_REAR_CENTER</name></expr>;</expr_stmt>
+
+<break>break;</break>
+
+<case>case <expr><name>SPEAKERS_5POINT1</name></expr>:</case>
+
+<expr_stmt><expr><name><name>ret</name><operator>.</operator><name>channels</name></name> <operator>=</operator> <literal type="number">6</literal></expr>;</expr_stmt>
+
+<break>break;</break>
+
+<case>case <expr><name>SPEAKERS_7POINT1</name></expr>:</case>
+
+<expr_stmt><expr><name><name>ret</name><operator>.</operator><name>channels</name></name> <operator>=</operator> <literal type="number">8</literal></expr>;</expr_stmt>
+
+<break>break;</break>
+
+<case>case <expr><name>SPEAKERS_UNKNOWN</name></expr>:</case>
+
+<default>default:</default>
+
+<expr_stmt><expr><name><name>ret</name><operator>.</operator><name>channels</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<break>break;</break>
+
+</block_content>}</block></switch>
+
+<return>return <expr><name>ret</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <specifier>inline</specifier> <name>uint64_t</name></type> <name>samples_to_ns</name><parameter_list>(<parameter><decl><type><name>size_t</name></type> <name>frames</name></decl></parameter>, <parameter><decl><type><name>uint_fast32_t</name></type> <name>rate</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<return>return <expr><name>frames</name> <operator>*</operator> <name>NSEC_PER_SEC</name> <operator>/</operator> <name>rate</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <specifier>inline</specifier> <name>uint64_t</name></type> <name>get_sample_time</name><parameter_list>(<parameter><decl><type><name>size_t</name></type> <name>frames</name></decl></parameter>, <parameter><decl><type><name>uint_fast32_t</name></type> <name>rate</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<return>return <expr><call><name>os_gettime_ns</name><argument_list>()</argument_list></call> <operator>-</operator> <call><name>samples_to_ns</name><argument_list>(<argument><expr><name>frames</name></expr></argument>, <argument><expr><name>rate</name></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>STARTUP_TIMEOUT_NS</name></cpp:macro> <cpp:value>(500 * NSEC_PER_MSEC)</cpp:value></cpp:define>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>pulse_stream_read</name><parameter_list>(<parameter><decl><type><name>pa_stream</name> <modifier>*</modifier></type><name>p</name></decl></parameter>, <parameter><decl><type><name>size_t</name></type> <name>nbytes</name></decl></parameter>, <parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>userdata</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>UNUSED_PARAMETER</name><argument_list>(<argument><expr><name>p</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>UNUSED_PARAMETER</name><argument_list>(<argument><expr><name>nbytes</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>PULSE_DATA</name><argument_list>(<argument><expr><name>userdata</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>void</name> <modifier>*</modifier></type><name>frames</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>size_t</name></type> <name>bytes</name></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>data</name><operator>-&gt;</operator><name>stream</name></name></expr>)</condition><block type="pseudo"><block_content>
+
+<goto>goto <name>exit</name>;</goto></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>pa_stream_peek</name><argument_list>(<argument><expr><name><name>data</name><operator>-&gt;</operator><name>stream</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name>frames</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>bytes</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>bytes</name></expr>)</condition><block type="pseudo"><block_content>
+
+<goto>goto <name>exit</name>;</goto></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>frames</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>blog</name><argument_list>(<argument><expr><name>LOG_ERROR</name></expr></argument>, <argument><expr><literal type="string">"Got audio hole of %u bytes"</literal></expr></argument>,
+
+<argument><expr><operator>(</operator><name>unsigned</name> <name>int</name><operator>)</operator><name>bytes</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>pa_stream_drop</name><argument_list>(<argument><expr><name><name>data</name><operator>-&gt;</operator><name>stream</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<goto>goto <name>exit</name>;</goto>
+
+</block_content>}</block></if></if_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>obs_source_audio</name></name></type> <name>out</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>out</name><operator>.</operator><name>speakers</name></name> <operator>=</operator> <name><name>data</name><operator>-&gt;</operator><name>speakers</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>out</name><operator>.</operator><name>samples_per_sec</name></name> <operator>=</operator> <name><name>data</name><operator>-&gt;</operator><name>samples_per_sec</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>out</name><operator>.</operator><name>format</name></name> <operator>=</operator> <call><name>pulse_to_obs_audio_format</name><argument_list>(<argument><expr><name><name>data</name><operator>-&gt;</operator><name>format</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>out</name><operator>.</operator><name>data</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>=</operator> <operator>(</operator><name>uint8_t</name> <operator>*</operator><operator>)</operator><name>frames</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>out</name><operator>.</operator><name>frames</name></name> <operator>=</operator> <name>bytes</name> <operator>/</operator> <name><name>data</name><operator>-&gt;</operator><name>bytes_per_frame</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>out</name><operator>.</operator><name>timestamp</name></name> <operator>=</operator> <call><name>get_sample_time</name><argument_list>(<argument><expr><name><name>out</name><operator>.</operator><name>frames</name></name></expr></argument>, <argument><expr><name><name>out</name><operator>.</operator><name>samples_per_sec</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>data</name><operator>-&gt;</operator><name>first_ts</name></name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name><name>data</name><operator>-&gt;</operator><name>first_ts</name></name> <operator>=</operator> <name><name>out</name><operator>.</operator><name>timestamp</name></name> <operator>+</operator> <name>STARTUP_TIMEOUT_NS</name></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>out</name><operator>.</operator><name>timestamp</name></name> <operator>&gt;</operator> <name><name>data</name><operator>-&gt;</operator><name>first_ts</name></name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>obs_source_output_audio</name><argument_list>(<argument><expr><name><name>data</name><operator>-&gt;</operator><name>source</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name>out</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name><name>data</name><operator>-&gt;</operator><name>packets</name></name><operator>++</operator></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>data</name><operator>-&gt;</operator><name>frames</name></name> <operator>+=</operator> <name><name>out</name><operator>.</operator><name>frames</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>pa_stream_drop</name><argument_list>(<argument><expr><name><name>data</name><operator>-&gt;</operator><name>stream</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<label><name>exit</name>:</label>
+
+<expr_stmt><expr><call><name>pulse_signal</name><argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>pulse_server_info</name><parameter_list>(<parameter><decl><type><name>pa_context</name> <modifier>*</modifier></type><name>c</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>pa_server_info</name> <modifier>*</modifier></type><name>i</name></decl></parameter>,
+
+<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>userdata</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>UNUSED_PARAMETER</name><argument_list>(<argument><expr><name>c</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>PULSE_DATA</name><argument_list>(<argument><expr><name>userdata</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>blog</name><argument_list>(<argument><expr><name>LOG_INFO</name></expr></argument>, <argument><expr><literal type="string">"Server name: '%s %s'"</literal></expr></argument>, <argument><expr><name><name>i</name><operator>-&gt;</operator><name>server_name</name></name></expr></argument>,
+
+<argument><expr><name><name>i</name><operator>-&gt;</operator><name>server_version</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>data</name><operator>-&gt;</operator><name>device</name></name> <operator>&amp;&amp;</operator> <call><name>strcmp</name><argument_list>(<argument><expr><literal type="string">"default"</literal></expr></argument>, <argument><expr><name><name>data</name><operator>-&gt;</operator><name>device</name></name></expr></argument>)</argument_list></call> <operator>==</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><name><name>data</name><operator>-&gt;</operator><name>input</name></name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>bfree</name><argument_list>(<argument><expr><name><name>data</name><operator>-&gt;</operator><name>device</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>data</name><operator>-&gt;</operator><name>device</name></name> <operator>=</operator> <call><name>bstrdup</name><argument_list>(<argument><expr><name><name>i</name><operator>-&gt;</operator><name>default_source_name</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>blog</name><argument_list>(<argument><expr><name>LOG_DEBUG</name></expr></argument>, <argument><expr><literal type="string">"Default input device: '%s'"</literal></expr></argument>,
+
+<argument><expr><name><name>data</name><operator>-&gt;</operator><name>device</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<decl_stmt><decl><type><name>char</name> <modifier>*</modifier></type><name>monitor</name> <init>=
+
+<expr><call><name>bzalloc</name><argument_list>(<argument><expr><call><name>strlen</name><argument_list>(<argument><expr><name><name>i</name><operator>-&gt;</operator><name>default_sink_name</name></name></expr></argument>)</argument_list></call> <operator>+</operator> <literal type="number">9</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>strcat</name><argument_list>(<argument><expr><name>monitor</name></expr></argument>, <argument><expr><name><name>i</name><operator>-&gt;</operator><name>default_sink_name</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>strcat</name><argument_list>(<argument><expr><name>monitor</name></expr></argument>, <argument><expr><literal type="string">".monitor"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>bfree</name><argument_list>(<argument><expr><name><name>data</name><operator>-&gt;</operator><name>device</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>data</name><operator>-&gt;</operator><name>device</name></name> <operator>=</operator> <call><name>bstrdup</name><argument_list>(<argument><expr><name>monitor</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>blog</name><argument_list>(<argument><expr><name>LOG_DEBUG</name></expr></argument>, <argument><expr><literal type="string">"Default output device: '%s'"</literal></expr></argument>,
+
+<argument><expr><name><name>data</name><operator>-&gt;</operator><name>device</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>bfree</name><argument_list>(<argument><expr><name>monitor</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>pulse_signal</name><argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>pulse_source_info</name><parameter_list>(<parameter><decl><type><name>pa_context</name> <modifier>*</modifier></type><name>c</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>pa_source_info</name> <modifier>*</modifier></type><name>i</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>eol</name></decl></parameter>,
+
+<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>userdata</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>UNUSED_PARAMETER</name><argument_list>(<argument><expr><name>c</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>PULSE_DATA</name><argument_list>(<argument><expr><name>userdata</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>eol</name> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name><name>data</name><operator>-&gt;</operator><name>format</name></name> <operator>=</operator> <name>PA_SAMPLE_INVALID</name></expr>;</expr_stmt>
+
+<goto>goto <name>skip</name>;</goto>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>eol</name> <operator>&gt;</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+
+<goto>goto <name>skip</name>;</goto></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>blog</name><argument_list>(<argument><expr><name>LOG_INFO</name></expr></argument>,
+
+<argument><expr><literal type="string">"Audio format: %s, %"</literal> <name>PRIu32</name> <literal type="string">" Hz"</literal>
+
+<literal type="string">", %"</literal> <name>PRIu8</name> <literal type="string">" channels"</literal></expr></argument>,
+
+<argument><expr><call><name>pa_sample_format_to_string</name><argument_list>(<argument><expr><name><name>i</name><operator>-&gt;</operator><name>sample_spec</name><operator>.</operator><name>format</name></name></expr></argument>)</argument_list></call></expr></argument>,
+
+<argument><expr><name><name>i</name><operator>-&gt;</operator><name>sample_spec</name><operator>.</operator><name>rate</name></name></expr></argument>, <argument><expr><name><name>i</name><operator>-&gt;</operator><name>sample_spec</name><operator>.</operator><name>channels</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<decl_stmt><decl><type><name>pa_sample_format_t</name></type> <name>format</name> <init>= <expr><name><name>i</name><operator>-&gt;</operator><name>sample_spec</name><operator>.</operator><name>format</name></name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>pulse_to_obs_audio_format</name><argument_list>(<argument><expr><name>format</name></expr></argument>)</argument_list></call> <operator>==</operator> <name>AUDIO_FORMAT_UNKNOWN</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>format</name> <operator>=</operator> <name>PA_SAMPLE_FLOAT32LE</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>blog</name><argument_list>(<argument><expr><name>LOG_INFO</name></expr></argument>,
+
+<argument><expr><literal type="string">"Sample format %s not supported by OBS,"</literal>
+
+<literal type="string">"using %s instead for recording"</literal></expr></argument>,
+
+<argument><expr><call><name>pa_sample_format_to_string</name><argument_list>(<argument><expr><name><name>i</name><operator>-&gt;</operator><name>sample_spec</name><operator>.</operator><name>format</name></name></expr></argument>)</argument_list></call></expr></argument>,
+
+<argument><expr><call><name>pa_sample_format_to_string</name><argument_list>(<argument><expr><name>format</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<decl_stmt><decl><type><name>uint8_t</name></type> <name>channels</name> <init>= <expr><name><name>i</name><operator>-&gt;</operator><name>sample_spec</name><operator>.</operator><name>channels</name></name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>pulse_channels_to_obs_speakers</name><argument_list>(<argument><expr><name>channels</name></expr></argument>)</argument_list></call> <operator>==</operator> <name>SPEAKERS_UNKNOWN</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>channels</name> <operator>=</operator> <literal type="number">2</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>blog</name><argument_list>(<argument><expr><name>LOG_INFO</name></expr></argument>,
+
+<argument><expr><literal type="string">"%c channels not supported by OBS,"</literal>
+
+<literal type="string">"using %c instead for recording"</literal></expr></argument>,
+
+<argument><expr><name><name>i</name><operator>-&gt;</operator><name>sample_spec</name><operator>.</operator><name>channels</name></name></expr></argument>, <argument><expr><name>channels</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>data</name><operator>-&gt;</operator><name>format</name></name> <operator>=</operator> <name>format</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>data</name><operator>-&gt;</operator><name>samples_per_sec</name></name> <operator>=</operator> <name><name>i</name><operator>-&gt;</operator><name>sample_spec</name><operator>.</operator><name>rate</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>data</name><operator>-&gt;</operator><name>channels</name></name> <operator>=</operator> <name>channels</name></expr>;</expr_stmt>
+
+<label><name>skip</name>:</label>
+
+<expr_stmt><expr><call><name>pulse_signal</name><argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int_fast32_t</name></type> <name>pulse_start_recording</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>pulse_data</name></name> <modifier>*</modifier></type><name>data</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><call><name>pulse_get_server_info</name><argument_list>(<argument><expr><name>pulse_server_info</name></expr></argument>, <argument><expr><operator>(</operator><name>void</name> <operator>*</operator><operator>)</operator><name>data</name></expr></argument>)</argument_list></call> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>blog</name><argument_list>(<argument><expr><name>LOG_ERROR</name></expr></argument>, <argument><expr><literal type="string">"Unable to get server info !"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><operator>-</operator><literal type="number">1</literal></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>pulse_get_source_info</name><argument_list>(<argument><expr><name>pulse_source_info</name></expr></argument>, <argument><expr><name><name>data</name><operator>-&gt;</operator><name>device</name></name></expr></argument>,
+
+<argument><expr><operator>(</operator><name>void</name> <operator>*</operator><operator>)</operator><name>data</name></expr></argument>)</argument_list></call> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>blog</name><argument_list>(<argument><expr><name>LOG_ERROR</name></expr></argument>, <argument><expr><literal type="string">"Unable to get source info !"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><operator>-</operator><literal type="number">1</literal></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>data</name><operator>-&gt;</operator><name>format</name></name> <operator>==</operator> <name>PA_SAMPLE_INVALID</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>blog</name><argument_list>(<argument><expr><name>LOG_ERROR</name></expr></argument>,
+
+<argument><expr><literal type="string">"An error occurred while getting the source info!"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><operator>-</operator><literal type="number">1</literal></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<decl_stmt><decl><type><name>pa_sample_spec</name></type> <name>spec</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>spec</name><operator>.</operator><name>format</name></name> <operator>=</operator> <name><name>data</name><operator>-&gt;</operator><name>format</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>spec</name><operator>.</operator><name>rate</name></name> <operator>=</operator> <name><name>data</name><operator>-&gt;</operator><name>samples_per_sec</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>spec</name><operator>.</operator><name>channels</name></name> <operator>=</operator> <name><name>data</name><operator>-&gt;</operator><name>channels</name></name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>pa_sample_spec_valid</name><argument_list>(<argument><expr><operator>&amp;</operator><name>spec</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>blog</name><argument_list>(<argument><expr><name>LOG_ERROR</name></expr></argument>, <argument><expr><literal type="string">"Sample spec is not valid"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><operator>-</operator><literal type="number">1</literal></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>data</name><operator>-&gt;</operator><name>speakers</name></name> <operator>=</operator> <call><name>pulse_channels_to_obs_speakers</name><argument_list>(<argument><expr><name><name>spec</name><operator>.</operator><name>channels</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>data</name><operator>-&gt;</operator><name>bytes_per_frame</name></name> <operator>=</operator> <call><name>pa_frame_size</name><argument_list>(<argument><expr><operator>&amp;</operator><name>spec</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<decl_stmt><decl><type><name>pa_channel_map</name></type> <name>channel_map</name> <init>= <expr><call><name>pulse_channel_map</name><argument_list>(<argument><expr><name><name>data</name><operator>-&gt;</operator><name>speakers</name></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>data</name><operator>-&gt;</operator><name>stream</name></name> <operator>=</operator> <call><name>pulse_stream_new</name><argument_list>(<argument><expr><call><name>obs_source_get_name</name><argument_list>(<argument><expr><name><name>data</name><operator>-&gt;</operator><name>source</name></name></expr></argument>)</argument_list></call></expr></argument>,
+
+<argument><expr><operator>&amp;</operator><name>spec</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>channel_map</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>data</name><operator>-&gt;</operator><name>stream</name></name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>blog</name><argument_list>(<argument><expr><name>LOG_ERROR</name></expr></argument>, <argument><expr><literal type="string">"Unable to create stream"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><operator>-</operator><literal type="number">1</literal></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>pulse_lock</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>pa_stream_set_read_callback</name><argument_list>(<argument><expr><name><name>data</name><operator>-&gt;</operator><name>stream</name></name></expr></argument>, <argument><expr><name>pulse_stream_read</name></expr></argument>,
+
+<argument><expr><operator>(</operator><name>void</name> <operator>*</operator><operator>)</operator><name>data</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>pulse_unlock</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<decl_stmt><decl><type><name>pa_buffer_attr</name></type> <name>attr</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>attr</name><operator>.</operator><name>fragsize</name></name> <operator>=</operator> <call><name>pa_usec_to_bytes</name><argument_list>(<argument><expr><literal type="number">25000</literal></expr></argument>, <argument><expr><operator>&amp;</operator><name>spec</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>attr</name><operator>.</operator><name>maxlength</name></name> <operator>=</operator> <operator>(</operator><name>uint32_t</name><operator>)</operator><operator>-</operator><literal type="number">1</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>attr</name><operator>.</operator><name>minreq</name></name> <operator>=</operator> <operator>(</operator><name>uint32_t</name><operator>)</operator><operator>-</operator><literal type="number">1</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>attr</name><operator>.</operator><name>prebuf</name></name> <operator>=</operator> <operator>(</operator><name>uint32_t</name><operator>)</operator><operator>-</operator><literal type="number">1</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>attr</name><operator>.</operator><name>tlength</name></name> <operator>=</operator> <operator>(</operator><name>uint32_t</name><operator>)</operator><operator>-</operator><literal type="number">1</literal></expr>;</expr_stmt>
+
+<decl_stmt><decl><type><name>pa_stream_flags_t</name></type> <name>flags</name> <init>= <expr><name>PA_STREAM_ADJUST_LATENCY</name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>pulse_lock</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<decl_stmt><decl><type><name>int_fast32_t</name></type> <name>ret</name> <init>= <expr><call><name>pa_stream_connect_record</name><argument_list>(<argument><expr><name><name>data</name><operator>-&gt;</operator><name>stream</name></name></expr></argument>, <argument><expr><name><name>data</name><operator>-&gt;</operator><name>device</name></name></expr></argument>,
+
+<argument><expr><operator>&amp;</operator><name>attr</name></expr></argument>, <argument><expr><name>flags</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>pulse_unlock</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>ret</name> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>pulse_stop_recording</name><argument_list>(<argument><expr><name>data</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>blog</name><argument_list>(<argument><expr><name>LOG_ERROR</name></expr></argument>, <argument><expr><literal type="string">"Unable to connect to stream"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><operator>-</operator><literal type="number">1</literal></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>blog</name><argument_list>(<argument><expr><name>LOG_INFO</name></expr></argument>, <argument><expr><literal type="string">"Started recording from '%s'"</literal></expr></argument>, <argument><expr><name><name>data</name><operator>-&gt;</operator><name>device</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>pulse_stop_recording</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>pulse_data</name></name> <modifier>*</modifier></type><name>data</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><name><name>data</name><operator>-&gt;</operator><name>stream</name></name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>pulse_lock</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>pa_stream_disconnect</name><argument_list>(<argument><expr><name><name>data</name><operator>-&gt;</operator><name>stream</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>pa_stream_unref</name><argument_list>(<argument><expr><name><name>data</name><operator>-&gt;</operator><name>stream</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>data</name><operator>-&gt;</operator><name>stream</name></name> <operator>=</operator> <name>NULL</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>pulse_unlock</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>blog</name><argument_list>(<argument><expr><name>LOG_INFO</name></expr></argument>, <argument><expr><literal type="string">"Stopped recording from '%s'"</literal></expr></argument>, <argument><expr><name><name>data</name><operator>-&gt;</operator><name>device</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>blog</name><argument_list>(<argument><expr><name>LOG_INFO</name></expr></argument>,
+
+<argument><expr><literal type="string">"Got %"</literal> <name>PRIuFAST32</name> <literal type="string">" packets with %"</literal> <name>PRIuFAST64</name> <literal type="string">" frames"</literal></expr></argument>,
+
+<argument><expr><name><name>data</name><operator>-&gt;</operator><name>packets</name></name></expr></argument>, <argument><expr><name><name>data</name><operator>-&gt;</operator><name>frames</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>data</name><operator>-&gt;</operator><name>first_ts</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>data</name><operator>-&gt;</operator><name>packets</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>data</name><operator>-&gt;</operator><name>frames</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>pulse_input_info</name><parameter_list>(<parameter><decl><type><name>pa_context</name> <modifier>*</modifier></type><name>c</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>pa_source_info</name> <modifier>*</modifier></type><name>i</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>eol</name></decl></parameter>,
+
+<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>userdata</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>UNUSED_PARAMETER</name><argument_list>(<argument><expr><name>c</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>eol</name> <operator>!=</operator> <literal type="number">0</literal> <operator>||</operator> <name><name>i</name><operator>-&gt;</operator><name>monitor_of_sink</name></name> <operator>!=</operator> <name>PA_INVALID_INDEX</name></expr>)</condition><block type="pseudo"><block_content>
+
+<goto>goto <name>skip</name>;</goto></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>obs_property_list_add_string</name><argument_list>(<argument><expr><operator>(</operator><name>obs_property_t</name> <operator>*</operator><operator>)</operator><name>userdata</name></expr></argument>, <argument><expr><name><name>i</name><operator>-&gt;</operator><name>description</name></name></expr></argument>,
+
+<argument><expr><name><name>i</name><operator>-&gt;</operator><name>name</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<label><name>skip</name>:</label>
+
+<expr_stmt><expr><call><name>pulse_signal</name><argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>pulse_output_info</name><parameter_list>(<parameter><decl><type><name>pa_context</name> <modifier>*</modifier></type><name>c</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>pa_sink_info</name> <modifier>*</modifier></type><name>i</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>eol</name></decl></parameter>,
+
+<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>userdata</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>UNUSED_PARAMETER</name><argument_list>(<argument><expr><name>c</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>eol</name> <operator>!=</operator> <literal type="number">0</literal> <operator>||</operator> <name><name>i</name><operator>-&gt;</operator><name>monitor_source</name></name> <operator>==</operator> <name>PA_INVALID_INDEX</name></expr>)</condition><block type="pseudo"><block_content>
+
+<goto>goto <name>skip</name>;</goto></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>obs_property_list_add_string</name><argument_list>(<argument><expr><operator>(</operator><name>obs_property_t</name> <operator>*</operator><operator>)</operator><name>userdata</name></expr></argument>, <argument><expr><name><name>i</name><operator>-&gt;</operator><name>description</name></name></expr></argument>,
+
+<argument><expr><name><name>i</name><operator>-&gt;</operator><name>monitor_source_name</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<label><name>skip</name>:</label>
+
+<expr_stmt><expr><call><name>pulse_signal</name><argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>obs_properties_t</name> <modifier>*</modifier></type><name>pulse_properties</name><parameter_list>(<parameter><decl><type><name>bool</name></type> <name>input</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>obs_properties_t</name> <modifier>*</modifier></type><name>props</name> <init>= <expr><call><name>obs_properties_create</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>obs_property_t</name> <modifier>*</modifier></type><name>devices</name> <init>= <expr><call><name>obs_properties_add_list</name><argument_list>(
+
+<argument><expr><name>props</name></expr></argument>, <argument><expr><literal type="string">"device_id"</literal></expr></argument>, <argument><expr><call><name>obs_module_text</name><argument_list>(<argument><expr><literal type="string">"Device"</literal></expr></argument>)</argument_list></call></expr></argument>,
+
+<argument><expr><name>OBS_COMBO_TYPE_LIST</name></expr></argument>, <argument><expr><name>OBS_COMBO_FORMAT_STRING</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>pulse_init</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>input</name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>pulse_get_source_info_list</name><argument_list>(<argument><expr><name>pulse_input_info</name></expr></argument>, <argument><expr><operator>(</operator><name>void</name> <operator>*</operator><operator>)</operator><name>devices</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if>
+
+<else>else<block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>pulse_get_sink_info_list</name><argument_list>(<argument><expr><name>pulse_output_info</name></expr></argument>, <argument><expr><operator>(</operator><name>void</name> <operator>*</operator><operator>)</operator><name>devices</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></else></if_stmt>
+
+<expr_stmt><expr><call><name>pulse_unref</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<decl_stmt><decl><type><name>size_t</name></type> <name>count</name> <init>= <expr><call><name>obs_property_list_item_count</name><argument_list>(<argument><expr><name>devices</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>count</name> <operator>&gt;</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>obs_property_list_insert_string</name><argument_list>(
+
+<argument><expr><name>devices</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><call><name>obs_module_text</name><argument_list>(<argument><expr><literal type="string">"Default"</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><literal type="string">"default"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<return>return <expr><name>props</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>obs_properties_t</name> <modifier>*</modifier></type><name>pulse_input_properties</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>unused</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>UNUSED_PARAMETER</name><argument_list>(<argument><expr><name>unused</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><call><name>pulse_properties</name><argument_list>(<argument><expr><name>true</name></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>obs_properties_t</name> <modifier>*</modifier></type><name>pulse_output_properties</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>unused</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>UNUSED_PARAMETER</name><argument_list>(<argument><expr><name>unused</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><call><name>pulse_properties</name><argument_list>(<argument><expr><name>false</name></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>pulse_defaults</name><parameter_list>(<parameter><decl><type><name>obs_data_t</name> <modifier>*</modifier></type><name>settings</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>obs_data_set_default_string</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"device_id"</literal></expr></argument>, <argument><expr><literal type="string">"default"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>pulse_input_getname</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>unused</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>UNUSED_PARAMETER</name><argument_list>(<argument><expr><name>unused</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><call><name>obs_module_text</name><argument_list>(<argument><expr><literal type="string">"PulseInput"</literal></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>pulse_output_getname</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>unused</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>UNUSED_PARAMETER</name><argument_list>(<argument><expr><name>unused</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><call><name>obs_module_text</name><argument_list>(<argument><expr><literal type="string">"PulseOutput"</literal></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>pulse_destroy</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>vptr</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>PULSE_DATA</name><argument_list>(<argument><expr><name>vptr</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>data</name></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return;</return></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>data</name><operator>-&gt;</operator><name>stream</name></name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>pulse_stop_recording</name><argument_list>(<argument><expr><name>data</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>pulse_unref</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>data</name><operator>-&gt;</operator><name>device</name></name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>bfree</name><argument_list>(<argument><expr><name><name>data</name><operator>-&gt;</operator><name>device</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>bfree</name><argument_list>(<argument><expr><name>data</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>pulse_update</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>vptr</name></decl></parameter>, <parameter><decl><type><name>obs_data_t</name> <modifier>*</modifier></type><name>settings</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>PULSE_DATA</name><argument_list>(<argument><expr><name>vptr</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<decl_stmt><decl><type><name>bool</name></type> <name>restart</name> <init>= <expr><name>false</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>new_device</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>new_device</name> <operator>=</operator> <call><name>obs_data_get_string</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"device_id"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>data</name><operator>-&gt;</operator><name>device</name></name> <operator>||</operator> <call><name>strcmp</name><argument_list>(<argument><expr><name><name>data</name><operator>-&gt;</operator><name>device</name></name></expr></argument>, <argument><expr><name>new_device</name></expr></argument>)</argument_list></call> <operator>!=</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><name><name>data</name><operator>-&gt;</operator><name>device</name></name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>bfree</name><argument_list>(<argument><expr><name><name>data</name><operator>-&gt;</operator><name>device</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name><name>data</name><operator>-&gt;</operator><name>device</name></name> <operator>=</operator> <call><name>bstrdup</name><argument_list>(<argument><expr><name>new_device</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>restart</name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>restart</name></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return;</return></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>data</name><operator>-&gt;</operator><name>stream</name></name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>pulse_stop_recording</name><argument_list>(<argument><expr><name>data</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>pulse_start_recording</name><argument_list>(<argument><expr><name>data</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name> <modifier>*</modifier></type><name>pulse_create</name><parameter_list>(<parameter><decl><type><name>obs_data_t</name> <modifier>*</modifier></type><name>settings</name></decl></parameter>, <parameter><decl><type><name>obs_source_t</name> <modifier>*</modifier></type><name>source</name></decl></parameter>,
+
+<parameter><decl><type><name>bool</name></type> <name>input</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>pulse_data</name></name> <modifier>*</modifier></type><name>data</name> <init>= <expr><call><name>bzalloc</name><argument_list>(<argument><expr><sizeof>sizeof<argument_list>(<argument><expr>struct <name>pulse_data</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>data</name><operator>-&gt;</operator><name>input</name></name> <operator>=</operator> <name>input</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>data</name><operator>-&gt;</operator><name>source</name></name> <operator>=</operator> <name>source</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>pulse_init</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>pulse_update</name><argument_list>(<argument><expr><name>data</name></expr></argument>, <argument><expr><name>settings</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>data</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name> <modifier>*</modifier></type><name>pulse_input_create</name><parameter_list>(<parameter><decl><type><name>obs_data_t</name> <modifier>*</modifier></type><name>settings</name></decl></parameter>, <parameter><decl><type><name>obs_source_t</name> <modifier>*</modifier></type><name>source</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<return>return <expr><call><name>pulse_create</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><name>source</name></expr></argument>, <argument><expr><name>true</name></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name> <modifier>*</modifier></type><name>pulse_output_create</name><parameter_list>(<parameter><decl><type><name>obs_data_t</name> <modifier>*</modifier></type><name>settings</name></decl></parameter>, <parameter><decl><type><name>obs_source_t</name> <modifier>*</modifier></type><name>source</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<return>return <expr><call><name>pulse_create</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><name>source</name></expr></argument>, <argument><expr><name>false</name></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>obs_source_info</name></name></type> <name>pulse_input_capture</name> <init>= <expr><block>{
+
+<expr><operator>.</operator><name>id</name> <operator>=</operator> <literal type="string">"pulse_input_capture"</literal></expr>,
+
+<expr><operator>.</operator><name>type</name> <operator>=</operator> <name>OBS_SOURCE_TYPE_INPUT</name></expr>,
+
+<expr><operator>.</operator><name>output_flags</name> <operator>=</operator> <name>OBS_SOURCE_AUDIO</name> <operator>|</operator> <name>OBS_SOURCE_DO_NOT_DUPLICATE</name></expr>,
+
+<expr><operator>.</operator><name>get_name</name> <operator>=</operator> <name>pulse_input_getname</name></expr>,
+
+<expr><operator>.</operator><name>create</name> <operator>=</operator> <name>pulse_input_create</name></expr>,
+
+<expr><operator>.</operator><name>destroy</name> <operator>=</operator> <name>pulse_destroy</name></expr>,
+
+<expr><operator>.</operator><name>update</name> <operator>=</operator> <name>pulse_update</name></expr>,
+
+<expr><operator>.</operator><name>get_defaults</name> <operator>=</operator> <name>pulse_defaults</name></expr>,
+
+<expr><operator>.</operator><name>get_properties</name> <operator>=</operator> <name>pulse_input_properties</name></expr>,
+
+<expr><operator>.</operator><name>icon_type</name> <operator>=</operator> <name>OBS_ICON_TYPE_AUDIO_INPUT</name></expr>,
+
+}</block></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>obs_source_info</name></name></type> <name>pulse_output_capture</name> <init>= <expr><block>{
+
+<expr><operator>.</operator><name>id</name> <operator>=</operator> <literal type="string">"pulse_output_capture"</literal></expr>,
+
+<expr><operator>.</operator><name>type</name> <operator>=</operator> <name>OBS_SOURCE_TYPE_INPUT</name></expr>,
+
+<expr><operator>.</operator><name>output_flags</name> <operator>=</operator> <name>OBS_SOURCE_AUDIO</name> <operator>|</operator> <name>OBS_SOURCE_DO_NOT_DUPLICATE</name> <operator>|</operator>
+
+<name>OBS_SOURCE_DO_NOT_SELF_MONITOR</name></expr>,
+
+<expr><operator>.</operator><name>get_name</name> <operator>=</operator> <name>pulse_output_getname</name></expr>,
+
+<expr><operator>.</operator><name>create</name> <operator>=</operator> <name>pulse_output_create</name></expr>,
+
+<expr><operator>.</operator><name>destroy</name> <operator>=</operator> <name>pulse_destroy</name></expr>,
+
+<expr><operator>.</operator><name>update</name> <operator>=</operator> <name>pulse_update</name></expr>,
+
+<expr><operator>.</operator><name>get_defaults</name> <operator>=</operator> <name>pulse_defaults</name></expr>,
+
+<expr><operator>.</operator><name>get_properties</name> <operator>=</operator> <name>pulse_output_properties</name></expr>,
+
+<expr><operator>.</operator><name>icon_type</name> <operator>=</operator> <name>OBS_ICON_TYPE_AUDIO_OUTPUT</name></expr>,
+
+}</block></expr></init></decl>;</decl_stmt>
+
+</unit>

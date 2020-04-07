@@ -1,0 +1,5 @@
+#include "avcodec.h"
+#include "mpegvideo.h"
+#include "version.h"
+void ff_xvmc_init_block(MpegEncContext *s);
+void ff_xvmc_pack_pblocks(MpegEncContext *s, int cbp);

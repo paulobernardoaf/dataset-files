@@ -1,0 +1,396 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" revision="1.0.0" language="C" filename="D:\Pesquisa\Projects\ffmpeg-analysis\_cppstats\FFmpeg\libavutil\slicethread.c"><cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;stdatomic.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"slicethread.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"mem.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"thread.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"avassert.h"</cpp:file></cpp:include>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><name>HAVE_PTHREADS</name> <operator>||</operator> <name>HAVE_W32THREADS</name> <operator>||</operator> <name>HAVE_OS2THREADS</name></expr></cpp:if>
+
+<typedef>typedef <type><struct>struct <name>WorkerContext</name> <block>{
+
+<decl_stmt><decl><type><name>AVSliceThread</name> <modifier>*</modifier></type><name>ctx</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>pthread_mutex_t</name></type> <name>mutex</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>pthread_cond_t</name></type> <name>cond</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>pthread_t</name></type> <name>thread</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>done</name></decl>;</decl_stmt>
+
+}</block></struct></type> <name>WorkerContext</name>;</typedef>
+
+<struct>struct <name>AVSliceThread</name> <block>{
+
+<decl_stmt><decl><type><name>WorkerContext</name> <modifier>*</modifier></type><name>workers</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>nb_threads</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>nb_active_threads</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>nb_jobs</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>atomic_uint</name></type> <name>first_job</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>atomic_uint</name></type> <name>current_job</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>pthread_mutex_t</name></type> <name>done_mutex</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>pthread_cond_t</name></type> <name>done_cond</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>done</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>finished</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>void</name> <modifier>*</modifier></type><name>priv</name></decl>;</decl_stmt>
+
+<function_decl><type><name>void</name></type> (<modifier>*</modifier><name>worker_func</name>)<parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>priv</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>jobnr</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>threadnr</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>nb_jobs</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>nb_threads</name></decl></parameter>)</parameter_list>;</function_decl>
+
+<function_decl><type><name>void</name></type> (<modifier>*</modifier><name>main_func</name>)<parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>priv</name></decl></parameter>)</parameter_list>;</function_decl>
+
+}</block>;</struct>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>run_jobs</name><parameter_list>(<parameter><decl><type><name>AVSliceThread</name> <modifier>*</modifier></type><name>ctx</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>unsigned</name></type> <name>nb_jobs</name> <init>= <expr><name><name>ctx</name><operator>-&gt;</operator><name>nb_jobs</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>unsigned</name></type> <name>nb_active_threads</name> <init>= <expr><name><name>ctx</name><operator>-&gt;</operator><name>nb_active_threads</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>unsigned</name></type> <name>first_job</name> <init>= <expr><call><name>atomic_fetch_add_explicit</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>ctx</name><operator>-&gt;</operator><name>first_job</name></name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>, <argument><expr><name>memory_order_acq_rel</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>unsigned</name></type> <name>current_job</name> <init>= <expr><name>first_job</name></expr></init></decl>;</decl_stmt>
+
+<do>do <block>{<block_content>
+
+<expr_stmt><expr><call><name><name>ctx</name><operator>-&gt;</operator><name>worker_func</name></name><argument_list>(<argument><expr><name><name>ctx</name><operator>-&gt;</operator><name>priv</name></name></expr></argument>, <argument><expr><name>current_job</name></expr></argument>, <argument><expr><name>first_job</name></expr></argument>, <argument><expr><name>nb_jobs</name></expr></argument>, <argument><expr><name>nb_active_threads</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block> while <condition>(<expr><operator>(</operator><name>current_job</name> <operator>=</operator> <call><name>atomic_fetch_add_explicit</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>ctx</name><operator>-&gt;</operator><name>current_job</name></name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>, <argument><expr><name>memory_order_acq_rel</name></expr></argument>)</argument_list></call><operator>)</operator> <operator>&lt;</operator> <name>nb_jobs</name></expr>)</condition>;</do>
+
+<return>return <expr><name>current_job</name> <operator>==</operator> <name>nb_jobs</name> <operator>+</operator> <name>nb_active_threads</name> <operator>-</operator> <literal type="number">1</literal></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name> <modifier>*</modifier><name>attribute_align_arg</name></type> <name>thread_worker</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>v</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>WorkerContext</name> <modifier>*</modifier></type><name>w</name> <init>= <expr><name>v</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>AVSliceThread</name> <modifier>*</modifier></type><name>ctx</name> <init>= <expr><name><name>w</name><operator>-&gt;</operator><name>ctx</name></name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_lock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>w</name><operator>-&gt;</operator><name>mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>pthread_cond_signal</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>w</name><operator>-&gt;</operator><name>cond</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<while>while <condition>(<expr><literal type="number">1</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name><name>w</name><operator>-&gt;</operator><name>done</name></name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+
+<while>while <condition>(<expr><name><name>w</name><operator>-&gt;</operator><name>done</name></name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>pthread_cond_wait</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>w</name><operator>-&gt;</operator><name>cond</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>w</name><operator>-&gt;</operator><name>mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></while>
+
+<if_stmt><if>if <condition>(<expr><name><name>ctx</name><operator>-&gt;</operator><name>finished</name></name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>pthread_mutex_unlock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>w</name><operator>-&gt;</operator><name>mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>NULL</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>run_jobs</name><argument_list>(<argument><expr><name>ctx</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>pthread_mutex_lock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>ctx</name><operator>-&gt;</operator><name>done_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>ctx</name><operator>-&gt;</operator><name>done</name></name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>pthread_cond_signal</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>ctx</name><operator>-&gt;</operator><name>done_cond</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_unlock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>ctx</name><operator>-&gt;</operator><name>done_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></while>
+
+</block_content>}</block></function>
+
+<function><type><name>int</name></type> <name>avpriv_slicethread_create</name><parameter_list>(<parameter><decl><type><name>AVSliceThread</name> <modifier>*</modifier><modifier>*</modifier></type><name>pctx</name></decl></parameter>, <parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>priv</name></decl></parameter>,
+
+<parameter><function_decl><type><name>void</name></type> (<modifier>*</modifier><name>worker_func</name>)<parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>priv</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>jobnr</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>threadnr</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>nb_jobs</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>nb_threads</name></decl></parameter>)</parameter_list></function_decl></parameter>,
+
+<parameter><function_decl><type><name>void</name></type> (<modifier>*</modifier><name>main_func</name>)<parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>priv</name></decl></parameter>)</parameter_list></function_decl></parameter>,
+
+<parameter><decl><type><name>int</name></type> <name>nb_threads</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>AVSliceThread</name> <modifier>*</modifier></type><name>ctx</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>nb_workers</name></decl>, <decl><type ref="prev"/><name>i</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>av_assert0</name><argument_list>(<argument><expr><name>nb_threads</name> <operator>&gt;=</operator> <literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>nb_threads</name></expr>)</condition> <block>{<block_content>
+
+<decl_stmt><decl><type><name>int</name></type> <name>nb_cpus</name> <init>= <expr><call><name>av_cpu_count</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>nb_cpus</name> <operator>&gt;</operator> <literal type="number">1</literal></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name>nb_threads</name> <operator>=</operator> <name>nb_cpus</name> <operator>+</operator> <literal type="number">1</literal></expr>;</expr_stmt></block_content></block></if>
+
+<else>else<block type="pseudo"><block_content>
+
+<expr_stmt><expr><name>nb_threads</name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt></block_content></block></else></if_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name>nb_workers</name> <operator>=</operator> <name>nb_threads</name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>main_func</name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name>nb_workers</name><operator>--</operator></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><operator>*</operator><name>pctx</name> <operator>=</operator> <name>ctx</name> <operator>=</operator> <call><name>av_mallocz</name><argument_list>(<argument><expr><sizeof>sizeof<argument_list>(<argument><expr><operator>*</operator><name>ctx</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>ctx</name></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><call><name>AVERROR</name><argument_list>(<argument><expr><name>ENOMEM</name></expr></argument>)</argument_list></call></expr>;</return></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>nb_workers</name> <operator>&amp;&amp;</operator> <operator>!</operator><operator>(</operator><name><name>ctx</name><operator>-&gt;</operator><name>workers</name></name> <operator>=</operator> <call><name>av_calloc</name><argument_list>(<argument><expr><name>nb_workers</name></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr><operator>*</operator><name><name>ctx</name><operator>-&gt;</operator><name>workers</name></name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call><operator>)</operator></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>av_freep</name><argument_list>(<argument><expr><name>pctx</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><call><name>AVERROR</name><argument_list>(<argument><expr><name>ENOMEM</name></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>ctx</name><operator>-&gt;</operator><name>priv</name></name> <operator>=</operator> <name>priv</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>ctx</name><operator>-&gt;</operator><name>worker_func</name></name> <operator>=</operator> <name>worker_func</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>ctx</name><operator>-&gt;</operator><name>main_func</name></name> <operator>=</operator> <name>main_func</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>ctx</name><operator>-&gt;</operator><name>nb_threads</name></name> <operator>=</operator> <name>nb_threads</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>ctx</name><operator>-&gt;</operator><name>nb_active_threads</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>ctx</name><operator>-&gt;</operator><name>nb_jobs</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>ctx</name><operator>-&gt;</operator><name>finished</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>atomic_init</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>ctx</name><operator>-&gt;</operator><name>first_job</name></name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>atomic_init</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>ctx</name><operator>-&gt;</operator><name>current_job</name></name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_init</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>ctx</name><operator>-&gt;</operator><name>done_mutex</name></name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>pthread_cond_init</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>ctx</name><operator>-&gt;</operator><name>done_cond</name></name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>ctx</name><operator>-&gt;</operator><name>done</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>nb_workers</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+
+<decl_stmt><decl><type><name>WorkerContext</name> <modifier>*</modifier></type><name>w</name> <init>= <expr><operator>&amp;</operator><name><name>ctx</name><operator>-&gt;</operator><name>workers</name><index>[<expr><name>i</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>ret</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>w</name><operator>-&gt;</operator><name>ctx</name></name> <operator>=</operator> <name>ctx</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_init</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>w</name><operator>-&gt;</operator><name>mutex</name></name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>pthread_cond_init</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>w</name><operator>-&gt;</operator><name>cond</name></name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_lock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>w</name><operator>-&gt;</operator><name>mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>w</name><operator>-&gt;</operator><name>done</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>ret</name> <operator>=</operator> <call><name>pthread_create</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>w</name><operator>-&gt;</operator><name>thread</name></name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>, <argument><expr><name>thread_worker</name></expr></argument>, <argument><expr><name>w</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name><name>ctx</name><operator>-&gt;</operator><name>nb_threads</name></name> <operator>=</operator> <ternary><condition><expr><name>main_func</name></expr> ?</condition><then> <expr><name>i</name></expr> </then><else>: <expr><name>i</name> <operator>+</operator> <literal type="number">1</literal></expr></else></ternary></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_unlock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>w</name><operator>-&gt;</operator><name>mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>pthread_cond_destroy</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>w</name><operator>-&gt;</operator><name>cond</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_destroy</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>w</name><operator>-&gt;</operator><name>mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>avpriv_slicethread_free</name><argument_list>(<argument><expr><name>pctx</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><call><name>AVERROR</name><argument_list>(<argument><expr><name>ret</name></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<while>while <condition>(<expr><operator>!</operator><name><name>w</name><operator>-&gt;</operator><name>done</name></name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>pthread_cond_wait</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>w</name><operator>-&gt;</operator><name>cond</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>w</name><operator>-&gt;</operator><name>mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></while>
+
+<expr_stmt><expr><call><name>pthread_mutex_unlock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>w</name><operator>-&gt;</operator><name>mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></for>
+
+<return>return <expr><name>nb_threads</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><name>void</name></type> <name>avpriv_slicethread_execute</name><parameter_list>(<parameter><decl><type><name>AVSliceThread</name> <modifier>*</modifier></type><name>ctx</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>nb_jobs</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>execute_main</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>int</name></type> <name>nb_workers</name></decl>, <decl><type ref="prev"/><name>i</name></decl>, <decl><type ref="prev"/><name>is_last</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>av_assert0</name><argument_list>(<argument><expr><name>nb_jobs</name> <operator>&gt;</operator> <literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>ctx</name><operator>-&gt;</operator><name>nb_jobs</name></name> <operator>=</operator> <name>nb_jobs</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>ctx</name><operator>-&gt;</operator><name>nb_active_threads</name></name> <operator>=</operator> <call><name>FFMIN</name><argument_list>(<argument><expr><name>nb_jobs</name></expr></argument>, <argument><expr><name><name>ctx</name><operator>-&gt;</operator><name>nb_threads</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>atomic_store_explicit</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>ctx</name><operator>-&gt;</operator><name>first_job</name></name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><name>memory_order_relaxed</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>atomic_store_explicit</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>ctx</name><operator>-&gt;</operator><name>current_job</name></name></expr></argument>, <argument><expr><name><name>ctx</name><operator>-&gt;</operator><name>nb_active_threads</name></name></expr></argument>, <argument><expr><name>memory_order_relaxed</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>nb_workers</name> <operator>=</operator> <name><name>ctx</name><operator>-&gt;</operator><name>nb_active_threads</name></name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>ctx</name><operator>-&gt;</operator><name>main_func</name></name> <operator>||</operator> <operator>!</operator><name>execute_main</name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name>nb_workers</name><operator>--</operator></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>nb_workers</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+
+<decl_stmt><decl><type><name>WorkerContext</name> <modifier>*</modifier></type><name>w</name> <init>= <expr><operator>&amp;</operator><name><name>ctx</name><operator>-&gt;</operator><name>workers</name><index>[<expr><name>i</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_lock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>w</name><operator>-&gt;</operator><name>mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>w</name><operator>-&gt;</operator><name>done</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>pthread_cond_signal</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>w</name><operator>-&gt;</operator><name>cond</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_unlock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>w</name><operator>-&gt;</operator><name>mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></for>
+
+<if_stmt><if>if <condition>(<expr><name><name>ctx</name><operator>-&gt;</operator><name>main_func</name></name> <operator>&amp;&amp;</operator> <name>execute_main</name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name><name>ctx</name><operator>-&gt;</operator><name>main_func</name></name><argument_list>(<argument><expr><name><name>ctx</name><operator>-&gt;</operator><name>priv</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if>
+
+<else>else<block type="pseudo"><block_content>
+
+<expr_stmt><expr><name>is_last</name> <operator>=</operator> <call><name>run_jobs</name><argument_list>(<argument><expr><name>ctx</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></else></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>is_last</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>pthread_mutex_lock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>ctx</name><operator>-&gt;</operator><name>done_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<while>while <condition>(<expr><operator>!</operator><name><name>ctx</name><operator>-&gt;</operator><name>done</name></name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>pthread_cond_wait</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>ctx</name><operator>-&gt;</operator><name>done_cond</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>ctx</name><operator>-&gt;</operator><name>done_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></while>
+
+<expr_stmt><expr><name><name>ctx</name><operator>-&gt;</operator><name>done</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_unlock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>ctx</name><operator>-&gt;</operator><name>done_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></function>
+
+<function><type><name>void</name></type> <name>avpriv_slicethread_free</name><parameter_list>(<parameter><decl><type><name>AVSliceThread</name> <modifier>*</modifier><modifier>*</modifier></type><name>pctx</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>AVSliceThread</name> <modifier>*</modifier></type><name>ctx</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>nb_workers</name></decl>, <decl><type ref="prev"/><name>i</name></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>pctx</name> <operator>||</operator> <operator>!</operator><operator>*</operator><name>pctx</name></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>ctx</name> <operator>=</operator> <operator>*</operator><name>pctx</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>nb_workers</name> <operator>=</operator> <name><name>ctx</name><operator>-&gt;</operator><name>nb_threads</name></name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>ctx</name><operator>-&gt;</operator><name>main_func</name></name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name>nb_workers</name><operator>--</operator></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name><name>ctx</name><operator>-&gt;</operator><name>finished</name></name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>nb_workers</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+
+<decl_stmt><decl><type><name>WorkerContext</name> <modifier>*</modifier></type><name>w</name> <init>= <expr><operator>&amp;</operator><name><name>ctx</name><operator>-&gt;</operator><name>workers</name><index>[<expr><name>i</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_lock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>w</name><operator>-&gt;</operator><name>mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>w</name><operator>-&gt;</operator><name>done</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>pthread_cond_signal</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>w</name><operator>-&gt;</operator><name>cond</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_unlock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>w</name><operator>-&gt;</operator><name>mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></for>
+
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>nb_workers</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+
+<decl_stmt><decl><type><name>WorkerContext</name> <modifier>*</modifier></type><name>w</name> <init>= <expr><operator>&amp;</operator><name><name>ctx</name><operator>-&gt;</operator><name>workers</name><index>[<expr><name>i</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>pthread_join</name><argument_list>(<argument><expr><name><name>w</name><operator>-&gt;</operator><name>thread</name></name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>pthread_cond_destroy</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>w</name><operator>-&gt;</operator><name>cond</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_destroy</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>w</name><operator>-&gt;</operator><name>mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></for>
+
+<expr_stmt><expr><call><name>pthread_cond_destroy</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>ctx</name><operator>-&gt;</operator><name>done_cond</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_destroy</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>ctx</name><operator>-&gt;</operator><name>done_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>av_freep</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>ctx</name><operator>-&gt;</operator><name>workers</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>av_freep</name><argument_list>(<argument><expr><name>pctx</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<cpp:else>#<cpp:directive>else</cpp:directive></cpp:else> 
+
+<function><type><name>int</name></type> <name>avpriv_slicethread_create</name><parameter_list>(<parameter><decl><type><name>AVSliceThread</name> <modifier>*</modifier><modifier>*</modifier></type><name>pctx</name></decl></parameter>, <parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>priv</name></decl></parameter>,
+
+<parameter><function_decl><type><name>void</name></type> (<modifier>*</modifier><name>worker_func</name>)<parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>priv</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>jobnr</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>threadnr</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>nb_jobs</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>nb_threads</name></decl></parameter>)</parameter_list></function_decl></parameter>,
+
+<parameter><function_decl><type><name>void</name></type> (<modifier>*</modifier><name>main_func</name>)<parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>priv</name></decl></parameter>)</parameter_list></function_decl></parameter>,
+
+<parameter><decl><type><name>int</name></type> <name>nb_threads</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><operator>*</operator><name>pctx</name> <operator>=</operator> <name>NULL</name></expr>;</expr_stmt>
+
+<return>return <expr><call><name>AVERROR</name><argument_list>(<argument><expr><name>EINVAL</name></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><name>void</name></type> <name>avpriv_slicethread_execute</name><parameter_list>(<parameter><decl><type><name>AVSliceThread</name> <modifier>*</modifier></type><name>ctx</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>nb_jobs</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>execute_main</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>av_assert0</name><argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><name>void</name></type> <name>avpriv_slicethread_free</name><parameter_list>(<parameter><decl><type><name>AVSliceThread</name> <modifier>*</modifier><modifier>*</modifier></type><name>pctx</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>av_assert0</name><argument_list>(<argument><expr><operator>!</operator><name>pctx</name> <operator>||</operator> <operator>!</operator><operator>*</operator><name>pctx</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif> 
+
+</unit>

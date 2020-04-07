@@ -1,0 +1,110 @@
+#if defined(__cplusplus)
+extern "C" {
+#endif
+#if defined(LV_CONF_INCLUDE_SIMPLE)
+#include "lv_conf.h"
+#else
+#include "../../../lv_conf.h"
+#endif
+#include <stdint.h>
+#include <stdbool.h>
+#include <string.h>
+enum {
+LV_ANIM_OFF,
+LV_ANIM_ON,
+};
+typedef uint8_t lv_anim_enable_t;
+typedef lv_coord_t lv_anim_value_t;
+#if LV_USE_ANIMATION
+struct _lv_anim_t;
+typedef void (*lv_anim_exec_xcb_t)(void *, lv_anim_value_t);
+typedef void (*lv_anim_custom_exec_cb_t)(struct _lv_anim_t *, lv_anim_value_t);
+typedef lv_anim_value_t (*lv_anim_path_cb_t)(const struct _lv_anim_t *);
+typedef void (*lv_anim_ready_cb_t)(struct _lv_anim_t *);
+typedef struct _lv_anim_t
+{
+void * var; 
+lv_anim_exec_xcb_t exec_cb; 
+lv_anim_path_cb_t path_cb; 
+lv_anim_ready_cb_t ready_cb; 
+int32_t start; 
+int32_t end; 
+uint16_t time; 
+int16_t act_time; 
+uint16_t playback_pause; 
+uint16_t repeat_pause; 
+#if LV_USE_USER_DATA
+lv_anim_user_data_t user_data; 
+#endif
+uint8_t playback : 1; 
+uint8_t repeat : 1; 
+uint8_t playback_now : 1; 
+uint32_t has_run : 1; 
+} lv_anim_t;
+void lv_anim_core_init(void);
+void lv_anim_init(lv_anim_t * a);
+static inline void lv_anim_set_exec_cb(lv_anim_t * a, void * var, lv_anim_exec_xcb_t exec_cb)
+{
+a->var = var;
+a->exec_cb = exec_cb;
+}
+static inline void lv_anim_set_time(lv_anim_t * a, uint16_t duration, int16_t delay)
+{
+a->time = duration;
+a->act_time = (int16_t)(-delay);
+}
+static inline void lv_anim_set_values(lv_anim_t * a, lv_anim_value_t start, lv_anim_value_t end)
+{
+a->start = start;
+a->end = end;
+}
+static inline void lv_anim_set_custom_exec_cb(lv_anim_t * a, lv_anim_custom_exec_cb_t exec_cb)
+{
+a->var = a;
+a->exec_cb = (lv_anim_exec_xcb_t)exec_cb;
+}
+static inline void lv_anim_set_path_cb(lv_anim_t * a, lv_anim_path_cb_t path_cb)
+{
+a->path_cb = path_cb;
+}
+static inline void lv_anim_set_ready_cb(lv_anim_t * a, lv_anim_ready_cb_t ready_cb)
+{
+a->ready_cb = ready_cb;
+}
+static inline void lv_anim_set_playback(lv_anim_t * a, uint16_t wait_time)
+{
+a->playback = 1;
+a->playback_pause = wait_time;
+}
+static inline void lv_anim_clear_playback(lv_anim_t * a)
+{
+a->playback = 0;
+}
+static inline void lv_anim_set_repeat(lv_anim_t * a, uint16_t wait_time)
+{
+a->repeat = 1;
+a->repeat_pause = wait_time;
+}
+static inline void lv_anim_clear_repeat(lv_anim_t * a)
+{
+a->repeat = 0;
+}
+void lv_anim_create(lv_anim_t * a);
+bool lv_anim_del(void * var, lv_anim_exec_xcb_t exec_cb);
+static inline bool lv_anim_custom_del(lv_anim_t * a, lv_anim_custom_exec_cb_t exec_cb)
+{
+return lv_anim_del(a->var, (lv_anim_exec_xcb_t)exec_cb);
+}
+uint16_t lv_anim_count_running(void);
+uint16_t lv_anim_speed_to_time(uint16_t speed, lv_anim_value_t start, lv_anim_value_t end);
+lv_anim_value_t lv_anim_path_linear(const lv_anim_t * a);
+lv_anim_value_t lv_anim_path_ease_in(const lv_anim_t * a);
+lv_anim_value_t lv_anim_path_ease_out(const lv_anim_t * a);
+lv_anim_value_t lv_anim_path_ease_in_out(const lv_anim_t * a);
+lv_anim_value_t lv_anim_path_overshoot(const lv_anim_t * a);
+lv_anim_value_t lv_anim_path_bounce(const lv_anim_t * a);
+lv_anim_value_t lv_anim_path_step(const lv_anim_t * a);
+#endif 
+#if defined(__cplusplus)
+} 
+#endif

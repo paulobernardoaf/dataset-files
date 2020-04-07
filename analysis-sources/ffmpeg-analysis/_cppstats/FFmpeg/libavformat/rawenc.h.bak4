@@ -1,0 +1,29 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#if !defined(AVFORMAT_RAWENC_H)
+#define AVFORMAT_RAWENC_H
+
+#include "avformat.h"
+
+int ff_raw_write_packet(AVFormatContext *s, AVPacket *pkt);
+
+#endif 

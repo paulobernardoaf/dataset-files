@@ -1,0 +1,7 @@
+#include "sbc.h"
+#define SBC_PROTO_FIXED_SCALE 16
+#define SBC_COS_TABLE_FIXED_SCALE 15
+extern const int16_t ff_sbcdsp_analysis_consts_fixed4_simd_even[];
+extern const int16_t ff_sbcdsp_analysis_consts_fixed4_simd_odd[];
+extern const int16_t ff_sbcdsp_analysis_consts_fixed8_simd_even[];
+extern const int16_t ff_sbcdsp_analysis_consts_fixed8_simd_odd[];

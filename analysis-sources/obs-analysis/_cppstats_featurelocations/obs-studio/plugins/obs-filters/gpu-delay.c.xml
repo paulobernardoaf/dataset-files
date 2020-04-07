@@ -1,0 +1,272 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" revision="1.0.0" language="C" filename="D:\Pesquisa\Projects\obs-analysis\_cppstats_featurelocations\obs-studio\plugins\obs-filters\gpu-delay.c"><cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;obs-module.h&gt;</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;util/circlebuf.h&gt;</cpp:file></cpp:include>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>S_DELAY_MS</name></cpp:macro> <cpp:value>"delay_ms"</cpp:value></cpp:define>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>T_DELAY_MS</name></cpp:macro> <cpp:value>obs_module_text("DelayMs")</cpp:value></cpp:define>
+
+<struct>struct <name>frame</name> <block>{
+<decl_stmt><decl><type><name>gs_texrender_t</name> <modifier>*</modifier></type><name>render</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>uint64_t</name></type> <name>ts</name></decl>;</decl_stmt>
+}</block>;</struct>
+
+<struct>struct <name>gpu_delay_filter_data</name> <block>{
+<decl_stmt><decl><type><name>obs_source_t</name> <modifier>*</modifier></type><name>context</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name><name>struct</name> <name>circlebuf</name></name></type> <name>frames</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>uint64_t</name></type> <name>delay_ns</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>uint64_t</name></type> <name>interval_ns</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>uint32_t</name></type> <name>cx</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>uint32_t</name></type> <name>cy</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>bool</name></type> <name>target_valid</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>bool</name></type> <name>processed_frame</name></decl>;</decl_stmt>
+}</block>;</struct>
+
+<function><type><specifier>static</specifier> <specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>gpu_delay_filter_get_name</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>unused</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<expr_stmt><expr><call><name>UNUSED_PARAMETER</name><argument_list>(<argument><expr><name>unused</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><call><name>obs_module_text</name><argument_list>(<argument><expr><literal type="string">"GPUDelayFilter"</literal></expr></argument>)</argument_list></call></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>free_textures</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>gpu_delay_filter_data</name></name> <modifier>*</modifier></type><name>f</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<expr_stmt><expr><call><name>obs_enter_graphics</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+<while>while <condition>(<expr><name><name>f</name><operator>-&gt;</operator><name>frames</name><operator>.</operator><name>size</name></name></expr>)</condition> <block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>frame</name></name></type> <name>frame</name></decl>;</decl_stmt>
+<expr_stmt><expr><call><name>circlebuf_pop_front</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>f</name><operator>-&gt;</operator><name>frames</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name>frame</name></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr><name>frame</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>gs_texrender_destroy</name><argument_list>(<argument><expr><name><name>frame</name><operator>.</operator><name>render</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></while>
+<expr_stmt><expr><call><name>circlebuf_free</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>f</name><operator>-&gt;</operator><name>frames</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>obs_leave_graphics</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>size_t</name></type> <name>num_frames</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>circlebuf</name></name> <modifier>*</modifier></type><name>buf</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<return>return <expr><name><name>buf</name><operator>-&gt;</operator><name>size</name></name> <operator>/</operator> <sizeof>sizeof<argument_list>(<argument><expr>struct <name>frame</name></expr></argument>)</argument_list></sizeof></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>update_interval</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>gpu_delay_filter_data</name></name> <modifier>*</modifier></type><name>f</name></decl></parameter>,
+<parameter><decl><type><name>uint64_t</name></type> <name>new_interval_ns</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>f</name><operator>-&gt;</operator><name>target_valid</name></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>free_textures</name><argument_list>(<argument><expr><name>f</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return;</return>
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>f</name><operator>-&gt;</operator><name>interval_ns</name></name> <operator>=</operator> <name>new_interval_ns</name></expr>;</expr_stmt>
+<decl_stmt><decl><type><name>size_t</name></type> <name>num</name> <init>= <expr><operator>(</operator><name>size_t</name><operator>)</operator><operator>(</operator><name><name>f</name><operator>-&gt;</operator><name>delay_ns</name></name> <operator>/</operator> <name>new_interval_ns</name><operator>)</operator></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>num</name> <operator>&gt;</operator> <call><name>num_frames</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>f</name><operator>-&gt;</operator><name>frames</name></name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+<decl_stmt><decl><type><name>size_t</name></type> <name>prev_num</name> <init>= <expr><call><name>num_frames</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>f</name><operator>-&gt;</operator><name>frames</name></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>obs_enter_graphics</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>circlebuf_upsize</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>f</name><operator>-&gt;</operator><name>frames</name></name></expr></argument>, <argument><expr><name>num</name> <operator>*</operator> <sizeof>sizeof<argument_list>(<argument><expr>struct <name>frame</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<for>for <control>(<init><decl><type><name>size_t</name></type> <name>i</name> <init>= <expr><name>prev_num</name></expr></init></decl>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>num</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>frame</name></name> <modifier>*</modifier></type><name>frame</name> <init>=
+<expr><call><name>circlebuf_data</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>f</name><operator>-&gt;</operator><name>frames</name></name></expr></argument>, <argument><expr><name>i</name> <operator>*</operator> <sizeof>sizeof<argument_list>(<argument><expr><operator>*</operator><name>frame</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><name><name>frame</name><operator>-&gt;</operator><name>render</name></name> <operator>=</operator>
+<call><name>gs_texrender_create</name><argument_list>(<argument><expr><name>GS_RGBA</name></expr></argument>, <argument><expr><name>GS_ZS_NONE</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></for>
+
+<expr_stmt><expr><call><name>obs_leave_graphics</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if> <if type="elseif">else if <condition>(<expr><name>num</name> <operator>&lt;</operator> <call><name>num_frames</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>f</name><operator>-&gt;</operator><name>frames</name></name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>obs_enter_graphics</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<while>while <condition>(<expr><call><name>num_frames</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>f</name><operator>-&gt;</operator><name>frames</name></name></expr></argument>)</argument_list></call> <operator>&gt;</operator> <name>num</name></expr>)</condition> <block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>frame</name></name></type> <name>frame</name></decl>;</decl_stmt>
+<expr_stmt><expr><call><name>circlebuf_pop_front</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>f</name><operator>-&gt;</operator><name>frames</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name>frame</name></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr><name>frame</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>gs_texrender_destroy</name><argument_list>(<argument><expr><name><name>frame</name><operator>.</operator><name>render</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></while>
+
+<expr_stmt><expr><call><name>obs_leave_graphics</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <specifier>inline</specifier> <name>void</name></type> <name>check_interval</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>gpu_delay_filter_data</name></name> <modifier>*</modifier></type><name>f</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>obs_video_info</name></name></type> <name>ovi</name> <init>= <expr><block>{<expr><literal type="number">0</literal></expr>}</block></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>uint64_t</name></type> <name>interval_ns</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>obs_get_video_info</name><argument_list>(<argument><expr><operator>&amp;</operator><name>ovi</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>interval_ns</name> <operator>=</operator>
+<operator>(</operator><name>uint64_t</name><operator>)</operator><name><name>ovi</name><operator>.</operator><name>fps_den</name></name> <operator>*</operator> <literal type="number">1000000000ULL</literal> <operator>/</operator> <operator>(</operator><name>uint64_t</name><operator>)</operator><name><name>ovi</name><operator>.</operator><name>fps_num</name></name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>interval_ns</name> <operator>!=</operator> <name><name>f</name><operator>-&gt;</operator><name>interval_ns</name></name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>update_interval</name><argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><name>interval_ns</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <specifier>inline</specifier> <name>void</name></type> <name>reset_textures</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>gpu_delay_filter_data</name></name> <modifier>*</modifier></type><name>f</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<expr_stmt><expr><name><name>f</name><operator>-&gt;</operator><name>interval_ns</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>free_textures</name><argument_list>(<argument><expr><name>f</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>check_interval</name><argument_list>(<argument><expr><name>f</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <specifier>inline</specifier> <name>bool</name></type> <name>check_size</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>gpu_delay_filter_data</name></name> <modifier>*</modifier></type><name>f</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>obs_source_t</name> <modifier>*</modifier></type><name>target</name> <init>= <expr><call><name>obs_filter_get_target</name><argument_list>(<argument><expr><name><name>f</name><operator>-&gt;</operator><name>context</name></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>uint32_t</name></type> <name>cx</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>uint32_t</name></type> <name>cy</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>f</name><operator>-&gt;</operator><name>target_valid</name></name> <operator>=</operator> <operator>!</operator><operator>!</operator><name>target</name></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>f</name><operator>-&gt;</operator><name>target_valid</name></name></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><name>true</name></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>cx</name> <operator>=</operator> <call><name>obs_source_get_base_width</name><argument_list>(<argument><expr><name>target</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>cy</name> <operator>=</operator> <call><name>obs_source_get_base_height</name><argument_list>(<argument><expr><name>target</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>f</name><operator>-&gt;</operator><name>target_valid</name></name> <operator>=</operator> <operator>!</operator><operator>!</operator><name>cx</name> <operator>&amp;&amp;</operator> <operator>!</operator><operator>!</operator><name>cy</name></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>f</name><operator>-&gt;</operator><name>target_valid</name></name></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><name>true</name></expr>;</return></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>cx</name> <operator>!=</operator> <name><name>f</name><operator>-&gt;</operator><name>cx</name></name> <operator>||</operator> <name>cy</name> <operator>!=</operator> <name><name>f</name><operator>-&gt;</operator><name>cy</name></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name><name>f</name><operator>-&gt;</operator><name>cx</name></name> <operator>=</operator> <name>cx</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>f</name><operator>-&gt;</operator><name>cy</name></name> <operator>=</operator> <name>cy</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>reset_textures</name><argument_list>(<argument><expr><name>f</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>true</name></expr>;</return>
+</block_content>}</block></if></if_stmt>
+
+<return>return <expr><name>false</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>gpu_delay_filter_update</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>, <parameter><decl><type><name>obs_data_t</name> <modifier>*</modifier></type><name>s</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>gpu_delay_filter_data</name></name> <modifier>*</modifier></type><name>f</name> <init>= <expr><name>data</name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>f</name><operator>-&gt;</operator><name>delay_ns</name></name> <operator>=</operator> <operator>(</operator><name>uint64_t</name><operator>)</operator><call><name>obs_data_get_int</name><argument_list>(<argument><expr><name>s</name></expr></argument>, <argument><expr><name>S_DELAY_MS</name></expr></argument>)</argument_list></call> <operator>*</operator> <literal type="number">1000000ULL</literal></expr>;</expr_stmt>
+
+
+<expr_stmt><expr><name><name>f</name><operator>-&gt;</operator><name>cx</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>f</name><operator>-&gt;</operator><name>cy</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>f</name><operator>-&gt;</operator><name>interval_ns</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>free_textures</name><argument_list>(<argument><expr><name>f</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>obs_properties_t</name> <modifier>*</modifier></type><name>gpu_delay_filter_properties</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>obs_properties_t</name> <modifier>*</modifier></type><name>props</name> <init>= <expr><call><name>obs_properties_create</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>obs_property_t</name> <modifier>*</modifier></type><name>p</name> <init>= <expr><call><name>obs_properties_add_int</name><argument_list>(<argument><expr><name>props</name></expr></argument>, <argument><expr><name>S_DELAY_MS</name></expr></argument>,
+<argument><expr><name>T_DELAY_MS</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><literal type="number">500</literal></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><call><name>obs_property_int_set_suffix</name><argument_list>(<argument><expr><name>p</name></expr></argument>, <argument><expr><literal type="string">" ms"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>UNUSED_PARAMETER</name><argument_list>(<argument><expr><name>data</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>props</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name> <modifier>*</modifier></type><name>gpu_delay_filter_create</name><parameter_list>(<parameter><decl><type><name>obs_data_t</name> <modifier>*</modifier></type><name>settings</name></decl></parameter>,
+<parameter><decl><type><name>obs_source_t</name> <modifier>*</modifier></type><name>context</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>gpu_delay_filter_data</name></name> <modifier>*</modifier></type><name>f</name> <init>= <expr><call><name>bzalloc</name><argument_list>(<argument><expr><sizeof>sizeof<argument_list>(<argument><expr><operator>*</operator><name>f</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><name><name>f</name><operator>-&gt;</operator><name>context</name></name> <operator>=</operator> <name>context</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_source_update</name><argument_list>(<argument><expr><name>context</name></expr></argument>, <argument><expr><name>settings</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>f</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>gpu_delay_filter_destroy</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>gpu_delay_filter_data</name></name> <modifier>*</modifier></type><name>f</name> <init>= <expr><name>data</name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>free_textures</name><argument_list>(<argument><expr><name>f</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>bfree</name><argument_list>(<argument><expr><name>f</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>gpu_delay_filter_tick</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>, <parameter><decl><type><name>float</name></type> <name>t</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<expr_stmt><expr><call><name>UNUSED_PARAMETER</name><argument_list>(<argument><expr><name>t</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>gpu_delay_filter_data</name></name> <modifier>*</modifier></type><name>f</name> <init>= <expr><name>data</name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>f</name><operator>-&gt;</operator><name>processed_frame</name></name> <operator>=</operator> <name>false</name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>check_size</name><argument_list>(<argument><expr><name>f</name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+<return>return;</return></block_content></block></if></if_stmt>
+<expr_stmt><expr><call><name>check_interval</name><argument_list>(<argument><expr><name>f</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>draw_frame</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>gpu_delay_filter_data</name></name> <modifier>*</modifier></type><name>f</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>frame</name></name></type> <name>frame</name></decl>;</decl_stmt>
+<expr_stmt><expr><call><name>circlebuf_peek_front</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>f</name><operator>-&gt;</operator><name>frames</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name>frame</name></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr><name>frame</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<decl_stmt><decl><type><name>gs_effect_t</name> <modifier>*</modifier></type><name>effect</name> <init>= <expr><call><name>obs_get_base_effect</name><argument_list>(<argument><expr><name>OBS_EFFECT_DEFAULT</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>gs_texture_t</name> <modifier>*</modifier></type><name>tex</name> <init>= <expr><call><name>gs_texrender_get_texture</name><argument_list>(<argument><expr><name><name>frame</name><operator>.</operator><name>render</name></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<if_stmt><if>if <condition>(<expr><name>tex</name></expr>)</condition> <block>{<block_content>
+<decl_stmt><decl><type><name>gs_eparam_t</name> <modifier>*</modifier></type><name>image</name> <init>=
+<expr><call><name>gs_effect_get_param_by_name</name><argument_list>(<argument><expr><name>effect</name></expr></argument>, <argument><expr><literal type="string">"image"</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><call><name>gs_effect_set_texture</name><argument_list>(<argument><expr><name>image</name></expr></argument>, <argument><expr><name>tex</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<while>while <condition>(<expr><call><name>gs_effect_loop</name><argument_list>(<argument><expr><name>effect</name></expr></argument>, <argument><expr><literal type="string">"Draw"</literal></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>gs_draw_sprite</name><argument_list>(<argument><expr><name>tex</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><name><name>f</name><operator>-&gt;</operator><name>cx</name></name></expr></argument>, <argument><expr><name><name>f</name><operator>-&gt;</operator><name>cy</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></while>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>gpu_delay_filter_render</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>, <parameter><decl><type><name>gs_effect_t</name> <modifier>*</modifier></type><name>effect</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>gpu_delay_filter_data</name></name> <modifier>*</modifier></type><name>f</name> <init>= <expr><name>data</name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>obs_source_t</name> <modifier>*</modifier></type><name>target</name> <init>= <expr><call><name>obs_filter_get_target</name><argument_list>(<argument><expr><name><name>f</name><operator>-&gt;</operator><name>context</name></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>obs_source_t</name> <modifier>*</modifier></type><name>parent</name> <init>= <expr><call><name>obs_filter_get_parent</name><argument_list>(<argument><expr><name><name>f</name><operator>-&gt;</operator><name>context</name></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>f</name><operator>-&gt;</operator><name>target_valid</name></name> <operator>||</operator> <operator>!</operator><name>target</name> <operator>||</operator> <operator>!</operator><name>parent</name> <operator>||</operator> <operator>!</operator><name><name>f</name><operator>-&gt;</operator><name>frames</name><operator>.</operator><name>size</name></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>obs_source_skip_video_filter</name><argument_list>(<argument><expr><name><name>f</name><operator>-&gt;</operator><name>context</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return;</return>
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>f</name><operator>-&gt;</operator><name>processed_frame</name></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>draw_frame</name><argument_list>(<argument><expr><name>f</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return;</return>
+</block_content>}</block></if></if_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>frame</name></name></type> <name>frame</name></decl>;</decl_stmt>
+<expr_stmt><expr><call><name>circlebuf_pop_front</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>f</name><operator>-&gt;</operator><name>frames</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name>frame</name></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr><name>frame</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>gs_texrender_reset</name><argument_list>(<argument><expr><name><name>frame</name><operator>.</operator><name>render</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>gs_blend_state_push</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>gs_blend_function</name><argument_list>(<argument><expr><name>GS_BLEND_ONE</name></expr></argument>, <argument><expr><name>GS_BLEND_ZERO</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>gs_texrender_begin</name><argument_list>(<argument><expr><name><name>frame</name><operator>.</operator><name>render</name></name></expr></argument>, <argument><expr><name><name>f</name><operator>-&gt;</operator><name>cx</name></name></expr></argument>, <argument><expr><name><name>f</name><operator>-&gt;</operator><name>cy</name></name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+<decl_stmt><decl><type><name>uint32_t</name></type> <name>parent_flags</name> <init>= <expr><call><name>obs_source_get_output_flags</name><argument_list>(<argument><expr><name>target</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>bool</name></type> <name>custom_draw</name> <init>= <expr><operator>(</operator><name>parent_flags</name> <operator>&amp;</operator> <name>OBS_SOURCE_CUSTOM_DRAW</name><operator>)</operator> <operator>!=</operator> <literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>bool</name></type> <name>async</name> <init>= <expr><operator>(</operator><name>parent_flags</name> <operator>&amp;</operator> <name>OBS_SOURCE_ASYNC</name><operator>)</operator> <operator>!=</operator> <literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name><name>struct</name> <name>vec4</name></name></type> <name>clear_color</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>vec4_zero</name><argument_list>(<argument><expr><operator>&amp;</operator><name>clear_color</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>gs_clear</name><argument_list>(<argument><expr><name>GS_CLEAR_COLOR</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>clear_color</name></expr></argument>, <argument><expr><literal type="number">0.0f</literal></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>gs_ortho</name><argument_list>(<argument><expr><literal type="number">0.0f</literal></expr></argument>, <argument><expr><operator>(</operator><name>float</name><operator>)</operator><name><name>f</name><operator>-&gt;</operator><name>cx</name></name></expr></argument>, <argument><expr><literal type="number">0.0f</literal></expr></argument>, <argument><expr><operator>(</operator><name>float</name><operator>)</operator><name><name>f</name><operator>-&gt;</operator><name>cy</name></name></expr></argument>, <argument><expr><operator>-</operator><literal type="number">100.0f</literal></expr></argument>,
+<argument><expr><literal type="number">100.0f</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>target</name> <operator>==</operator> <name>parent</name> <operator>&amp;&amp;</operator> <operator>!</operator><name>custom_draw</name> <operator>&amp;&amp;</operator> <operator>!</operator><name>async</name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>obs_source_default_render</name><argument_list>(<argument><expr><name>target</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if>
+<else>else<block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>obs_source_video_render</name><argument_list>(<argument><expr><name>target</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></else></if_stmt>
+
+<expr_stmt><expr><call><name>gs_texrender_end</name><argument_list>(<argument><expr><name><name>frame</name><operator>.</operator><name>render</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>gs_blend_state_pop</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>circlebuf_push_back</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>f</name><operator>-&gt;</operator><name>frames</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name>frame</name></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr><name>frame</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>draw_frame</name><argument_list>(<argument><expr><name>f</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>f</name><operator>-&gt;</operator><name>processed_frame</name></name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>UNUSED_PARAMETER</name><argument_list>(<argument><expr><name>effect</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>obs_source_info</name></name></type> <name>gpu_delay_filter</name> <init>= <expr><block>{
+<expr><operator>.</operator><name>id</name> <operator>=</operator> <literal type="string">"gpu_delay"</literal></expr>,
+<expr><operator>.</operator><name>type</name> <operator>=</operator> <name>OBS_SOURCE_TYPE_FILTER</name></expr>,
+<expr><operator>.</operator><name>output_flags</name> <operator>=</operator> <name>OBS_SOURCE_VIDEO</name></expr>,
+<expr><operator>.</operator><name>get_name</name> <operator>=</operator> <name>gpu_delay_filter_get_name</name></expr>,
+<expr><operator>.</operator><name>create</name> <operator>=</operator> <name>gpu_delay_filter_create</name></expr>,
+<expr><operator>.</operator><name>destroy</name> <operator>=</operator> <name>gpu_delay_filter_destroy</name></expr>,
+<expr><operator>.</operator><name>update</name> <operator>=</operator> <name>gpu_delay_filter_update</name></expr>,
+<expr><operator>.</operator><name>get_properties</name> <operator>=</operator> <name>gpu_delay_filter_properties</name></expr>,
+<expr><operator>.</operator><name>video_tick</name> <operator>=</operator> <name>gpu_delay_filter_tick</name></expr>,
+<expr><operator>.</operator><name>video_render</name> <operator>=</operator> <name>gpu_delay_filter_render</name></expr>,
+}</block></expr></init></decl>;</decl_stmt>
+</unit>

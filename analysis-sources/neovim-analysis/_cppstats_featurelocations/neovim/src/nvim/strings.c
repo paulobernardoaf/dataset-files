@@ -1,0 +1,1434 @@
+
+
+
+#include <inttypes.h>
+#include <stdarg.h>
+#include <stdbool.h>
+#include <string.h>
+#include <math.h>
+#include <assert.h>
+
+#include "nvim/assert.h"
+#include "nvim/vim.h"
+#include "nvim/ascii.h"
+#include "nvim/strings.h"
+#include "nvim/file_search.h"
+#include "nvim/buffer.h"
+#include "nvim/charset.h"
+#include "nvim/diff.h"
+#include "nvim/edit.h"
+#include "nvim/eval.h"
+#include "nvim/ex_cmds.h"
+#include "nvim/ex_docmd.h"
+#include "nvim/ex_getln.h"
+#include "nvim/fileio.h"
+#include "nvim/func_attr.h"
+#include "nvim/fold.h"
+#include "nvim/func_attr.h"
+#include "nvim/getchar.h"
+#include "nvim/mark.h"
+#include "nvim/math.h"
+#include "nvim/mbyte.h"
+#include "nvim/memfile.h"
+#include "nvim/memline.h"
+#include "nvim/memory.h"
+#include "nvim/message.h"
+#include "nvim/misc1.h"
+#include "nvim/move.h"
+#include "nvim/option.h"
+#include "nvim/ops.h"
+#include "nvim/os_unix.h"
+#include "nvim/path.h"
+#include "nvim/quickfix.h"
+#include "nvim/regexp.h"
+#include "nvim/screen.h"
+#include "nvim/search.h"
+#include "nvim/spell.h"
+#include "nvim/syntax.h"
+#include "nvim/tag.h"
+#include "nvim/window.h"
+#include "nvim/os/os.h"
+#include "nvim/os/shell.h"
+#include "nvim/eval/encode.h"
+
+
+char_u *vim_strsave(const char_u *string)
+FUNC_ATTR_NONNULL_RET FUNC_ATTR_MALLOC FUNC_ATTR_NONNULL_ALL
+{
+return (char_u *)xstrdup((char *)string);
+}
+
+
+
+
+char_u *vim_strnsave(const char_u *string, size_t len)
+FUNC_ATTR_NONNULL_RET FUNC_ATTR_MALLOC FUNC_ATTR_NONNULL_ALL
+{
+
+
+return (char_u *)strncpy(xmallocz(len), (char *)string, len);
+}
+
+
+
+
+
+char_u *vim_strsave_escaped(const char_u *string, const char_u *esc_chars)
+FUNC_ATTR_NONNULL_RET FUNC_ATTR_MALLOC FUNC_ATTR_NONNULL_ALL
+{
+return vim_strsave_escaped_ext(string, esc_chars, '\\', false);
+}
+
+
+
+
+
+
+char_u *vim_strsave_escaped_ext(const char_u *string, const char_u *esc_chars,
+char_u cc, bool bsl)
+FUNC_ATTR_NONNULL_RET FUNC_ATTR_MALLOC FUNC_ATTR_NONNULL_ALL
+{
+
+
+
+
+size_t length = 1; 
+for (const char_u *p = string; *p; p++) {
+size_t l;
+if (has_mbyte && (l = (size_t)(*mb_ptr2len)(p)) > 1) {
+length += l; 
+p += l - 1;
+continue;
+}
+if (vim_strchr(esc_chars, *p) != NULL || (bsl && rem_backslash(p)))
+++length; 
+++length; 
+}
+
+char_u *escaped_string = xmalloc(length);
+char_u *p2 = escaped_string;
+for (const char_u *p = string; *p; p++) {
+size_t l;
+if (has_mbyte && (l = (size_t)(*mb_ptr2len)(p)) > 1) {
+memcpy(p2, p, l);
+p2 += l;
+p += l - 1; 
+continue;
+}
+if (vim_strchr(esc_chars, *p) != NULL || (bsl && rem_backslash(p)))
+*p2++ = cc;
+*p2++ = *p;
+}
+*p2 = NUL;
+
+return escaped_string;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+char *vim_strnsave_unquoted(const char *const string, const size_t length)
+FUNC_ATTR_MALLOC FUNC_ATTR_WARN_UNUSED_RESULT FUNC_ATTR_NONNULL_ALL
+FUNC_ATTR_NONNULL_RET
+{
+#define ESCAPE_COND(p, inquote, string_end) (*p == '\\' && inquote && p + 1 < string_end && (p[1] == '\\' || p[1] == '"'))
+
+size_t ret_length = 0;
+bool inquote = false;
+const char *const string_end = string + length;
+for (const char *p = string; p < string_end; p++) {
+if (*p == '"') {
+inquote = !inquote;
+} else if (ESCAPE_COND(p, inquote, string_end)) {
+ret_length++;
+p++;
+} else {
+ret_length++;
+}
+}
+
+char *const ret = xmallocz(ret_length);
+char *rp = ret;
+inquote = false;
+for (const char *p = string; p < string_end; p++) {
+if (*p == '"') {
+inquote = !inquote;
+} else if (ESCAPE_COND(p, inquote, string_end)) {
+*rp++ = *(++p);
+} else {
+*rp++ = *p;
+}
+}
+#undef ESCAPE_COND
+
+return ret;
+}
+
+
+
+
+
+
+
+
+
+
+
+char_u *vim_strsave_shellescape(const char_u *string,
+bool do_special, bool do_newline)
+FUNC_ATTR_NONNULL_RET FUNC_ATTR_MALLOC FUNC_ATTR_NONNULL_ALL
+{
+char_u *d;
+char_u *escaped_string;
+size_t l;
+int csh_like;
+
+
+
+
+
+csh_like = csh_like_shell();
+
+
+size_t length = STRLEN(string) + 3; 
+for (const char_u *p = string; *p != NUL; MB_PTR_ADV(p)) {
+#if defined(WIN32)
+if (!p_ssl) {
+if (*p == '"') {
+length++; 
+}
+} else
+#endif
+if (*p == '\'') {
+length += 3; 
+}
+if ((*p == '\n' && (csh_like || do_newline))
+|| (*p == '!' && (csh_like || do_special))) {
+++length; 
+if (csh_like && do_special)
+++length; 
+}
+if (do_special && find_cmdline_var(p, &l) >= 0) {
+++length; 
+p += l - 1;
+}
+}
+
+
+escaped_string = xmalloc(length);
+d = escaped_string;
+
+
+#if defined(WIN32)
+if (!p_ssl) {
+*d++ = '"';
+} else
+#endif
+*d++ = '\'';
+
+for (const char_u *p = string; *p != NUL; ) {
+#if defined(WIN32)
+if (!p_ssl) {
+if (*p == '"') {
+*d++ = '"';
+*d++ = '"';
+p++;
+continue;
+}
+} else
+#endif
+if (*p == '\'') {
+*d++ = '\'';
+*d++ = '\\';
+*d++ = '\'';
+*d++ = '\'';
+++p;
+continue;
+}
+if ((*p == '\n' && (csh_like || do_newline))
+|| (*p == '!' && (csh_like || do_special))) {
+*d++ = '\\';
+if (csh_like && do_special)
+*d++ = '\\';
+*d++ = *p++;
+continue;
+}
+if (do_special && find_cmdline_var(p, &l) >= 0) {
+*d++ = '\\'; 
+while (--l != SIZE_MAX) 
+*d++ = *p++;
+continue;
+}
+
+MB_COPY_CHAR(p, d);
+}
+
+
+#if defined(WIN32)
+if (!p_ssl) {
+*d++ = '"';
+} else
+#endif
+*d++ = '\'';
+*d = NUL;
+
+return escaped_string;
+}
+
+
+
+
+
+char_u *vim_strsave_up(const char_u *string)
+FUNC_ATTR_NONNULL_RET FUNC_ATTR_MALLOC FUNC_ATTR_NONNULL_ALL
+{
+char_u *p1;
+
+p1 = vim_strsave(string);
+vim_strup(p1);
+return p1;
+}
+
+
+
+
+
+char_u *vim_strnsave_up(const char_u *string, size_t len)
+FUNC_ATTR_NONNULL_RET FUNC_ATTR_MALLOC FUNC_ATTR_NONNULL_ALL
+{
+char_u *p1 = vim_strnsave(string, len);
+vim_strup(p1);
+return p1;
+}
+
+
+
+
+void vim_strup(char_u *p)
+FUNC_ATTR_NONNULL_ALL
+{
+char_u c;
+while ((c = *p) != NUL) {
+*p++ = (char_u)(c < 'a' || c > 'z' ? c : c - 0x20);
+}
+}
+
+
+
+
+
+
+
+
+
+char *strcase_save(const char *const orig, bool upper)
+FUNC_ATTR_NONNULL_RET FUNC_ATTR_MALLOC FUNC_ATTR_NONNULL_ALL
+{
+char *res = xstrdup(orig);
+
+char *p = res;
+while (*p != NUL) {
+int c = utf_ptr2char((const char_u *)p);
+int l = utf_ptr2len((const char_u *)p);
+if (c == 0) {
+
+c = *p;
+l = 1;
+}
+int uc = upper ? mb_toupper(c) : mb_tolower(c);
+
+
+
+int newl = utf_char2len(uc);
+if (newl != l) {
+
+char *s = xmalloc(STRLEN(res) + (size_t)(1 + newl - l));
+memcpy(s, res, (size_t)(p - res));
+STRCPY(s + (p - res) + newl, p + l);
+p = s + (p - res);
+xfree(res);
+res = s;
+}
+
+utf_char2bytes(uc, (char_u *)p);
+p += newl;
+}
+
+return res;
+}
+
+
+
+
+void del_trailing_spaces(char_u *ptr)
+FUNC_ATTR_NONNULL_ALL
+{
+char_u *q;
+
+q = ptr + STRLEN(ptr);
+while (--q > ptr && ascii_iswhite(q[0]) && q[-1] != '\\' && q[-1] != Ctrl_V)
+*q = NUL;
+}
+
+#if (!defined(HAVE_STRCASECMP) && !defined(HAVE_STRICMP))
+
+
+
+
+
+int vim_stricmp(const char *s1, const char *s2)
+FUNC_ATTR_NONNULL_ALL FUNC_ATTR_PURE
+{
+int i;
+
+for (;; ) {
+i = (int)TOLOWER_LOC(*s1) - (int)TOLOWER_LOC(*s2);
+if (i != 0)
+return i; 
+if (*s1 == NUL)
+break; 
+++s1;
+++s2;
+}
+return 0; 
+}
+#endif
+
+#if (!defined(HAVE_STRNCASECMP) && !defined(HAVE_STRNICMP))
+
+
+
+
+
+int vim_strnicmp(const char *s1, const char *s2, size_t len)
+FUNC_ATTR_NONNULL_ALL FUNC_ATTR_PURE
+{
+int i;
+
+while (len > 0) {
+i = (int)TOLOWER_LOC(*s1) - (int)TOLOWER_LOC(*s2);
+if (i != 0)
+return i; 
+if (*s1 == NUL)
+break; 
+++s1;
+++s2;
+--len;
+}
+return 0; 
+}
+#endif
+
+
+
+
+
+
+
+
+
+char_u *vim_strchr(const char_u *const string, const int c)
+FUNC_ATTR_NONNULL_ALL FUNC_ATTR_PURE FUNC_ATTR_WARN_UNUSED_RESULT
+{
+if (c <= 0) {
+return NULL;
+} else if (c < 0x80) {
+return (char_u *)strchr((const char *)string, c);
+} else {
+char u8char[MB_MAXBYTES + 1];
+const int len = utf_char2bytes(c, (char_u *)u8char);
+u8char[len] = NUL;
+return (char_u *)strstr((const char *)string, u8char);
+}
+}
+
+
+
+
+
+#if defined(INCLUDE_GENERATED_DECLARATIONS)
+#include "strings.c.generated.h"
+#endif
+static int sort_compare(const void *s1, const void *s2)
+FUNC_ATTR_NONNULL_ALL
+{
+return STRCMP(*(char **)s1, *(char **)s2);
+}
+
+void sort_strings(char_u **files, int count)
+{
+qsort((void *)files, (size_t)count, sizeof(char_u *), sort_compare);
+}
+
+
+
+
+
+bool has_non_ascii(const char_u *s)
+FUNC_ATTR_PURE
+{
+const char_u *p;
+
+if (s != NULL)
+for (p = s; *p != NUL; ++p)
+if (*p >= 128)
+return true;
+return false;
+}
+
+
+
+bool has_non_ascii_len(const char *const s, const size_t len)
+FUNC_ATTR_PURE
+{
+if (s != NULL) {
+for (size_t i = 0; i < len; i++) {
+if ((uint8_t) s[i] >= 128) {
+return true;
+}
+}
+}
+return false;
+}
+
+
+
+
+char_u *concat_str(const char_u *restrict str1, const char_u *restrict str2)
+FUNC_ATTR_NONNULL_RET FUNC_ATTR_MALLOC FUNC_ATTR_NONNULL_ALL
+{
+size_t l = STRLEN(str1);
+char_u *dest = xmalloc(l + STRLEN(str2) + 1);
+STRCPY(dest, str1);
+STRCPY(dest + l, str2);
+return dest;
+}
+
+
+static const char *const e_printf =
+N_("E766: Insufficient arguments for printf()");
+
+
+
+
+
+
+
+
+
+
+
+
+static varnumber_T tv_nr(typval_T *tvs, int *idxp)
+FUNC_ATTR_NONNULL_ALL FUNC_ATTR_WARN_UNUSED_RESULT
+{
+int idx = *idxp - 1;
+varnumber_T n = 0;
+
+if (tvs[idx].v_type == VAR_UNKNOWN) {
+EMSG(_(e_printf));
+} else {
+(*idxp)++;
+bool err = false;
+n = tv_get_number_chk(&tvs[idx], &err);
+if (err) {
+n = 0;
+}
+}
+return n;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+static const char *tv_str(typval_T *tvs, int *idxp, char **const tofree)
+FUNC_ATTR_NONNULL_ALL FUNC_ATTR_WARN_UNUSED_RESULT
+{
+int idx = *idxp - 1;
+const char *s = NULL;
+
+if (tvs[idx].v_type == VAR_UNKNOWN) {
+EMSG(_(e_printf));
+} else {
+(*idxp)++;
+if (tvs[idx].v_type == VAR_STRING || tvs[idx].v_type == VAR_NUMBER) {
+s = tv_get_string_chk(&tvs[idx]);
+*tofree = NULL;
+} else {
+s = *tofree = encode_tv2echo(&tvs[idx], NULL);
+}
+}
+return s;
+}
+
+
+
+
+
+
+
+
+
+
+static const void *tv_ptr(const typval_T *const tvs, int *const idxp)
+FUNC_ATTR_NONNULL_ALL FUNC_ATTR_WARN_UNUSED_RESULT
+{
+#define OFF(attr) offsetof(union typval_vval_union, attr)
+STATIC_ASSERT(
+OFF(v_string) == OFF(v_list)
+&& OFF(v_string) == OFF(v_dict)
+&& OFF(v_string) == OFF(v_partial)
+&& sizeof(tvs[0].vval.v_string) == sizeof(tvs[0].vval.v_list)
+&& sizeof(tvs[0].vval.v_string) == sizeof(tvs[0].vval.v_dict)
+&& sizeof(tvs[0].vval.v_string) == sizeof(tvs[0].vval.v_partial),
+"Strings, dictionaries, lists and partials are expected to be pointers, "
+"so that all three of them can be accessed via v_string");
+#undef OFF
+const int idx = *idxp - 1;
+if (tvs[idx].v_type == VAR_UNKNOWN) {
+EMSG(_(e_printf));
+return NULL;
+} else {
+(*idxp)++;
+return tvs[idx].vval.v_string;
+}
+}
+
+
+
+
+
+
+
+
+
+
+
+static float_T tv_float(typval_T *const tvs, int *const idxp)
+FUNC_ATTR_NONNULL_ALL FUNC_ATTR_WARN_UNUSED_RESULT
+{
+int idx = *idxp - 1;
+float_T f = 0;
+
+if (tvs[idx].v_type == VAR_UNKNOWN) {
+EMSG(_(e_printf));
+} else {
+(*idxp)++;
+if (tvs[idx].v_type == VAR_FLOAT) {
+f = tvs[idx].vval.v_float;
+} else if (tvs[idx].v_type == VAR_NUMBER) {
+f = (float_T)tvs[idx].vval.v_number;
+} else {
+EMSG(_("E807: Expected Float argument for printf()"));
+}
+}
+return f;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+int vim_snprintf_add(char *str, size_t str_m, char *fmt, ...)
+FUNC_ATTR_PRINTF(3, 4)
+{
+const size_t len = strlen(str);
+size_t space;
+
+if (str_m <= len) {
+space = 0;
+} else {
+space = str_m - len;
+}
+va_list ap;
+va_start(ap, fmt);
+const int str_l = vim_vsnprintf(str + len, space, fmt, ap);
+va_end(ap);
+return str_l;
+}
+
+
+
+
+
+
+
+
+
+int vim_snprintf(char *str, size_t str_m, const char *fmt, ...)
+FUNC_ATTR_PRINTF(3, 4)
+{
+va_list ap;
+va_start(ap, fmt);
+const int str_l = vim_vsnprintf(str, str_m, fmt, ap);
+va_end(ap);
+return str_l;
+}
+
+
+
+static const char *infinity_str(bool positive, char fmt_spec,
+int force_sign, int space_for_positive)
+{
+static const char *table[] = {
+"-inf", "inf", "+inf", " inf",
+"-INF", "INF", "+INF", " INF"
+};
+int idx = positive * (1 + force_sign + force_sign * space_for_positive);
+if (ASCII_ISUPPER(fmt_spec)) {
+idx += 4;
+}
+return table[idx];
+}
+
+int vim_vsnprintf(char *str, size_t str_m, const char *fmt, va_list ap)
+{
+return vim_vsnprintf_typval(str, str_m, fmt, ap, NULL);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+int vim_vsnprintf_typval(
+char *str, size_t str_m, const char *fmt, va_list ap, typval_T *const tvs)
+{
+size_t str_l = 0;
+bool str_avail = str_l < str_m;
+const char *p = fmt;
+int arg_idx = 1;
+
+if (!p) {
+p = "";
+}
+while (*p) {
+if (*p != '%') {
+
+size_t n = (size_t)(xstrchrnul(p + 1, '%') - p);
+if (str_avail) {
+size_t avail = str_m - str_l;
+memmove(str + str_l, p, MIN(n, avail));
+str_avail = n < avail;
+}
+p += n;
+assert(n <= SIZE_MAX - str_l);
+str_l += n;
+} else {
+size_t min_field_width = 0, precision = 0;
+int zero_padding = 0, precision_specified = 0, justify_left = 0;
+int alternate_form = 0, force_sign = 0;
+
+
+int space_for_positive = 1;
+
+
+char length_modifier = '\0';
+
+
+#define TMP_LEN 350 
+char tmp[TMP_LEN];
+
+
+const char *str_arg = NULL;
+
+
+size_t str_arg_l;
+
+
+
+
+unsigned char uchar_arg;
+
+
+
+size_t number_of_zeros_to_pad = 0;
+
+
+size_t zero_padding_insertion_ind = 0;
+
+
+char fmt_spec = '\0';
+
+
+char *tofree = NULL;
+
+p++; 
+
+
+while (true) {
+switch (*p) {
+case '0': zero_padding = 1; p++; continue;
+case '-': justify_left = 1; p++; continue;
+
+case '+': force_sign = 1; space_for_positive = 0; p++; continue;
+case ' ': force_sign = 1; p++; continue;
+
+case '#': alternate_form = 1; p++; continue;
+case '\'': p++; continue;
+default: break;
+}
+break;
+}
+
+
+if (*p == '*') {
+p++;
+const int j = tvs ? (int)tv_nr(tvs, &arg_idx) : va_arg(ap, int);
+if (j >= 0) {
+min_field_width = (size_t)j;
+} else {
+min_field_width = (size_t)-j;
+justify_left = 1;
+}
+} else if (ascii_isdigit((int)(*p))) {
+
+
+unsigned int uj = (unsigned)(*p++ - '0');
+
+while (ascii_isdigit((int)(*p))) {
+uj = 10 * uj + (unsigned int)(*p++ - '0');
+}
+min_field_width = uj;
+}
+
+
+if (*p == '.') {
+p++;
+precision_specified = 1;
+if (*p == '*') {
+const int j = tvs ? (int)tv_nr(tvs, &arg_idx) : va_arg(ap, int);
+p++;
+if (j >= 0) {
+precision = (size_t)j;
+} else {
+precision_specified = 0;
+precision = 0;
+}
+} else if (ascii_isdigit((int)(*p))) {
+
+
+unsigned int uj = (unsigned)(*p++ - '0');
+
+while (ascii_isdigit((int)(*p))) {
+uj = 10 * uj + (unsigned int)(*p++ - '0');
+}
+precision = uj;
+}
+}
+
+
+if (*p == 'h' || *p == 'l' || *p == 'z') {
+length_modifier = *p;
+p++;
+if (length_modifier == 'l' && *p == 'l') { 
+length_modifier = '2';
+p++;
+}
+}
+
+fmt_spec = *p;
+
+
+switch (fmt_spec) {
+case 'i': fmt_spec = 'd'; break;
+case 'D': fmt_spec = 'd'; length_modifier = 'l'; break;
+case 'U': fmt_spec = 'u'; length_modifier = 'l'; break;
+case 'O': fmt_spec = 'o'; length_modifier = 'l'; break;
+default: break;
+}
+
+switch (fmt_spec) {
+case 'd': case 'u': case 'o': case 'x': case 'X':
+if (tvs && length_modifier == '\0') {
+length_modifier = '2';
+}
+}
+
+
+switch (fmt_spec) {
+
+case '%': case 'c': case 's': case 'S':
+str_arg_l = 1;
+switch (fmt_spec) {
+case '%':
+str_arg = p;
+break;
+
+case 'c': {
+const int j = tvs ? (int)tv_nr(tvs, &arg_idx) : va_arg(ap, int);
+
+uchar_arg = (unsigned char)j;
+str_arg = (char *)&uchar_arg;
+break;
+}
+
+case 's':
+case 'S':
+str_arg = tvs ? tv_str(tvs, &arg_idx, &tofree)
+: va_arg(ap, const char *);
+if (!str_arg) {
+str_arg = "[NULL]";
+str_arg_l = 6;
+} else if (!precision_specified) {
+
+
+str_arg_l = strlen(str_arg);
+} else if (precision == 0) {
+
+str_arg_l = 0;
+} else {
+
+
+str_arg_l = (size_t)((char *)xmemscan(str_arg,
+NUL,
+MIN(precision,
+0x7fffffff))
+- str_arg);
+}
+if (fmt_spec == 'S') {
+if (min_field_width != 0) {
+min_field_width += (strlen(str_arg)
+- mb_string2cells((char_u *)str_arg));
+}
+if (precision) {
+char_u *p1;
+size_t i = 0;
+
+for (p1 = (char_u *)str_arg; *p1;
+p1 += mb_ptr2len(p1)) {
+i += (size_t)utf_ptr2cells(p1);
+if (i > precision) {
+break;
+}
+}
+str_arg_l = precision = (size_t)(p1 - (char_u *)str_arg);
+}
+}
+break;
+
+default:
+break;
+}
+break;
+
+case 'd':
+case 'u':
+case 'b': case 'B':
+case 'o':
+case 'x': case 'X':
+case 'p': {
+
+
+
+
+
+
+int arg_sign = 0;
+
+intmax_t arg = 0;
+uintmax_t uarg = 0;
+
+
+const void *ptr_arg = NULL;
+
+if (fmt_spec == 'p') {
+ptr_arg = tvs ? tv_ptr(tvs, &arg_idx) : va_arg(ap, void *);
+if (ptr_arg) {
+arg_sign = 1;
+}
+} else if (fmt_spec == 'd') {
+
+switch (length_modifier) {
+case '\0': {
+arg = (int)(tvs ? tv_nr(tvs, &arg_idx) : va_arg(ap, int));
+break;
+}
+case 'h': {
+
+arg = (int16_t)(tvs ? tv_nr(tvs, &arg_idx) : va_arg(ap, int));
+break;
+}
+case 'l': {
+arg = (tvs ? (long)tv_nr(tvs, &arg_idx) : va_arg(ap, long));
+break;
+}
+case '2': {
+arg = (
+tvs
+? (long long)tv_nr(tvs, &arg_idx) 
+: va_arg(ap, long long)); 
+break;
+}
+case 'z': {
+arg = (tvs
+? (ptrdiff_t)tv_nr(tvs, &arg_idx)
+: va_arg(ap, ptrdiff_t));
+break;
+}
+}
+if (arg > 0) {
+arg_sign = 1;
+} else if (arg < 0) {
+arg_sign = -1;
+}
+} else {
+
+switch (length_modifier) {
+case '\0': {
+uarg = (unsigned int)(tvs
+? tv_nr(tvs, &arg_idx)
+: va_arg(ap, unsigned int));
+break;
+}
+case 'h': {
+uarg = (uint16_t)(tvs
+? tv_nr(tvs, &arg_idx)
+: va_arg(ap, unsigned int));
+break;
+}
+case 'l': {
+uarg = (tvs
+? (unsigned long)tv_nr(tvs, &arg_idx)
+: va_arg(ap, unsigned long));
+break;
+}
+case '2': {
+uarg = (uintmax_t)(unsigned long long)( 
+tvs
+? ((unsigned long long) 
+tv_nr(tvs, &arg_idx))
+: va_arg(ap, unsigned long long)); 
+break;
+}
+case 'z': {
+uarg = (tvs
+? (size_t)tv_nr(tvs, &arg_idx)
+: va_arg(ap, size_t));
+break;
+}
+}
+arg_sign = (uarg != 0);
+}
+
+str_arg = tmp;
+str_arg_l = 0;
+
+
+
+
+if (precision_specified) {
+zero_padding = 0;
+}
+
+if (fmt_spec == 'd') {
+if (force_sign && arg_sign >= 0) {
+tmp[str_arg_l++] = space_for_positive ? ' ' : '+';
+}
+
+
+} else if (alternate_form) {
+if (arg_sign != 0 && (fmt_spec == 'x' || fmt_spec == 'X'
+|| fmt_spec == 'b' || fmt_spec == 'B')) {
+tmp[str_arg_l++] = '0';
+tmp[str_arg_l++] = fmt_spec;
+}
+
+}
+
+zero_padding_insertion_ind = str_arg_l;
+if (!precision_specified) {
+precision = 1; 
+}
+if (precision == 0 && arg_sign == 0) {
+
+
+} else {
+switch (fmt_spec) {
+case 'p': { 
+str_arg_l += (size_t)snprintf(tmp + str_arg_l,
+sizeof(tmp) - str_arg_l,
+"%p", ptr_arg);
+break;
+}
+case 'd': { 
+str_arg_l += (size_t)snprintf(tmp + str_arg_l,
+sizeof(tmp) - str_arg_l,
+"%" PRIdMAX, arg);
+break;
+}
+case 'b': case 'B': { 
+size_t bits = 0;
+for (bits = sizeof(uintmax_t) * 8; bits > 0; bits--) {
+if ((uarg >> (bits - 1)) & 0x1) {
+break;
+}
+}
+
+while (bits > 0) {
+tmp[str_arg_l++] = ((uarg >> --bits) & 0x1) ? '1' : '0';
+}
+break;
+}
+default: { 
+
+char f[] = "%" PRIuMAX;
+f[sizeof("%" PRIuMAX) - 1 - 1] = fmt_spec;
+assert(PRIuMAX[sizeof(PRIuMAX) - 1 - 1] == 'u');
+str_arg_l += (size_t)snprintf(tmp + str_arg_l,
+sizeof(tmp) - str_arg_l,
+f, uarg);
+break;
+}
+}
+assert(str_arg_l < sizeof(tmp));
+
+
+
+if (zero_padding_insertion_ind < str_arg_l
+&& tmp[zero_padding_insertion_ind] == '-') {
+zero_padding_insertion_ind++;
+}
+if (zero_padding_insertion_ind + 1 < str_arg_l
+&& tmp[zero_padding_insertion_ind] == '0'
+&& (tmp[zero_padding_insertion_ind + 1] == 'x'
+|| tmp[zero_padding_insertion_ind + 1] == 'X'
+|| tmp[zero_padding_insertion_ind + 1] == 'b'
+|| tmp[zero_padding_insertion_ind + 1] == 'B')) {
+zero_padding_insertion_ind += 2;
+}
+}
+
+{
+size_t num_of_digits = str_arg_l - zero_padding_insertion_ind;
+
+if (alternate_form && fmt_spec == 'o'
+
+&& !(zero_padding_insertion_ind < str_arg_l
+&& tmp[zero_padding_insertion_ind] == '0')) {
+
+if (!precision_specified
+|| precision < num_of_digits + 1) {
+
+
+
+precision = num_of_digits + 1;
+}
+}
+
+if (num_of_digits < precision) {
+number_of_zeros_to_pad = precision - num_of_digits;
+}
+}
+
+if (!justify_left && zero_padding) {
+const int n = (int)(min_field_width - (str_arg_l
++ number_of_zeros_to_pad));
+if (n > 0) {
+number_of_zeros_to_pad += (size_t)n;
+}
+}
+break;
+}
+
+case 'f':
+case 'F':
+case 'e':
+case 'E':
+case 'g':
+case 'G':
+{
+
+char format[40];
+int remove_trailing_zeroes = false;
+
+double f = tvs ? tv_float(tvs, &arg_idx) : va_arg(ap, double);
+double abs_f = f < 0 ? -f : f;
+
+if (fmt_spec == 'g' || fmt_spec == 'G') {
+
+if ((abs_f >= 0.001 && abs_f < 10000000.0) || abs_f == 0.0) {
+fmt_spec = ASCII_ISUPPER(fmt_spec) ? 'F' : 'f';
+} else {
+fmt_spec = fmt_spec == 'g' ? 'e' : 'E';
+}
+remove_trailing_zeroes = true;
+}
+
+if (xisinf(f)
+|| (strchr("fF", fmt_spec) != NULL && abs_f > 1.0e307)) {
+xstrlcpy(tmp, infinity_str(f > 0.0, fmt_spec,
+force_sign, space_for_positive),
+sizeof(tmp));
+str_arg_l = strlen(tmp);
+zero_padding = 0;
+} else if (xisnan(f)) {
+
+memmove(tmp, ASCII_ISUPPER(fmt_spec) ? "NAN" : "nan", 4);
+str_arg_l = 3;
+zero_padding = 0;
+} else {
+
+format[0] = '%';
+size_t l = 1;
+if (force_sign) {
+format[l++] = space_for_positive ? ' ' : '+';
+}
+if (precision_specified) {
+size_t max_prec = TMP_LEN - 10;
+
+
+if ((fmt_spec == 'f' || fmt_spec == 'F') && abs_f > 1.0) {
+max_prec -= (size_t)log10(abs_f);
+}
+if (precision > max_prec) {
+precision = max_prec;
+}
+l += (size_t)snprintf(format + l, sizeof(format) - l, ".%d",
+(int)precision);
+}
+
+
+assert(l + 1 < sizeof(format));
+format[l] = (char)(fmt_spec == 'F' ? 'f' : fmt_spec);
+format[l + 1] = NUL;
+
+str_arg_l = (size_t)snprintf(tmp, sizeof(tmp), format, f);
+assert(str_arg_l < sizeof(tmp));
+
+if (remove_trailing_zeroes) {
+int i;
+char *tp;
+
+
+if (fmt_spec == 'f' || fmt_spec == 'F') {
+tp = tmp + str_arg_l - 1;
+} else {
+tp = (char *)vim_strchr((char_u *)tmp,
+fmt_spec == 'e' ? 'e' : 'E');
+if (tp) {
+
+if (tp[1] == '+') {
+
+STRMOVE(tp + 1, tp + 2);
+str_arg_l--;
+}
+i = (tp[1] == '-') ? 2 : 1;
+while (tp[i] == '0') {
+
+STRMOVE(tp + i, tp + i + 1);
+str_arg_l--;
+}
+tp--;
+}
+}
+
+if (tp != NULL && !precision_specified) {
+
+while (tp > tmp + 2 && *tp == '0' && tp[-1] != '.') {
+STRMOVE(tp, tp + 1);
+tp--;
+str_arg_l--;
+}
+}
+} else {
+
+
+char *tp = (char *)vim_strchr((char_u *)tmp,
+fmt_spec == 'e' ? 'e' : 'E');
+if (tp && (tp[1] == '+' || tp[1] == '-') && tp[2] == '0'
+&& ascii_isdigit(tp[3]) && ascii_isdigit(tp[4])) {
+STRMOVE(tp + 2, tp + 3);
+str_arg_l--;
+}
+}
+}
+if (zero_padding && min_field_width > str_arg_l
+&& (tmp[0] == '-' || force_sign)) {
+
+number_of_zeros_to_pad = min_field_width - str_arg_l;
+zero_padding_insertion_ind = 1;
+}
+str_arg = tmp;
+break;
+}
+
+default:
+
+zero_padding = 0; 
+justify_left = 1;
+min_field_width = 0; 
+
+
+
+str_arg = p;
+str_arg_l = 0;
+if (*p) {
+str_arg_l++; 
+}
+
+break;
+}
+
+if (*p) {
+p++; 
+}
+
+
+
+if (!justify_left) {
+assert(str_arg_l <= SIZE_MAX - number_of_zeros_to_pad);
+if (min_field_width > str_arg_l + number_of_zeros_to_pad) {
+
+size_t pn = min_field_width - (str_arg_l + number_of_zeros_to_pad);
+if (str_avail) {
+size_t avail = str_m - str_l;
+memset(str + str_l, zero_padding ? '0' : ' ', MIN(pn, avail));
+str_avail = pn < avail;
+}
+assert(pn <= SIZE_MAX - str_l);
+str_l += pn;
+}
+}
+
+
+
+if (number_of_zeros_to_pad == 0) {
+
+
+zero_padding_insertion_ind = 0;
+} else {
+
+if (zero_padding_insertion_ind > 0) {
+size_t zn = zero_padding_insertion_ind;
+if (str_avail) {
+size_t avail = str_m - str_l;
+memmove(str + str_l, str_arg, MIN(zn, avail));
+str_avail = zn < avail;
+}
+assert(zn <= SIZE_MAX - str_l);
+str_l += zn;
+}
+
+
+size_t zn = number_of_zeros_to_pad;
+if (str_avail) {
+size_t avail = str_m - str_l;
+memset(str + str_l, '0', MIN(zn, avail));
+str_avail = zn < avail;
+}
+assert(zn <= SIZE_MAX - str_l);
+str_l += zn;
+}
+
+
+
+if (str_arg_l > zero_padding_insertion_ind) {
+size_t sn = str_arg_l - zero_padding_insertion_ind;
+if (str_avail) {
+size_t avail = str_m - str_l;
+memmove(str + str_l,
+str_arg + zero_padding_insertion_ind,
+MIN(sn, avail));
+str_avail = sn < avail;
+}
+assert(sn <= SIZE_MAX - str_l);
+str_l += sn;
+}
+
+
+if (justify_left) {
+assert(str_arg_l <= SIZE_MAX - number_of_zeros_to_pad);
+if (min_field_width > str_arg_l + number_of_zeros_to_pad) {
+
+size_t pn = min_field_width - (str_arg_l + number_of_zeros_to_pad);
+if (str_avail) {
+size_t avail = str_m - str_l;
+memset(str + str_l, ' ', MIN(pn, avail));
+str_avail = pn < avail;
+}
+assert(pn <= SIZE_MAX - str_l);
+str_l += pn;
+}
+}
+
+xfree(tofree);
+}
+}
+
+if (str_m > 0) {
+
+
+str[str_l <= str_m - 1 ? str_l : str_m - 1] = '\0';
+}
+
+if (tvs && tvs[arg_idx - 1].v_type != VAR_UNKNOWN) {
+EMSG(_("E767: Too many arguments to printf()"));
+}
+
+
+
+
+return (int)str_l;
+}

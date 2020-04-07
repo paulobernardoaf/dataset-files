@@ -1,0 +1,35 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#if !defined(AVFILTER_MASKEDCLAMP_H)
+#define AVFILTER_MASKEDCLAMP_H
+
+#include <stddef.h>
+#include <stdint.h>
+
+typedef struct MaskedClampDSPContext {
+void (*maskedclamp)(const uint8_t *bsrc, uint8_t *dst,
+const uint8_t *darksrc, const uint8_t *brightsrc,
+int w, int undershoot, int overshoot);
+} MaskedClampDSPContext;
+
+void ff_maskedclamp_init_x86(MaskedClampDSPContext *dsp, int depth);
+
+#endif 

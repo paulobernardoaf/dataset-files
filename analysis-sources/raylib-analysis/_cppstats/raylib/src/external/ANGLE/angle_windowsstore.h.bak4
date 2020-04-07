@@ -1,0 +1,51 @@
+
+
+
+
+
+
+
+#if !defined(ANGLE_WINDOWSSTORE_H_)
+#define ANGLE_WINDOWSSTORE_H_
+
+
+
+
+
+
+
+
+
+
+
+
+
+const wchar_t EGLNativeWindowTypeProperty[] = L"EGLNativeWindowTypeProperty";
+
+
+
+
+
+
+
+
+
+
+
+
+const wchar_t EGLRenderSurfaceSizeProperty[] = L"EGLRenderSurfaceSizeProperty";
+
+
+
+
+
+
+
+
+
+
+
+
+const wchar_t EGLRenderResolutionScaleProperty[] = L"EGLRenderResolutionScaleProperty";
+
+#endif 

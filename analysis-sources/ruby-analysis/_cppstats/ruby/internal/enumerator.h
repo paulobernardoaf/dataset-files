@@ -1,0 +1,7 @@
+#include "ruby/ruby.h" 
+#include "ruby/intern.h" 
+RUBY_SYMBOL_EXPORT_BEGIN
+VALUE rb_arith_seq_new(VALUE obj, VALUE meth, int argc, VALUE const *argv,
+rb_enumerator_size_func *size_fn,
+VALUE beg, VALUE end, VALUE step, int excl);
+RUBY_SYMBOL_EXPORT_END

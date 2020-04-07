@@ -1,0 +1,5 @@
+#include "tomcrypt_private.h"
+struct ltc_prng_descriptor prng_descriptor[TAB_SIZE] = {
+{ NULL, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL }
+};
+LTC_MUTEX_GLOBAL(ltc_prng_mutex)

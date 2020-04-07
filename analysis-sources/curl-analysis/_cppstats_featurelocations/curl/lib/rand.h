@@ -1,0 +1,49 @@
+#if !defined(HEADER_CURL_RAND_H)
+#define HEADER_CURL_RAND_H
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+CURLcode Curl_rand(struct Curl_easy *data, unsigned char *rnd, size_t num);
+
+
+
+
+
+
+CURLcode Curl_rand_hex(struct Curl_easy *data, unsigned char *rnd,
+size_t num);
+
+#endif 

@@ -1,0 +1,97 @@
+#if !defined(HEADER_CURL_MULTIBYTE_H)
+#define HEADER_CURL_MULTIBYTE_H
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#include "curl_setup.h"
+
+#if defined(USE_WIN32_IDN) || ((defined(USE_WINDOWS_SSPI) || defined(USE_WIN32_LDAP)) && defined(UNICODE))
+
+
+
+
+
+
+wchar_t *Curl_convert_UTF8_to_wchar(const char *str_utf8);
+char *Curl_convert_wchar_to_UTF8(const wchar_t *str_w);
+
+#endif 
+
+
+#if defined(USE_WIN32_IDN) || defined(USE_WINDOWS_SSPI) || defined(USE_WIN32_LDAP)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#if defined(UNICODE)
+
+#define Curl_convert_UTF8_to_tchar(ptr) Curl_convert_UTF8_to_wchar((ptr))
+#define Curl_convert_tchar_to_UTF8(ptr) Curl_convert_wchar_to_UTF8((ptr))
+#define Curl_unicodefree(ptr) do { if(ptr) { free(ptr); (ptr) = NULL; } } while(0)
+
+
+
+
+
+
+
+typedef union {
+unsigned short *tchar_ptr;
+const unsigned short *const_tchar_ptr;
+unsigned short *tbyte_ptr;
+const unsigned short *const_tbyte_ptr;
+} xcharp_u;
+
+#else
+
+#define Curl_convert_UTF8_to_tchar(ptr) (ptr)
+#define Curl_convert_tchar_to_UTF8(ptr) (ptr)
+#define Curl_unicodefree(ptr) do {(ptr) = NULL;} while(0)
+
+
+typedef union {
+char *tchar_ptr;
+const char *const_tchar_ptr;
+unsigned char *tbyte_ptr;
+const unsigned char *const_tbyte_ptr;
+} xcharp_u;
+
+#endif 
+
+#endif 
+
+#endif 

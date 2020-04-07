@@ -1,0 +1,737 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" revision="1.0.0" language="C" filename="D:\Pesquisa\Projects\ffmpeg-analysis\_cppstats_featurelocations\FFmpeg\libavcodec\lagarith.c">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;inttypes.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"avcodec.h"</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"get_bits.h"</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"mathops.h"</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"lagarithrac.h"</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"lossless_videodsp.h"</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"thread.h"</cpp:file></cpp:include>
+
+<enum>enum <name>LagarithFrameType</name> <block>{
+<decl><name>FRAME_RAW</name> <init>= <expr><literal type="number">1</literal></expr></init></decl>, 
+<decl><name>FRAME_U_RGB24</name> <init>= <expr><literal type="number">2</literal></expr></init></decl>, 
+<decl><name>FRAME_ARITH_YUY2</name> <init>= <expr><literal type="number">3</literal></expr></init></decl>, 
+<decl><name>FRAME_ARITH_RGB24</name> <init>= <expr><literal type="number">4</literal></expr></init></decl>, 
+<decl><name>FRAME_SOLID_GRAY</name> <init>= <expr><literal type="number">5</literal></expr></init></decl>, 
+<decl><name>FRAME_SOLID_COLOR</name> <init>= <expr><literal type="number">6</literal></expr></init></decl>, 
+<decl><name>FRAME_OLD_ARITH_RGB</name> <init>= <expr><literal type="number">7</literal></expr></init></decl>, 
+<decl><name>FRAME_ARITH_RGBA</name> <init>= <expr><literal type="number">8</literal></expr></init></decl>, 
+<decl><name>FRAME_SOLID_RGBA</name> <init>= <expr><literal type="number">9</literal></expr></init></decl>, 
+<decl><name>FRAME_ARITH_YV12</name> <init>= <expr><literal type="number">10</literal></expr></init></decl>, 
+<decl><name>FRAME_REDUCED_RES</name> <init>= <expr><literal type="number">11</literal></expr></init></decl>, 
+}</block>;</enum>
+
+<typedef>typedef <type><struct>struct <name>LagarithContext</name> <block>{
+<decl_stmt><decl><type><name>AVCodecContext</name> <modifier>*</modifier></type><name>avctx</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>LLVidDSPContext</name></type> <name>llviddsp</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>zeros</name></decl>;</decl_stmt> 
+<decl_stmt><decl><type><name>int</name></type> <name>zeros_rem</name></decl>;</decl_stmt> 
+}</block></struct></type> <name>LagarithContext</name>;</typedef>
+
+
+
+
+
+
+
+
+
+<function><type><specifier>static</specifier> <name>uint64_t</name></type> <name>softfloat_reciprocal</name><parameter_list>(<parameter><decl><type><name>uint32_t</name></type> <name>denom</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>int</name></type> <name>shift</name> <init>= <expr><call><name>av_log2</name><argument_list>(<argument><expr><name>denom</name> <operator>-</operator> <literal type="number">1</literal></expr></argument>)</argument_list></call> <operator>+</operator> <literal type="number">1</literal></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>uint64_t</name></type> <name>ret</name> <init>= <expr><operator>(</operator><literal type="number">1ULL</literal> <operator>&lt;&lt;</operator> <literal type="number">52</literal><operator>)</operator> <operator>/</operator> <name>denom</name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>uint64_t</name></type> <name>err</name> <init>= <expr><operator>(</operator><literal type="number">1ULL</literal> <operator>&lt;&lt;</operator> <literal type="number">52</literal><operator>)</operator> <operator>-</operator> <name>ret</name> <operator>*</operator> <name>denom</name></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><name>ret</name> <operator>&lt;&lt;=</operator> <name>shift</name></expr>;</expr_stmt>
+<expr_stmt><expr><name>err</name> <operator>&lt;&lt;=</operator> <name>shift</name></expr>;</expr_stmt>
+<expr_stmt><expr><name>err</name> <operator>+=</operator> <name>denom</name> <operator>/</operator> <literal type="number">2</literal></expr>;</expr_stmt>
+<return>return <expr><name>ret</name> <operator>+</operator> <name>err</name> <operator>/</operator> <name>denom</name></expr>;</return>
+</block_content>}</block></function>
+
+
+
+
+
+
+
+
+
+<function><type><specifier>static</specifier> <name>uint32_t</name></type> <name>softfloat_mul</name><parameter_list>(<parameter><decl><type><name>uint32_t</name></type> <name>x</name></decl></parameter>, <parameter><decl><type><name>uint64_t</name></type> <name>mantissa</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>uint64_t</name></type> <name>l</name> <init>= <expr><name>x</name> <operator>*</operator> <operator>(</operator><name>mantissa</name> <operator>&amp;</operator> <literal type="number">0xffffffff</literal><operator>)</operator></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>uint64_t</name></type> <name>h</name> <init>= <expr><name>x</name> <operator>*</operator> <operator>(</operator><name>mantissa</name> <operator>&gt;&gt;</operator> <literal type="number">32</literal><operator>)</operator></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><name>h</name> <operator>+=</operator> <name>l</name> <operator>&gt;&gt;</operator> <literal type="number">32</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name>l</name> <operator>&amp;=</operator> <literal type="number">0xffffffff</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name>l</name> <operator>+=</operator> <literal type="number">1LL</literal> <operator>&lt;&lt;</operator> <call><name>av_log2</name><argument_list>(<argument><expr><name>h</name> <operator>&gt;&gt;</operator> <literal type="number">21</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>h</name> <operator>+=</operator> <name>l</name> <operator>&gt;&gt;</operator> <literal type="number">32</literal></expr>;</expr_stmt>
+<return>return <expr><name>h</name> <operator>&gt;&gt;</operator> <literal type="number">20</literal></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>uint8_t</name></type> <name>lag_calc_zero_run</name><parameter_list>(<parameter><decl><type><name>int8_t</name></type> <name>x</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<return>return <expr><operator>(</operator><name>x</name> <operator>*</operator> <literal type="number">2</literal><operator>)</operator> <operator>^</operator> <operator>(</operator><name>x</name> <operator>&gt;&gt;</operator> <literal type="number">7</literal><operator>)</operator></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>lag_decode_prob</name><parameter_list>(<parameter><decl><type><name>GetBitContext</name> <modifier>*</modifier></type><name>gb</name></decl></parameter>, <parameter><decl><type><name>uint32_t</name> <modifier>*</modifier></type><name>value</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><specifier>static</specifier> <specifier>const</specifier> <name>uint8_t</name></type> <name><name>series</name><index>[]</index></name> <init>= <expr><block>{ <expr><literal type="number">1</literal></expr>, <expr><literal type="number">2</literal></expr>, <expr><literal type="number">3</literal></expr>, <expr><literal type="number">5</literal></expr>, <expr><literal type="number">8</literal></expr>, <expr><literal type="number">13</literal></expr>, <expr><literal type="number">21</literal></expr> }</block></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>i</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>bit</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>bits</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>prevbit</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>unsigned</name></type> <name>val</name></decl>;</decl_stmt>
+
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <literal type="number">7</literal></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name>prevbit</name> <operator>&amp;&amp;</operator> <name>bit</name></expr>)</condition><block type="pseudo"><block_content>
+<break>break;</break></block_content></block></if></if_stmt>
+<expr_stmt><expr><name>prevbit</name> <operator>=</operator> <name>bit</name></expr>;</expr_stmt>
+<expr_stmt><expr><name>bit</name> <operator>=</operator> <call><name>get_bits1</name><argument_list>(<argument><expr><name>gb</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name>bit</name> <operator>&amp;&amp;</operator> <operator>!</operator><name>prevbit</name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name>bits</name> <operator>+=</operator> <name><name>series</name><index>[<expr><name>i</name></expr>]</index></name></expr>;</expr_stmt></block_content></block></if></if_stmt>
+</block_content>}</block></for>
+<expr_stmt><expr><name>bits</name><operator>--</operator></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>bits</name> <argument_list type="generic">&lt; <argument><expr><literal type="number">0</literal> <operator>||</operator> <name>bits</name></expr></argument> &gt;</argument_list></name> <literal type="number">31</literal></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><operator>*</operator><name>value</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+<return>return <expr><operator>-</operator><literal type="number">1</literal></expr>;</return>
+</block_content>}</block></if> <if type="elseif">else if <condition>(<expr><name>bits</name> <operator>==</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><operator>*</operator><name>value</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name>val</name> <operator>=</operator> <call><name>get_bits_long</name><argument_list>(<argument><expr><name>gb</name></expr></argument>, <argument><expr><name>bits</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>val</name> <operator>|=</operator> <literal type="number">1U</literal> <operator>&lt;&lt;</operator> <name>bits</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><operator>*</operator><name>value</name> <operator>=</operator> <name>val</name> <operator>-</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>lag_read_prob_header</name><parameter_list>(<parameter><decl><type><name>lag_rac</name> <modifier>*</modifier></type><name>rac</name></decl></parameter>, <parameter><decl><type><name>GetBitContext</name> <modifier>*</modifier></type><name>gb</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>int</name></type> <name>i</name></decl>, <decl><type ref="prev"/><name>j</name></decl>, <decl><type ref="prev"/><name>scale_factor</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>unsigned</name></type> <name>prob</name></decl>, <decl><type ref="prev"/><name>cumulative_target</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>unsigned</name></type> <name>cumul_prob</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>unsigned</name></type> <name>scaled_cumul_prob</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>nnz</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>rac</name><operator>-&gt;</operator><name>prob</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>rac</name><operator>-&gt;</operator><name>prob</name><index>[<expr><literal type="number">257</literal></expr>]</index></name> <operator>=</operator> <name>UINT_MAX</name></expr>;</expr_stmt>
+
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">1</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <literal type="number">257</literal></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><call><name>lag_decode_prob</name><argument_list>(<argument><expr><name>gb</name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>rac</name><operator>-&gt;</operator><name>prob</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>)</argument_list></call> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>av_log</name><argument_list>(<argument><expr><name><name>rac</name><operator>-&gt;</operator><name>avctx</name></name></expr></argument>, <argument><expr><name>AV_LOG_ERROR</name></expr></argument>, <argument><expr><literal type="string">"Invalid probability encountered.\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><operator>-</operator><literal type="number">1</literal></expr>;</return>
+</block_content>}</block></if></if_stmt>
+<if_stmt><if>if <condition>(<expr><operator>(</operator><name>uint64_t</name><operator>)</operator><name>cumul_prob</name> <operator>+</operator> <name><name>rac</name><operator>-&gt;</operator><name>prob</name><index>[<expr><name>i</name></expr>]</index></name> <operator>&gt;</operator> <name>UINT_MAX</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>av_log</name><argument_list>(<argument><expr><name><name>rac</name><operator>-&gt;</operator><name>avctx</name></name></expr></argument>, <argument><expr><name>AV_LOG_ERROR</name></expr></argument>, <argument><expr><literal type="string">"Integer overflow encountered in cumulative probability calculation.\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><operator>-</operator><literal type="number">1</literal></expr>;</return>
+</block_content>}</block></if></if_stmt>
+<expr_stmt><expr><name>cumul_prob</name> <operator>+=</operator> <name><name>rac</name><operator>-&gt;</operator><name>prob</name><index>[<expr><name>i</name></expr>]</index></name></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>rac</name><operator>-&gt;</operator><name>prob</name><index>[<expr><name>i</name></expr>]</index></name></expr>)</condition> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><call><name>lag_decode_prob</name><argument_list>(<argument><expr><name>gb</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>prob</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>av_log</name><argument_list>(<argument><expr><name><name>rac</name><operator>-&gt;</operator><name>avctx</name></name></expr></argument>, <argument><expr><name>AV_LOG_ERROR</name></expr></argument>, <argument><expr><literal type="string">"Invalid probability run encountered.\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><operator>-</operator><literal type="number">1</literal></expr>;</return>
+</block_content>}</block></if></if_stmt>
+<if_stmt><if>if <condition>(<expr><name>prob</name> <operator>&gt;</operator> <literal type="number">256</literal> <operator>-</operator> <name>i</name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name>prob</name> <operator>=</operator> <literal type="number">256</literal> <operator>-</operator> <name>i</name></expr>;</expr_stmt></block_content></block></if></if_stmt>
+<for>for <control>(<init><expr><name>j</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>j</name> <operator>&lt;</operator> <name>prob</name></expr>;</condition> <incr><expr><name>j</name><operator>++</operator></expr></incr>)</control><block type="pseudo"><block_content>
+<expr_stmt><expr><name><name>rac</name><operator>-&gt;</operator><name>prob</name><index>[<expr><operator>++</operator><name>i</name></expr>]</index></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt></block_content></block></for>
+</block_content>}</block></if><else>else <block>{<block_content>
+<expr_stmt><expr><name>nnz</name><operator>++</operator></expr>;</expr_stmt>
+</block_content>}</block></else></if_stmt>
+</block_content>}</block></for>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>cumul_prob</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>av_log</name><argument_list>(<argument><expr><name><name>rac</name><operator>-&gt;</operator><name>avctx</name></name></expr></argument>, <argument><expr><name>AV_LOG_ERROR</name></expr></argument>, <argument><expr><literal type="string">"All probabilities are 0!\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><operator>-</operator><literal type="number">1</literal></expr>;</return>
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>nnz</name> <operator>==</operator> <literal type="number">1</literal> <operator>&amp;&amp;</operator> <operator>(</operator><call><name>show_bits_long</name><argument_list>(<argument><expr><name>gb</name></expr></argument>, <argument><expr><literal type="number">32</literal></expr></argument>)</argument_list></call> <operator>&amp;</operator> <literal type="number">0xFFFFFF</literal><operator>)</operator></expr>)</condition> <block>{<block_content>
+<return>return <expr><name>AVERROR_INVALIDDATA</name></expr>;</return>
+</block_content>}</block></if></if_stmt>
+
+
+<expr_stmt><expr><name>scale_factor</name> <operator>=</operator> <call><name>av_log2</name><argument_list>(<argument><expr><name>cumul_prob</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>cumul_prob</name> <operator>&amp;</operator> <operator>(</operator><name>cumul_prob</name> <operator>-</operator> <literal type="number">1</literal><operator>)</operator></expr>)</condition> <block>{<block_content>
+<decl_stmt><decl><type><name>uint64_t</name></type> <name>mul</name> <init>= <expr><call><name>softfloat_reciprocal</name><argument_list>(<argument><expr><name>cumul_prob</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">1</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;=</operator> <literal type="number">128</literal></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<expr_stmt><expr><name><name>rac</name><operator>-&gt;</operator><name>prob</name><index>[<expr><name>i</name></expr>]</index></name> <operator>=</operator> <call><name>softfloat_mul</name><argument_list>(<argument><expr><name><name>rac</name><operator>-&gt;</operator><name>prob</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>, <argument><expr><name>mul</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>scaled_cumul_prob</name> <operator>+=</operator> <name><name>rac</name><operator>-&gt;</operator><name>prob</name><index>[<expr><name>i</name></expr>]</index></name></expr>;</expr_stmt>
+</block_content>}</block></for>
+<if_stmt><if>if <condition>(<expr><name>scaled_cumul_prob</name> <operator>&lt;=</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>av_log</name><argument_list>(<argument><expr><name><name>rac</name><operator>-&gt;</operator><name>avctx</name></name></expr></argument>, <argument><expr><name>AV_LOG_ERROR</name></expr></argument>, <argument><expr><literal type="string">"Scaled probabilities invalid\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>AVERROR_INVALIDDATA</name></expr>;</return>
+</block_content>}</block></if></if_stmt>
+<for>for <control>(<init>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <literal type="number">257</literal></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<expr_stmt><expr><name><name>rac</name><operator>-&gt;</operator><name>prob</name><index>[<expr><name>i</name></expr>]</index></name> <operator>=</operator> <call><name>softfloat_mul</name><argument_list>(<argument><expr><name><name>rac</name><operator>-&gt;</operator><name>prob</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>, <argument><expr><name>mul</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>scaled_cumul_prob</name> <operator>+=</operator> <name><name>rac</name><operator>-&gt;</operator><name>prob</name><index>[<expr><name>i</name></expr>]</index></name></expr>;</expr_stmt>
+</block_content>}</block></for>
+
+<expr_stmt><expr><name>scale_factor</name><operator>++</operator></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name>scale_factor</name> <operator>&gt;=</operator> <literal type="number">32U</literal></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><name>AVERROR_INVALIDDATA</name></expr>;</return></block_content></block></if></if_stmt>
+<expr_stmt><expr><name>cumulative_target</name> <operator>=</operator> <literal type="number">1U</literal> <operator>&lt;&lt;</operator> <name>scale_factor</name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>scaled_cumul_prob</name> <operator>&gt;</operator> <name>cumulative_target</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>av_log</name><argument_list>(<argument><expr><name><name>rac</name><operator>-&gt;</operator><name>avctx</name></name></expr></argument>, <argument><expr><name>AV_LOG_ERROR</name></expr></argument>,
+<argument><expr><literal type="string">"Scaled probabilities are larger than target!\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><operator>-</operator><literal type="number">1</literal></expr>;</return>
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name>scaled_cumul_prob</name> <operator>=</operator> <name>cumulative_target</name> <operator>-</operator> <name>scaled_cumul_prob</name></expr>;</expr_stmt>
+
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">1</literal></expr>;</init> <condition><expr><name>scaled_cumul_prob</name></expr>;</condition> <incr><expr><name>i</name> <operator>=</operator> <operator>(</operator><name>i</name> <operator>&amp;</operator> <literal type="number">0x7f</literal><operator>)</operator> <operator>+</operator> <literal type="number">1</literal></expr></incr>)</control> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name><name>rac</name><operator>-&gt;</operator><name>prob</name><index>[<expr><name>i</name></expr>]</index></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name><name>rac</name><operator>-&gt;</operator><name>prob</name><index>[<expr><name>i</name></expr>]</index></name><operator>++</operator></expr>;</expr_stmt>
+<expr_stmt><expr><name>scaled_cumul_prob</name><operator>--</operator></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+
+
+
+
+
+
+
+
+
+
+
+</block_content>}</block></for>
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>scale_factor</name> <operator>&gt;</operator> <literal type="number">23</literal></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><name>AVERROR_INVALIDDATA</name></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name><name>rac</name><operator>-&gt;</operator><name>scale</name></name> <operator>=</operator> <name>scale_factor</name></expr>;</expr_stmt>
+
+
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">1</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <literal type="number">257</literal></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control><block type="pseudo"><block_content>
+<expr_stmt><expr><name><name>rac</name><operator>-&gt;</operator><name>prob</name><index>[<expr><name>i</name></expr>]</index></name> <operator>+=</operator> <name><name>rac</name><operator>-&gt;</operator><name>prob</name><index>[<expr><name>i</name> <operator>-</operator> <literal type="number">1</literal></expr>]</index></name></expr>;</expr_stmt></block_content></block></for>
+
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>add_lag_median_prediction</name><parameter_list>(<parameter><decl><type><name>uint8_t</name> <modifier>*</modifier></type><name>dst</name></decl></parameter>, <parameter><decl><type><name>uint8_t</name> <modifier>*</modifier></type><name>src1</name></decl></parameter>,
+<parameter><decl><type><name>uint8_t</name> <modifier>*</modifier></type><name>diff</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>w</name></decl></parameter>, <parameter><decl><type><name>int</name> <modifier>*</modifier></type><name>left</name></decl></parameter>,
+<parameter><decl><type><name>int</name> <modifier>*</modifier></type><name>left_top</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+
+
+
+
+<decl_stmt><decl><type><name>int</name></type> <name>i</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>uint8_t</name></type> <name>l</name></decl>, <decl><type ref="prev"/><name>lt</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>l</name> <operator>=</operator> <operator>*</operator><name>left</name></expr>;</expr_stmt>
+<expr_stmt><expr><name>lt</name> <operator>=</operator> <operator>*</operator><name>left_top</name></expr>;</expr_stmt>
+
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>w</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<expr_stmt><expr><name>l</name> <operator>=</operator> <call><name>mid_pred</name><argument_list>(<argument><expr><name>l</name></expr></argument>, <argument><expr><name><name>src1</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>, <argument><expr><name>l</name> <operator>+</operator> <name><name>src1</name><index>[<expr><name>i</name></expr>]</index></name> <operator>-</operator> <name>lt</name></expr></argument>)</argument_list></call> <operator>+</operator> <name><name>diff</name><index>[<expr><name>i</name></expr>]</index></name></expr>;</expr_stmt>
+<expr_stmt><expr><name>lt</name> <operator>=</operator> <name><name>src1</name><index>[<expr><name>i</name></expr>]</index></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>dst</name><index>[<expr><name>i</name></expr>]</index></name> <operator>=</operator> <name>l</name></expr>;</expr_stmt>
+</block_content>}</block></for>
+
+<expr_stmt><expr><operator>*</operator><name>left</name> <operator>=</operator> <name>l</name></expr>;</expr_stmt>
+<expr_stmt><expr><operator>*</operator><name>left_top</name> <operator>=</operator> <name>lt</name></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>lag_pred_line</name><parameter_list>(<parameter><decl><type><name>LagarithContext</name> <modifier>*</modifier></type><name>l</name></decl></parameter>, <parameter><decl><type><name>uint8_t</name> <modifier>*</modifier></type><name>buf</name></decl></parameter>,
+<parameter><decl><type><name>int</name></type> <name>width</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>stride</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>line</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>int</name></type> <name>L</name></decl>, <decl><type ref="prev"/><name>TL</name></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>line</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>L</name> <operator>=</operator> <call><name><name>l</name><operator>-&gt;</operator><name>llviddsp</name><operator>.</operator><name>add_left_pred</name></name><argument_list>(<argument><expr><name>buf</name></expr></argument>, <argument><expr><name>buf</name></expr></argument>, <argument><expr><name>width</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<expr_stmt><expr><name>L</name> <operator>=</operator> <name><name>buf</name><index>[<expr><name>width</name> <operator>-</operator> <name>stride</name> <operator>-</operator> <literal type="number">1</literal></expr>]</index></name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>line</name> <operator>==</operator> <literal type="number">1</literal></expr>)</condition> <block>{<block_content>
+
+
+<expr_stmt><expr><name>TL</name> <operator>=</operator> <ternary><condition><expr><name><name>l</name><operator>-&gt;</operator><name>avctx</name><operator>-&gt;</operator><name>pix_fmt</name></name> <operator>==</operator> <name>AV_PIX_FMT_YUV420P</name></expr> ?</condition><then> <expr><name><name>buf</name><index>[<expr><operator>-</operator><name>stride</name></expr>]</index></name></expr> </then><else>: <expr><name>L</name></expr></else></ternary></expr>;</expr_stmt>
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<expr_stmt><expr><name>TL</name> <operator>=</operator> <name><name>buf</name><index>[<expr><name>width</name> <operator>-</operator> <operator>(</operator><literal type="number">2</literal> <operator>*</operator> <name>stride</name><operator>)</operator> <operator>-</operator> <literal type="number">1</literal></expr>]</index></name></expr>;</expr_stmt>
+</block_content>}</block></else></if_stmt>
+
+<expr_stmt><expr><call><name>add_lag_median_prediction</name><argument_list>(<argument><expr><name>buf</name></expr></argument>, <argument><expr><name>buf</name> <operator>-</operator> <name>stride</name></expr></argument>, <argument><expr><name>buf</name></expr></argument>,
+<argument><expr><name>width</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>L</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>TL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></else></if_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>lag_pred_line_yuy2</name><parameter_list>(<parameter><decl><type><name>LagarithContext</name> <modifier>*</modifier></type><name>l</name></decl></parameter>, <parameter><decl><type><name>uint8_t</name> <modifier>*</modifier></type><name>buf</name></decl></parameter>,
+<parameter><decl><type><name>int</name></type> <name>width</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>stride</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>line</name></decl></parameter>,
+<parameter><decl><type><name>int</name></type> <name>is_luma</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>int</name></type> <name>L</name></decl>, <decl><type ref="prev"/><name>TL</name></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>line</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name>L</name><operator>=</operator> <name><name>buf</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name>is_luma</name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name><name>buf</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt></block_content></block></if></if_stmt>
+<expr_stmt><expr><call><name><name>l</name><operator>-&gt;</operator><name>llviddsp</name><operator>.</operator><name>add_left_pred</name></name><argument_list>(<argument><expr><name>buf</name></expr></argument>, <argument><expr><name>buf</name></expr></argument>, <argument><expr><name>width</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name>is_luma</name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name><name>buf</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>=</operator> <name>L</name></expr>;</expr_stmt></block_content></block></if></if_stmt>
+<return>return;</return>
+</block_content>}</block></if></if_stmt>
+<if_stmt><if>if <condition>(<expr><name>line</name> <operator>==</operator> <literal type="number">1</literal></expr>)</condition> <block>{<block_content>
+<decl_stmt><decl><type><specifier>const</specifier> <name>int</name></type> <name>HEAD</name> <init>= <expr><ternary><condition><expr><name>is_luma</name></expr> ?</condition><then> <expr><literal type="number">4</literal></expr> </then><else>: <expr><literal type="number">2</literal></expr></else></ternary></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>i</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>L</name> <operator>=</operator> <name><name>buf</name><index>[<expr><name>width</name> <operator>-</operator> <name>stride</name> <operator>-</operator> <literal type="number">1</literal></expr>]</index></name></expr>;</expr_stmt>
+<expr_stmt><expr><name>TL</name> <operator>=</operator> <name><name>buf</name><index>[<expr><name>HEAD</name> <operator>-</operator> <name>stride</name> <operator>-</operator> <literal type="number">1</literal></expr>]</index></name></expr>;</expr_stmt>
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>HEAD</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<expr_stmt><expr><name>L</name> <operator>+=</operator> <name><name>buf</name><index>[<expr><name>i</name></expr>]</index></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>buf</name><index>[<expr><name>i</name></expr>]</index></name> <operator>=</operator> <name>L</name></expr>;</expr_stmt>
+</block_content>}</block></for>
+<for>for <control>(<init>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>width</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<expr_stmt><expr><name>L</name> <operator>=</operator> <call><name>mid_pred</name><argument_list>(<argument><expr><name>L</name> <operator>&amp;</operator> <literal type="number">0xFF</literal></expr></argument>, <argument><expr><name><name>buf</name><index>[<expr><name>i</name> <operator>-</operator> <name>stride</name></expr>]</index></name></expr></argument>, <argument><expr><operator>(</operator><name>L</name> <operator>+</operator> <name><name>buf</name><index>[<expr><name>i</name> <operator>-</operator> <name>stride</name></expr>]</index></name> <operator>-</operator> <name>TL</name><operator>)</operator> <operator>&amp;</operator> <literal type="number">0xFF</literal></expr></argument>)</argument_list></call> <operator>+</operator> <name><name>buf</name><index>[<expr><name>i</name></expr>]</index></name></expr>;</expr_stmt>
+<expr_stmt><expr><name>TL</name> <operator>=</operator> <name><name>buf</name><index>[<expr><name>i</name> <operator>-</operator> <name>stride</name></expr>]</index></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>buf</name><index>[<expr><name>i</name></expr>]</index></name> <operator>=</operator> <name>L</name></expr>;</expr_stmt>
+</block_content>}</block></for>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<expr_stmt><expr><name>TL</name> <operator>=</operator> <name><name>buf</name><index>[<expr><name>width</name> <operator>-</operator> <operator>(</operator><literal type="number">2</literal> <operator>*</operator> <name>stride</name><operator>)</operator> <operator>-</operator> <literal type="number">1</literal></expr>]</index></name></expr>;</expr_stmt>
+<expr_stmt><expr><name>L</name> <operator>=</operator> <name><name>buf</name><index>[<expr><name>width</name> <operator>-</operator> <name>stride</name> <operator>-</operator> <literal type="number">1</literal></expr>]</index></name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name><name>l</name><operator>-&gt;</operator><name>llviddsp</name><operator>.</operator><name>add_median_pred</name></name><argument_list>(<argument><expr><name>buf</name></expr></argument>, <argument><expr><name>buf</name> <operator>-</operator> <name>stride</name></expr></argument>, <argument><expr><name>buf</name></expr></argument>, <argument><expr><name>width</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>L</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>TL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></else></if_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>lag_decode_line</name><parameter_list>(<parameter><decl><type><name>LagarithContext</name> <modifier>*</modifier></type><name>l</name></decl></parameter>, <parameter><decl><type><name>lag_rac</name> <modifier>*</modifier></type><name>rac</name></decl></parameter>,
+<parameter><decl><type><name>uint8_t</name> <modifier>*</modifier></type><name>dst</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>width</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>stride</name></decl></parameter>,
+<parameter><decl><type><name>int</name></type> <name>esc_count</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>int</name></type> <name>i</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>ret</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>esc_count</name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name>esc_count</name> <operator>=</operator> <operator>-</operator><literal type="number">1</literal></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+
+<label><name>handle_zeros</name>:</label>
+<if_stmt><if>if <condition>(<expr><name><name>l</name><operator>-&gt;</operator><name>zeros_rem</name></name></expr>)</condition> <block>{<block_content>
+<decl_stmt><decl><type><name>int</name></type> <name>count</name> <init>= <expr><call><name>FFMIN</name><argument_list>(<argument><expr><name><name>l</name><operator>-&gt;</operator><name>zeros_rem</name></name></expr></argument>, <argument><expr><name>width</name> <operator>-</operator> <name>i</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><call><name>memset</name><argument_list>(<argument><expr><name>dst</name> <operator>+</operator> <name>i</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><name>count</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>i</name> <operator>+=</operator> <name>count</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>l</name><operator>-&gt;</operator><name>zeros_rem</name></name> <operator>-=</operator> <name>count</name></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+
+<while>while <condition>(<expr><name>i</name> <operator>&lt;</operator> <name>width</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name><name>dst</name><index>[<expr><name>i</name></expr>]</index></name> <operator>=</operator> <call><name>lag_get_rac</name><argument_list>(<argument><expr><name>rac</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>ret</name><operator>++</operator></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>dst</name><index>[<expr><name>i</name></expr>]</index></name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name><name>l</name><operator>-&gt;</operator><name>zeros</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt></block_content></block></if>
+<else>else<block type="pseudo"><block_content>
+<expr_stmt><expr><name><name>l</name><operator>-&gt;</operator><name>zeros</name></name><operator>++</operator></expr>;</expr_stmt></block_content></block></else></if_stmt>
+
+<expr_stmt><expr><name>i</name><operator>++</operator></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>l</name><operator>-&gt;</operator><name>zeros</name></name> <operator>==</operator> <name>esc_count</name></expr>)</condition> <block>{<block_content>
+<decl_stmt><decl><type><name>int</name></type> <name>index</name> <init>= <expr><call><name>lag_get_rac</name><argument_list>(<argument><expr><name>rac</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><name>ret</name><operator>++</operator></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>l</name><operator>-&gt;</operator><name>zeros</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>l</name><operator>-&gt;</operator><name>zeros_rem</name></name> <operator>=</operator> <call><name>lag_calc_zero_run</name><argument_list>(<argument><expr><name>index</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<goto>goto <name>handle_zeros</name>;</goto>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block></while>
+<return>return <expr><name>ret</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>lag_decode_zero_run_line</name><parameter_list>(<parameter><decl><type><name>LagarithContext</name> <modifier>*</modifier></type><name>l</name></decl></parameter>, <parameter><decl><type><name>uint8_t</name> <modifier>*</modifier></type><name>dst</name></decl></parameter>,
+<parameter><decl><type><specifier>const</specifier> <name>uint8_t</name> <modifier>*</modifier></type><name>src</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>uint8_t</name> <modifier>*</modifier></type><name>src_end</name></decl></parameter>,
+<parameter><decl><type><name>int</name></type> <name>width</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>esc_count</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>int</name></type> <name>i</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>count</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>uint8_t</name></type> <name>zero_run</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><specifier>const</specifier> <name>uint8_t</name> <modifier>*</modifier></type><name>src_start</name> <init>= <expr><name>src</name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>uint8_t</name></type> <name>mask1</name> <init>= <expr><operator>-</operator><operator>(</operator><name>esc_count</name> <operator>&lt;</operator> <literal type="number">2</literal><operator>)</operator></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>uint8_t</name></type> <name>mask2</name> <init>= <expr><operator>-</operator><operator>(</operator><name>esc_count</name> <operator>&lt;</operator> <literal type="number">3</literal><operator>)</operator></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>uint8_t</name> <modifier>*</modifier></type><name>end</name> <init>= <expr><name>dst</name> <operator>+</operator> <operator>(</operator><name>width</name> <operator>-</operator> <literal type="number">2</literal><operator>)</operator></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>avpriv_request_sample</name><argument_list>(<argument><expr><name><name>l</name><operator>-&gt;</operator><name>avctx</name></name></expr></argument>, <argument><expr><literal type="string">"zero_run_line"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>memset</name><argument_list>(<argument><expr><name>dst</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><name>width</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<label><name>output_zeros</name>:</label>
+<if_stmt><if>if <condition>(<expr><name><name>l</name><operator>-&gt;</operator><name>zeros_rem</name></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name>count</name> <operator>=</operator> <call><name>FFMIN</name><argument_list>(<argument><expr><name><name>l</name><operator>-&gt;</operator><name>zeros_rem</name></name></expr></argument>, <argument><expr><name>width</name> <operator>-</operator> <name>i</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name>end</name> <operator>-</operator> <name>dst</name> <operator>&lt;</operator> <name>count</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>av_log</name><argument_list>(<argument><expr><name><name>l</name><operator>-&gt;</operator><name>avctx</name></name></expr></argument>, <argument><expr><name>AV_LOG_ERROR</name></expr></argument>, <argument><expr><literal type="string">"Too many zeros remaining.\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>AVERROR_INVALIDDATA</name></expr>;</return>
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>memset</name><argument_list>(<argument><expr><name>dst</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><name>count</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>l</name><operator>-&gt;</operator><name>zeros_rem</name></name> <operator>-=</operator> <name>count</name></expr>;</expr_stmt>
+<expr_stmt><expr><name>dst</name> <operator>+=</operator> <name>count</name></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+
+<while>while <condition>(<expr><name>dst</name> <operator>&lt;</operator> <name>end</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+<while>while <condition>(<expr><operator>!</operator><name>zero_run</name> <operator>&amp;&amp;</operator> <name>dst</name> <operator>+</operator> <name>i</name> <operator>&lt;</operator> <name>end</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name>i</name><operator>++</operator></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name>i</name><operator>+</operator><literal type="number">2</literal> <operator>&gt;=</operator> <name>src_end</name> <operator>-</operator> <name>src</name></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><name>AVERROR_INVALIDDATA</name></expr>;</return></block_content></block></if></if_stmt>
+<expr_stmt><expr><name>zero_run</name> <operator>=</operator>
+<operator>!</operator><operator>(</operator><name><name>src</name><index>[<expr><name>i</name></expr>]</index></name> <operator>|</operator> <operator>(</operator><name><name>src</name><index>[<expr><name>i</name> <operator>+</operator> <literal type="number">1</literal></expr>]</index></name> <operator>&amp;</operator> <name>mask1</name><operator>)</operator> <operator>|</operator> <operator>(</operator><name><name>src</name><index>[<expr><name>i</name> <operator>+</operator> <literal type="number">2</literal></expr>]</index></name> <operator>&amp;</operator> <name>mask2</name><operator>)</operator><operator>)</operator></expr>;</expr_stmt>
+</block_content>}</block></while>
+<if_stmt><if>if <condition>(<expr><name>zero_run</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name>zero_run</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name>i</name> <operator>+=</operator> <name>esc_count</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>memcpy</name><argument_list>(<argument><expr><name>dst</name></expr></argument>, <argument><expr><name>src</name></expr></argument>, <argument><expr><name>i</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>dst</name> <operator>+=</operator> <name>i</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>l</name><operator>-&gt;</operator><name>zeros_rem</name></name> <operator>=</operator> <call><name>lag_calc_zero_run</name><argument_list>(<argument><expr><name><name>src</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>src</name> <operator>+=</operator> <name>i</name> <operator>+</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+<goto>goto <name>output_zeros</name>;</goto>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<expr_stmt><expr><call><name>memcpy</name><argument_list>(<argument><expr><name>dst</name></expr></argument>, <argument><expr><name>src</name></expr></argument>, <argument><expr><name>i</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>src</name> <operator>+=</operator> <name>i</name></expr>;</expr_stmt>
+<expr_stmt><expr><name>dst</name> <operator>+=</operator> <name>i</name></expr>;</expr_stmt>
+</block_content>}</block></else></if_stmt>
+</block_content>}</block></while>
+<return>return <expr><name>src</name> <operator>-</operator> <name>src_start</name></expr>;</return>
+</block_content>}</block></function>
+
+
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>lag_decode_arith_plane</name><parameter_list>(<parameter><decl><type><name>LagarithContext</name> <modifier>*</modifier></type><name>l</name></decl></parameter>, <parameter><decl><type><name>uint8_t</name> <modifier>*</modifier></type><name>dst</name></decl></parameter>,
+<parameter><decl><type><name>int</name></type> <name>width</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>height</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>stride</name></decl></parameter>,
+<parameter><decl><type><specifier>const</specifier> <name>uint8_t</name> <modifier>*</modifier></type><name>src</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>src_size</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>int</name></type> <name>i</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>read</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>uint32_t</name></type> <name>length</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>uint32_t</name></type> <name>offset</name> <init>= <expr><literal type="number">1</literal></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>esc_count</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>GetBitContext</name></type> <name>gb</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>lag_rac</name></type> <name>rac</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><specifier>const</specifier> <name>uint8_t</name> <modifier>*</modifier></type><name>src_end</name> <init>= <expr><name>src</name> <operator>+</operator> <name>src_size</name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>ret</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>rac</name><operator>.</operator><name>avctx</name></name> <operator>=</operator> <name><name>l</name><operator>-&gt;</operator><name>avctx</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>l</name><operator>-&gt;</operator><name>zeros</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<if_stmt><if>if<condition>(<expr><name>src_size</name> <operator>&lt;</operator> <literal type="number">2</literal></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><name>AVERROR_INVALIDDATA</name></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>esc_count</name> <operator>=</operator> <name><name>src</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name>esc_count</name> <operator>&lt;</operator> <literal type="number">4</literal></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name>length</name> <operator>=</operator> <name>width</name> <operator>*</operator> <name>height</name></expr>;</expr_stmt>
+<if_stmt><if>if<condition>(<expr><name>src_size</name> <operator>&lt;</operator> <literal type="number">5</literal></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><name>AVERROR_INVALIDDATA</name></expr>;</return></block_content></block></if></if_stmt>
+<if_stmt><if>if <condition>(<expr><name>esc_count</name> <operator>&amp;&amp;</operator> <call><name>AV_RL32</name><argument_list>(<argument><expr><name>src</name> <operator>+</operator> <literal type="number">1</literal></expr></argument>)</argument_list></call> <operator>&lt;</operator> <name>length</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name>length</name> <operator>=</operator> <call><name>AV_RL32</name><argument_list>(<argument><expr><name>src</name> <operator>+</operator> <literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>offset</name> <operator>+=</operator> <literal type="number">4</literal></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>(</operator><name>ret</name> <operator>=</operator> <call><name>init_get_bits8</name><argument_list>(<argument><expr><operator>&amp;</operator><name>gb</name></expr></argument>, <argument><expr><name>src</name> <operator>+</operator> <name>offset</name></expr></argument>, <argument><expr><name>src_size</name> <operator>-</operator> <name>offset</name></expr></argument>)</argument_list></call><operator>)</operator> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><name>ret</name></expr>;</return></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>lag_read_prob_header</name><argument_list>(<argument><expr><operator>&amp;</operator><name>rac</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>gb</name></expr></argument>)</argument_list></call> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><operator>-</operator><literal type="number">1</literal></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>ff_lag_rac_init</name><argument_list>(<argument><expr><operator>&amp;</operator><name>rac</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>gb</name></expr></argument>, <argument><expr><name>length</name> <operator>-</operator> <name>stride</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>height</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name><name>rac</name><operator>.</operator><name>overread</name></name> <operator>&gt;</operator> <name>MAX_OVERREAD</name></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><name>AVERROR_INVALIDDATA</name></expr>;</return></block_content></block></if></if_stmt>
+<expr_stmt><expr><name>read</name> <operator>+=</operator> <call><name>lag_decode_line</name><argument_list>(<argument><expr><name>l</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>rac</name></expr></argument>, <argument><expr><name>dst</name> <operator>+</operator> <operator>(</operator><name>i</name> <operator>*</operator> <name>stride</name><operator>)</operator></expr></argument>, <argument><expr><name>width</name></expr></argument>,
+<argument><expr><name>stride</name></expr></argument>, <argument><expr><name>esc_count</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></for>
+
+<if_stmt><if>if <condition>(<expr><name>read</name> <operator>&gt;</operator> <name>length</name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>av_log</name><argument_list>(<argument><expr><name><name>l</name><operator>-&gt;</operator><name>avctx</name></name></expr></argument>, <argument><expr><name>AV_LOG_WARNING</name></expr></argument>,
+<argument><expr><literal type="string">"Output more bytes than length (%d of %"</literal><name>PRIu32</name><literal type="string">")\n"</literal></expr></argument>, <argument><expr><name>read</name></expr></argument>,
+<argument><expr><name>length</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+</block_content>}</block></if> <if type="elseif">else if <condition>(<expr><name>esc_count</name> <operator>&lt;</operator> <literal type="number">8</literal></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name>esc_count</name> <operator>-=</operator> <literal type="number">4</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name>src</name> <operator>++</operator></expr>;</expr_stmt>
+<expr_stmt><expr><name>src_size</name> <operator>--</operator></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name>esc_count</name> <operator>&gt;</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>height</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<decl_stmt><decl><type><name>int</name></type> <name>res</name> <init>= <expr><call><name>lag_decode_zero_run_line</name><argument_list>(<argument><expr><name>l</name></expr></argument>, <argument><expr><name>dst</name> <operator>+</operator> <operator>(</operator><name>i</name> <operator>*</operator> <name>stride</name><operator>)</operator></expr></argument>, <argument><expr><name>src</name></expr></argument>,
+<argument><expr><name>src_end</name></expr></argument>, <argument><expr><name>width</name></expr></argument>, <argument><expr><name>esc_count</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<if_stmt><if>if <condition>(<expr><name>res</name> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><name>res</name></expr>;</return></block_content></block></if></if_stmt>
+<expr_stmt><expr><name>src</name> <operator>+=</operator> <name>res</name></expr>;</expr_stmt>
+</block_content>}</block></for>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name>src_size</name> <operator>&lt;</operator> <name>width</name> <operator>*</operator> <name>height</name></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><name>AVERROR_INVALIDDATA</name></expr>;</return></block_content></block></if></if_stmt> 
+
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>height</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<expr_stmt><expr><call><name>memcpy</name><argument_list>(<argument><expr><name>dst</name> <operator>+</operator> <operator>(</operator><name>i</name> <operator>*</operator> <name>stride</name><operator>)</operator></expr></argument>, <argument><expr><name>src</name></expr></argument>, <argument><expr><name>width</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>src</name> <operator>+=</operator> <name>width</name></expr>;</expr_stmt>
+</block_content>}</block></for>
+</block_content>}</block></else></if_stmt>
+</block_content>}</block></if> <if type="elseif">else if <condition>(<expr><name>esc_count</name> <operator>==</operator> <literal type="number">0xff</literal></expr>)</condition> <block>{<block_content>
+
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>height</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>memset</name><argument_list>(<argument><expr><name>dst</name> <operator>+</operator> <name>i</name> <operator>*</operator> <name>stride</name></expr></argument>, <argument><expr><name><name>src</name><index>[<expr><literal type="number">1</literal></expr>]</index></name></expr></argument>, <argument><expr><name>width</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></for>
+
+
+
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<expr_stmt><expr><call><name>av_log</name><argument_list>(<argument><expr><name><name>l</name><operator>-&gt;</operator><name>avctx</name></name></expr></argument>, <argument><expr><name>AV_LOG_ERROR</name></expr></argument>,
+<argument><expr><literal type="string">"Invalid zero run escape code! (%#x)\n"</literal></expr></argument>, <argument><expr><name>esc_count</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><operator>-</operator><literal type="number">1</literal></expr>;</return>
+</block_content>}</block></else></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>l</name><operator>-&gt;</operator><name>avctx</name><operator>-&gt;</operator><name>pix_fmt</name></name> <operator>!=</operator> <name>AV_PIX_FMT_YUV422P</name></expr>)</condition> <block>{<block_content>
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>height</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<expr_stmt><expr><call><name>lag_pred_line</name><argument_list>(<argument><expr><name>l</name></expr></argument>, <argument><expr><name>dst</name></expr></argument>, <argument><expr><name>width</name></expr></argument>, <argument><expr><name>stride</name></expr></argument>, <argument><expr><name>i</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>dst</name> <operator>+=</operator> <name>stride</name></expr>;</expr_stmt>
+</block_content>}</block></for>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>height</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<expr_stmt><expr><call><name>lag_pred_line_yuy2</name><argument_list>(<argument><expr><name>l</name></expr></argument>, <argument><expr><name>dst</name></expr></argument>, <argument><expr><name>width</name></expr></argument>, <argument><expr><name>stride</name></expr></argument>, <argument><expr><name>i</name></expr></argument>,
+<argument><expr><name>width</name> <operator>==</operator> <name><name>l</name><operator>-&gt;</operator><name>avctx</name><operator>-&gt;</operator><name>width</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>dst</name> <operator>+=</operator> <name>stride</name></expr>;</expr_stmt>
+</block_content>}</block></for>
+</block_content>}</block></else></if_stmt>
+
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+</block_content>}</block></function>
+
+
+
+
+
+
+
+
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>lag_decode_frame</name><parameter_list>(<parameter><decl><type><name>AVCodecContext</name> <modifier>*</modifier></type><name>avctx</name></decl></parameter>,
+<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>, <parameter><decl><type><name>int</name> <modifier>*</modifier></type><name>got_frame</name></decl></parameter>, <parameter><decl><type><name>AVPacket</name> <modifier>*</modifier></type><name>avpkt</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><specifier>const</specifier> <name>uint8_t</name> <modifier>*</modifier></type><name>buf</name> <init>= <expr><name><name>avpkt</name><operator>-&gt;</operator><name>data</name></name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>unsigned</name> <name>int</name></type> <name>buf_size</name> <init>= <expr><name><name>avpkt</name><operator>-&gt;</operator><name>size</name></name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>LagarithContext</name> <modifier>*</modifier></type><name>l</name> <init>= <expr><name><name>avctx</name><operator>-&gt;</operator><name>priv_data</name></name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>ThreadFrame</name></type> <name>frame</name> <init>= <expr><block>{ <expr><operator>.</operator><name>f</name> <operator>=</operator> <name>data</name></expr> }</block></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>AVFrame</name> <modifier>*</modifier><specifier>const</specifier></type> <name>p</name> <init>= <expr><name>data</name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>uint8_t</name></type> <name>frametype</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>uint32_t</name></type> <name>offset_gu</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>, <decl><type ref="prev"/><name>offset_bv</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>, <decl><type ref="prev"/><name>offset_ry</name> <init>= <expr><literal type="number">9</literal></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>uint32_t</name></type> <name><name>offs</name><index>[<expr><literal type="number">4</literal></expr>]</index></name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>uint8_t</name> <modifier>*</modifier></type><name><name>srcs</name><index>[<expr><literal type="number">4</literal></expr>]</index></name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>i</name></decl>, <decl><type ref="prev"/><name>j</name></decl>, <decl><type ref="prev"/><name>planes</name> <init>= <expr><literal type="number">3</literal></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>ret</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>p</name><operator>-&gt;</operator><name>key_frame</name></name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>p</name><operator>-&gt;</operator><name>pict_type</name></name> <operator>=</operator> <name>AV_PICTURE_TYPE_I</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>frametype</name> <operator>=</operator> <name><name>buf</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>offset_gu</name> <operator>=</operator> <call><name>AV_RL32</name><argument_list>(<argument><expr><name>buf</name> <operator>+</operator> <literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>offset_bv</name> <operator>=</operator> <call><name>AV_RL32</name><argument_list>(<argument><expr><name>buf</name> <operator>+</operator> <literal type="number">5</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<switch>switch <condition>(<expr><name>frametype</name></expr>)</condition> <block>{<block_content>
+<case>case <expr><name>FRAME_SOLID_RGBA</name></expr>:</case>
+<expr_stmt><expr><name><name>avctx</name><operator>-&gt;</operator><name>pix_fmt</name></name> <operator>=</operator> <name>AV_PIX_FMT_GBRAP</name></expr>;</expr_stmt>
+<case>case <expr><name>FRAME_SOLID_GRAY</name></expr>:</case>
+<if_stmt><if>if <condition>(<expr><name>frametype</name> <operator>==</operator> <name>FRAME_SOLID_GRAY</name></expr>)</condition><block type="pseudo"><block_content>
+<if_stmt><if>if <condition>(<expr><name><name>avctx</name><operator>-&gt;</operator><name>bits_per_coded_sample</name></name> <operator>==</operator> <literal type="number">24</literal></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name><name>avctx</name><operator>-&gt;</operator><name>pix_fmt</name></name> <operator>=</operator> <name>AV_PIX_FMT_GBRP</name></expr>;</expr_stmt>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<expr_stmt><expr><name><name>avctx</name><operator>-&gt;</operator><name>pix_fmt</name></name> <operator>=</operator> <name>AV_PIX_FMT_GBRAP</name></expr>;</expr_stmt>
+<expr_stmt><expr><name>planes</name> <operator>=</operator> <literal type="number">4</literal></expr>;</expr_stmt>
+</block_content>}</block></else></if_stmt></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>(</operator><name>ret</name> <operator>=</operator> <call><name>ff_thread_get_buffer</name><argument_list>(<argument><expr><name>avctx</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>frame</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call><operator>)</operator> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><name>ret</name></expr>;</return></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>frametype</name> <operator>==</operator> <name>FRAME_SOLID_RGBA</name></expr>)</condition> <block>{<block_content>
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name><name>avctx</name><operator>-&gt;</operator><name>height</name></name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<expr_stmt><expr><call><name>memset</name><argument_list>(<argument><expr><name><name>p</name><operator>-&gt;</operator><name>data</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>+</operator> <name>i</name> <operator>*</operator> <name><name>p</name><operator>-&gt;</operator><name>linesize</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>, <argument><expr><name><name>buf</name><index>[<expr><literal type="number">2</literal></expr>]</index></name></expr></argument>, <argument><expr><name><name>avctx</name><operator>-&gt;</operator><name>width</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>memset</name><argument_list>(<argument><expr><name><name>p</name><operator>-&gt;</operator><name>data</name><index>[<expr><literal type="number">1</literal></expr>]</index></name> <operator>+</operator> <name>i</name> <operator>*</operator> <name><name>p</name><operator>-&gt;</operator><name>linesize</name><index>[<expr><literal type="number">1</literal></expr>]</index></name></expr></argument>, <argument><expr><name><name>buf</name><index>[<expr><literal type="number">1</literal></expr>]</index></name></expr></argument>, <argument><expr><name><name>avctx</name><operator>-&gt;</operator><name>width</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>memset</name><argument_list>(<argument><expr><name><name>p</name><operator>-&gt;</operator><name>data</name><index>[<expr><literal type="number">2</literal></expr>]</index></name> <operator>+</operator> <name>i</name> <operator>*</operator> <name><name>p</name><operator>-&gt;</operator><name>linesize</name><index>[<expr><literal type="number">2</literal></expr>]</index></name></expr></argument>, <argument><expr><name><name>buf</name><index>[<expr><literal type="number">3</literal></expr>]</index></name></expr></argument>, <argument><expr><name><name>avctx</name><operator>-&gt;</operator><name>width</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>memset</name><argument_list>(<argument><expr><name><name>p</name><operator>-&gt;</operator><name>data</name><index>[<expr><literal type="number">3</literal></expr>]</index></name> <operator>+</operator> <name>i</name> <operator>*</operator> <name><name>p</name><operator>-&gt;</operator><name>linesize</name><index>[<expr><literal type="number">3</literal></expr>]</index></name></expr></argument>, <argument><expr><name><name>buf</name><index>[<expr><literal type="number">4</literal></expr>]</index></name></expr></argument>, <argument><expr><name><name>avctx</name><operator>-&gt;</operator><name>width</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></for>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name><name>avctx</name><operator>-&gt;</operator><name>height</name></name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<for>for <control>(<init><expr><name>j</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>j</name> <operator>&lt;</operator> <name>planes</name></expr>;</condition> <incr><expr><name>j</name><operator>++</operator></expr></incr>)</control><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>memset</name><argument_list>(<argument><expr><name><name>p</name><operator>-&gt;</operator><name>data</name><index>[<expr><name>j</name></expr>]</index></name> <operator>+</operator> <name>i</name> <operator>*</operator> <name><name>p</name><operator>-&gt;</operator><name>linesize</name><index>[<expr><name>j</name></expr>]</index></name></expr></argument>, <argument><expr><name><name>buf</name><index>[<expr><literal type="number">1</literal></expr>]</index></name></expr></argument>, <argument><expr><name><name>avctx</name><operator>-&gt;</operator><name>width</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></for>
+</block_content>}</block></for>
+</block_content>}</block></else></if_stmt>
+<break>break;</break>
+<case>case <expr><name>FRAME_SOLID_COLOR</name></expr>:</case>
+<if_stmt><if>if <condition>(<expr><name><name>avctx</name><operator>-&gt;</operator><name>bits_per_coded_sample</name></name> <operator>==</operator> <literal type="number">24</literal></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name><name>avctx</name><operator>-&gt;</operator><name>pix_fmt</name></name> <operator>=</operator> <name>AV_PIX_FMT_GBRP</name></expr>;</expr_stmt>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<expr_stmt><expr><name><name>avctx</name><operator>-&gt;</operator><name>pix_fmt</name></name> <operator>=</operator> <name>AV_PIX_FMT_GBRAP</name></expr>;</expr_stmt>
+</block_content>}</block></else></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>(</operator><name>ret</name> <operator>=</operator> <call><name>ff_thread_get_buffer</name><argument_list>(<argument><expr><name>avctx</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>frame</name></expr></argument>,<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call><operator>)</operator> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><name>ret</name></expr>;</return></block_content></block></if></if_stmt>
+
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name><name>avctx</name><operator>-&gt;</operator><name>height</name></name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<expr_stmt><expr><call><name>memset</name><argument_list>(<argument><expr><name><name>p</name><operator>-&gt;</operator><name>data</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>+</operator> <name>i</name> <operator>*</operator> <name><name>p</name><operator>-&gt;</operator><name>linesize</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>, <argument><expr><name><name>buf</name><index>[<expr><literal type="number">2</literal></expr>]</index></name></expr></argument>, <argument><expr><name><name>avctx</name><operator>-&gt;</operator><name>width</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>memset</name><argument_list>(<argument><expr><name><name>p</name><operator>-&gt;</operator><name>data</name><index>[<expr><literal type="number">1</literal></expr>]</index></name> <operator>+</operator> <name>i</name> <operator>*</operator> <name><name>p</name><operator>-&gt;</operator><name>linesize</name><index>[<expr><literal type="number">1</literal></expr>]</index></name></expr></argument>, <argument><expr><name><name>buf</name><index>[<expr><literal type="number">1</literal></expr>]</index></name></expr></argument>, <argument><expr><name><name>avctx</name><operator>-&gt;</operator><name>width</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>memset</name><argument_list>(<argument><expr><name><name>p</name><operator>-&gt;</operator><name>data</name><index>[<expr><literal type="number">2</literal></expr>]</index></name> <operator>+</operator> <name>i</name> <operator>*</operator> <name><name>p</name><operator>-&gt;</operator><name>linesize</name><index>[<expr><literal type="number">2</literal></expr>]</index></name></expr></argument>, <argument><expr><name><name>buf</name><index>[<expr><literal type="number">3</literal></expr>]</index></name></expr></argument>, <argument><expr><name><name>avctx</name><operator>-&gt;</operator><name>width</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>avctx</name><operator>-&gt;</operator><name>pix_fmt</name></name> <operator>==</operator> <name>AV_PIX_FMT_GBRAP</name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>memset</name><argument_list>(<argument><expr><name><name>p</name><operator>-&gt;</operator><name>data</name><index>[<expr><literal type="number">3</literal></expr>]</index></name> <operator>+</operator> <name>i</name> <operator>*</operator> <name><name>p</name><operator>-&gt;</operator><name>linesize</name><index>[<expr><literal type="number">3</literal></expr>]</index></name></expr></argument>, <argument><expr><literal type="number">0xFFu</literal></expr></argument>, <argument><expr><name><name>avctx</name><operator>-&gt;</operator><name>width</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+</block_content>}</block></for>
+<break>break;</break>
+<case>case <expr><name>FRAME_ARITH_RGBA</name></expr>:</case>
+<expr_stmt><expr><name><name>avctx</name><operator>-&gt;</operator><name>pix_fmt</name></name> <operator>=</operator> <name>AV_PIX_FMT_GBRAP</name></expr>;</expr_stmt>
+<expr_stmt><expr><name>planes</name> <operator>=</operator> <literal type="number">4</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name>offset_ry</name> <operator>+=</operator> <literal type="number">4</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>offs</name><index>[<expr><literal type="number">3</literal></expr>]</index></name> <operator>=</operator> <call><name>AV_RL32</name><argument_list>(<argument><expr><name>buf</name> <operator>+</operator> <literal type="number">9</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<case>case <expr><name>FRAME_ARITH_RGB24</name></expr>:</case>
+<case>case <expr><name>FRAME_U_RGB24</name></expr>:</case>
+<if_stmt><if>if <condition>(<expr><name>frametype</name> <operator>==</operator> <name>FRAME_ARITH_RGB24</name> <operator>||</operator> <name>frametype</name> <operator>==</operator> <name>FRAME_U_RGB24</name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name><name>avctx</name><operator>-&gt;</operator><name>pix_fmt</name></name> <operator>=</operator> <name>AV_PIX_FMT_GBRP</name></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>(</operator><name>ret</name> <operator>=</operator> <call><name>ff_thread_get_buffer</name><argument_list>(<argument><expr><name>avctx</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>frame</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call><operator>)</operator> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><name>ret</name></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name><name>offs</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>=</operator> <name>offset_bv</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>offs</name><index>[<expr><literal type="number">1</literal></expr>]</index></name> <operator>=</operator> <name>offset_gu</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>offs</name><index>[<expr><literal type="number">2</literal></expr>]</index></name> <operator>=</operator> <name>offset_ry</name></expr>;</expr_stmt>
+
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>planes</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control><block type="pseudo"><block_content>
+<expr_stmt><expr><name><name>srcs</name><index>[<expr><name>i</name></expr>]</index></name> <operator>=</operator> <name><name>p</name><operator>-&gt;</operator><name>data</name><index>[<expr><name>i</name></expr>]</index></name> <operator>+</operator> <operator>(</operator><name><name>avctx</name><operator>-&gt;</operator><name>height</name></name> <operator>-</operator> <literal type="number">1</literal><operator>)</operator> <operator>*</operator> <name><name>p</name><operator>-&gt;</operator><name>linesize</name><index>[<expr><name>i</name></expr>]</index></name></expr>;</expr_stmt></block_content></block></for>
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>planes</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control><block type="pseudo"><block_content>
+<if_stmt><if>if <condition>(<expr><name>buf_size</name> <operator>&lt;=</operator> <name><name>offs</name><index>[<expr><name>i</name></expr>]</index></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>av_log</name><argument_list>(<argument><expr><name>avctx</name></expr></argument>, <argument><expr><name>AV_LOG_ERROR</name></expr></argument>,
+<argument><expr><literal type="string">"Invalid frame offsets\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>AVERROR_INVALIDDATA</name></expr>;</return>
+</block_content>}</block></if></if_stmt></block_content></block></for>
+
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>planes</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>lag_decode_arith_plane</name><argument_list>(<argument><expr><name>l</name></expr></argument>, <argument><expr><name><name>srcs</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>,
+<argument><expr><name><name>avctx</name><operator>-&gt;</operator><name>width</name></name></expr></argument>, <argument><expr><name><name>avctx</name><operator>-&gt;</operator><name>height</name></name></expr></argument>,
+<argument><expr><operator>-</operator><name><name>p</name><operator>-&gt;</operator><name>linesize</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>, <argument><expr><name>buf</name> <operator>+</operator> <name><name>offs</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>,
+<argument><expr><name>buf_size</name> <operator>-</operator> <name><name>offs</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></for>
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name><name>avctx</name><operator>-&gt;</operator><name>height</name></name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<expr_stmt><expr><call><name><name>l</name><operator>-&gt;</operator><name>llviddsp</name><operator>.</operator><name>add_bytes</name></name><argument_list>(<argument><expr><name><name>p</name><operator>-&gt;</operator><name>data</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>+</operator> <name>i</name> <operator>*</operator> <name><name>p</name><operator>-&gt;</operator><name>linesize</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>, <argument><expr><name><name>p</name><operator>-&gt;</operator><name>data</name><index>[<expr><literal type="number">1</literal></expr>]</index></name> <operator>+</operator> <name>i</name> <operator>*</operator> <name><name>p</name><operator>-&gt;</operator><name>linesize</name><index>[<expr><literal type="number">1</literal></expr>]</index></name></expr></argument>, <argument><expr><name><name>avctx</name><operator>-&gt;</operator><name>width</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name><name>l</name><operator>-&gt;</operator><name>llviddsp</name><operator>.</operator><name>add_bytes</name></name><argument_list>(<argument><expr><name><name>p</name><operator>-&gt;</operator><name>data</name><index>[<expr><literal type="number">2</literal></expr>]</index></name> <operator>+</operator> <name>i</name> <operator>*</operator> <name><name>p</name><operator>-&gt;</operator><name>linesize</name><index>[<expr><literal type="number">2</literal></expr>]</index></name></expr></argument>, <argument><expr><name><name>p</name><operator>-&gt;</operator><name>data</name><index>[<expr><literal type="number">1</literal></expr>]</index></name> <operator>+</operator> <name>i</name> <operator>*</operator> <name><name>p</name><operator>-&gt;</operator><name>linesize</name><index>[<expr><literal type="number">1</literal></expr>]</index></name></expr></argument>, <argument><expr><name><name>avctx</name><operator>-&gt;</operator><name>width</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></for>
+<expr_stmt><expr><call><name>FFSWAP</name><argument_list>(<argument><expr><name>uint8_t</name><operator>*</operator></expr></argument>, <argument><expr><name><name>p</name><operator>-&gt;</operator><name>data</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>, <argument><expr><name><name>p</name><operator>-&gt;</operator><name>data</name><index>[<expr><literal type="number">1</literal></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>FFSWAP</name><argument_list>(<argument><expr><name>int</name></expr></argument>, <argument><expr><name><name>p</name><operator>-&gt;</operator><name>linesize</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>, <argument><expr><name><name>p</name><operator>-&gt;</operator><name>linesize</name><index>[<expr><literal type="number">1</literal></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>FFSWAP</name><argument_list>(<argument><expr><name>uint8_t</name><operator>*</operator></expr></argument>, <argument><expr><name><name>p</name><operator>-&gt;</operator><name>data</name><index>[<expr><literal type="number">2</literal></expr>]</index></name></expr></argument>, <argument><expr><name><name>p</name><operator>-&gt;</operator><name>data</name><index>[<expr><literal type="number">1</literal></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>FFSWAP</name><argument_list>(<argument><expr><name>int</name></expr></argument>, <argument><expr><name><name>p</name><operator>-&gt;</operator><name>linesize</name><index>[<expr><literal type="number">2</literal></expr>]</index></name></expr></argument>, <argument><expr><name><name>p</name><operator>-&gt;</operator><name>linesize</name><index>[<expr><literal type="number">1</literal></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>FRAME_ARITH_YUY2</name></expr>:</case>
+<expr_stmt><expr><name><name>avctx</name><operator>-&gt;</operator><name>pix_fmt</name></name> <operator>=</operator> <name>AV_PIX_FMT_YUV422P</name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>(</operator><name>ret</name> <operator>=</operator> <call><name>ff_thread_get_buffer</name><argument_list>(<argument><expr><name>avctx</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>frame</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call><operator>)</operator> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><name>ret</name></expr>;</return></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>offset_ry</name> <operator>&gt;=</operator> <name>buf_size</name> <operator>||</operator>
+<name>offset_gu</name> <operator>&gt;=</operator> <name>buf_size</name> <operator>||</operator>
+<name>offset_bv</name> <operator>&gt;=</operator> <name>buf_size</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>av_log</name><argument_list>(<argument><expr><name>avctx</name></expr></argument>, <argument><expr><name>AV_LOG_ERROR</name></expr></argument>,
+<argument><expr><literal type="string">"Invalid frame offsets\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>AVERROR_INVALIDDATA</name></expr>;</return>
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>lag_decode_arith_plane</name><argument_list>(<argument><expr><name>l</name></expr></argument>, <argument><expr><name><name>p</name><operator>-&gt;</operator><name>data</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>, <argument><expr><name><name>avctx</name><operator>-&gt;</operator><name>width</name></name></expr></argument>, <argument><expr><name><name>avctx</name><operator>-&gt;</operator><name>height</name></name></expr></argument>,
+<argument><expr><name><name>p</name><operator>-&gt;</operator><name>linesize</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>, <argument><expr><name>buf</name> <operator>+</operator> <name>offset_ry</name></expr></argument>,
+<argument><expr><name>buf_size</name> <operator>-</operator> <name>offset_ry</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>lag_decode_arith_plane</name><argument_list>(<argument><expr><name>l</name></expr></argument>, <argument><expr><name><name>p</name><operator>-&gt;</operator><name>data</name><index>[<expr><literal type="number">1</literal></expr>]</index></name></expr></argument>, <argument><expr><operator>(</operator><name><name>avctx</name><operator>-&gt;</operator><name>width</name></name> <operator>+</operator> <literal type="number">1</literal><operator>)</operator> <operator>/</operator> <literal type="number">2</literal></expr></argument>,
+<argument><expr><name><name>avctx</name><operator>-&gt;</operator><name>height</name></name></expr></argument>, <argument><expr><name><name>p</name><operator>-&gt;</operator><name>linesize</name><index>[<expr><literal type="number">1</literal></expr>]</index></name></expr></argument>,
+<argument><expr><name>buf</name> <operator>+</operator> <name>offset_gu</name></expr></argument>, <argument><expr><name>buf_size</name> <operator>-</operator> <name>offset_gu</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>lag_decode_arith_plane</name><argument_list>(<argument><expr><name>l</name></expr></argument>, <argument><expr><name><name>p</name><operator>-&gt;</operator><name>data</name><index>[<expr><literal type="number">2</literal></expr>]</index></name></expr></argument>, <argument><expr><operator>(</operator><name><name>avctx</name><operator>-&gt;</operator><name>width</name></name> <operator>+</operator> <literal type="number">1</literal><operator>)</operator> <operator>/</operator> <literal type="number">2</literal></expr></argument>,
+<argument><expr><name><name>avctx</name><operator>-&gt;</operator><name>height</name></name></expr></argument>, <argument><expr><name><name>p</name><operator>-&gt;</operator><name>linesize</name><index>[<expr><literal type="number">2</literal></expr>]</index></name></expr></argument>,
+<argument><expr><name>buf</name> <operator>+</operator> <name>offset_bv</name></expr></argument>, <argument><expr><name>buf_size</name> <operator>-</operator> <name>offset_bv</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>FRAME_ARITH_YV12</name></expr>:</case>
+<expr_stmt><expr><name><name>avctx</name><operator>-&gt;</operator><name>pix_fmt</name></name> <operator>=</operator> <name>AV_PIX_FMT_YUV420P</name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>(</operator><name>ret</name> <operator>=</operator> <call><name>ff_thread_get_buffer</name><argument_list>(<argument><expr><name>avctx</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>frame</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call><operator>)</operator> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><name>ret</name></expr>;</return></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>offset_ry</name> <operator>&gt;=</operator> <name>buf_size</name> <operator>||</operator>
+<name>offset_gu</name> <operator>&gt;=</operator> <name>buf_size</name> <operator>||</operator>
+<name>offset_bv</name> <operator>&gt;=</operator> <name>buf_size</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>av_log</name><argument_list>(<argument><expr><name>avctx</name></expr></argument>, <argument><expr><name>AV_LOG_ERROR</name></expr></argument>,
+<argument><expr><literal type="string">"Invalid frame offsets\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>AVERROR_INVALIDDATA</name></expr>;</return>
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>lag_decode_arith_plane</name><argument_list>(<argument><expr><name>l</name></expr></argument>, <argument><expr><name><name>p</name><operator>-&gt;</operator><name>data</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>, <argument><expr><name><name>avctx</name><operator>-&gt;</operator><name>width</name></name></expr></argument>, <argument><expr><name><name>avctx</name><operator>-&gt;</operator><name>height</name></name></expr></argument>,
+<argument><expr><name><name>p</name><operator>-&gt;</operator><name>linesize</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>, <argument><expr><name>buf</name> <operator>+</operator> <name>offset_ry</name></expr></argument>,
+<argument><expr><name>buf_size</name> <operator>-</operator> <name>offset_ry</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>lag_decode_arith_plane</name><argument_list>(<argument><expr><name>l</name></expr></argument>, <argument><expr><name><name>p</name><operator>-&gt;</operator><name>data</name><index>[<expr><literal type="number">2</literal></expr>]</index></name></expr></argument>, <argument><expr><operator>(</operator><name><name>avctx</name><operator>-&gt;</operator><name>width</name></name> <operator>+</operator> <literal type="number">1</literal><operator>)</operator> <operator>/</operator> <literal type="number">2</literal></expr></argument>,
+<argument><expr><operator>(</operator><name><name>avctx</name><operator>-&gt;</operator><name>height</name></name> <operator>+</operator> <literal type="number">1</literal><operator>)</operator> <operator>/</operator> <literal type="number">2</literal></expr></argument>, <argument><expr><name><name>p</name><operator>-&gt;</operator><name>linesize</name><index>[<expr><literal type="number">2</literal></expr>]</index></name></expr></argument>,
+<argument><expr><name>buf</name> <operator>+</operator> <name>offset_gu</name></expr></argument>, <argument><expr><name>buf_size</name> <operator>-</operator> <name>offset_gu</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>lag_decode_arith_plane</name><argument_list>(<argument><expr><name>l</name></expr></argument>, <argument><expr><name><name>p</name><operator>-&gt;</operator><name>data</name><index>[<expr><literal type="number">1</literal></expr>]</index></name></expr></argument>, <argument><expr><operator>(</operator><name><name>avctx</name><operator>-&gt;</operator><name>width</name></name> <operator>+</operator> <literal type="number">1</literal><operator>)</operator> <operator>/</operator> <literal type="number">2</literal></expr></argument>,
+<argument><expr><operator>(</operator><name><name>avctx</name><operator>-&gt;</operator><name>height</name></name> <operator>+</operator> <literal type="number">1</literal><operator>)</operator> <operator>/</operator> <literal type="number">2</literal></expr></argument>, <argument><expr><name><name>p</name><operator>-&gt;</operator><name>linesize</name><index>[<expr><literal type="number">1</literal></expr>]</index></name></expr></argument>,
+<argument><expr><name>buf</name> <operator>+</operator> <name>offset_bv</name></expr></argument>, <argument><expr><name>buf_size</name> <operator>-</operator> <name>offset_bv</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+<default>default:</default>
+<expr_stmt><expr><call><name>av_log</name><argument_list>(<argument><expr><name>avctx</name></expr></argument>, <argument><expr><name>AV_LOG_ERROR</name></expr></argument>,
+<argument><expr><literal type="string">"Unsupported Lagarith frame type: %#"</literal><name>PRIx8</name><literal type="string">"\n"</literal></expr></argument>, <argument><expr><name>frametype</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>AVERROR_PATCHWELCOME</name></expr>;</return>
+</block_content>}</block></switch>
+
+<expr_stmt><expr><operator>*</operator><name>got_frame</name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+
+<return>return <expr><name>buf_size</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>av_cold</name> <name>int</name></type> <name>lag_decode_init</name><parameter_list>(<parameter><decl><type><name>AVCodecContext</name> <modifier>*</modifier></type><name>avctx</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>LagarithContext</name> <modifier>*</modifier></type><name>l</name> <init>= <expr><name><name>avctx</name><operator>-&gt;</operator><name>priv_data</name></name></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><name><name>l</name><operator>-&gt;</operator><name>avctx</name></name> <operator>=</operator> <name>avctx</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>ff_llviddsp_init</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>l</name><operator>-&gt;</operator><name>llviddsp</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+</block_content>}</block></function>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><name>HAVE_THREADS</name></expr></cpp:if>
+<function><type><specifier>static</specifier> <name>av_cold</name> <name>int</name></type> <name>lag_decode_init_thread_copy</name><parameter_list>(<parameter><decl><type><name>AVCodecContext</name> <modifier>*</modifier></type><name>avctx</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>LagarithContext</name> <modifier>*</modifier></type><name>l</name> <init>= <expr><name><name>avctx</name><operator>-&gt;</operator><name>priv_data</name></name></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><name><name>l</name><operator>-&gt;</operator><name>avctx</name></name> <operator>=</operator> <name>avctx</name></expr>;</expr_stmt>
+
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+</block_content>}</block></function>
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+<decl_stmt><decl><type><name>AVCodec</name></type> <name>ff_lagarith_decoder</name> <init>= <expr><block>{
+<expr><operator>.</operator><name>name</name> <operator>=</operator> <literal type="string">"lagarith"</literal></expr>,
+<expr><operator>.</operator><name>long_name</name> <operator>=</operator> <call><name>NULL_IF_CONFIG_SMALL</name><argument_list>(<argument><expr><literal type="string">"Lagarith lossless"</literal></expr></argument>)</argument_list></call></expr>,
+<expr><operator>.</operator><name>type</name> <operator>=</operator> <name>AVMEDIA_TYPE_VIDEO</name></expr>,
+<expr><operator>.</operator><name>id</name> <operator>=</operator> <name>AV_CODEC_ID_LAGARITH</name></expr>,
+<expr><operator>.</operator><name>priv_data_size</name> <operator>=</operator> <sizeof>sizeof<argument_list>(<argument><expr><name>LagarithContext</name></expr></argument>)</argument_list></sizeof></expr>,
+<expr><operator>.</operator><name>init</name> <operator>=</operator> <name>lag_decode_init</name></expr>,
+<expr><operator>.</operator><name>init_thread_copy</name> <operator>=</operator> <call><name>ONLY_IF_THREADS_ENABLED</name><argument_list>(<argument><expr><name>lag_decode_init_thread_copy</name></expr></argument>)</argument_list></call></expr>,
+<expr><operator>.</operator><name>decode</name> <operator>=</operator> <name>lag_decode_frame</name></expr>,
+<expr><operator>.</operator><name>capabilities</name> <operator>=</operator> <name>AV_CODEC_CAP_DR1</name> <operator>|</operator> <name>AV_CODEC_CAP_FRAME_THREADS</name></expr>,
+}</block></expr></init></decl>;</decl_stmt>
+</unit>

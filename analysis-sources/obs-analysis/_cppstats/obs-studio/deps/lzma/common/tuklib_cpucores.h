@@ -1,0 +1,5 @@
+#include "tuklib_common.h"
+TUKLIB_DECLS_BEGIN
+#define tuklib_cpucores TUKLIB_SYMBOL(tuklib_cpucores)
+extern uint32_t tuklib_cpucores(void);
+TUKLIB_DECLS_END

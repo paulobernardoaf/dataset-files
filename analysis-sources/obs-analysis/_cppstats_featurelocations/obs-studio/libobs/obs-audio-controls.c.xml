@@ -1,0 +1,950 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" revision="1.0.0" language="C" filename="D:\Pesquisa\Projects\obs-analysis\_cppstats_featurelocations\obs-studio\libobs\obs-audio-controls.c">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;math.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"util/sse-intrin.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"util/threading.h"</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"util/bmem.h"</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"media-io/audio-math.h"</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"obs.h"</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"obs-internal.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"obs-audio-controls.h"</cpp:file></cpp:include>
+
+
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><call><name>defined</name><argument_list>(<argument><expr><name>_MSC_VER</name></expr></argument>)</argument_list></call></expr></cpp:if>
+<cpp:pragma>#<cpp:directive>pragma</cpp:directive> <name>warning</name><name>(</name><name>disable</name> <name>:</name> <name>4056</name><name>)</name></cpp:pragma>
+<cpp:pragma>#<cpp:directive>pragma</cpp:directive> <name>warning</name><name>(</name><name>disable</name> <name>:</name> <name>4756</name><name>)</name></cpp:pragma>
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>CLAMP</name><parameter_list>(<parameter><type><name>x</name></type></parameter>, <parameter><type><name>min</name></type></parameter>, <parameter><type><name>max</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>((x) &lt; min ? min : ((x) &gt; max ? max : (x)))</cpp:value></cpp:define>
+
+<typedef>typedef <function_decl><type><name>float</name></type> (<modifier>*</modifier><name>obs_fader_conversion_t</name>)<parameter_list>(<parameter><decl><type><specifier>const</specifier> <name>float</name></type> <name>val</name></decl></parameter>)</parameter_list>;</function_decl></typedef>
+
+<struct>struct <name>fader_cb</name> <block>{
+<decl_stmt><decl><type><name>obs_fader_changed_t</name></type> <name>callback</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>void</name> <modifier>*</modifier></type><name>param</name></decl>;</decl_stmt>
+}</block>;</struct>
+
+<struct>struct <name>obs_fader</name> <block>{
+<decl_stmt><decl><type><name>pthread_mutex_t</name></type> <name>mutex</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>obs_fader_conversion_t</name></type> <name>def_to_db</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>obs_fader_conversion_t</name></type> <name>db_to_def</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>obs_source_t</name> <modifier>*</modifier></type><name>source</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name><name>enum</name> <name>obs_fader_type</name></name></type> <name>type</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>float</name></type> <name>max_db</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>float</name></type> <name>min_db</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>float</name></type> <name>cur_db</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>bool</name></type> <name>ignore_next_signal</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>pthread_mutex_t</name></type> <name>callback_mutex</name></decl>;</decl_stmt>
+<macro><name>DARRAY</name><argument_list>(<argument>struct fader_cb</argument>)</argument_list></macro> <expr_stmt><expr><name>callbacks</name></expr>;</expr_stmt>
+}</block>;</struct>
+
+<struct>struct <name>meter_cb</name> <block>{
+<decl_stmt><decl><type><name>obs_volmeter_updated_t</name></type> <name>callback</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>void</name> <modifier>*</modifier></type><name>param</name></decl>;</decl_stmt>
+}</block>;</struct>
+
+<struct>struct <name>obs_volmeter</name> <block>{
+<decl_stmt><decl><type><name>pthread_mutex_t</name></type> <name>mutex</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>obs_source_t</name> <modifier>*</modifier></type><name>source</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name><name>enum</name> <name>obs_fader_type</name></name></type> <name>type</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>float</name></type> <name>cur_db</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>pthread_mutex_t</name></type> <name>callback_mutex</name></decl>;</decl_stmt>
+<macro><name>DARRAY</name><argument_list>(<argument>struct meter_cb</argument>)</argument_list></macro> <expr_stmt><expr><name>callbacks</name></expr>;</expr_stmt>
+
+<decl_stmt><decl><type><name><name>enum</name> <name>obs_peak_meter_type</name></name></type> <name>peak_meter_type</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>unsigned</name> <name>int</name></type> <name>update_ms</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>float</name></type> <name><name>prev_samples</name><index>[<expr><name>MAX_AUDIO_CHANNELS</name></expr>]</index><index>[<expr><literal type="number">4</literal></expr>]</index></name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>float</name></type> <name><name>magnitude</name><index>[<expr><name>MAX_AUDIO_CHANNELS</name></expr>]</index></name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>float</name></type> <name><name>peak</name><index>[<expr><name>MAX_AUDIO_CHANNELS</name></expr>]</index></name></decl>;</decl_stmt>
+}</block>;</struct>
+
+<function><type><specifier>static</specifier> <name>float</name></type> <name>cubic_def_to_db</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name>float</name></type> <name>def</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name>def</name> <operator>==</operator> <literal type="number">1.0f</literal></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><literal type="number">0.0f</literal></expr>;</return></block_content></block></if>
+<if type="elseif">else if <condition>(<expr><name>def</name> <operator>&lt;=</operator> <literal type="number">0.0f</literal></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><operator>-</operator><name>INFINITY</name></expr>;</return></block_content></block></if></if_stmt>
+
+<return>return <expr><call><name>mul_to_db</name><argument_list>(<argument><expr><name>def</name> <operator>*</operator> <name>def</name> <operator>*</operator> <name>def</name></expr></argument>)</argument_list></call></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>float</name></type> <name>cubic_db_to_def</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name>float</name></type> <name>db</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name>db</name> <operator>==</operator> <literal type="number">0.0f</literal></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><literal type="number">1.0f</literal></expr>;</return></block_content></block></if>
+<if type="elseif">else if <condition>(<expr><name>db</name> <operator>==</operator> <operator>-</operator><name>INFINITY</name></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><literal type="number">0.0f</literal></expr>;</return></block_content></block></if></if_stmt>
+
+<return>return <expr><call><name>cbrtf</name><argument_list>(<argument><expr><call><name>db_to_mul</name><argument_list>(<argument><expr><name>db</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>float</name></type> <name>iec_def_to_db</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name>float</name></type> <name>def</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name>def</name> <operator>==</operator> <literal type="number">1.0f</literal></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><literal type="number">0.0f</literal></expr>;</return></block_content></block></if>
+<if type="elseif">else if <condition>(<expr><name>def</name> <operator>&lt;=</operator> <literal type="number">0.0f</literal></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><operator>-</operator><name>INFINITY</name></expr>;</return></block_content></block></if></if_stmt>
+
+<decl_stmt><decl><type><name>float</name></type> <name>db</name></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>def</name> <operator>&gt;=</operator> <literal type="number">0.75f</literal></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name>db</name> <operator>=</operator> <operator>(</operator><name>def</name> <operator>-</operator> <literal type="number">1.0f</literal><operator>)</operator> <operator>/</operator> <literal type="number">0.25f</literal> <operator>*</operator> <literal type="number">9.0f</literal></expr>;</expr_stmt></block_content></block></if>
+<if type="elseif">else if <condition>(<expr><name>def</name> <operator>&gt;=</operator> <literal type="number">0.5f</literal></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name>db</name> <operator>=</operator> <operator>(</operator><name>def</name> <operator>-</operator> <literal type="number">0.75f</literal><operator>)</operator> <operator>/</operator> <literal type="number">0.25f</literal> <operator>*</operator> <literal type="number">11.0f</literal> <operator>-</operator> <literal type="number">9.0f</literal></expr>;</expr_stmt></block_content></block></if>
+<if type="elseif">else if <condition>(<expr><name>def</name> <operator>&gt;=</operator> <literal type="number">0.3f</literal></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name>db</name> <operator>=</operator> <operator>(</operator><name>def</name> <operator>-</operator> <literal type="number">0.5f</literal><operator>)</operator> <operator>/</operator> <literal type="number">0.2f</literal> <operator>*</operator> <literal type="number">10.0f</literal> <operator>-</operator> <literal type="number">20.0f</literal></expr>;</expr_stmt></block_content></block></if>
+<if type="elseif">else if <condition>(<expr><name>def</name> <operator>&gt;=</operator> <literal type="number">0.15f</literal></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name>db</name> <operator>=</operator> <operator>(</operator><name>def</name> <operator>-</operator> <literal type="number">0.3f</literal><operator>)</operator> <operator>/</operator> <literal type="number">0.15f</literal> <operator>*</operator> <literal type="number">10.0f</literal> <operator>-</operator> <literal type="number">30.0f</literal></expr>;</expr_stmt></block_content></block></if>
+<if type="elseif">else if <condition>(<expr><name>def</name> <operator>&gt;=</operator> <literal type="number">0.075f</literal></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name>db</name> <operator>=</operator> <operator>(</operator><name>def</name> <operator>-</operator> <literal type="number">0.15f</literal><operator>)</operator> <operator>/</operator> <literal type="number">0.075f</literal> <operator>*</operator> <literal type="number">10.0f</literal> <operator>-</operator> <literal type="number">40.0f</literal></expr>;</expr_stmt></block_content></block></if>
+<if type="elseif">else if <condition>(<expr><name>def</name> <operator>&gt;=</operator> <literal type="number">0.025f</literal></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name>db</name> <operator>=</operator> <operator>(</operator><name>def</name> <operator>-</operator> <literal type="number">0.075f</literal><operator>)</operator> <operator>/</operator> <literal type="number">0.05f</literal> <operator>*</operator> <literal type="number">10.0f</literal> <operator>-</operator> <literal type="number">50.0f</literal></expr>;</expr_stmt></block_content></block></if>
+<if type="elseif">else if <condition>(<expr><name>def</name> <operator>&gt;=</operator> <literal type="number">0.001f</literal></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name>db</name> <operator>=</operator> <operator>(</operator><name>def</name> <operator>-</operator> <literal type="number">0.025f</literal><operator>)</operator> <operator>/</operator> <literal type="number">0.025f</literal> <operator>*</operator> <literal type="number">90.0f</literal> <operator>-</operator> <literal type="number">60.0f</literal></expr>;</expr_stmt></block_content></block></if>
+<else>else<block type="pseudo"><block_content>
+<expr_stmt><expr><name>db</name> <operator>=</operator> <operator>-</operator><name>INFINITY</name></expr>;</expr_stmt></block_content></block></else></if_stmt>
+
+<return>return <expr><name>db</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>float</name></type> <name>iec_db_to_def</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name>float</name></type> <name>db</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name>db</name> <operator>==</operator> <literal type="number">0.0f</literal></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><literal type="number">1.0f</literal></expr>;</return></block_content></block></if>
+<if type="elseif">else if <condition>(<expr><name>db</name> <operator>==</operator> <operator>-</operator><name>INFINITY</name></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><literal type="number">0.0f</literal></expr>;</return></block_content></block></if></if_stmt>
+
+<decl_stmt><decl><type><name>float</name></type> <name>def</name></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>db</name> <operator>&gt;=</operator> <operator>-</operator><literal type="number">9.0f</literal></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name>def</name> <operator>=</operator> <operator>(</operator><name>db</name> <operator>+</operator> <literal type="number">9.0f</literal><operator>)</operator> <operator>/</operator> <literal type="number">9.0f</literal> <operator>*</operator> <literal type="number">0.25f</literal> <operator>+</operator> <literal type="number">0.75f</literal></expr>;</expr_stmt></block_content></block></if>
+<if type="elseif">else if <condition>(<expr><name>db</name> <operator>&gt;=</operator> <operator>-</operator><literal type="number">20.0f</literal></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name>def</name> <operator>=</operator> <operator>(</operator><name>db</name> <operator>+</operator> <literal type="number">20.0f</literal><operator>)</operator> <operator>/</operator> <literal type="number">11.0f</literal> <operator>*</operator> <literal type="number">0.25f</literal> <operator>+</operator> <literal type="number">0.5f</literal></expr>;</expr_stmt></block_content></block></if>
+<if type="elseif">else if <condition>(<expr><name>db</name> <operator>&gt;=</operator> <operator>-</operator><literal type="number">30.0f</literal></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name>def</name> <operator>=</operator> <operator>(</operator><name>db</name> <operator>+</operator> <literal type="number">30.0f</literal><operator>)</operator> <operator>/</operator> <literal type="number">10.0f</literal> <operator>*</operator> <literal type="number">0.2f</literal> <operator>+</operator> <literal type="number">0.3f</literal></expr>;</expr_stmt></block_content></block></if>
+<if type="elseif">else if <condition>(<expr><name>db</name> <operator>&gt;=</operator> <operator>-</operator><literal type="number">40.0f</literal></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name>def</name> <operator>=</operator> <operator>(</operator><name>db</name> <operator>+</operator> <literal type="number">40.0f</literal><operator>)</operator> <operator>/</operator> <literal type="number">10.0f</literal> <operator>*</operator> <literal type="number">0.15f</literal> <operator>+</operator> <literal type="number">0.15f</literal></expr>;</expr_stmt></block_content></block></if>
+<if type="elseif">else if <condition>(<expr><name>db</name> <operator>&gt;=</operator> <operator>-</operator><literal type="number">50.0f</literal></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name>def</name> <operator>=</operator> <operator>(</operator><name>db</name> <operator>+</operator> <literal type="number">50.0f</literal><operator>)</operator> <operator>/</operator> <literal type="number">10.0f</literal> <operator>*</operator> <literal type="number">0.075f</literal> <operator>+</operator> <literal type="number">0.075f</literal></expr>;</expr_stmt></block_content></block></if>
+<if type="elseif">else if <condition>(<expr><name>db</name> <operator>&gt;=</operator> <operator>-</operator><literal type="number">60.0f</literal></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name>def</name> <operator>=</operator> <operator>(</operator><name>db</name> <operator>+</operator> <literal type="number">60.0f</literal><operator>)</operator> <operator>/</operator> <literal type="number">10.0f</literal> <operator>*</operator> <literal type="number">0.05f</literal> <operator>+</operator> <literal type="number">0.025f</literal></expr>;</expr_stmt></block_content></block></if>
+<if type="elseif">else if <condition>(<expr><name>db</name> <operator>&gt;=</operator> <operator>-</operator><literal type="number">114.0f</literal></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name>def</name> <operator>=</operator> <operator>(</operator><name>db</name> <operator>+</operator> <literal type="number">150.0f</literal><operator>)</operator> <operator>/</operator> <literal type="number">90.0f</literal> <operator>*</operator> <literal type="number">0.025f</literal></expr>;</expr_stmt></block_content></block></if>
+<else>else<block type="pseudo"><block_content>
+<expr_stmt><expr><name>def</name> <operator>=</operator> <literal type="number">0.0f</literal></expr>;</expr_stmt></block_content></block></else></if_stmt>
+
+<return>return <expr><name>def</name></expr>;</return>
+</block_content>}</block></function>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>LOG_OFFSET_DB</name></cpp:macro> <cpp:value>6.0f</cpp:value></cpp:define>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>LOG_RANGE_DB</name></cpp:macro> <cpp:value>96.0f</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>LOG_OFFSET_VAL</name></cpp:macro> <cpp:value>-0.77815125038364363f</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>LOG_RANGE_VAL</name></cpp:macro> <cpp:value>-2.00860017176191756f</cpp:value></cpp:define>
+
+<function><type><specifier>static</specifier> <name>float</name></type> <name>log_def_to_db</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name>float</name></type> <name>def</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name>def</name> <operator>&gt;=</operator> <literal type="number">1.0f</literal></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><literal type="number">0.0f</literal></expr>;</return></block_content></block></if>
+<if type="elseif">else if <condition>(<expr><name>def</name> <operator>&lt;=</operator> <literal type="number">0.0f</literal></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><operator>-</operator><name>INFINITY</name></expr>;</return></block_content></block></if></if_stmt>
+
+<return>return <expr><operator>-</operator><operator>(</operator><name>LOG_RANGE_DB</name> <operator>+</operator> <name>LOG_OFFSET_DB</name><operator>)</operator> <operator>*</operator>
+<call><name>powf</name><argument_list>(<argument><expr><operator>(</operator><name>LOG_RANGE_DB</name> <operator>+</operator> <name>LOG_OFFSET_DB</name><operator>)</operator> <operator>/</operator> <name>LOG_OFFSET_DB</name></expr></argument>,
+<argument><expr><operator>-</operator><name>def</name></expr></argument>)</argument_list></call> <operator>+</operator>
+<name>LOG_OFFSET_DB</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>float</name></type> <name>log_db_to_def</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name>float</name></type> <name>db</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name>db</name> <operator>&gt;=</operator> <literal type="number">0.0f</literal></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><literal type="number">1.0f</literal></expr>;</return></block_content></block></if>
+<if type="elseif">else if <condition>(<expr><name>db</name> <operator>&lt;=</operator> <operator>-</operator><literal type="number">96.0f</literal></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><literal type="number">0.0f</literal></expr>;</return></block_content></block></if></if_stmt>
+
+<return>return <expr><operator>(</operator><operator>-</operator><call><name>log10f</name><argument_list>(<argument><expr><operator>-</operator><name>db</name> <operator>+</operator> <name>LOG_OFFSET_DB</name></expr></argument>)</argument_list></call> <operator>-</operator> <name>LOG_RANGE_VAL</name><operator>)</operator> <operator>/</operator>
+<operator>(</operator><name>LOG_OFFSET_VAL</name> <operator>-</operator> <name>LOG_RANGE_VAL</name><operator>)</operator></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>signal_volume_changed</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>obs_fader</name></name> <modifier>*</modifier></type><name>fader</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>float</name></type> <name>db</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<expr_stmt><expr><call><name>pthread_mutex_lock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>fader</name><operator>-&gt;</operator><name>callback_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<for>for <control>(<init><decl><type><name>size_t</name></type> <name>i</name> <init>= <expr><name><name>fader</name><operator>-&gt;</operator><name>callbacks</name><operator>.</operator><name>num</name></name></expr></init></decl>;</init> <condition><expr><name>i</name> <operator>&gt;</operator> <literal type="number">0</literal></expr>;</condition> <incr><expr><name>i</name><operator>--</operator></expr></incr>)</control> <block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>fader_cb</name></name></type> <name>cb</name> <init>= <expr><name><name>fader</name><operator>-&gt;</operator><name>callbacks</name><operator>.</operator><name>array</name><index>[<expr><name>i</name> <operator>-</operator> <literal type="number">1</literal></expr>]</index></name></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><call><name><name>cb</name><operator>.</operator><name>callback</name></name><argument_list>(<argument><expr><name><name>cb</name><operator>.</operator><name>param</name></name></expr></argument>, <argument><expr><name>db</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></for>
+<expr_stmt><expr><call><name>pthread_mutex_unlock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>fader</name><operator>-&gt;</operator><name>callback_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>signal_levels_updated</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>obs_volmeter</name></name> <modifier>*</modifier></type><name>volmeter</name></decl></parameter>,
+<parameter><decl><type><specifier>const</specifier> <name>float</name></type> <name><name>magnitude</name><index>[<expr><name>MAX_AUDIO_CHANNELS</name></expr>]</index></name></decl></parameter>,
+<parameter><decl><type><specifier>const</specifier> <name>float</name></type> <name><name>peak</name><index>[<expr><name>MAX_AUDIO_CHANNELS</name></expr>]</index></name></decl></parameter>,
+<parameter><decl><type><specifier>const</specifier> <name>float</name></type> <name><name>input_peak</name><index>[<expr><name>MAX_AUDIO_CHANNELS</name></expr>]</index></name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<expr_stmt><expr><call><name>pthread_mutex_lock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>volmeter</name><operator>-&gt;</operator><name>callback_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<for>for <control>(<init><decl><type><name>size_t</name></type> <name>i</name> <init>= <expr><name><name>volmeter</name><operator>-&gt;</operator><name>callbacks</name><operator>.</operator><name>num</name></name></expr></init></decl>;</init> <condition><expr><name>i</name> <operator>&gt;</operator> <literal type="number">0</literal></expr>;</condition> <incr><expr><name>i</name><operator>--</operator></expr></incr>)</control> <block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>meter_cb</name></name></type> <name>cb</name> <init>= <expr><name><name>volmeter</name><operator>-&gt;</operator><name>callbacks</name><operator>.</operator><name>array</name><index>[<expr><name>i</name> <operator>-</operator> <literal type="number">1</literal></expr>]</index></name></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><call><name><name>cb</name><operator>.</operator><name>callback</name></name><argument_list>(<argument><expr><name><name>cb</name><operator>.</operator><name>param</name></name></expr></argument>, <argument><expr><name>magnitude</name></expr></argument>, <argument><expr><name>peak</name></expr></argument>, <argument><expr><name>input_peak</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></for>
+<expr_stmt><expr><call><name>pthread_mutex_unlock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>volmeter</name><operator>-&gt;</operator><name>callback_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>fader_source_volume_changed</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>vptr</name></decl></parameter>, <parameter><decl><type><name>calldata_t</name> <modifier>*</modifier></type><name>calldata</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>obs_fader</name></name> <modifier>*</modifier></type><name>fader</name> <init>= <expr><operator>(</operator>struct <name>obs_fader</name> <operator>*</operator><operator>)</operator><name>vptr</name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_lock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>fader</name><operator>-&gt;</operator><name>mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>fader</name><operator>-&gt;</operator><name>ignore_next_signal</name></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name><name>fader</name><operator>-&gt;</operator><name>ignore_next_signal</name></name> <operator>=</operator> <name>false</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>pthread_mutex_unlock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>fader</name><operator>-&gt;</operator><name>mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return;</return>
+</block_content>}</block></if></if_stmt>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>float</name></type> <name>mul</name> <init>= <expr><operator>(</operator><name>float</name><operator>)</operator><call><name>calldata_float</name><argument_list>(<argument><expr><name>calldata</name></expr></argument>, <argument><expr><literal type="string">"volume"</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><specifier>const</specifier> <name>float</name></type> <name>db</name> <init>= <expr><call><name>mul_to_db</name><argument_list>(<argument><expr><name>mul</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><name><name>fader</name><operator>-&gt;</operator><name>cur_db</name></name> <operator>=</operator> <name>db</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_unlock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>fader</name><operator>-&gt;</operator><name>mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>signal_volume_changed</name><argument_list>(<argument><expr><name>fader</name></expr></argument>, <argument><expr><name>db</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>volmeter_source_volume_changed</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>vptr</name></decl></parameter>, <parameter><decl><type><name>calldata_t</name> <modifier>*</modifier></type><name>calldata</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>obs_volmeter</name></name> <modifier>*</modifier></type><name>volmeter</name> <init>= <expr><operator>(</operator>struct <name>obs_volmeter</name> <operator>*</operator><operator>)</operator><name>vptr</name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_lock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>volmeter</name><operator>-&gt;</operator><name>mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<decl_stmt><decl><type><name>float</name></type> <name>mul</name> <init>= <expr><operator>(</operator><name>float</name><operator>)</operator><call><name>calldata_float</name><argument_list>(<argument><expr><name>calldata</name></expr></argument>, <argument><expr><literal type="string">"volume"</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><name><name>volmeter</name><operator>-&gt;</operator><name>cur_db</name></name> <operator>=</operator> <call><name>mul_to_db</name><argument_list>(<argument><expr><name>mul</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_unlock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>volmeter</name><operator>-&gt;</operator><name>mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>fader_source_destroyed</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>vptr</name></decl></parameter>, <parameter><decl><type><name>calldata_t</name> <modifier>*</modifier></type><name>calldata</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<expr_stmt><expr><call><name>UNUSED_PARAMETER</name><argument_list>(<argument><expr><name>calldata</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<decl_stmt><decl><type><name><name>struct</name> <name>obs_fader</name></name> <modifier>*</modifier></type><name>fader</name> <init>= <expr><operator>(</operator>struct <name>obs_fader</name> <operator>*</operator><operator>)</operator><name>vptr</name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>obs_fader_detach_source</name><argument_list>(<argument><expr><name>fader</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>volmeter_source_destroyed</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>vptr</name></decl></parameter>, <parameter><decl><type><name>calldata_t</name> <modifier>*</modifier></type><name>calldata</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<expr_stmt><expr><call><name>UNUSED_PARAMETER</name><argument_list>(<argument><expr><name>calldata</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<decl_stmt><decl><type><name><name>struct</name> <name>obs_volmeter</name></name> <modifier>*</modifier></type><name>volmeter</name> <init>= <expr><operator>(</operator>struct <name>obs_volmeter</name> <operator>*</operator><operator>)</operator><name>vptr</name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>obs_volmeter_detach_source</name><argument_list>(<argument><expr><name>volmeter</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>get_nr_channels_from_audio_data</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name><name>struct</name> <name>audio_data</name></name> <modifier>*</modifier></type><name>data</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>int</name></type> <name>nr_channels</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+<for>for <control>(<init><decl><type><name>int</name></type> <name>i</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>MAX_AV_PLANES</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name><name>data</name><operator>-&gt;</operator><name>data</name><index>[<expr><name>i</name></expr>]</index></name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name>nr_channels</name><operator>++</operator></expr>;</expr_stmt></block_content></block></if></if_stmt>
+</block_content>}</block></for>
+<return>return <expr><call><name>CLAMP</name><argument_list>(<argument><expr><name>nr_channels</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><name>MAX_AUDIO_CHANNELS</name></expr></argument>)</argument_list></call></expr>;</return>
+</block_content>}</block></function>
+
+
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>SHIFT_RIGHT_2PS</name><parameter_list>(<parameter><type><name>msb</name></type></parameter>, <parameter><type><name>lsb</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>{ __m128 tmp = _mm_shuffle_ps(lsb, msb, _MM_SHUFFLE(0, 0, 3, 3)); lsb = _mm_shuffle_ps(lsb, tmp, _MM_SHUFFLE(2, 1, 2, 1)); msb = _mm_shuffle_ps(msb, msb, _MM_SHUFFLE(3, 3, 2, 1)); }</cpp:value></cpp:define>
+
+
+
+
+
+
+
+
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>abs_ps</name><parameter_list>(<parameter><type><name>v</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>_mm_andnot_ps(_mm_set1_ps(-0.f), v)</cpp:value></cpp:define>
+
+
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>VECTOR_MATRIX_CROSS_PS</name><parameter_list>(<parameter><type><name>out</name></type></parameter>, <parameter><type><name>v</name></type></parameter>, <parameter><type><name>m0</name></type></parameter>, <parameter><type><name>m1</name></type></parameter>, <parameter><type><name>m2</name></type></parameter>, <parameter><type><name>m3</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>{ out = _mm_mul_ps(v, m0); __m128 mul1 = _mm_mul_ps(v, m1); __m128 mul2 = _mm_mul_ps(v, m2); __m128 mul3 = _mm_mul_ps(v, m3); _MM_TRANSPOSE4_PS(out, mul1, mul2, mul3); out = _mm_add_ps(out, mul1); out = _mm_add_ps(out, mul2); out = _mm_add_ps(out, mul3); }</cpp:value></cpp:define>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>hmax_ps</name><parameter_list>(<parameter><type><name>r</name></type></parameter>, <parameter><type><name>x4</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>do { float x4_mem[4]; _mm_storeu_ps(x4_mem, x4); r = x4_mem[0]; r = fmaxf(r, x4_mem[1]); r = fmaxf(r, x4_mem[2]); r = fmaxf(r, x4_mem[3]); } while (false)</cpp:value></cpp:define>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<function><type><specifier>static</specifier> <name>float</name></type> <name>get_true_peak</name><parameter_list>(<parameter><decl><type><name>__m128</name></type> <name>previous_samples</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>float</name> <modifier>*</modifier></type><name>samples</name></decl></parameter>,
+<parameter><decl><type><name>size_t</name></type> <name>nr_samples</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+
+
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>__m128</name></type> <name>m3</name> <init>=
+<expr><call><name>_mm_set_ps</name><argument_list>(<argument><expr><operator>-</operator><literal type="number">0.155915f</literal></expr></argument>, <argument><expr><literal type="number">0.935489f</literal></expr></argument>, <argument><expr><literal type="number">0.233872f</literal></expr></argument>, <argument><expr><operator>-</operator><literal type="number">0.103943f</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><specifier>const</specifier> <name>__m128</name></type> <name>m1</name> <init>=
+<expr><call><name>_mm_set_ps</name><argument_list>(<argument><expr><operator>-</operator><literal type="number">0.216236f</literal></expr></argument>, <argument><expr><literal type="number">0.756827f</literal></expr></argument>, <argument><expr><literal type="number">0.504551f</literal></expr></argument>, <argument><expr><operator>-</operator><literal type="number">0.189207f</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><specifier>const</specifier> <name>__m128</name></type> <name>p1</name> <init>=
+<expr><call><name>_mm_set_ps</name><argument_list>(<argument><expr><operator>-</operator><literal type="number">0.189207f</literal></expr></argument>, <argument><expr><literal type="number">0.504551f</literal></expr></argument>, <argument><expr><literal type="number">0.756827f</literal></expr></argument>, <argument><expr><operator>-</operator><literal type="number">0.216236f</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><specifier>const</specifier> <name>__m128</name></type> <name>p3</name> <init>=
+<expr><call><name>_mm_set_ps</name><argument_list>(<argument><expr><operator>-</operator><literal type="number">0.103943f</literal></expr></argument>, <argument><expr><literal type="number">0.233872f</literal></expr></argument>, <argument><expr><literal type="number">0.935489f</literal></expr></argument>, <argument><expr><operator>-</operator><literal type="number">0.155915f</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>__m128</name></type> <name>work</name> <init>= <expr><name>previous_samples</name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>__m128</name></type> <name>peak</name> <init>= <expr><name>previous_samples</name></expr></init></decl>;</decl_stmt>
+<for>for <control>(<init><decl><type><name>size_t</name></type> <name>i</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><operator>(</operator><name>i</name> <operator>+</operator> <literal type="number">3</literal><operator>)</operator> <operator>&lt;</operator> <name>nr_samples</name></expr>;</condition> <incr><expr><name>i</name> <operator>+=</operator> <literal type="number">4</literal></expr></incr>)</control> <block>{<block_content>
+<decl_stmt><decl><type><name>__m128</name></type> <name>new_work</name> <init>= <expr><call><name>_mm_load_ps</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>samples</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>__m128</name></type> <name>intrp_samples</name></decl>;</decl_stmt>
+
+
+<decl_stmt><decl><type><name>__m128</name></type> <name>abs_new_work</name> <init>= <expr><call><name>abs_ps</name><argument_list>(<argument><expr><name>new_work</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><name>peak</name> <operator>=</operator> <call><name>_mm_max_ps</name><argument_list>(<argument><expr><name>peak</name></expr></argument>, <argument><expr><name>abs_new_work</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+
+<expr_stmt><expr><call><name>SHIFT_RIGHT_2PS</name><argument_list>(<argument><expr><name>new_work</name></expr></argument>, <argument><expr><name>work</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>VECTOR_MATRIX_CROSS_PS</name><argument_list>(<argument><expr><name>intrp_samples</name></expr></argument>, <argument><expr><name>work</name></expr></argument>, <argument><expr><name>m3</name></expr></argument>, <argument><expr><name>m1</name></expr></argument>, <argument><expr><name>p1</name></expr></argument>, <argument><expr><name>p3</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>peak</name> <operator>=</operator> <call><name>_mm_max_ps</name><argument_list>(<argument><expr><name>peak</name></expr></argument>, <argument><expr><call><name>abs_ps</name><argument_list>(<argument><expr><name>intrp_samples</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>SHIFT_RIGHT_2PS</name><argument_list>(<argument><expr><name>new_work</name></expr></argument>, <argument><expr><name>work</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>VECTOR_MATRIX_CROSS_PS</name><argument_list>(<argument><expr><name>intrp_samples</name></expr></argument>, <argument><expr><name>work</name></expr></argument>, <argument><expr><name>m3</name></expr></argument>, <argument><expr><name>m1</name></expr></argument>, <argument><expr><name>p1</name></expr></argument>, <argument><expr><name>p3</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>peak</name> <operator>=</operator> <call><name>_mm_max_ps</name><argument_list>(<argument><expr><name>peak</name></expr></argument>, <argument><expr><call><name>abs_ps</name><argument_list>(<argument><expr><name>intrp_samples</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>SHIFT_RIGHT_2PS</name><argument_list>(<argument><expr><name>new_work</name></expr></argument>, <argument><expr><name>work</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>VECTOR_MATRIX_CROSS_PS</name><argument_list>(<argument><expr><name>intrp_samples</name></expr></argument>, <argument><expr><name>work</name></expr></argument>, <argument><expr><name>m3</name></expr></argument>, <argument><expr><name>m1</name></expr></argument>, <argument><expr><name>p1</name></expr></argument>, <argument><expr><name>p3</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>peak</name> <operator>=</operator> <call><name>_mm_max_ps</name><argument_list>(<argument><expr><name>peak</name></expr></argument>, <argument><expr><call><name>abs_ps</name><argument_list>(<argument><expr><name>intrp_samples</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>SHIFT_RIGHT_2PS</name><argument_list>(<argument><expr><name>new_work</name></expr></argument>, <argument><expr><name>work</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>VECTOR_MATRIX_CROSS_PS</name><argument_list>(<argument><expr><name>intrp_samples</name></expr></argument>, <argument><expr><name>work</name></expr></argument>, <argument><expr><name>m3</name></expr></argument>, <argument><expr><name>m1</name></expr></argument>, <argument><expr><name>p1</name></expr></argument>, <argument><expr><name>p3</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>peak</name> <operator>=</operator> <call><name>_mm_max_ps</name><argument_list>(<argument><expr><name>peak</name></expr></argument>, <argument><expr><call><name>abs_ps</name><argument_list>(<argument><expr><name>intrp_samples</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></for>
+
+<decl_stmt><decl><type><name>float</name></type> <name>r</name></decl>;</decl_stmt>
+<expr_stmt><expr><call><name>hmax_ps</name><argument_list>(<argument><expr><name>r</name></expr></argument>, <argument><expr><name>peak</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>r</name></expr>;</return>
+</block_content>}</block></function>
+
+
+
+
+<function><type><specifier>static</specifier> <name>float</name></type> <name>get_sample_peak</name><parameter_list>(<parameter><decl><type><name>__m128</name></type> <name>previous_samples</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>float</name> <modifier>*</modifier></type><name>samples</name></decl></parameter>,
+<parameter><decl><type><name>size_t</name></type> <name>nr_samples</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>__m128</name></type> <name>peak</name> <init>= <expr><name>previous_samples</name></expr></init></decl>;</decl_stmt>
+<for>for <control>(<init><decl><type><name>size_t</name></type> <name>i</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><operator>(</operator><name>i</name> <operator>+</operator> <literal type="number">3</literal><operator>)</operator> <operator>&lt;</operator> <name>nr_samples</name></expr>;</condition> <incr><expr><name>i</name> <operator>+=</operator> <literal type="number">4</literal></expr></incr>)</control> <block>{<block_content>
+<decl_stmt><decl><type><name>__m128</name></type> <name>new_work</name> <init>= <expr><call><name>_mm_load_ps</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>samples</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><name>peak</name> <operator>=</operator> <call><name>_mm_max_ps</name><argument_list>(<argument><expr><name>peak</name></expr></argument>, <argument><expr><call><name>abs_ps</name><argument_list>(<argument><expr><name>new_work</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></for>
+
+<decl_stmt><decl><type><name>float</name></type> <name>r</name></decl>;</decl_stmt>
+<expr_stmt><expr><call><name>hmax_ps</name><argument_list>(<argument><expr><name>r</name></expr></argument>, <argument><expr><name>peak</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>r</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>volmeter_process_peak_last_samples</name><parameter_list>(<parameter><decl><type><name>obs_volmeter_t</name> <modifier>*</modifier></type><name>volmeter</name></decl></parameter>,
+<parameter><decl><type><name>int</name></type> <name>channel_nr</name></decl></parameter>, <parameter><decl><type><name>float</name> <modifier>*</modifier></type><name>samples</name></decl></parameter>,
+<parameter><decl><type><name>size_t</name></type> <name>nr_samples</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+
+
+
+
+<switch>switch <condition>(<expr><name>nr_samples</name></expr>)</condition> <block>{<block_content>
+<case>case <expr><literal type="number">0</literal></expr>:</case>
+<break>break;</break>
+<case>case <expr><literal type="number">1</literal></expr>:</case>
+<expr_stmt><expr><name><name>volmeter</name><operator>-&gt;</operator><name>prev_samples</name><index>[<expr><name>channel_nr</name></expr>]</index><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>=</operator>
+<name><name>volmeter</name><operator>-&gt;</operator><name>prev_samples</name><index>[<expr><name>channel_nr</name></expr>]</index><index>[<expr><literal type="number">1</literal></expr>]</index></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>volmeter</name><operator>-&gt;</operator><name>prev_samples</name><index>[<expr><name>channel_nr</name></expr>]</index><index>[<expr><literal type="number">1</literal></expr>]</index></name> <operator>=</operator>
+<name><name>volmeter</name><operator>-&gt;</operator><name>prev_samples</name><index>[<expr><name>channel_nr</name></expr>]</index><index>[<expr><literal type="number">2</literal></expr>]</index></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>volmeter</name><operator>-&gt;</operator><name>prev_samples</name><index>[<expr><name>channel_nr</name></expr>]</index><index>[<expr><literal type="number">2</literal></expr>]</index></name> <operator>=</operator>
+<name><name>volmeter</name><operator>-&gt;</operator><name>prev_samples</name><index>[<expr><name>channel_nr</name></expr>]</index><index>[<expr><literal type="number">3</literal></expr>]</index></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>volmeter</name><operator>-&gt;</operator><name>prev_samples</name><index>[<expr><name>channel_nr</name></expr>]</index><index>[<expr><literal type="number">3</literal></expr>]</index></name> <operator>=</operator> <name><name>samples</name><index>[<expr><name>nr_samples</name> <operator>-</operator> <literal type="number">1</literal></expr>]</index></name></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><literal type="number">2</literal></expr>:</case>
+<expr_stmt><expr><name><name>volmeter</name><operator>-&gt;</operator><name>prev_samples</name><index>[<expr><name>channel_nr</name></expr>]</index><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>=</operator>
+<name><name>volmeter</name><operator>-&gt;</operator><name>prev_samples</name><index>[<expr><name>channel_nr</name></expr>]</index><index>[<expr><literal type="number">2</literal></expr>]</index></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>volmeter</name><operator>-&gt;</operator><name>prev_samples</name><index>[<expr><name>channel_nr</name></expr>]</index><index>[<expr><literal type="number">1</literal></expr>]</index></name> <operator>=</operator>
+<name><name>volmeter</name><operator>-&gt;</operator><name>prev_samples</name><index>[<expr><name>channel_nr</name></expr>]</index><index>[<expr><literal type="number">3</literal></expr>]</index></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>volmeter</name><operator>-&gt;</operator><name>prev_samples</name><index>[<expr><name>channel_nr</name></expr>]</index><index>[<expr><literal type="number">2</literal></expr>]</index></name> <operator>=</operator> <name><name>samples</name><index>[<expr><name>nr_samples</name> <operator>-</operator> <literal type="number">2</literal></expr>]</index></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>volmeter</name><operator>-&gt;</operator><name>prev_samples</name><index>[<expr><name>channel_nr</name></expr>]</index><index>[<expr><literal type="number">3</literal></expr>]</index></name> <operator>=</operator> <name><name>samples</name><index>[<expr><name>nr_samples</name> <operator>-</operator> <literal type="number">1</literal></expr>]</index></name></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><literal type="number">3</literal></expr>:</case>
+<expr_stmt><expr><name><name>volmeter</name><operator>-&gt;</operator><name>prev_samples</name><index>[<expr><name>channel_nr</name></expr>]</index><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>=</operator>
+<name><name>volmeter</name><operator>-&gt;</operator><name>prev_samples</name><index>[<expr><name>channel_nr</name></expr>]</index><index>[<expr><literal type="number">3</literal></expr>]</index></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>volmeter</name><operator>-&gt;</operator><name>prev_samples</name><index>[<expr><name>channel_nr</name></expr>]</index><index>[<expr><literal type="number">1</literal></expr>]</index></name> <operator>=</operator> <name><name>samples</name><index>[<expr><name>nr_samples</name> <operator>-</operator> <literal type="number">3</literal></expr>]</index></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>volmeter</name><operator>-&gt;</operator><name>prev_samples</name><index>[<expr><name>channel_nr</name></expr>]</index><index>[<expr><literal type="number">2</literal></expr>]</index></name> <operator>=</operator> <name><name>samples</name><index>[<expr><name>nr_samples</name> <operator>-</operator> <literal type="number">2</literal></expr>]</index></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>volmeter</name><operator>-&gt;</operator><name>prev_samples</name><index>[<expr><name>channel_nr</name></expr>]</index><index>[<expr><literal type="number">3</literal></expr>]</index></name> <operator>=</operator> <name><name>samples</name><index>[<expr><name>nr_samples</name> <operator>-</operator> <literal type="number">1</literal></expr>]</index></name></expr>;</expr_stmt>
+<break>break;</break>
+<default>default:</default>
+<expr_stmt><expr><name><name>volmeter</name><operator>-&gt;</operator><name>prev_samples</name><index>[<expr><name>channel_nr</name></expr>]</index><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>=</operator> <name><name>samples</name><index>[<expr><name>nr_samples</name> <operator>-</operator> <literal type="number">4</literal></expr>]</index></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>volmeter</name><operator>-&gt;</operator><name>prev_samples</name><index>[<expr><name>channel_nr</name></expr>]</index><index>[<expr><literal type="number">1</literal></expr>]</index></name> <operator>=</operator> <name><name>samples</name><index>[<expr><name>nr_samples</name> <operator>-</operator> <literal type="number">3</literal></expr>]</index></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>volmeter</name><operator>-&gt;</operator><name>prev_samples</name><index>[<expr><name>channel_nr</name></expr>]</index><index>[<expr><literal type="number">2</literal></expr>]</index></name> <operator>=</operator> <name><name>samples</name><index>[<expr><name>nr_samples</name> <operator>-</operator> <literal type="number">2</literal></expr>]</index></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>volmeter</name><operator>-&gt;</operator><name>prev_samples</name><index>[<expr><name>channel_nr</name></expr>]</index><index>[<expr><literal type="number">3</literal></expr>]</index></name> <operator>=</operator> <name><name>samples</name><index>[<expr><name>nr_samples</name> <operator>-</operator> <literal type="number">1</literal></expr>]</index></name></expr>;</expr_stmt>
+</block_content>}</block></switch>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>volmeter_process_peak</name><parameter_list>(<parameter><decl><type><name>obs_volmeter_t</name> <modifier>*</modifier></type><name>volmeter</name></decl></parameter>,
+<parameter><decl><type><specifier>const</specifier> <name><name>struct</name> <name>audio_data</name></name> <modifier>*</modifier></type><name>data</name></decl></parameter>,
+<parameter><decl><type><name>int</name></type> <name>nr_channels</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>int</name></type> <name>nr_samples</name> <init>= <expr><name><name>data</name><operator>-&gt;</operator><name>frames</name></name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>channel_nr</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+<for>for <control>(<init><decl><type><name>int</name></type> <name>plane_nr</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>channel_nr</name> <operator>&lt;</operator> <name>nr_channels</name></expr>;</condition> <incr><expr><name>plane_nr</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<decl_stmt><decl><type><name>float</name> <modifier>*</modifier></type><name>samples</name> <init>= <expr><operator>(</operator><name>float</name> <operator>*</operator><operator>)</operator><name><name>data</name><operator>-&gt;</operator><name>data</name><index>[<expr><name>plane_nr</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>samples</name></expr>)</condition> <block>{<block_content>
+<continue>continue;</continue>
+</block_content>}</block></if></if_stmt>
+<if_stmt><if>if <condition>(<expr><operator>(</operator><operator>(</operator><name>uintptr_t</name><operator>)</operator><name>samples</name> <operator>&amp;</operator> <literal type="number">0xf</literal><operator>)</operator> <operator>&gt;</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>printf</name><argument_list>(<argument><expr><literal type="string">"Audio plane %i is not aligned %p skipping "</literal>
+<literal type="string">"peak volume measurement.\n"</literal></expr></argument>,
+<argument><expr><name>plane_nr</name></expr></argument>, <argument><expr><name>samples</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>volmeter</name><operator>-&gt;</operator><name>peak</name><index>[<expr><name>channel_nr</name></expr>]</index></name> <operator>=</operator> <literal type="number">1.0</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name>channel_nr</name><operator>++</operator></expr>;</expr_stmt>
+<continue>continue;</continue>
+</block_content>}</block></if></if_stmt>
+
+
+
+<decl_stmt><decl><type><name>__m128</name></type> <name>previous_samples</name> <init>=
+<expr><call><name>_mm_loadu_ps</name><argument_list>(<argument><expr><name><name>volmeter</name><operator>-&gt;</operator><name>prev_samples</name><index>[<expr><name>channel_nr</name></expr>]</index></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>float</name></type> <name>peak</name></decl>;</decl_stmt>
+<switch>switch <condition>(<expr><name><name>volmeter</name><operator>-&gt;</operator><name>peak_meter_type</name></name></expr>)</condition> <block>{<block_content>
+<case>case <expr><name>TRUE_PEAK_METER</name></expr>:</case>
+<expr_stmt><expr><name>peak</name> <operator>=</operator> <call><name>get_true_peak</name><argument_list>(<argument><expr><name>previous_samples</name></expr></argument>, <argument><expr><name>samples</name></expr></argument>,
+<argument><expr><name>nr_samples</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+
+<case>case <expr><name>SAMPLE_PEAK_METER</name></expr>:</case>
+<default>default:</default>
+<expr_stmt><expr><name>peak</name> <operator>=</operator> <call><name>get_sample_peak</name><argument_list>(<argument><expr><name>previous_samples</name></expr></argument>, <argument><expr><name>samples</name></expr></argument>,
+<argument><expr><name>nr_samples</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+</block_content>}</block></switch>
+
+<expr_stmt><expr><call><name>volmeter_process_peak_last_samples</name><argument_list>(<argument><expr><name>volmeter</name></expr></argument>, <argument><expr><name>channel_nr</name></expr></argument>,
+<argument><expr><name>samples</name></expr></argument>, <argument><expr><name>nr_samples</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>volmeter</name><operator>-&gt;</operator><name>peak</name><index>[<expr><name>channel_nr</name></expr>]</index></name> <operator>=</operator> <name>peak</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>channel_nr</name><operator>++</operator></expr>;</expr_stmt>
+</block_content>}</block></for>
+
+
+<for>for <control>(<init>;</init> <condition><expr><name>channel_nr</name> <operator>&lt;</operator> <name>MAX_AUDIO_CHANNELS</name></expr>;</condition> <incr><expr><name>channel_nr</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<expr_stmt><expr><name><name>volmeter</name><operator>-&gt;</operator><name>peak</name><index>[<expr><name>channel_nr</name></expr>]</index></name> <operator>=</operator> <literal type="number">0.0</literal></expr>;</expr_stmt>
+</block_content>}</block></for>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>volmeter_process_magnitude</name><parameter_list>(<parameter><decl><type><name>obs_volmeter_t</name> <modifier>*</modifier></type><name>volmeter</name></decl></parameter>,
+<parameter><decl><type><specifier>const</specifier> <name><name>struct</name> <name>audio_data</name></name> <modifier>*</modifier></type><name>data</name></decl></parameter>,
+<parameter><decl><type><name>int</name></type> <name>nr_channels</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>size_t</name></type> <name>nr_samples</name> <init>= <expr><name><name>data</name><operator>-&gt;</operator><name>frames</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>channel_nr</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+<for>for <control>(<init><decl><type><name>int</name></type> <name>plane_nr</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>channel_nr</name> <operator>&lt;</operator> <name>nr_channels</name></expr>;</condition> <incr><expr><name>plane_nr</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<decl_stmt><decl><type><name>float</name> <modifier>*</modifier></type><name>samples</name> <init>= <expr><operator>(</operator><name>float</name> <operator>*</operator><operator>)</operator><name><name>data</name><operator>-&gt;</operator><name>data</name><index>[<expr><name>plane_nr</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>samples</name></expr>)</condition> <block>{<block_content>
+<continue>continue;</continue>
+</block_content>}</block></if></if_stmt>
+
+<decl_stmt><decl><type><name>float</name></type> <name>sum</name> <init>= <expr><literal type="number">0.0</literal></expr></init></decl>;</decl_stmt>
+<for>for <control>(<init><decl><type><name>size_t</name></type> <name>i</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>nr_samples</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<decl_stmt><decl><type><name>float</name></type> <name>sample</name> <init>= <expr><name><name>samples</name><index>[<expr><name>i</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><name>sum</name> <operator>+=</operator> <name>sample</name> <operator>*</operator> <name>sample</name></expr>;</expr_stmt>
+</block_content>}</block></for>
+<expr_stmt><expr><name><name>volmeter</name><operator>-&gt;</operator><name>magnitude</name><index>[<expr><name>channel_nr</name></expr>]</index></name> <operator>=</operator> <call><name>sqrtf</name><argument_list>(<argument><expr><name>sum</name> <operator>/</operator> <name>nr_samples</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>channel_nr</name><operator>++</operator></expr>;</expr_stmt>
+</block_content>}</block></for>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>volmeter_process_audio_data</name><parameter_list>(<parameter><decl><type><name>obs_volmeter_t</name> <modifier>*</modifier></type><name>volmeter</name></decl></parameter>,
+<parameter><decl><type><specifier>const</specifier> <name><name>struct</name> <name>audio_data</name></name> <modifier>*</modifier></type><name>data</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>int</name></type> <name>nr_channels</name> <init>= <expr><call><name>get_nr_channels_from_audio_data</name><argument_list>(<argument><expr><name>data</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>volmeter_process_peak</name><argument_list>(<argument><expr><name>volmeter</name></expr></argument>, <argument><expr><name>data</name></expr></argument>, <argument><expr><name>nr_channels</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>volmeter_process_magnitude</name><argument_list>(<argument><expr><name>volmeter</name></expr></argument>, <argument><expr><name>data</name></expr></argument>, <argument><expr><name>nr_channels</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>volmeter_source_data_received</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>vptr</name></decl></parameter>, <parameter><decl><type><name>obs_source_t</name> <modifier>*</modifier></type><name>source</name></decl></parameter>,
+<parameter><decl><type><specifier>const</specifier> <name><name>struct</name> <name>audio_data</name></name> <modifier>*</modifier></type><name>data</name></decl></parameter>,
+<parameter><decl><type><name>bool</name></type> <name>muted</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>obs_volmeter</name></name> <modifier>*</modifier></type><name>volmeter</name> <init>= <expr><operator>(</operator>struct <name>obs_volmeter</name> <operator>*</operator><operator>)</operator><name>vptr</name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>float</name></type> <name>mul</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>float</name></type> <name><name>magnitude</name><index>[<expr><name>MAX_AUDIO_CHANNELS</name></expr>]</index></name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>float</name></type> <name><name>peak</name><index>[<expr><name>MAX_AUDIO_CHANNELS</name></expr>]</index></name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>float</name></type> <name><name>input_peak</name><index>[<expr><name>MAX_AUDIO_CHANNELS</name></expr>]</index></name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_lock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>volmeter</name><operator>-&gt;</operator><name>mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>volmeter_process_audio_data</name><argument_list>(<argument><expr><name>volmeter</name></expr></argument>, <argument><expr><name>data</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+
+
+<expr_stmt><expr><name>mul</name> <operator>=</operator> <ternary><condition><expr><name>muted</name></expr> ?</condition><then> <expr><literal type="number">0.0f</literal></expr> </then><else>: <expr><call><name>db_to_mul</name><argument_list>(<argument><expr><name><name>volmeter</name><operator>-&gt;</operator><name>cur_db</name></name></expr></argument>)</argument_list></call></expr></else></ternary></expr>;</expr_stmt>
+<for>for <control>(<init><decl><type><name>int</name></type> <name>channel_nr</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>channel_nr</name> <operator>&lt;</operator> <name>MAX_AUDIO_CHANNELS</name></expr>;</condition>
+<incr><expr><name>channel_nr</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<expr_stmt><expr><name><name>magnitude</name><index>[<expr><name>channel_nr</name></expr>]</index></name> <operator>=</operator>
+<call><name>mul_to_db</name><argument_list>(<argument><expr><name><name>volmeter</name><operator>-&gt;</operator><name>magnitude</name><index>[<expr><name>channel_nr</name></expr>]</index></name> <operator>*</operator> <name>mul</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>peak</name><index>[<expr><name>channel_nr</name></expr>]</index></name> <operator>=</operator> <call><name>mul_to_db</name><argument_list>(<argument><expr><name><name>volmeter</name><operator>-&gt;</operator><name>peak</name><index>[<expr><name>channel_nr</name></expr>]</index></name> <operator>*</operator> <name>mul</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+
+
+<expr_stmt><expr><name><name>input_peak</name><index>[<expr><name>channel_nr</name></expr>]</index></name> <operator>=</operator> <call><name>mul_to_db</name><argument_list>(<argument><expr><name><name>volmeter</name><operator>-&gt;</operator><name>peak</name><index>[<expr><name>channel_nr</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></for>
+
+<expr_stmt><expr><call><name>pthread_mutex_unlock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>volmeter</name><operator>-&gt;</operator><name>mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>signal_levels_updated</name><argument_list>(<argument><expr><name>volmeter</name></expr></argument>, <argument><expr><name>magnitude</name></expr></argument>, <argument><expr><name>peak</name></expr></argument>, <argument><expr><name>input_peak</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>UNUSED_PARAMETER</name><argument_list>(<argument><expr><name>source</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><name>obs_fader_t</name> <modifier>*</modifier></type><name>obs_fader_create</name><parameter_list>(<parameter><decl><type><name><name>enum</name> <name>obs_fader_type</name></name></type> <name>type</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>obs_fader</name></name> <modifier>*</modifier></type><name>fader</name> <init>= <expr><call><name>bzalloc</name><argument_list>(<argument><expr><sizeof>sizeof<argument_list>(<argument><expr>struct <name>obs_fader</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>fader</name></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><name>NULL</name></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_init_value</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>fader</name><operator>-&gt;</operator><name>mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>pthread_mutex_init_value</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>fader</name><operator>-&gt;</operator><name>callback_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><call><name>pthread_mutex_init</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>fader</name><operator>-&gt;</operator><name>mutex</name></name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call> <operator>!=</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+<goto>goto <name>fail</name>;</goto></block_content></block></if></if_stmt>
+<if_stmt><if>if <condition>(<expr><call><name>pthread_mutex_init</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>fader</name><operator>-&gt;</operator><name>callback_mutex</name></name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call> <operator>!=</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+<goto>goto <name>fail</name>;</goto></block_content></block></if></if_stmt>
+
+<switch>switch <condition>(<expr><name>type</name></expr>)</condition> <block>{<block_content>
+<case>case <expr><name>OBS_FADER_CUBIC</name></expr>:</case>
+<expr_stmt><expr><name><name>fader</name><operator>-&gt;</operator><name>def_to_db</name></name> <operator>=</operator> <name>cubic_def_to_db</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>fader</name><operator>-&gt;</operator><name>db_to_def</name></name> <operator>=</operator> <name>cubic_db_to_def</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>fader</name><operator>-&gt;</operator><name>max_db</name></name> <operator>=</operator> <literal type="number">0.0f</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>fader</name><operator>-&gt;</operator><name>min_db</name></name> <operator>=</operator> <operator>-</operator><name>INFINITY</name></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>OBS_FADER_IEC</name></expr>:</case>
+<expr_stmt><expr><name><name>fader</name><operator>-&gt;</operator><name>def_to_db</name></name> <operator>=</operator> <name>iec_def_to_db</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>fader</name><operator>-&gt;</operator><name>db_to_def</name></name> <operator>=</operator> <name>iec_db_to_def</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>fader</name><operator>-&gt;</operator><name>max_db</name></name> <operator>=</operator> <literal type="number">0.0f</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>fader</name><operator>-&gt;</operator><name>min_db</name></name> <operator>=</operator> <operator>-</operator><name>INFINITY</name></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>OBS_FADER_LOG</name></expr>:</case>
+<expr_stmt><expr><name><name>fader</name><operator>-&gt;</operator><name>def_to_db</name></name> <operator>=</operator> <name>log_def_to_db</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>fader</name><operator>-&gt;</operator><name>db_to_def</name></name> <operator>=</operator> <name>log_db_to_def</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>fader</name><operator>-&gt;</operator><name>max_db</name></name> <operator>=</operator> <literal type="number">0.0f</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>fader</name><operator>-&gt;</operator><name>min_db</name></name> <operator>=</operator> <operator>-</operator><literal type="number">96.0f</literal></expr>;</expr_stmt>
+<break>break;</break>
+<default>default:</default>
+<goto>goto <name>fail</name>;</goto>
+<break>break;</break>
+</block_content>}</block></switch>
+<expr_stmt><expr><name><name>fader</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>type</name></expr>;</expr_stmt>
+
+<return>return <expr><name>fader</name></expr>;</return>
+<label><name>fail</name>:</label>
+<expr_stmt><expr><call><name>obs_fader_destroy</name><argument_list>(<argument><expr><name>fader</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>NULL</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><name>void</name></type> <name>obs_fader_destroy</name><parameter_list>(<parameter><decl><type><name>obs_fader_t</name> <modifier>*</modifier></type><name>fader</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>fader</name></expr>)</condition><block type="pseudo"><block_content>
+<return>return;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>obs_fader_detach_source</name><argument_list>(<argument><expr><name>fader</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>da_free</name><argument_list>(<argument><expr><name><name>fader</name><operator>-&gt;</operator><name>callbacks</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>pthread_mutex_destroy</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>fader</name><operator>-&gt;</operator><name>callback_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>pthread_mutex_destroy</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>fader</name><operator>-&gt;</operator><name>mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>bfree</name><argument_list>(<argument><expr><name>fader</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><name>bool</name></type> <name>obs_fader_set_db</name><parameter_list>(<parameter><decl><type><name>obs_fader_t</name> <modifier>*</modifier></type><name>fader</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>float</name></type> <name>db</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>fader</name></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><name>false</name></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_lock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>fader</name><operator>-&gt;</operator><name>mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<decl_stmt><decl><type><name>bool</name></type> <name>clamped</name> <init>= <expr><name>false</name></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><name><name>fader</name><operator>-&gt;</operator><name>cur_db</name></name> <operator>=</operator> <name>db</name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>fader</name><operator>-&gt;</operator><name>cur_db</name></name> <operator>&gt;</operator> <name><name>fader</name><operator>-&gt;</operator><name>max_db</name></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name><name>fader</name><operator>-&gt;</operator><name>cur_db</name></name> <operator>=</operator> <name><name>fader</name><operator>-&gt;</operator><name>max_db</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name>clamped</name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>fader</name><operator>-&gt;</operator><name>cur_db</name></name> <operator>&lt;</operator> <name><name>fader</name><operator>-&gt;</operator><name>min_db</name></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name><name>fader</name><operator>-&gt;</operator><name>cur_db</name></name> <operator>=</operator> <operator>-</operator><name>INFINITY</name></expr>;</expr_stmt>
+<expr_stmt><expr><name>clamped</name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>fader</name><operator>-&gt;</operator><name>ignore_next_signal</name></name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+<decl_stmt><decl><type><name>obs_source_t</name> <modifier>*</modifier></type><name>src</name> <init>= <expr><name><name>fader</name><operator>-&gt;</operator><name>source</name></name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><specifier>const</specifier> <name>float</name></type> <name>mul</name> <init>= <expr><call><name>db_to_mul</name><argument_list>(<argument><expr><name><name>fader</name><operator>-&gt;</operator><name>cur_db</name></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_unlock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>fader</name><operator>-&gt;</operator><name>mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>src</name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>obs_source_set_volume</name><argument_list>(<argument><expr><name>src</name></expr></argument>, <argument><expr><name>mul</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<return>return <expr><operator>!</operator><name>clamped</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><name>float</name></type> <name>obs_fader_get_db</name><parameter_list>(<parameter><decl><type><name>obs_fader_t</name> <modifier>*</modifier></type><name>fader</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>fader</name></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><literal type="number">0.0f</literal></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_lock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>fader</name><operator>-&gt;</operator><name>mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<decl_stmt><decl><type><specifier>const</specifier> <name>float</name></type> <name>db</name> <init>= <expr><name><name>fader</name><operator>-&gt;</operator><name>cur_db</name></name></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><call><name>pthread_mutex_unlock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>fader</name><operator>-&gt;</operator><name>mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>db</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><name>bool</name></type> <name>obs_fader_set_deflection</name><parameter_list>(<parameter><decl><type><name>obs_fader_t</name> <modifier>*</modifier></type><name>fader</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>float</name></type> <name>def</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>fader</name></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><name>false</name></expr>;</return></block_content></block></if></if_stmt>
+
+<return>return <expr><call><name>obs_fader_set_db</name><argument_list>(<argument><expr><name>fader</name></expr></argument>, <argument><expr><call><name><name>fader</name><operator>-&gt;</operator><name>def_to_db</name></name><argument_list>(<argument><expr><name>def</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><name>float</name></type> <name>obs_fader_get_deflection</name><parameter_list>(<parameter><decl><type><name>obs_fader_t</name> <modifier>*</modifier></type><name>fader</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>fader</name></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><literal type="number">0.0f</literal></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_lock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>fader</name><operator>-&gt;</operator><name>mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<decl_stmt><decl><type><specifier>const</specifier> <name>float</name></type> <name>def</name> <init>= <expr><call><name><name>fader</name><operator>-&gt;</operator><name>db_to_def</name></name><argument_list>(<argument><expr><name><name>fader</name><operator>-&gt;</operator><name>cur_db</name></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><call><name>pthread_mutex_unlock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>fader</name><operator>-&gt;</operator><name>mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>def</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><name>bool</name></type> <name>obs_fader_set_mul</name><parameter_list>(<parameter><decl><type><name>obs_fader_t</name> <modifier>*</modifier></type><name>fader</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>float</name></type> <name>mul</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>fader</name></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><name>false</name></expr>;</return></block_content></block></if></if_stmt>
+
+<return>return <expr><call><name>obs_fader_set_db</name><argument_list>(<argument><expr><name>fader</name></expr></argument>, <argument><expr><call><name>mul_to_db</name><argument_list>(<argument><expr><name>mul</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><name>float</name></type> <name>obs_fader_get_mul</name><parameter_list>(<parameter><decl><type><name>obs_fader_t</name> <modifier>*</modifier></type><name>fader</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>fader</name></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><literal type="number">0.0f</literal></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_lock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>fader</name><operator>-&gt;</operator><name>mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<decl_stmt><decl><type><specifier>const</specifier> <name>float</name></type> <name>mul</name> <init>= <expr><call><name>db_to_mul</name><argument_list>(<argument><expr><name><name>fader</name><operator>-&gt;</operator><name>cur_db</name></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><call><name>pthread_mutex_unlock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>fader</name><operator>-&gt;</operator><name>mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>mul</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><name>bool</name></type> <name>obs_fader_attach_source</name><parameter_list>(<parameter><decl><type><name>obs_fader_t</name> <modifier>*</modifier></type><name>fader</name></decl></parameter>, <parameter><decl><type><name>obs_source_t</name> <modifier>*</modifier></type><name>source</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>signal_handler_t</name> <modifier>*</modifier></type><name>sh</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>float</name></type> <name>vol</name></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>fader</name> <operator>||</operator> <operator>!</operator><name>source</name></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><name>false</name></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>obs_fader_detach_source</name><argument_list>(<argument><expr><name>fader</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>sh</name> <operator>=</operator> <call><name>obs_source_get_signal_handler</name><argument_list>(<argument><expr><name>source</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>signal_handler_connect</name><argument_list>(<argument><expr><name>sh</name></expr></argument>, <argument><expr><literal type="string">"volume"</literal></expr></argument>, <argument><expr><name>fader_source_volume_changed</name></expr></argument>,
+<argument><expr><name>fader</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>signal_handler_connect</name><argument_list>(<argument><expr><name>sh</name></expr></argument>, <argument><expr><literal type="string">"destroy"</literal></expr></argument>, <argument><expr><name>fader_source_destroyed</name></expr></argument>, <argument><expr><name>fader</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>vol</name> <operator>=</operator> <call><name>obs_source_get_volume</name><argument_list>(<argument><expr><name>source</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_lock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>fader</name><operator>-&gt;</operator><name>mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>fader</name><operator>-&gt;</operator><name>source</name></name> <operator>=</operator> <name>source</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>fader</name><operator>-&gt;</operator><name>cur_db</name></name> <operator>=</operator> <call><name>mul_to_db</name><argument_list>(<argument><expr><name>vol</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_unlock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>fader</name><operator>-&gt;</operator><name>mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>true</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><name>void</name></type> <name>obs_fader_detach_source</name><parameter_list>(<parameter><decl><type><name>obs_fader_t</name> <modifier>*</modifier></type><name>fader</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>signal_handler_t</name> <modifier>*</modifier></type><name>sh</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>obs_source_t</name> <modifier>*</modifier></type><name>source</name></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>fader</name></expr>)</condition><block type="pseudo"><block_content>
+<return>return;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_lock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>fader</name><operator>-&gt;</operator><name>mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>source</name> <operator>=</operator> <name><name>fader</name><operator>-&gt;</operator><name>source</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>fader</name><operator>-&gt;</operator><name>source</name></name> <operator>=</operator> <name>NULL</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>pthread_mutex_unlock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>fader</name><operator>-&gt;</operator><name>mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>source</name></expr>)</condition><block type="pseudo"><block_content>
+<return>return;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>sh</name> <operator>=</operator> <call><name>obs_source_get_signal_handler</name><argument_list>(<argument><expr><name>source</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>signal_handler_disconnect</name><argument_list>(<argument><expr><name>sh</name></expr></argument>, <argument><expr><literal type="string">"volume"</literal></expr></argument>, <argument><expr><name>fader_source_volume_changed</name></expr></argument>,
+<argument><expr><name>fader</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>signal_handler_disconnect</name><argument_list>(<argument><expr><name>sh</name></expr></argument>, <argument><expr><literal type="string">"destroy"</literal></expr></argument>, <argument><expr><name>fader_source_destroyed</name></expr></argument>, <argument><expr><name>fader</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><name>void</name></type> <name>obs_fader_add_callback</name><parameter_list>(<parameter><decl><type><name>obs_fader_t</name> <modifier>*</modifier></type><name>fader</name></decl></parameter>, <parameter><decl><type><name>obs_fader_changed_t</name></type> <name>callback</name></decl></parameter>,
+<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>param</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>fader_cb</name></name></type> <name>cb</name> <init>= <expr><block>{<expr><name>callback</name></expr>, <expr><name>param</name></expr>}</block></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>obs_ptr_valid</name><argument_list>(<argument><expr><name>fader</name></expr></argument>, <argument><expr><literal type="string">"obs_fader_add_callback"</literal></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+<return>return;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_lock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>fader</name><operator>-&gt;</operator><name>callback_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>da_push_back</name><argument_list>(<argument><expr><name><name>fader</name><operator>-&gt;</operator><name>callbacks</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name>cb</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>pthread_mutex_unlock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>fader</name><operator>-&gt;</operator><name>callback_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><name>void</name></type> <name>obs_fader_remove_callback</name><parameter_list>(<parameter><decl><type><name>obs_fader_t</name> <modifier>*</modifier></type><name>fader</name></decl></parameter>, <parameter><decl><type><name>obs_fader_changed_t</name></type> <name>callback</name></decl></parameter>,
+<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>param</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>fader_cb</name></name></type> <name>cb</name> <init>= <expr><block>{<expr><name>callback</name></expr>, <expr><name>param</name></expr>}</block></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>obs_ptr_valid</name><argument_list>(<argument><expr><name>fader</name></expr></argument>, <argument><expr><literal type="string">"obs_fader_remove_callback"</literal></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+<return>return;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_lock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>fader</name><operator>-&gt;</operator><name>callback_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>da_erase_item</name><argument_list>(<argument><expr><name><name>fader</name><operator>-&gt;</operator><name>callbacks</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name>cb</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>pthread_mutex_unlock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>fader</name><operator>-&gt;</operator><name>callback_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><name>obs_volmeter_t</name> <modifier>*</modifier></type><name>obs_volmeter_create</name><parameter_list>(<parameter><decl><type><name><name>enum</name> <name>obs_fader_type</name></name></type> <name>type</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>obs_volmeter</name></name> <modifier>*</modifier></type><name>volmeter</name> <init>= <expr><call><name>bzalloc</name><argument_list>(<argument><expr><sizeof>sizeof<argument_list>(<argument><expr>struct <name>obs_volmeter</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>volmeter</name></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><name>NULL</name></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_init_value</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>volmeter</name><operator>-&gt;</operator><name>mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>pthread_mutex_init_value</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>volmeter</name><operator>-&gt;</operator><name>callback_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><call><name>pthread_mutex_init</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>volmeter</name><operator>-&gt;</operator><name>mutex</name></name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call> <operator>!=</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+<goto>goto <name>fail</name>;</goto></block_content></block></if></if_stmt>
+<if_stmt><if>if <condition>(<expr><call><name>pthread_mutex_init</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>volmeter</name><operator>-&gt;</operator><name>callback_mutex</name></name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call> <operator>!=</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+<goto>goto <name>fail</name>;</goto></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name><name>volmeter</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>type</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_volmeter_set_update_interval</name><argument_list>(<argument><expr><name>volmeter</name></expr></argument>, <argument><expr><literal type="number">50</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>volmeter</name></expr>;</return>
+<label><name>fail</name>:</label>
+<expr_stmt><expr><call><name>obs_volmeter_destroy</name><argument_list>(<argument><expr><name>volmeter</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>NULL</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><name>void</name></type> <name>obs_volmeter_destroy</name><parameter_list>(<parameter><decl><type><name>obs_volmeter_t</name> <modifier>*</modifier></type><name>volmeter</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>volmeter</name></expr>)</condition><block type="pseudo"><block_content>
+<return>return;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>obs_volmeter_detach_source</name><argument_list>(<argument><expr><name>volmeter</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>da_free</name><argument_list>(<argument><expr><name><name>volmeter</name><operator>-&gt;</operator><name>callbacks</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>pthread_mutex_destroy</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>volmeter</name><operator>-&gt;</operator><name>callback_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>pthread_mutex_destroy</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>volmeter</name><operator>-&gt;</operator><name>mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>bfree</name><argument_list>(<argument><expr><name>volmeter</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><name>bool</name></type> <name>obs_volmeter_attach_source</name><parameter_list>(<parameter><decl><type><name>obs_volmeter_t</name> <modifier>*</modifier></type><name>volmeter</name></decl></parameter>, <parameter><decl><type><name>obs_source_t</name> <modifier>*</modifier></type><name>source</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>signal_handler_t</name> <modifier>*</modifier></type><name>sh</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>float</name></type> <name>vol</name></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>volmeter</name> <operator>||</operator> <operator>!</operator><name>source</name></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><name>false</name></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>obs_volmeter_detach_source</name><argument_list>(<argument><expr><name>volmeter</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>sh</name> <operator>=</operator> <call><name>obs_source_get_signal_handler</name><argument_list>(<argument><expr><name>source</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>signal_handler_connect</name><argument_list>(<argument><expr><name>sh</name></expr></argument>, <argument><expr><literal type="string">"volume"</literal></expr></argument>, <argument><expr><name>volmeter_source_volume_changed</name></expr></argument>,
+<argument><expr><name>volmeter</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>signal_handler_connect</name><argument_list>(<argument><expr><name>sh</name></expr></argument>, <argument><expr><literal type="string">"destroy"</literal></expr></argument>, <argument><expr><name>volmeter_source_destroyed</name></expr></argument>,
+<argument><expr><name>volmeter</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>obs_source_add_audio_capture_callback</name><argument_list>(
+<argument><expr><name>source</name></expr></argument>, <argument><expr><name>volmeter_source_data_received</name></expr></argument>, <argument><expr><name>volmeter</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>vol</name> <operator>=</operator> <call><name>obs_source_get_volume</name><argument_list>(<argument><expr><name>source</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_lock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>volmeter</name><operator>-&gt;</operator><name>mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>volmeter</name><operator>-&gt;</operator><name>source</name></name> <operator>=</operator> <name>source</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>volmeter</name><operator>-&gt;</operator><name>cur_db</name></name> <operator>=</operator> <call><name>mul_to_db</name><argument_list>(<argument><expr><name>vol</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_unlock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>volmeter</name><operator>-&gt;</operator><name>mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>true</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><name>void</name></type> <name>obs_volmeter_detach_source</name><parameter_list>(<parameter><decl><type><name>obs_volmeter_t</name> <modifier>*</modifier></type><name>volmeter</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>signal_handler_t</name> <modifier>*</modifier></type><name>sh</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>obs_source_t</name> <modifier>*</modifier></type><name>source</name></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>volmeter</name></expr>)</condition><block type="pseudo"><block_content>
+<return>return;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_lock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>volmeter</name><operator>-&gt;</operator><name>mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>source</name> <operator>=</operator> <name><name>volmeter</name><operator>-&gt;</operator><name>source</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>volmeter</name><operator>-&gt;</operator><name>source</name></name> <operator>=</operator> <name>NULL</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>pthread_mutex_unlock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>volmeter</name><operator>-&gt;</operator><name>mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>source</name></expr>)</condition><block type="pseudo"><block_content>
+<return>return;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>sh</name> <operator>=</operator> <call><name>obs_source_get_signal_handler</name><argument_list>(<argument><expr><name>source</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>signal_handler_disconnect</name><argument_list>(<argument><expr><name>sh</name></expr></argument>, <argument><expr><literal type="string">"volume"</literal></expr></argument>, <argument><expr><name>volmeter_source_volume_changed</name></expr></argument>,
+<argument><expr><name>volmeter</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>signal_handler_disconnect</name><argument_list>(<argument><expr><name>sh</name></expr></argument>, <argument><expr><literal type="string">"destroy"</literal></expr></argument>, <argument><expr><name>volmeter_source_destroyed</name></expr></argument>,
+<argument><expr><name>volmeter</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>obs_source_remove_audio_capture_callback</name><argument_list>(
+<argument><expr><name>source</name></expr></argument>, <argument><expr><name>volmeter_source_data_received</name></expr></argument>, <argument><expr><name>volmeter</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><name>void</name></type> <name>obs_volmeter_set_peak_meter_type</name><parameter_list>(<parameter><decl><type><name>obs_volmeter_t</name> <modifier>*</modifier></type><name>volmeter</name></decl></parameter>,
+<parameter><decl><type><name><name>enum</name> <name>obs_peak_meter_type</name></name></type> <name>peak_meter_type</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<expr_stmt><expr><call><name>pthread_mutex_lock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>volmeter</name><operator>-&gt;</operator><name>mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>volmeter</name><operator>-&gt;</operator><name>peak_meter_type</name></name> <operator>=</operator> <name>peak_meter_type</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>pthread_mutex_unlock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>volmeter</name><operator>-&gt;</operator><name>mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><name>void</name></type> <name>obs_volmeter_set_update_interval</name><parameter_list>(<parameter><decl><type><name>obs_volmeter_t</name> <modifier>*</modifier></type><name>volmeter</name></decl></parameter>,
+<parameter><decl><type><specifier>const</specifier> <name>unsigned</name> <name>int</name></type> <name>ms</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>volmeter</name> <operator>||</operator> <operator>!</operator><name>ms</name></expr>)</condition><block type="pseudo"><block_content>
+<return>return;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_lock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>volmeter</name><operator>-&gt;</operator><name>mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>volmeter</name><operator>-&gt;</operator><name>update_ms</name></name> <operator>=</operator> <name>ms</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>pthread_mutex_unlock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>volmeter</name><operator>-&gt;</operator><name>mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><name>unsigned</name> <name>int</name></type> <name>obs_volmeter_get_update_interval</name><parameter_list>(<parameter><decl><type><name>obs_volmeter_t</name> <modifier>*</modifier></type><name>volmeter</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>volmeter</name></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><literal type="number">0</literal></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_lock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>volmeter</name><operator>-&gt;</operator><name>mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<decl_stmt><decl><type><specifier>const</specifier> <name>unsigned</name> <name>int</name></type> <name>interval</name> <init>= <expr><name><name>volmeter</name><operator>-&gt;</operator><name>update_ms</name></name></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><call><name>pthread_mutex_unlock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>volmeter</name><operator>-&gt;</operator><name>mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>interval</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><name>int</name></type> <name>obs_volmeter_get_nr_channels</name><parameter_list>(<parameter><decl><type><name>obs_volmeter_t</name> <modifier>*</modifier></type><name>volmeter</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>int</name></type> <name>source_nr_audio_channels</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>obs_nr_audio_channels</name></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>volmeter</name><operator>-&gt;</operator><name>source</name></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name>source_nr_audio_channels</name> <operator>=</operator> <call><name>get_audio_channels</name><argument_list>(
+<argument><expr><name><name>volmeter</name><operator>-&gt;</operator><name>source</name><operator>-&gt;</operator><name>sample_info</name><operator>.</operator><name>speakers</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<expr_stmt><expr><name>source_nr_audio_channels</name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+</block_content>}</block></else></if_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>obs_audio_info</name></name></type> <name>audio_info</name></decl>;</decl_stmt>
+<if_stmt><if>if <condition>(<expr><call><name>obs_get_audio_info</name><argument_list>(<argument><expr><operator>&amp;</operator><name>audio_info</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name>obs_nr_audio_channels</name> <operator>=</operator> <call><name>get_audio_channels</name><argument_list>(<argument><expr><name><name>audio_info</name><operator>.</operator><name>speakers</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<expr_stmt><expr><name>obs_nr_audio_channels</name> <operator>=</operator> <literal type="number">2</literal></expr>;</expr_stmt>
+</block_content>}</block></else></if_stmt>
+
+<return>return <expr><call><name>CLAMP</name><argument_list>(<argument><expr><name>source_nr_audio_channels</name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>, <argument><expr><name>obs_nr_audio_channels</name></expr></argument>)</argument_list></call></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><name>void</name></type> <name>obs_volmeter_add_callback</name><parameter_list>(<parameter><decl><type><name>obs_volmeter_t</name> <modifier>*</modifier></type><name>volmeter</name></decl></parameter>,
+<parameter><decl><type><name>obs_volmeter_updated_t</name></type> <name>callback</name></decl></parameter>, <parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>param</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>meter_cb</name></name></type> <name>cb</name> <init>= <expr><block>{<expr><name>callback</name></expr>, <expr><name>param</name></expr>}</block></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>obs_ptr_valid</name><argument_list>(<argument><expr><name>volmeter</name></expr></argument>, <argument><expr><literal type="string">"obs_volmeter_add_callback"</literal></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+<return>return;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_lock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>volmeter</name><operator>-&gt;</operator><name>callback_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>da_push_back</name><argument_list>(<argument><expr><name><name>volmeter</name><operator>-&gt;</operator><name>callbacks</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name>cb</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>pthread_mutex_unlock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>volmeter</name><operator>-&gt;</operator><name>callback_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><name>void</name></type> <name>obs_volmeter_remove_callback</name><parameter_list>(<parameter><decl><type><name>obs_volmeter_t</name> <modifier>*</modifier></type><name>volmeter</name></decl></parameter>,
+<parameter><decl><type><name>obs_volmeter_updated_t</name></type> <name>callback</name></decl></parameter>, <parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>param</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>meter_cb</name></name></type> <name>cb</name> <init>= <expr><block>{<expr><name>callback</name></expr>, <expr><name>param</name></expr>}</block></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>obs_ptr_valid</name><argument_list>(<argument><expr><name>volmeter</name></expr></argument>, <argument><expr><literal type="string">"obs_volmeter_remove_callback"</literal></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+<return>return;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_lock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>volmeter</name><operator>-&gt;</operator><name>callback_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>da_erase_item</name><argument_list>(<argument><expr><name><name>volmeter</name><operator>-&gt;</operator><name>callbacks</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name>cb</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>pthread_mutex_unlock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>volmeter</name><operator>-&gt;</operator><name>callback_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><name>float</name></type> <name>obs_mul_to_db</name><parameter_list>(<parameter><decl><type><name>float</name></type> <name>mul</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<return>return <expr><call><name>mul_to_db</name><argument_list>(<argument><expr><name>mul</name></expr></argument>)</argument_list></call></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><name>float</name></type> <name>obs_db_to_mul</name><parameter_list>(<parameter><decl><type><name>float</name></type> <name>db</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<return>return <expr><call><name>db_to_mul</name><argument_list>(<argument><expr><name>db</name></expr></argument>)</argument_list></call></expr>;</return>
+</block_content>}</block></function>
+</unit>

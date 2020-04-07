@@ -1,0 +1,34 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#import <Cocoa/Cocoa.h>
+
+NS_ASSUME_NONNULL_BEGIN
+
+@interface VLCTrackingView : NSView
+
+@property (readwrite) BOOL animatesTransition;
+@property (readwrite, assign, nullable) NSView *viewToHide;
+
+@end
+
+NS_ASSUME_NONNULL_END

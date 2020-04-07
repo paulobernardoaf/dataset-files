@@ -1,0 +1,209 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" revision="1.0.0" language="C" filename="D:\Pesquisa\Projects\obs-analysis\_cppstats_featurelocations\obs-studio\plugins\obs-filters\noise-gate-filter.c"><cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;media-io/audio-math.h&gt;</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;obs-module.h&gt;</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;math.h&gt;</cpp:file></cpp:include>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>do_log</name><parameter_list>(<parameter><type><name>level</name></type></parameter>, <parameter><type><name>format</name></type></parameter>, <parameter><type><modifier>...</modifier></type></parameter>)</parameter_list></cpp:macro> <cpp:value>blog(level, "[noise gate: '%s'] " format, obs_source_get_name(ng-&gt;context), ##__VA_ARGS__)</cpp:value></cpp:define>
+
+
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>warn</name><parameter_list>(<parameter><type><name>format</name></type></parameter>, <parameter><type><modifier>...</modifier></type></parameter>)</parameter_list></cpp:macro> <cpp:value>do_log(LOG_WARNING, format, ##__VA_ARGS__)</cpp:value></cpp:define>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>info</name><parameter_list>(<parameter><type><name>format</name></type></parameter>, <parameter><type><modifier>...</modifier></type></parameter>)</parameter_list></cpp:macro> <cpp:value>do_log(LOG_INFO, format, ##__VA_ARGS__)</cpp:value></cpp:define>
+
+
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>S_OPEN_THRESHOLD</name></cpp:macro> <cpp:value>"open_threshold"</cpp:value></cpp:define>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>S_CLOSE_THRESHOLD</name></cpp:macro> <cpp:value>"close_threshold"</cpp:value></cpp:define>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>S_ATTACK_TIME</name></cpp:macro> <cpp:value>"attack_time"</cpp:value></cpp:define>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>S_HOLD_TIME</name></cpp:macro> <cpp:value>"hold_time"</cpp:value></cpp:define>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>S_RELEASE_TIME</name></cpp:macro> <cpp:value>"release_time"</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>MT_</name></cpp:macro> <cpp:value>obs_module_text</cpp:value></cpp:define>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>TEXT_OPEN_THRESHOLD</name></cpp:macro> <cpp:value>MT_("NoiseGate.OpenThreshold")</cpp:value></cpp:define>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>TEXT_CLOSE_THRESHOLD</name></cpp:macro> <cpp:value>MT_("NoiseGate.CloseThreshold")</cpp:value></cpp:define>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>TEXT_ATTACK_TIME</name></cpp:macro> <cpp:value>MT_("NoiseGate.AttackTime")</cpp:value></cpp:define>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>TEXT_HOLD_TIME</name></cpp:macro> <cpp:value>MT_("NoiseGate.HoldTime")</cpp:value></cpp:define>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>TEXT_RELEASE_TIME</name></cpp:macro> <cpp:value>MT_("NoiseGate.ReleaseTime")</cpp:value></cpp:define>
+
+
+
+<struct>struct <name>noise_gate_data</name> <block>{
+<decl_stmt><decl><type><name>obs_source_t</name> <modifier>*</modifier></type><name>context</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>float</name></type> <name>sample_rate_i</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>size_t</name></type> <name>channels</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>float</name></type> <name>open_threshold</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>float</name></type> <name>close_threshold</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>float</name></type> <name>decay_rate</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>float</name></type> <name>attack_rate</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>float</name></type> <name>release_rate</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>float</name></type> <name>hold_time</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>bool</name></type> <name>is_open</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>float</name></type> <name>attenuation</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>float</name></type> <name>level</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>float</name></type> <name>held_time</name></decl>;</decl_stmt>
+}</block>;</struct>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>VOL_MIN</name></cpp:macro> <cpp:value>-96.0</cpp:value></cpp:define>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>VOL_MAX</name></cpp:macro> <cpp:value>0.0</cpp:value></cpp:define>
+
+<function><type><specifier>static</specifier> <specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>noise_gate_name</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>unused</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<expr_stmt><expr><call><name>UNUSED_PARAMETER</name><argument_list>(<argument><expr><name>unused</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><call><name>obs_module_text</name><argument_list>(<argument><expr><literal type="string">"NoiseGate"</literal></expr></argument>)</argument_list></call></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>noise_gate_destroy</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>noise_gate_data</name></name> <modifier>*</modifier></type><name>ng</name> <init>= <expr><name>data</name></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><call><name>bfree</name><argument_list>(<argument><expr><name>ng</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <specifier>inline</specifier> <name>float</name></type> <name>ms_to_secf</name><parameter_list>(<parameter><decl><type><name>int</name></type> <name>ms</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<return>return <expr><operator>(</operator><name>float</name><operator>)</operator><name>ms</name> <operator>/</operator> <literal type="number">1000.0f</literal></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>noise_gate_update</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>, <parameter><decl><type><name>obs_data_t</name> <modifier>*</modifier></type><name>s</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>noise_gate_data</name></name> <modifier>*</modifier></type><name>ng</name> <init>= <expr><name>data</name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>float</name></type> <name>open_threshold_db</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>float</name></type> <name>close_threshold_db</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>float</name></type> <name>sample_rate</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>attack_time_ms</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>hold_time_ms</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>release_time_ms</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>open_threshold_db</name> <operator>=</operator> <operator>(</operator><name>float</name><operator>)</operator><call><name>obs_data_get_double</name><argument_list>(<argument><expr><name>s</name></expr></argument>, <argument><expr><name>S_OPEN_THRESHOLD</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>close_threshold_db</name> <operator>=</operator> <operator>(</operator><name>float</name><operator>)</operator><call><name>obs_data_get_double</name><argument_list>(<argument><expr><name>s</name></expr></argument>, <argument><expr><name>S_CLOSE_THRESHOLD</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>attack_time_ms</name> <operator>=</operator> <operator>(</operator><name>int</name><operator>)</operator><call><name>obs_data_get_int</name><argument_list>(<argument><expr><name>s</name></expr></argument>, <argument><expr><name>S_ATTACK_TIME</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>hold_time_ms</name> <operator>=</operator> <operator>(</operator><name>int</name><operator>)</operator><call><name>obs_data_get_int</name><argument_list>(<argument><expr><name>s</name></expr></argument>, <argument><expr><name>S_HOLD_TIME</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>release_time_ms</name> <operator>=</operator> <operator>(</operator><name>int</name><operator>)</operator><call><name>obs_data_get_int</name><argument_list>(<argument><expr><name>s</name></expr></argument>, <argument><expr><name>S_RELEASE_TIME</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>sample_rate</name> <operator>=</operator> <operator>(</operator><name>float</name><operator>)</operator><call><name>audio_output_get_sample_rate</name><argument_list>(<argument><expr><call><name>obs_get_audio</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>ng</name><operator>-&gt;</operator><name>sample_rate_i</name></name> <operator>=</operator> <literal type="number">1.0f</literal> <operator>/</operator> <name>sample_rate</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>ng</name><operator>-&gt;</operator><name>channels</name></name> <operator>=</operator> <call><name>audio_output_get_channels</name><argument_list>(<argument><expr><call><name>obs_get_audio</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>ng</name><operator>-&gt;</operator><name>open_threshold</name></name> <operator>=</operator> <call><name>db_to_mul</name><argument_list>(<argument><expr><name>open_threshold_db</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>ng</name><operator>-&gt;</operator><name>close_threshold</name></name> <operator>=</operator> <call><name>db_to_mul</name><argument_list>(<argument><expr><name>close_threshold_db</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>ng</name><operator>-&gt;</operator><name>attack_rate</name></name> <operator>=</operator> <literal type="number">1.0f</literal> <operator>/</operator> <operator>(</operator><call><name>ms_to_secf</name><argument_list>(<argument><expr><name>attack_time_ms</name></expr></argument>)</argument_list></call> <operator>*</operator> <name>sample_rate</name><operator>)</operator></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>ng</name><operator>-&gt;</operator><name>release_rate</name></name> <operator>=</operator> <literal type="number">1.0f</literal> <operator>/</operator> <operator>(</operator><call><name>ms_to_secf</name><argument_list>(<argument><expr><name>release_time_ms</name></expr></argument>)</argument_list></call> <operator>*</operator> <name>sample_rate</name><operator>)</operator></expr>;</expr_stmt>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>float</name></type> <name>threshold_diff</name> <init>= <expr><name><name>ng</name><operator>-&gt;</operator><name>open_threshold</name></name> <operator>-</operator> <name><name>ng</name><operator>-&gt;</operator><name>close_threshold</name></name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><specifier>const</specifier> <name>float</name></type> <name>min_decay_period</name> <init>= <expr><operator>(</operator><literal type="number">1.0f</literal> <operator>/</operator> <literal type="number">75.0f</literal><operator>)</operator> <operator>*</operator> <name>sample_rate</name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>ng</name><operator>-&gt;</operator><name>decay_rate</name></name> <operator>=</operator> <name>threshold_diff</name> <operator>/</operator> <name>min_decay_period</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>ng</name><operator>-&gt;</operator><name>hold_time</name></name> <operator>=</operator> <call><name>ms_to_secf</name><argument_list>(<argument><expr><name>hold_time_ms</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>ng</name><operator>-&gt;</operator><name>is_open</name></name> <operator>=</operator> <name>false</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>ng</name><operator>-&gt;</operator><name>attenuation</name></name> <operator>=</operator> <literal type="number">0.0f</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>ng</name><operator>-&gt;</operator><name>level</name></name> <operator>=</operator> <literal type="number">0.0f</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>ng</name><operator>-&gt;</operator><name>held_time</name></name> <operator>=</operator> <literal type="number">0.0f</literal></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name> <modifier>*</modifier></type><name>noise_gate_create</name><parameter_list>(<parameter><decl><type><name>obs_data_t</name> <modifier>*</modifier></type><name>settings</name></decl></parameter>, <parameter><decl><type><name>obs_source_t</name> <modifier>*</modifier></type><name>filter</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>noise_gate_data</name></name> <modifier>*</modifier></type><name>ng</name> <init>= <expr><call><name>bzalloc</name><argument_list>(<argument><expr><sizeof>sizeof<argument_list>(<argument><expr><operator>*</operator><name>ng</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><name><name>ng</name><operator>-&gt;</operator><name>context</name></name> <operator>=</operator> <name>filter</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>noise_gate_update</name><argument_list>(<argument><expr><name>ng</name></expr></argument>, <argument><expr><name>settings</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>ng</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name><name>struct</name> <name>obs_audio_data</name></name> <modifier>*</modifier></type>
+<name>noise_gate_filter_audio</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>, <parameter><decl><type><name><name>struct</name> <name>obs_audio_data</name></name> <modifier>*</modifier></type><name>audio</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>noise_gate_data</name></name> <modifier>*</modifier></type><name>ng</name> <init>= <expr><name>data</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>float</name> <modifier>*</modifier><modifier>*</modifier></type><name>adata</name> <init>= <expr><operator>(</operator><name>float</name> <operator>*</operator><operator>*</operator><operator>)</operator><name><name>audio</name><operator>-&gt;</operator><name>data</name></name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><specifier>const</specifier> <name>float</name></type> <name>close_threshold</name> <init>= <expr><name><name>ng</name><operator>-&gt;</operator><name>close_threshold</name></name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><specifier>const</specifier> <name>float</name></type> <name>open_threshold</name> <init>= <expr><name><name>ng</name><operator>-&gt;</operator><name>open_threshold</name></name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><specifier>const</specifier> <name>float</name></type> <name>sample_rate_i</name> <init>= <expr><name><name>ng</name><operator>-&gt;</operator><name>sample_rate_i</name></name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><specifier>const</specifier> <name>float</name></type> <name>release_rate</name> <init>= <expr><name><name>ng</name><operator>-&gt;</operator><name>release_rate</name></name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><specifier>const</specifier> <name>float</name></type> <name>attack_rate</name> <init>= <expr><name><name>ng</name><operator>-&gt;</operator><name>attack_rate</name></name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><specifier>const</specifier> <name>float</name></type> <name>decay_rate</name> <init>= <expr><name><name>ng</name><operator>-&gt;</operator><name>decay_rate</name></name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><specifier>const</specifier> <name>float</name></type> <name>hold_time</name> <init>= <expr><name><name>ng</name><operator>-&gt;</operator><name>hold_time</name></name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><specifier>const</specifier> <name>size_t</name></type> <name>channels</name> <init>= <expr><name><name>ng</name><operator>-&gt;</operator><name>channels</name></name></expr></init></decl>;</decl_stmt>
+
+<for>for <control>(<init><decl><type><name>size_t</name></type> <name>i</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name><name>audio</name><operator>-&gt;</operator><name>frames</name></name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<decl_stmt><decl><type><name>float</name></type> <name>cur_level</name> <init>= <expr><call><name>fabsf</name><argument_list>(<argument><expr><name><name>adata</name><index>[<expr><literal type="number">0</literal></expr>]</index><index>[<expr><name>i</name></expr>]</index></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<for>for <control>(<init><decl><type><name>size_t</name></type> <name>j</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>j</name> <operator>&lt;</operator> <name>channels</name></expr>;</condition> <incr><expr><name>j</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<expr_stmt><expr><name>cur_level</name> <operator>=</operator> <call><name>fmaxf</name><argument_list>(<argument><expr><name>cur_level</name></expr></argument>, <argument><expr><call><name>fabsf</name><argument_list>(<argument><expr><name><name>adata</name><index>[<expr><name>j</name></expr>]</index><index>[<expr><name>i</name></expr>]</index></name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></for>
+
+<if_stmt><if>if <condition>(<expr><name>cur_level</name> <operator>&gt;</operator> <name>open_threshold</name> <operator>&amp;&amp;</operator> <operator>!</operator><name><name>ng</name><operator>-&gt;</operator><name>is_open</name></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name><name>ng</name><operator>-&gt;</operator><name>is_open</name></name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>ng</name><operator>-&gt;</operator><name>level</name></name> <operator>&lt;</operator> <name>close_threshold</name> <operator>&amp;&amp;</operator> <name><name>ng</name><operator>-&gt;</operator><name>is_open</name></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name><name>ng</name><operator>-&gt;</operator><name>held_time</name></name> <operator>=</operator> <literal type="number">0.0f</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>ng</name><operator>-&gt;</operator><name>is_open</name></name> <operator>=</operator> <name>false</name></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>ng</name><operator>-&gt;</operator><name>level</name></name> <operator>=</operator> <call><name>fmaxf</name><argument_list>(<argument><expr><name><name>ng</name><operator>-&gt;</operator><name>level</name></name></expr></argument>, <argument><expr><name>cur_level</name></expr></argument>)</argument_list></call> <operator>-</operator> <name>decay_rate</name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>ng</name><operator>-&gt;</operator><name>is_open</name></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name><name>ng</name><operator>-&gt;</operator><name>attenuation</name></name> <operator>=</operator>
+<call><name>fminf</name><argument_list>(<argument><expr><literal type="number">1.0f</literal></expr></argument>, <argument><expr><name><name>ng</name><operator>-&gt;</operator><name>attenuation</name></name> <operator>+</operator> <name>attack_rate</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<expr_stmt><expr><name><name>ng</name><operator>-&gt;</operator><name>held_time</name></name> <operator>+=</operator> <name>sample_rate_i</name></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>ng</name><operator>-&gt;</operator><name>held_time</name></name> <operator>&gt;</operator> <name>hold_time</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name><name>ng</name><operator>-&gt;</operator><name>attenuation</name></name> <operator>=</operator> <call><name>fmaxf</name><argument_list>(
+<argument><expr><literal type="number">0.0f</literal></expr></argument>, <argument><expr><name><name>ng</name><operator>-&gt;</operator><name>attenuation</name></name> <operator>-</operator> <name>release_rate</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block></else></if_stmt>
+
+<for>for <control>(<init><decl><type><name>size_t</name></type> <name>c</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>c</name> <operator>&lt;</operator> <name>channels</name></expr>;</condition> <incr><expr><name>c</name><operator>++</operator></expr></incr>)</control><block type="pseudo"><block_content>
+<expr_stmt><expr><name><name>adata</name><index>[<expr><name>c</name></expr>]</index><index>[<expr><name>i</name></expr>]</index></name> <operator>*=</operator> <name><name>ng</name><operator>-&gt;</operator><name>attenuation</name></name></expr>;</expr_stmt></block_content></block></for>
+</block_content>}</block></for>
+
+<return>return <expr><name>audio</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>noise_gate_defaults</name><parameter_list>(<parameter><decl><type><name>obs_data_t</name> <modifier>*</modifier></type><name>s</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<expr_stmt><expr><call><name>obs_data_set_default_double</name><argument_list>(<argument><expr><name>s</name></expr></argument>, <argument><expr><name>S_OPEN_THRESHOLD</name></expr></argument>, <argument><expr><operator>-</operator><literal type="number">26.0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>obs_data_set_default_double</name><argument_list>(<argument><expr><name>s</name></expr></argument>, <argument><expr><name>S_CLOSE_THRESHOLD</name></expr></argument>, <argument><expr><operator>-</operator><literal type="number">32.0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>obs_data_set_default_int</name><argument_list>(<argument><expr><name>s</name></expr></argument>, <argument><expr><name>S_ATTACK_TIME</name></expr></argument>, <argument><expr><literal type="number">25</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>obs_data_set_default_int</name><argument_list>(<argument><expr><name>s</name></expr></argument>, <argument><expr><name>S_HOLD_TIME</name></expr></argument>, <argument><expr><literal type="number">200</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>obs_data_set_default_int</name><argument_list>(<argument><expr><name>s</name></expr></argument>, <argument><expr><name>S_RELEASE_TIME</name></expr></argument>, <argument><expr><literal type="number">150</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>obs_properties_t</name> <modifier>*</modifier></type><name>noise_gate_properties</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>obs_properties_t</name> <modifier>*</modifier></type><name>ppts</name> <init>= <expr><call><name>obs_properties_create</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>obs_property_t</name> <modifier>*</modifier></type><name>p</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>p</name> <operator>=</operator> <call><name>obs_properties_add_float_slider</name><argument_list>(<argument><expr><name>ppts</name></expr></argument>, <argument><expr><name>S_CLOSE_THRESHOLD</name></expr></argument>,
+<argument><expr><name>TEXT_CLOSE_THRESHOLD</name></expr></argument>, <argument><expr><name>VOL_MIN</name></expr></argument>,
+<argument><expr><name>VOL_MAX</name></expr></argument>, <argument><expr><literal type="number">1.0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>obs_property_float_set_suffix</name><argument_list>(<argument><expr><name>p</name></expr></argument>, <argument><expr><literal type="string">" dB"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>p</name> <operator>=</operator> <call><name>obs_properties_add_float_slider</name><argument_list>(<argument><expr><name>ppts</name></expr></argument>, <argument><expr><name>S_OPEN_THRESHOLD</name></expr></argument>,
+<argument><expr><name>TEXT_OPEN_THRESHOLD</name></expr></argument>, <argument><expr><name>VOL_MIN</name></expr></argument>,
+<argument><expr><name>VOL_MAX</name></expr></argument>, <argument><expr><literal type="number">1.0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>obs_property_float_set_suffix</name><argument_list>(<argument><expr><name>p</name></expr></argument>, <argument><expr><literal type="string">" dB"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>p</name> <operator>=</operator> <call><name>obs_properties_add_int</name><argument_list>(<argument><expr><name>ppts</name></expr></argument>, <argument><expr><name>S_ATTACK_TIME</name></expr></argument>, <argument><expr><name>TEXT_ATTACK_TIME</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>,
+<argument><expr><literal type="number">10000</literal></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>obs_property_int_set_suffix</name><argument_list>(<argument><expr><name>p</name></expr></argument>, <argument><expr><literal type="string">" ms"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>p</name> <operator>=</operator> <call><name>obs_properties_add_int</name><argument_list>(<argument><expr><name>ppts</name></expr></argument>, <argument><expr><name>S_HOLD_TIME</name></expr></argument>, <argument><expr><name>TEXT_HOLD_TIME</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><literal type="number">10000</literal></expr></argument>,
+<argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>obs_property_int_set_suffix</name><argument_list>(<argument><expr><name>p</name></expr></argument>, <argument><expr><literal type="string">" ms"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>p</name> <operator>=</operator> <call><name>obs_properties_add_int</name><argument_list>(<argument><expr><name>ppts</name></expr></argument>, <argument><expr><name>S_RELEASE_TIME</name></expr></argument>, <argument><expr><name>TEXT_RELEASE_TIME</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>,
+<argument><expr><literal type="number">10000</literal></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>obs_property_int_set_suffix</name><argument_list>(<argument><expr><name>p</name></expr></argument>, <argument><expr><literal type="string">" ms"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>UNUSED_PARAMETER</name><argument_list>(<argument><expr><name>data</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>ppts</name></expr>;</return>
+</block_content>}</block></function>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>obs_source_info</name></name></type> <name>noise_gate_filter</name> <init>= <expr><block>{
+<expr><operator>.</operator><name>id</name> <operator>=</operator> <literal type="string">"noise_gate_filter"</literal></expr>,
+<expr><operator>.</operator><name>type</name> <operator>=</operator> <name>OBS_SOURCE_TYPE_FILTER</name></expr>,
+<expr><operator>.</operator><name>output_flags</name> <operator>=</operator> <name>OBS_SOURCE_AUDIO</name></expr>,
+<expr><operator>.</operator><name>get_name</name> <operator>=</operator> <name>noise_gate_name</name></expr>,
+<expr><operator>.</operator><name>create</name> <operator>=</operator> <name>noise_gate_create</name></expr>,
+<expr><operator>.</operator><name>destroy</name> <operator>=</operator> <name>noise_gate_destroy</name></expr>,
+<expr><operator>.</operator><name>update</name> <operator>=</operator> <name>noise_gate_update</name></expr>,
+<expr><operator>.</operator><name>filter_audio</name> <operator>=</operator> <name>noise_gate_filter_audio</name></expr>,
+<expr><operator>.</operator><name>get_defaults</name> <operator>=</operator> <name>noise_gate_defaults</name></expr>,
+<expr><operator>.</operator><name>get_properties</name> <operator>=</operator> <name>noise_gate_properties</name></expr>,
+}</block></expr></init></decl>;</decl_stmt>
+</unit>

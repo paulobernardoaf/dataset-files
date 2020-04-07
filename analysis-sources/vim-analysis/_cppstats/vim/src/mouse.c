@@ -1,0 +1,2338 @@
+#include "vim.h"
+#if defined(CHECK_DOUBLE_CLICK)
+static long
+time_diff_ms(struct timeval *t1, struct timeval *t2)
+{
+return (t2->tv_sec - t1->tv_sec) * 1000
++ (t2->tv_usec - t1->tv_usec) / 1000;
+}
+#endif
+static int
+get_mouse_class(char_u *p)
+{
+int c;
+if (has_mbyte && MB_BYTE2LEN(p[0]) > 1)
+return mb_get_class(p);
+c = *p;
+if (c == ' ' || c == '\t')
+return 0;
+if (vim_iswordc(c))
+return 2;
+if (c != NUL && vim_strchr((char_u *)"-+*/%<>&|^!=", c) != NULL)
+return 1;
+return c;
+}
+static void
+find_start_of_word(pos_T *pos)
+{
+char_u *line;
+int cclass;
+int col;
+line = ml_get(pos->lnum);
+cclass = get_mouse_class(line + pos->col);
+while (pos->col > 0)
+{
+col = pos->col - 1;
+col -= (*mb_head_off)(line, line + col);
+if (get_mouse_class(line + col) != cclass)
+break;
+pos->col = col;
+}
+}
+static void
+find_end_of_word(pos_T *pos)
+{
+char_u *line;
+int cclass;
+int col;
+line = ml_get(pos->lnum);
+if (*p_sel == 'e' && pos->col > 0)
+{
+--pos->col;
+pos->col -= (*mb_head_off)(line, line + pos->col);
+}
+cclass = get_mouse_class(line + pos->col);
+while (line[pos->col] != NUL)
+{
+col = pos->col + (*mb_ptr2len)(line + pos->col);
+if (get_mouse_class(line + col) != cclass)
+{
+if (*p_sel == 'e')
+pos->col = col;
+break;
+}
+pos->col = col;
+}
+}
+#if defined(FEAT_GUI_MOTIF) || defined(FEAT_GUI_GTK) || defined(FEAT_GUI_ATHENA) || defined(FEAT_GUI_MSWIN) || defined(FEAT_GUI_MAC) || defined(FEAT_GUI_PHOTON) || defined(FEAT_TERM_POPUP_MENU)
+#define USE_POPUP_SETPOS
+#define NEED_VCOL2COL
+static int
+get_fpos_of_mouse(pos_T *mpos)
+{
+win_T *wp;
+int row = mouse_row;
+int col = mouse_col;
+if (row < 0 || col < 0) 
+return IN_UNKNOWN;
+wp = mouse_find_win(&row, &col, FAIL_POPUP);
+if (wp == NULL)
+return IN_UNKNOWN;
+if (row >= wp->w_height) 
+return IN_STATUS_LINE;
+if (col >= wp->w_width) 
+return IN_SEP_LINE;
+if (wp != curwin)
+return IN_UNKNOWN;
+if (mouse_comp_pos(curwin, &row, &col, &mpos->lnum, NULL))
+return IN_STATUS_LINE; 
+mpos->col = vcol2col(wp, mpos->lnum, col);
+if (mpos->col > 0)
+--mpos->col;
+mpos->coladd = 0;
+return IN_BUFFER;
+}
+#endif
+int
+do_mouse(
+oparg_T *oap, 
+int c, 
+int dir, 
+long count,
+int fixindent) 
+{
+static int do_always = FALSE; 
+static int got_click = FALSE; 
+int which_button; 
+int is_click = FALSE; 
+int is_drag = FALSE; 
+int jump_flags = 0; 
+pos_T start_visual;
+int moved; 
+int in_status_line; 
+static int in_tab_line = FALSE; 
+int in_sep_line; 
+int c1, c2;
+#if defined(FEAT_FOLDING)
+pos_T save_cursor;
+#endif
+win_T *old_curwin = curwin;
+static pos_T orig_cursor;
+colnr_T leftcol, rightcol;
+pos_T end_visual;
+int diff;
+int old_active = VIsual_active;
+int old_mode = VIsual_mode;
+int regname;
+#if defined(FEAT_FOLDING)
+save_cursor = curwin->w_cursor;
+#endif
+if (do_always)
+do_always = FALSE;
+else
+#if defined(FEAT_GUI)
+if (!gui.in_use)
+#endif
+{
+if (VIsual_active)
+{
+if (!mouse_has(MOUSE_VISUAL))
+return FALSE;
+}
+else if (State == NORMAL && !mouse_has(MOUSE_NORMAL))
+return FALSE;
+}
+for (;;)
+{
+which_button = get_mouse_button(KEY2TERMCAP1(c), &is_click, &is_drag);
+if (is_drag)
+{
+if (vpeekc() != NUL)
+{
+int nc;
+int save_mouse_row = mouse_row;
+int save_mouse_col = mouse_col;
+nc = safe_vgetc();
+if (c == nc)
+continue;
+vungetc(nc);
+mouse_row = save_mouse_row;
+mouse_col = save_mouse_col;
+}
+}
+break;
+}
+if (c == K_MOUSEMOVE)
+{
+#if defined(FEAT_BEVAL_TERM)
+ui_may_remove_balloon();
+if (p_bevalterm)
+{
+profile_setlimit(p_bdlay, &bevalexpr_due);
+bevalexpr_due_set = TRUE;
+}
+#endif
+#if defined(FEAT_PROP_POPUP)
+popup_handle_mouse_moved();
+#endif
+return FALSE;
+}
+#if defined(FEAT_MOUSESHAPE)
+if (!is_drag && drag_status_line)
+{
+drag_status_line = FALSE;
+update_mouseshape(SHAPE_IDX_STATUS);
+}
+if (!is_drag && drag_sep_line)
+{
+drag_sep_line = FALSE;
+update_mouseshape(SHAPE_IDX_VSEP);
+}
+#endif
+if (is_click)
+got_click = TRUE;
+else
+{
+if (!got_click) 
+return FALSE;
+if (!is_drag) 
+{
+got_click = FALSE;
+if (in_tab_line)
+{
+in_tab_line = FALSE;
+return FALSE;
+}
+}
+}
+if (is_click && (mod_mask & MOD_MASK_CTRL) && which_button == MOUSE_RIGHT)
+{
+if (State & INSERT)
+stuffcharReadbuff(Ctrl_O);
+if (count > 1)
+stuffnumReadbuff(count);
+stuffcharReadbuff(Ctrl_T);
+got_click = FALSE; 
+return FALSE;
+}
+if ((mod_mask & MOD_MASK_CTRL) && which_button != MOUSE_LEFT)
+return FALSE;
+if ((mod_mask & (MOD_MASK_SHIFT | MOD_MASK_CTRL | MOD_MASK_ALT
+| MOD_MASK_META))
+&& (!is_click
+|| (mod_mask & MOD_MASK_MULTI_CLICK)
+|| which_button == MOUSE_MIDDLE)
+&& !((mod_mask & (MOD_MASK_SHIFT|MOD_MASK_ALT))
+&& mouse_model_popup()
+&& which_button == MOUSE_LEFT)
+&& !((mod_mask & MOD_MASK_ALT)
+&& !mouse_model_popup()
+&& which_button == MOUSE_RIGHT)
+)
+return FALSE;
+if (!is_click && which_button == MOUSE_MIDDLE)
+return FALSE;
+if (oap != NULL)
+regname = oap->regname;
+else
+regname = 0;
+if (which_button == MOUSE_MIDDLE)
+{
+if (State == NORMAL)
+{
+if (oap != NULL && oap->op_type != OP_NOP)
+{
+clearopbeep(oap);
+return FALSE;
+}
+if (VIsual_active)
+{
+if (VIsual_select)
+{
+stuffcharReadbuff(Ctrl_G);
+stuffReadbuff((char_u *)"\"+p");
+}
+else
+{
+stuffcharReadbuff('y');
+stuffcharReadbuff(K_MIDDLEMOUSE);
+}
+do_always = TRUE; 
+return FALSE;
+}
+}
+else if ((State & INSERT) == 0)
+return FALSE;
+if ((State & INSERT) || !mouse_has(MOUSE_NORMAL))
+{
+if (regname == '.')
+insert_reg(regname, TRUE);
+else
+{
+#if defined(FEAT_CLIPBOARD)
+if (clip_star.available && regname == 0)
+regname = '*';
+#endif
+if ((State & REPLACE_FLAG) && !yank_register_mline(regname))
+insert_reg(regname, TRUE);
+else
+{
+do_put(regname, BACKWARD, 1L, fixindent | PUT_CURSEND);
+AppendCharToRedobuff(Ctrl_R);
+AppendCharToRedobuff(fixindent ? Ctrl_P : Ctrl_O);
+AppendCharToRedobuff(regname == 0 ? '"' : regname);
+}
+}
+return FALSE;
+}
+}
+if (!is_click)
+jump_flags |= MOUSE_FOCUS | MOUSE_DID_MOVE;
+start_visual.lnum = 0;
+if (mouse_row == 0 && firstwin->w_winrow > 0)
+{
+if (is_drag)
+{
+if (in_tab_line)
+{
+c1 = TabPageIdxs[mouse_col];
+tabpage_move(c1 <= 0 ? 9999 : c1 < tabpage_index(curtab)
+? c1 - 1 : c1);
+}
+return FALSE;
+}
+if (is_click
+#if defined(FEAT_CMDWIN)
+&& cmdwin_type == 0
+#endif
+&& mouse_col < Columns)
+{
+in_tab_line = TRUE;
+c1 = TabPageIdxs[mouse_col];
+if (c1 >= 0)
+{
+if ((mod_mask & MOD_MASK_MULTI_CLICK) == MOD_MASK_2CLICK)
+{
+end_visual_mode();
+tabpage_new();
+tabpage_move(c1 == 0 ? 9999 : c1 - 1);
+}
+else
+{
+goto_tabpage(c1);
+if (curwin != old_curwin)
+end_visual_mode();
+}
+}
+else
+{
+tabpage_T *tp;
+if (c1 == -999)
+tp = curtab;
+else
+tp = find_tabpage(-c1);
+if (tp == curtab)
+{
+if (first_tabpage->tp_next != NULL)
+tabpage_close(FALSE);
+}
+else if (tp != NULL)
+tabpage_close_other(tp, FALSE);
+}
+}
+return TRUE;
+}
+else if (is_drag && in_tab_line)
+{
+c1 = TabPageIdxs[mouse_col];
+tabpage_move(c1 <= 0 ? 9999 : c1 - 1);
+return FALSE;
+}
+if (mouse_model_popup())
+{
+if (which_button == MOUSE_RIGHT
+&& !(mod_mask & (MOD_MASK_SHIFT | MOD_MASK_CTRL)))
+{
+#if defined(USE_POPUP_SETPOS)
+#if defined(FEAT_GUI)
+if (gui.in_use)
+{
+#if defined(FEAT_GUI_MOTIF) || defined(FEAT_GUI_GTK) || defined(FEAT_GUI_PHOTON) || defined(FEAT_GUI_MAC)
+if (!is_click)
+return FALSE;
+#endif
+#if defined(FEAT_GUI_ATHENA) || defined(FEAT_GUI_MSWIN) || defined(FEAT_GUI_HAIKU)
+if (is_click || is_drag)
+return FALSE;
+#endif
+}
+#endif
+#if defined(FEAT_GUI) && defined(FEAT_TERM_POPUP_MENU)
+else
+#endif
+#if defined(FEAT_TERM_POPUP_MENU)
+if (!is_click)
+return FALSE;
+#endif
+jump_flags = 0;
+if (STRCMP(p_mousem, "popup_setpos") == 0)
+{
+if (VIsual_active)
+{
+pos_T m_pos;
+if (mouse_row < curwin->w_winrow
+|| mouse_row
+> (curwin->w_winrow + curwin->w_height))
+jump_flags = MOUSE_MAY_STOP_VIS;
+else if (get_fpos_of_mouse(&m_pos) != IN_BUFFER)
+jump_flags = MOUSE_MAY_STOP_VIS;
+else
+{
+if ((LT_POS(curwin->w_cursor, VIsual)
+&& (LT_POS(m_pos, curwin->w_cursor)
+|| LT_POS(VIsual, m_pos)))
+|| (LT_POS(VIsual, curwin->w_cursor)
+&& (LT_POS(m_pos, VIsual)
+|| LT_POS(curwin->w_cursor, m_pos))))
+{
+jump_flags = MOUSE_MAY_STOP_VIS;
+}
+else if (VIsual_mode == Ctrl_V)
+{
+getvcols(curwin, &curwin->w_cursor, &VIsual,
+&leftcol, &rightcol);
+getvcol(curwin, &m_pos, NULL, &m_pos.col, NULL);
+if (m_pos.col < leftcol || m_pos.col > rightcol)
+jump_flags = MOUSE_MAY_STOP_VIS;
+}
+}
+}
+else
+jump_flags = MOUSE_MAY_STOP_VIS;
+}
+if (jump_flags)
+{
+jump_flags = jump_to_mouse(jump_flags, NULL, which_button);
+update_curbuf(VIsual_active ? INVERTED : VALID);
+setcursor();
+out_flush(); 
+}
+#if defined(FEAT_MENU)
+show_popupmenu();
+got_click = FALSE; 
+#endif
+return (jump_flags & CURSOR_MOVED) != 0;
+#else
+return FALSE;
+#endif
+}
+if (which_button == MOUSE_LEFT
+&& (mod_mask & (MOD_MASK_SHIFT|MOD_MASK_ALT)))
+{
+which_button = MOUSE_RIGHT;
+mod_mask &= ~MOD_MASK_SHIFT;
+}
+}
+if ((State & (NORMAL | INSERT))
+&& !(mod_mask & (MOD_MASK_SHIFT | MOD_MASK_CTRL)))
+{
+if (which_button == MOUSE_LEFT)
+{
+if (is_click)
+{
+if (VIsual_active)
+jump_flags |= MOUSE_MAY_STOP_VIS;
+}
+else if (mouse_has(MOUSE_VISUAL))
+jump_flags |= MOUSE_MAY_VIS;
+}
+else if (which_button == MOUSE_RIGHT)
+{
+if (is_click && VIsual_active)
+{
+if (LT_POS(curwin->w_cursor, VIsual))
+{
+start_visual = curwin->w_cursor;
+end_visual = VIsual;
+}
+else
+{
+start_visual = VIsual;
+end_visual = curwin->w_cursor;
+}
+}
+jump_flags |= MOUSE_FOCUS;
+if (mouse_has(MOUSE_VISUAL))
+jump_flags |= MOUSE_MAY_VIS;
+}
+}
+if (!is_drag && oap != NULL && oap->op_type != OP_NOP)
+{
+got_click = FALSE;
+oap->motion_type = MCHAR;
+}
+if (!is_click && !is_drag)
+jump_flags |= MOUSE_RELEASED;
+jump_flags = jump_to_mouse(jump_flags,
+oap == NULL ? NULL : &(oap->inclusive), which_button);
+#if defined(FEAT_MENU)
+if (jump_flags & MOUSE_WINBAR)
+return FALSE;
+#endif
+moved = (jump_flags & CURSOR_MOVED);
+in_status_line = (jump_flags & IN_STATUS_LINE);
+in_sep_line = (jump_flags & IN_SEP_LINE);
+#if defined(FEAT_NETBEANS_INTG)
+if (isNetbeansBuffer(curbuf)
+&& !(jump_flags & (IN_STATUS_LINE | IN_SEP_LINE)))
+{
+int key = KEY2TERMCAP1(c);
+if (key == (int)KE_LEFTRELEASE || key == (int)KE_MIDDLERELEASE
+|| key == (int)KE_RIGHTRELEASE)
+netbeans_button_release(which_button);
+}
+#endif
+if (curwin != old_curwin && oap != NULL && oap->op_type != OP_NOP)
+clearop(oap);
+#if defined(FEAT_FOLDING)
+if (mod_mask == 0
+&& !is_drag
+&& (jump_flags & (MOUSE_FOLD_CLOSE | MOUSE_FOLD_OPEN))
+&& which_button == MOUSE_LEFT)
+{
+if (jump_flags & MOUSE_FOLD_OPEN)
+openFold(curwin->w_cursor.lnum, 1L);
+else
+closeFold(curwin->w_cursor.lnum, 1L);
+if (curwin == old_curwin)
+curwin->w_cursor = save_cursor;
+}
+#endif
+#if defined(FEAT_CLIPBOARD) && defined(FEAT_CMDWIN)
+if ((jump_flags & IN_OTHER_WIN) && !VIsual_active && clip_star.available)
+{
+clip_modeless(which_button, is_click, is_drag);
+return FALSE;
+}
+#endif
+if (VIsual_active && is_drag && get_scrolloff_value())
+{
+if (mouse_row == 0)
+mouse_dragging = 2;
+else
+mouse_dragging = 1;
+}
+if (is_drag && mouse_row < 0 && !in_status_line)
+{
+scroll_redraw(FALSE, 1L);
+mouse_row = 0;
+}
+if (start_visual.lnum) 
+{
+if (mod_mask & MOD_MASK_ALT)
+VIsual_mode = Ctrl_V;
+if (VIsual_mode == Ctrl_V)
+{
+getvcols(curwin, &start_visual, &end_visual, &leftcol, &rightcol);
+if (curwin->w_curswant > (leftcol + rightcol) / 2)
+end_visual.col = leftcol;
+else
+end_visual.col = rightcol;
+if (curwin->w_cursor.lnum >=
+(start_visual.lnum + end_visual.lnum) / 2)
+end_visual.lnum = start_visual.lnum;
+start_visual = curwin->w_cursor; 
+curwin->w_cursor = end_visual;
+coladvance(end_visual.col);
+VIsual = curwin->w_cursor;
+curwin->w_cursor = start_visual; 
+}
+else
+{
+if (LT_POS(curwin->w_cursor, start_visual))
+VIsual = end_visual;
+else if (LT_POS(end_visual, curwin->w_cursor))
+VIsual = start_visual;
+else
+{
+if (end_visual.lnum == start_visual.lnum)
+{
+if (curwin->w_cursor.col - start_visual.col >
+end_visual.col - curwin->w_cursor.col)
+VIsual = start_visual;
+else
+VIsual = end_visual;
+}
+else
+{
+diff = (curwin->w_cursor.lnum - start_visual.lnum) -
+(end_visual.lnum - curwin->w_cursor.lnum);
+if (diff > 0) 
+VIsual = start_visual;
+else if (diff < 0) 
+VIsual = end_visual;
+else 
+{
+if (curwin->w_cursor.col <
+(start_visual.col + end_visual.col) / 2)
+VIsual = end_visual;
+else
+VIsual = start_visual;
+}
+}
+}
+}
+}
+else if ((State & INSERT) && VIsual_active)
+stuffcharReadbuff(Ctrl_O);
+if (which_button == MOUSE_MIDDLE)
+{
+#if defined(FEAT_CLIPBOARD)
+if (clip_star.available && regname == 0)
+regname = '*';
+#endif
+if (yank_register_mline(regname))
+{
+if (mouse_past_bottom)
+dir = FORWARD;
+}
+else if (mouse_past_eol)
+dir = FORWARD;
+if (fixindent)
+{
+c1 = (dir == BACKWARD) ? '[' : ']';
+c2 = 'p';
+}
+else
+{
+c1 = (dir == FORWARD) ? 'p' : 'P';
+c2 = NUL;
+}
+prep_redo(regname, count, NUL, c1, NUL, c2, NUL);
+if (restart_edit != 0)
+where_paste_started = curwin->w_cursor;
+do_put(regname, dir, count, fixindent | PUT_CURSEND);
+}
+#if defined(FEAT_QUICKFIX)
+else if (((mod_mask & MOD_MASK_CTRL)
+|| (mod_mask & MOD_MASK_MULTI_CLICK) == MOD_MASK_2CLICK)
+&& bt_quickfix(curbuf))
+{
+if (curwin->w_llist_ref == NULL) 
+do_cmdline_cmd((char_u *)".cc");
+else 
+do_cmdline_cmd((char_u *)".ll");
+got_click = FALSE; 
+}
+#endif
+else if ((mod_mask & MOD_MASK_CTRL) || (curbuf->b_help
+&& (mod_mask & MOD_MASK_MULTI_CLICK) == MOD_MASK_2CLICK))
+{
+if (State & INSERT)
+stuffcharReadbuff(Ctrl_O);
+stuffcharReadbuff(Ctrl_RSB);
+got_click = FALSE; 
+}
+else if ((mod_mask & MOD_MASK_SHIFT))
+{
+if ((State & INSERT) || (VIsual_active && VIsual_select))
+stuffcharReadbuff(Ctrl_O);
+if (which_button == MOUSE_LEFT)
+stuffcharReadbuff('*');
+else 
+stuffcharReadbuff('#');
+}
+else if (in_status_line)
+{
+#if defined(FEAT_MOUSESHAPE)
+if ((is_drag || is_click) && !drag_status_line)
+{
+drag_status_line = TRUE;
+update_mouseshape(-1);
+}
+#endif
+}
+else if (in_sep_line)
+{
+#if defined(FEAT_MOUSESHAPE)
+if ((is_drag || is_click) && !drag_sep_line)
+{
+drag_sep_line = TRUE;
+update_mouseshape(-1);
+}
+#endif
+}
+else if ((mod_mask & MOD_MASK_MULTI_CLICK) && (State & (NORMAL | INSERT))
+&& mouse_has(MOUSE_VISUAL))
+{
+if (is_click || !VIsual_active)
+{
+if (VIsual_active)
+orig_cursor = VIsual;
+else
+{
+check_visual_highlight();
+VIsual = curwin->w_cursor;
+orig_cursor = VIsual;
+VIsual_active = TRUE;
+VIsual_reselect = TRUE;
+may_start_select('o');
+setmouse();
+}
+if ((mod_mask & MOD_MASK_MULTI_CLICK) == MOD_MASK_2CLICK)
+{
+if (mod_mask & MOD_MASK_ALT)
+VIsual_mode = Ctrl_V;
+else
+VIsual_mode = 'v';
+}
+else if ((mod_mask & MOD_MASK_MULTI_CLICK) == MOD_MASK_3CLICK)
+VIsual_mode = 'V';
+else if ((mod_mask & MOD_MASK_MULTI_CLICK) == MOD_MASK_4CLICK)
+VIsual_mode = Ctrl_V;
+#if defined(FEAT_CLIPBOARD)
+clip_star.vmode = NUL;
+#endif
+}
+if ((mod_mask & MOD_MASK_MULTI_CLICK) == MOD_MASK_2CLICK)
+{
+pos_T *pos = NULL;
+int gc;
+if (is_click)
+{
+end_visual = curwin->w_cursor;
+while (gc = gchar_pos(&end_visual), VIM_ISWHITE(gc))
+inc(&end_visual);
+if (oap != NULL)
+oap->motion_type = MCHAR;
+if (oap != NULL
+&& VIsual_mode == 'v'
+&& !vim_iswordc(gchar_pos(&end_visual))
+&& EQUAL_POS(curwin->w_cursor, VIsual)
+&& (pos = findmatch(oap, NUL)) != NULL)
+{
+curwin->w_cursor = *pos;
+if (oap->motion_type == MLINE)
+VIsual_mode = 'V';
+else if (*p_sel == 'e')
+{
+if (LT_POS(curwin->w_cursor, VIsual))
+++VIsual.col;
+else
+++curwin->w_cursor.col;
+}
+}
+}
+if (pos == NULL && (is_click || is_drag))
+{
+if (LT_POS(curwin->w_cursor, orig_cursor))
+{
+find_start_of_word(&curwin->w_cursor);
+find_end_of_word(&VIsual);
+}
+else
+{
+find_start_of_word(&VIsual);
+if (*p_sel == 'e' && *ml_get_cursor() != NUL)
+curwin->w_cursor.col +=
+(*mb_ptr2len)(ml_get_cursor());
+find_end_of_word(&curwin->w_cursor);
+}
+}
+curwin->w_set_curswant = TRUE;
+}
+if (is_click)
+redraw_curbuf_later(INVERTED); 
+}
+else if (VIsual_active && !old_active)
+{
+if (mod_mask & MOD_MASK_ALT)
+VIsual_mode = Ctrl_V;
+else
+VIsual_mode = 'v';
+}
+if ((!VIsual_active && old_active && mode_displayed)
+|| (VIsual_active && p_smd && msg_silent == 0
+&& (!old_active || VIsual_mode != old_mode)))
+redraw_cmdline = TRUE;
+return moved;
+}
+void
+ins_mouse(int c)
+{
+pos_T tpos;
+win_T *old_curwin = curwin;
+#if defined(FEAT_GUI)
+if (!gui.in_use)
+#endif
+if (!mouse_has(MOUSE_INSERT))
+return;
+undisplay_dollar();
+tpos = curwin->w_cursor;
+if (do_mouse(NULL, c, BACKWARD, 1L, 0))
+{
+win_T *new_curwin = curwin;
+if (curwin != old_curwin && win_valid(old_curwin))
+{
+curwin = old_curwin;
+curbuf = curwin->w_buffer;
+#if defined(FEAT_JOB_CHANNEL)
+if (bt_prompt(curbuf))
+curbuf->b_prompt_insert = 'A';
+#endif
+}
+start_arrow(curwin == old_curwin ? &tpos : NULL);
+if (curwin != new_curwin && win_valid(new_curwin))
+{
+curwin = new_curwin;
+curbuf = curwin->w_buffer;
+}
+#if defined(FEAT_CINDENT)
+set_can_cindent(TRUE);
+#endif
+}
+redraw_statuslines();
+}
+void
+ins_mousescroll(int dir)
+{
+pos_T tpos;
+win_T *old_curwin = curwin, *wp;
+int did_scroll = FALSE;
+tpos = curwin->w_cursor;
+if (mouse_row >= 0 && mouse_col >= 0)
+{
+int row, col;
+row = mouse_row;
+col = mouse_col;
+wp = mouse_find_win(&row, &col, FIND_POPUP);
+if (wp == NULL)
+return;
+curwin = wp;
+curbuf = curwin->w_buffer;
+}
+if (curwin == old_curwin)
+undisplay_dollar();
+if (!pum_visible() || curwin != old_curwin)
+{
+if (dir == MSCR_DOWN || dir == MSCR_UP)
+{
+if (mod_mask & (MOD_MASK_SHIFT | MOD_MASK_CTRL))
+scroll_redraw(dir,
+(long)(curwin->w_botline - curwin->w_topline));
+else
+scroll_redraw(dir, 3L);
+#if defined(FEAT_PROP_POPUP)
+if (WIN_IS_POPUP(curwin))
+popup_set_firstline(curwin);
+#endif
+}
+#if defined(FEAT_GUI)
+else
+{
+int val, step = 6;
+if (mod_mask & (MOD_MASK_SHIFT | MOD_MASK_CTRL))
+step = curwin->w_width;
+val = curwin->w_leftcol + (dir == MSCR_RIGHT ? -step : step);
+if (val < 0)
+val = 0;
+gui_do_horiz_scroll(val, TRUE);
+}
+#endif
+did_scroll = TRUE;
+}
+curwin->w_redr_status = TRUE;
+curwin = old_curwin;
+curbuf = curwin->w_buffer;
+if (pum_visible() && did_scroll)
+{
+redraw_all_later(NOT_VALID);
+ins_compl_show_pum();
+}
+if (!EQUAL_POS(curwin->w_cursor, tpos))
+{
+start_arrow(&tpos);
+#if defined(FEAT_CINDENT)
+set_can_cindent(TRUE);
+#endif
+}
+}
+int
+is_mouse_key(int c)
+{
+return c == K_LEFTMOUSE
+|| c == K_LEFTMOUSE_NM
+|| c == K_LEFTDRAG
+|| c == K_LEFTRELEASE
+|| c == K_LEFTRELEASE_NM
+|| c == K_MOUSEMOVE
+|| c == K_MIDDLEMOUSE
+|| c == K_MIDDLEDRAG
+|| c == K_MIDDLERELEASE
+|| c == K_RIGHTMOUSE
+|| c == K_RIGHTDRAG
+|| c == K_RIGHTRELEASE
+|| c == K_MOUSEDOWN
+|| c == K_MOUSEUP
+|| c == K_MOUSELEFT
+|| c == K_MOUSERIGHT
+|| c == K_X1MOUSE
+|| c == K_X1DRAG
+|| c == K_X1RELEASE
+|| c == K_X2MOUSE
+|| c == K_X2DRAG
+|| c == K_X2RELEASE;
+}
+static struct mousetable
+{
+int pseudo_code; 
+int button; 
+int is_click; 
+int is_drag; 
+} mouse_table[] =
+{
+{(int)KE_LEFTMOUSE, MOUSE_LEFT, TRUE, FALSE},
+#if defined(FEAT_GUI)
+{(int)KE_LEFTMOUSE_NM, MOUSE_LEFT, TRUE, FALSE},
+#endif
+{(int)KE_LEFTDRAG, MOUSE_LEFT, FALSE, TRUE},
+{(int)KE_LEFTRELEASE, MOUSE_LEFT, FALSE, FALSE},
+#if defined(FEAT_GUI)
+{(int)KE_LEFTRELEASE_NM, MOUSE_LEFT, FALSE, FALSE},
+#endif
+{(int)KE_MIDDLEMOUSE, MOUSE_MIDDLE, TRUE, FALSE},
+{(int)KE_MIDDLEDRAG, MOUSE_MIDDLE, FALSE, TRUE},
+{(int)KE_MIDDLERELEASE, MOUSE_MIDDLE, FALSE, FALSE},
+{(int)KE_RIGHTMOUSE, MOUSE_RIGHT, TRUE, FALSE},
+{(int)KE_RIGHTDRAG, MOUSE_RIGHT, FALSE, TRUE},
+{(int)KE_RIGHTRELEASE, MOUSE_RIGHT, FALSE, FALSE},
+{(int)KE_X1MOUSE, MOUSE_X1, TRUE, FALSE},
+{(int)KE_X1DRAG, MOUSE_X1, FALSE, TRUE},
+{(int)KE_X1RELEASE, MOUSE_X1, FALSE, FALSE},
+{(int)KE_X2MOUSE, MOUSE_X2, TRUE, FALSE},
+{(int)KE_X2DRAG, MOUSE_X2, FALSE, TRUE},
+{(int)KE_X2RELEASE, MOUSE_X2, FALSE, FALSE},
+{(int)KE_MOUSEMOVE, MOUSE_RELEASE, FALSE, TRUE},
+{(int)KE_IGNORE, MOUSE_RELEASE, FALSE, FALSE},
+{0, 0, 0, 0},
+};
+int
+get_mouse_button(int code, int *is_click, int *is_drag)
+{
+int i;
+for (i = 0; mouse_table[i].pseudo_code; i++)
+if (code == mouse_table[i].pseudo_code)
+{
+*is_click = mouse_table[i].is_click;
+*is_drag = mouse_table[i].is_drag;
+return mouse_table[i].button;
+}
+return 0; 
+}
+int
+get_pseudo_mouse_code(
+int button, 
+int is_click,
+int is_drag)
+{
+int i;
+for (i = 0; mouse_table[i].pseudo_code; i++)
+if (button == mouse_table[i].button
+&& is_click == mouse_table[i].is_click
+&& is_drag == mouse_table[i].is_drag)
+{
+#if defined(FEAT_GUI)
+if (mouse_col < 0 || mouse_col > MOUSE_COLOFF)
+{
+if (mouse_col < 0)
+mouse_col = 0;
+else
+mouse_col -= MOUSE_COLOFF;
+if (mouse_table[i].pseudo_code == (int)KE_LEFTMOUSE)
+return (int)KE_LEFTMOUSE_NM;
+if (mouse_table[i].pseudo_code == (int)KE_LEFTRELEASE)
+return (int)KE_LEFTRELEASE_NM;
+}
+#endif
+return mouse_table[i].pseudo_code;
+}
+return (int)KE_IGNORE; 
+}
+#define HMT_NORMAL 1
+#define HMT_NETTERM 2
+#define HMT_DEC 4
+#define HMT_JSBTERM 8
+#define HMT_PTERM 16
+#define HMT_URXVT 32
+#define HMT_GPM 64
+#define HMT_SGR 128
+#define HMT_SGR_REL 256
+static int has_mouse_termcode = 0;
+void
+set_mouse_termcode(
+int n, 
+char_u *s)
+{
+char_u name[2];
+name[0] = n;
+name[1] = KE_FILLER;
+add_termcode(name, s, FALSE);
+#if defined(FEAT_MOUSE_JSB)
+if (n == KS_JSBTERM_MOUSE)
+has_mouse_termcode |= HMT_JSBTERM;
+else
+#endif
+#if defined(FEAT_MOUSE_NET)
+if (n == KS_NETTERM_MOUSE)
+has_mouse_termcode |= HMT_NETTERM;
+else
+#endif
+#if defined(FEAT_MOUSE_DEC)
+if (n == KS_DEC_MOUSE)
+has_mouse_termcode |= HMT_DEC;
+else
+#endif
+#if defined(FEAT_MOUSE_PTERM)
+if (n == KS_PTERM_MOUSE)
+has_mouse_termcode |= HMT_PTERM;
+else
+#endif
+#if defined(FEAT_MOUSE_URXVT)
+if (n == KS_URXVT_MOUSE)
+has_mouse_termcode |= HMT_URXVT;
+else
+#endif
+#if defined(FEAT_MOUSE_GPM)
+if (n == KS_GPM_MOUSE)
+has_mouse_termcode |= HMT_GPM;
+else
+#endif
+if (n == KS_SGR_MOUSE)
+has_mouse_termcode |= HMT_SGR;
+else if (n == KS_SGR_MOUSE_RELEASE)
+has_mouse_termcode |= HMT_SGR_REL;
+else
+has_mouse_termcode |= HMT_NORMAL;
+}
+#if defined(UNIX) || defined(VMS) || defined(PROTO)
+void
+del_mouse_termcode(
+int n) 
+{
+char_u name[2];
+name[0] = n;
+name[1] = KE_FILLER;
+del_termcode(name);
+#if defined(FEAT_MOUSE_JSB)
+if (n == KS_JSBTERM_MOUSE)
+has_mouse_termcode &= ~HMT_JSBTERM;
+else
+#endif
+#if defined(FEAT_MOUSE_NET)
+if (n == KS_NETTERM_MOUSE)
+has_mouse_termcode &= ~HMT_NETTERM;
+else
+#endif
+#if defined(FEAT_MOUSE_DEC)
+if (n == KS_DEC_MOUSE)
+has_mouse_termcode &= ~HMT_DEC;
+else
+#endif
+#if defined(FEAT_MOUSE_PTERM)
+if (n == KS_PTERM_MOUSE)
+has_mouse_termcode &= ~HMT_PTERM;
+else
+#endif
+#if defined(FEAT_MOUSE_URXVT)
+if (n == KS_URXVT_MOUSE)
+has_mouse_termcode &= ~HMT_URXVT;
+else
+#endif
+#if defined(FEAT_MOUSE_GPM)
+if (n == KS_GPM_MOUSE)
+has_mouse_termcode &= ~HMT_GPM;
+else
+#endif
+if (n == KS_SGR_MOUSE)
+has_mouse_termcode &= ~HMT_SGR;
+else if (n == KS_SGR_MOUSE_RELEASE)
+has_mouse_termcode &= ~HMT_SGR_REL;
+else
+has_mouse_termcode &= ~HMT_NORMAL;
+}
+#endif
+void
+setmouse(void)
+{
+int checkfor;
+#if defined(FEAT_MOUSESHAPE)
+update_mouseshape(-1);
+#endif
+#if defined(FEAT_GUI)
+if (gui.in_use)
+return;
+#endif
+if (*p_mouse == NUL || has_mouse_termcode == 0)
+return;
+if (cur_tmode != TMODE_RAW)
+{
+mch_setmouse(FALSE);
+return;
+}
+if (VIsual_active)
+checkfor = MOUSE_VISUAL;
+else if (State == HITRETURN || State == ASKMORE || State == SETWSIZE)
+checkfor = MOUSE_RETURN;
+else if (State & INSERT)
+checkfor = MOUSE_INSERT;
+else if (State & CMDLINE)
+checkfor = MOUSE_COMMAND;
+else if (State == CONFIRM || State == EXTERNCMD)
+checkfor = ' '; 
+else
+checkfor = MOUSE_NORMAL; 
+if (mouse_has(checkfor))
+mch_setmouse(TRUE);
+else
+mch_setmouse(FALSE);
+}
+int
+mouse_has(int c)
+{
+char_u *p;
+for (p = p_mouse; *p; ++p)
+switch (*p)
+{
+case 'a': if (vim_strchr((char_u *)MOUSE_A, c) != NULL)
+return TRUE;
+break;
+case MOUSE_HELP: if (c != MOUSE_RETURN && curbuf->b_help)
+return TRUE;
+break;
+default: if (c == *p) return TRUE; break;
+}
+return FALSE;
+}
+int
+mouse_model_popup(void)
+{
+return (p_mousem[0] == 'p');
+}
+int
+jump_to_mouse(
+int flags,
+int *inclusive, 
+int which_button) 
+{
+static int on_status_line = 0; 
+static int on_sep_line = 0; 
+#if defined(FEAT_MENU)
+static int in_winbar = FALSE;
+#endif
+#if defined(FEAT_PROP_POPUP)
+static int in_popup_win = FALSE;
+static win_T *click_in_popup_win = NULL;
+#endif
+static int prev_row = -1;
+static int prev_col = -1;
+static win_T *dragwin = NULL; 
+static int did_drag = FALSE; 
+win_T *wp, *old_curwin;
+pos_T old_cursor;
+int count;
+int first;
+int row = mouse_row;
+int col = mouse_col;
+#if defined(FEAT_FOLDING)
+int mouse_char;
+#endif
+mouse_past_bottom = FALSE;
+mouse_past_eol = FALSE;
+if (flags & MOUSE_RELEASED)
+{
+if (dragwin != NULL && !did_drag)
+flags &= ~(MOUSE_FOCUS | MOUSE_DID_MOVE);
+dragwin = NULL;
+did_drag = FALSE;
+#if defined(FEAT_PROP_POPUP)
+if (click_in_popup_win != NULL && popup_dragwin == NULL)
+popup_close_for_mouse_click(click_in_popup_win);
+popup_dragwin = NULL;
+click_in_popup_win = NULL;
+#endif
+}
+if ((flags & MOUSE_DID_MOVE)
+&& prev_row == mouse_row
+&& prev_col == mouse_col)
+{
+retnomove:
+if (on_status_line)
+return IN_STATUS_LINE;
+if (on_sep_line)
+return IN_SEP_LINE;
+#if defined(FEAT_MENU)
+if (in_winbar)
+{
+if ((mod_mask & MOD_MASK_MULTI_CLICK) && !(flags & MOUSE_RELEASED))
+{
+wp = mouse_find_win(&row, &col, FAIL_POPUP);
+if (wp == NULL)
+return IN_UNKNOWN;
+winbar_click(wp, col);
+}
+return IN_OTHER_WIN | MOUSE_WINBAR;
+}
+#endif
+if (flags & MOUSE_MAY_STOP_VIS)
+{
+end_visual_mode();
+redraw_curbuf_later(INVERTED); 
+}
+#if defined(FEAT_CMDWIN) && defined(FEAT_CLIPBOARD)
+if (cmdwin_type != 0 && row < curwin->w_winrow)
+return IN_OTHER_WIN;
+#endif
+#if defined(FEAT_PROP_POPUP)
+if (in_popup_win)
+{
+click_in_popup_win = NULL; 
+if (popup_dragwin != NULL)
+{
+popup_drag(popup_dragwin);
+return IN_UNKNOWN;
+}
+return IN_OTHER_WIN;
+}
+#endif
+return IN_BUFFER;
+}
+prev_row = mouse_row;
+prev_col = mouse_col;
+if (flags & MOUSE_SETPOS)
+goto retnomove; 
+#if defined(FEAT_FOLDING)
+if (row >= 0 && row < Rows && col >= 0 && col <= Columns
+&& ScreenLines != NULL)
+mouse_char = ScreenLines[LineOffset[row] + col];
+else
+mouse_char = ' ';
+#endif
+old_curwin = curwin;
+old_cursor = curwin->w_cursor;
+if (!(flags & MOUSE_FOCUS))
+{
+if (row < 0 || col < 0) 
+return IN_UNKNOWN;
+wp = mouse_find_win(&row, &col, FIND_POPUP);
+if (wp == NULL)
+return IN_UNKNOWN;
+dragwin = NULL;
+#if defined(FEAT_PROP_POPUP)
+if (WIN_IS_POPUP(wp))
+{
+on_sep_line = 0;
+in_popup_win = TRUE;
+if (which_button == MOUSE_LEFT && popup_close_if_on_X(wp, row, col))
+{
+return IN_UNKNOWN;
+}
+else if ((wp->w_popup_flags & (POPF_DRAG | POPF_RESIZE))
+&& popup_on_border(wp, row, col))
+{
+popup_dragwin = wp;
+popup_start_drag(wp, row, col);
+return IN_UNKNOWN;
+}
+else if (wp->w_popup_close == POPCLOSE_CLICK
+&& which_button == MOUSE_LEFT)
+{
+click_in_popup_win = wp;
+}
+else if (which_button == MOUSE_LEFT)
+popup_handle_scrollbar_click(wp, row, col);
+#if defined(FEAT_CLIPBOARD)
+return IN_OTHER_WIN;
+#else
+return IN_UNKNOWN;
+#endif
+}
+in_popup_win = FALSE;
+popup_dragwin = NULL;
+#endif
+#if defined(FEAT_MENU)
+if (row == -1)
+{
+winbar_click(wp, col);
+in_winbar = TRUE;
+return IN_OTHER_WIN | MOUSE_WINBAR;
+}
+in_winbar = FALSE;
+#endif
+if (row >= wp->w_height) 
+{
+on_status_line = row - wp->w_height + 1;
+dragwin = wp;
+}
+else
+on_status_line = 0;
+if (col >= wp->w_width) 
+{
+on_sep_line = col - wp->w_width + 1;
+dragwin = wp;
+}
+else
+on_sep_line = 0;
+if (on_status_line && on_sep_line)
+{
+if (stl_connected(wp))
+on_sep_line = 0;
+else
+on_status_line = 0;
+}
+if (VIsual_active
+&& (wp->w_buffer != curwin->w_buffer
+|| (!on_status_line && !on_sep_line
+#if defined(FEAT_FOLDING)
+&& (
+#if defined(FEAT_RIGHTLEFT)
+wp->w_p_rl ? col < wp->w_width - wp->w_p_fdc :
+#endif
+col >= wp->w_p_fdc
+#if defined(FEAT_CMDWIN)
++ (cmdwin_type == 0 && wp == curwin ? 0 : 1)
+#endif
+)
+#endif
+&& (flags & MOUSE_MAY_STOP_VIS))))
+{
+end_visual_mode();
+redraw_curbuf_later(INVERTED); 
+}
+#if defined(FEAT_CMDWIN)
+if (cmdwin_type != 0 && wp != curwin)
+{
+on_sep_line = 0;
+#if defined(FEAT_CLIPBOARD)
+if (on_status_line)
+return IN_STATUS_LINE;
+return IN_OTHER_WIN;
+#else
+row = 0;
+col += wp->w_wincol;
+wp = curwin;
+#endif
+}
+#endif
+#if defined(FEAT_PROP_POPUP) && defined(FEAT_TERMINAL)
+if (popup_is_popup(curwin) && curbuf->b_term != NULL)
+return IN_OTHER_WIN;
+#endif
+if (dragwin == NULL || (flags & MOUSE_RELEASED))
+win_enter(wp, TRUE); 
+if (curwin != old_curwin)
+{
+#if defined(CHECK_DOUBLE_CLICK)
+set_mouse_topline(curwin);
+#endif
+#if defined(FEAT_TERMINAL)
+term_win_entered();
+#endif
+}
+if (on_status_line) 
+{
+if (curwin == old_curwin)
+return IN_STATUS_LINE;
+else
+return IN_STATUS_LINE | CURSOR_MOVED;
+}
+if (on_sep_line) 
+{
+if (curwin == old_curwin)
+return IN_SEP_LINE;
+else
+return IN_SEP_LINE | CURSOR_MOVED;
+}
+curwin->w_cursor.lnum = curwin->w_topline;
+#if defined(FEAT_GUI)
+gui_prev_topline = curwin->w_topline;
+#if defined(FEAT_DIFF)
+gui_prev_topfill = curwin->w_topfill;
+#endif
+#endif
+}
+else if (on_status_line && which_button == MOUSE_LEFT)
+{
+if (dragwin != NULL)
+{
+count = row - dragwin->w_winrow - dragwin->w_height + 1
+- on_status_line;
+win_drag_status_line(dragwin, count);
+did_drag |= count;
+}
+return IN_STATUS_LINE; 
+}
+else if (on_sep_line && which_button == MOUSE_LEFT)
+{
+if (dragwin != NULL)
+{
+count = col - dragwin->w_wincol - dragwin->w_width + 1
+- on_sep_line;
+win_drag_vsep_line(dragwin, count);
+did_drag |= count;
+}
+return IN_SEP_LINE; 
+}
+#if defined(FEAT_MENU)
+else if (in_winbar)
+{
+return IN_OTHER_WIN | MOUSE_WINBAR;
+}
+#endif
+else 
+{
+if (flags & MOUSE_MAY_STOP_VIS)
+{
+end_visual_mode();
+redraw_curbuf_later(INVERTED); 
+}
+#if defined(FEAT_CMDWIN) && defined(FEAT_CLIPBOARD)
+if (cmdwin_type != 0 && row < curwin->w_winrow)
+return IN_OTHER_WIN;
+#endif
+#if defined(FEAT_PROP_POPUP)
+if (in_popup_win)
+{
+if (popup_dragwin != NULL)
+{
+popup_drag(popup_dragwin);
+return IN_UNKNOWN;
+}
+click_in_popup_win = NULL;
+return IN_OTHER_WIN;
+}
+#endif
+row -= W_WINROW(curwin);
+col -= curwin->w_wincol;
+if (row < 0)
+{
+count = 0;
+for (first = TRUE; curwin->w_topline > 1; )
+{
+#if defined(FEAT_DIFF)
+if (curwin->w_topfill < diff_check(curwin, curwin->w_topline))
+++count;
+else
+#endif
+count += plines(curwin->w_topline - 1);
+if (!first && count > -row)
+break;
+first = FALSE;
+#if defined(FEAT_FOLDING)
+(void)hasFolding(curwin->w_topline, &curwin->w_topline, NULL);
+#endif
+#if defined(FEAT_DIFF)
+if (curwin->w_topfill < diff_check(curwin, curwin->w_topline))
+++curwin->w_topfill;
+else
+#endif
+{
+--curwin->w_topline;
+#if defined(FEAT_DIFF)
+curwin->w_topfill = 0;
+#endif
+}
+}
+#if defined(FEAT_DIFF)
+check_topfill(curwin, FALSE);
+#endif
+curwin->w_valid &=
+~(VALID_WROW|VALID_CROW|VALID_BOTLINE|VALID_BOTLINE_AP);
+redraw_later(VALID);
+row = 0;
+}
+else if (row >= curwin->w_height)
+{
+count = 0;
+for (first = TRUE; curwin->w_topline < curbuf->b_ml.ml_line_count; )
+{
+#if defined(FEAT_DIFF)
+if (curwin->w_topfill > 0)
+++count;
+else
+#endif
+count += plines(curwin->w_topline);
+if (!first && count > row - curwin->w_height + 1)
+break;
+first = FALSE;
+#if defined(FEAT_FOLDING)
+if (hasFolding(curwin->w_topline, NULL, &curwin->w_topline)
+&& curwin->w_topline == curbuf->b_ml.ml_line_count)
+break;
+#endif
+#if defined(FEAT_DIFF)
+if (curwin->w_topfill > 0)
+--curwin->w_topfill;
+else
+#endif
+{
+++curwin->w_topline;
+#if defined(FEAT_DIFF)
+curwin->w_topfill =
+diff_check_fill(curwin, curwin->w_topline);
+#endif
+}
+}
+#if defined(FEAT_DIFF)
+check_topfill(curwin, FALSE);
+#endif
+redraw_later(VALID);
+curwin->w_valid &=
+~(VALID_WROW|VALID_CROW|VALID_BOTLINE|VALID_BOTLINE_AP);
+row = curwin->w_height - 1;
+}
+else if (row == 0)
+{
+if (mouse_dragging > 0
+&& curwin->w_cursor.lnum
+== curwin->w_buffer->b_ml.ml_line_count
+&& curwin->w_cursor.lnum == curwin->w_topline)
+curwin->w_valid &= ~(VALID_TOPLINE);
+}
+}
+#if defined(FEAT_FOLDING)
+if (
+#if defined(FEAT_RIGHTLEFT)
+curwin->w_p_rl ? col < curwin->w_width - curwin->w_p_fdc :
+#endif
+col >= curwin->w_p_fdc
+#if defined(FEAT_CMDWIN)
++ (cmdwin_type == 0 ? 0 : 1)
+#endif
+)
+mouse_char = ' ';
+#endif
+if (mouse_comp_pos(curwin, &row, &col, &curwin->w_cursor.lnum, NULL))
+mouse_past_bottom = TRUE;
+if ((flags & MOUSE_MAY_VIS) && !VIsual_active)
+{
+check_visual_highlight();
+VIsual = old_cursor;
+VIsual_active = TRUE;
+VIsual_reselect = TRUE;
+may_start_select('o');
+setmouse();
+if (p_smd && msg_silent == 0)
+redraw_cmdline = TRUE; 
+}
+curwin->w_curswant = col;
+curwin->w_set_curswant = FALSE; 
+if (coladvance(col) == FAIL) 
+{
+if (inclusive != NULL)
+*inclusive = TRUE;
+mouse_past_eol = TRUE;
+}
+else if (inclusive != NULL)
+*inclusive = FALSE;
+count = IN_BUFFER;
+if (curwin != old_curwin || curwin->w_cursor.lnum != old_cursor.lnum
+|| curwin->w_cursor.col != old_cursor.col)
+count |= CURSOR_MOVED; 
+#if defined(FEAT_FOLDING)
+if (mouse_char == '+')
+count |= MOUSE_FOLD_OPEN;
+else if (mouse_char != ' ')
+count |= MOUSE_FOLD_CLOSE;
+#endif
+return count;
+}
+void
+nv_mousescroll(cmdarg_T *cap)
+{
+win_T *old_curwin = curwin, *wp;
+if (mouse_row >= 0 && mouse_col >= 0)
+{
+int row, col;
+row = mouse_row;
+col = mouse_col;
+wp = mouse_find_win(&row, &col, FIND_POPUP);
+if (wp == NULL)
+return;
+#if defined(FEAT_PROP_POPUP)
+if (WIN_IS_POPUP(wp) && !wp->w_has_scrollbar)
+return;
+#endif
+curwin = wp;
+curbuf = curwin->w_buffer;
+}
+if (cap->arg == MSCR_UP || cap->arg == MSCR_DOWN)
+{
+#if defined(FEAT_TERMINAL)
+if (term_use_loop())
+send_keys_to_term(curbuf->b_term, cap->cmdchar, mod_mask, FALSE);
+else
+#endif
+if (mod_mask & (MOD_MASK_SHIFT | MOD_MASK_CTRL))
+{
+(void)onepage(cap->arg ? FORWARD : BACKWARD, 1L);
+}
+else
+{
+if (curwin->w_height < 6)
+{
+cap->count1 = curwin->w_height / 2;
+if (cap->count1 == 0)
+cap->count1 = 1;
+}
+else
+cap->count1 = 3;
+cap->count0 = cap->count1;
+nv_scroll_line(cap);
+}
+#if defined(FEAT_PROP_POPUP)
+if (WIN_IS_POPUP(curwin))
+popup_set_firstline(curwin);
+#endif
+}
+#if defined(FEAT_GUI)
+else
+{
+if (!curwin->w_p_wrap)
+{
+int val, step = 6;
+if (mod_mask & (MOD_MASK_SHIFT | MOD_MASK_CTRL))
+step = curwin->w_width;
+val = curwin->w_leftcol + (cap->arg == MSCR_RIGHT ? -step : +step);
+if (val < 0)
+val = 0;
+gui_do_horiz_scroll(val, TRUE);
+}
+}
+#endif
+#if defined(FEAT_SYN_HL)
+if (curwin != old_curwin && curwin->w_p_cul)
+redraw_for_cursorline(curwin);
+#endif
+curwin->w_redr_status = TRUE;
+curwin = old_curwin;
+curbuf = curwin->w_buffer;
+}
+void
+nv_mouse(cmdarg_T *cap)
+{
+(void)do_mouse(cap->oap, cap->cmdchar, BACKWARD, cap->count1, 0);
+}
+int
+check_termcode_mouse(
+char_u *tp,
+int *slen,
+char_u *key_name,
+char_u *modifiers_start,
+int idx,
+int *modifiers)
+{
+int j;
+char_u *p;
+#if !defined(UNIX) || defined(FEAT_MOUSE_XTERM) || defined(FEAT_GUI) || defined(FEAT_MOUSE_GPM) || defined(FEAT_SYSMOUSE)
+char_u bytes[6];
+int num_bytes;
+#endif
+int mouse_code = 0; 
+int is_click, is_drag;
+int wheel_code = 0;
+int current_button;
+static int held_button = MOUSE_RELEASE;
+static int orig_num_clicks = 1;
+static int orig_mouse_code = 0x0;
+#if defined(CHECK_DOUBLE_CLICK)
+static int orig_mouse_col = 0;
+static int orig_mouse_row = 0;
+static struct timeval orig_mouse_time = {0, 0};
+struct timeval mouse_time; 
+long timediff; 
+#endif
+is_click = is_drag = FALSE;
+#if !defined(UNIX) || defined(FEAT_MOUSE_XTERM) || defined(FEAT_GUI) || defined(FEAT_MOUSE_GPM) || defined(FEAT_SYSMOUSE)
+if (key_name[0] == KS_MOUSE
+#if defined(FEAT_MOUSE_GPM)
+|| key_name[0] == KS_GPM_MOUSE
+#endif
+)
+{
+for (;;)
+{
+#if defined(FEAT_GUI)
+if (gui.in_use)
+{
+num_bytes = get_bytes_from_buf(tp + *slen, bytes, 5);
+if (num_bytes == -1) 
+return -1;
+mouse_code = bytes[0];
+mouse_col = 128 * (bytes[1] - ' ' - 1)
++ bytes[2] - ' ' - 1;
+mouse_row = 128 * (bytes[3] - ' ' - 1)
++ bytes[4] - ' ' - 1;
+}
+else
+#endif
+{
+num_bytes = get_bytes_from_buf(tp + *slen, bytes, 3);
+if (num_bytes == -1) 
+return -1;
+mouse_code = bytes[0];
+mouse_col = bytes[1] - ' ' - 1;
+mouse_row = bytes[2] - ' ' - 1;
+}
+*slen += num_bytes;
+#if defined(FEAT_GUI)
+if (gui.in_use)
+j = 3;
+else
+#endif
+j = get_termcode_len(idx);
+if (STRNCMP(tp, tp + *slen, (size_t)j) == 0
+&& tp[*slen + j] == mouse_code
+&& tp[*slen + j + 1] != NUL
+&& tp[*slen + j + 2] != NUL
+#if defined(FEAT_GUI)
+&& (!gui.in_use
+|| (tp[*slen + j + 3] != NUL
+&& tp[*slen + j + 4] != NUL))
+#endif
+)
+*slen += j;
+else
+break;
+}
+}
+if (key_name[0] == KS_URXVT_MOUSE
+|| key_name[0] == KS_SGR_MOUSE
+|| key_name[0] == KS_SGR_MOUSE_RELEASE)
+{
+p = modifiers_start;
+if (p == NULL)
+return -1;
+mouse_code = getdigits(&p);
+if (*p++ != ';')
+return -1;
+if (key_name[0] == KS_SGR_MOUSE
+|| key_name[0] == KS_SGR_MOUSE_RELEASE)
+mouse_code += 32;
+if (key_name[0] == KS_SGR_MOUSE_RELEASE)
+mouse_code |= MOUSE_RELEASE;
+mouse_col = getdigits(&p) - 1;
+if (*p++ != ';')
+return -1;
+mouse_row = getdigits(&p) - 1;
+*modifiers = 0;
+}
+if (key_name[0] == KS_MOUSE
+#if defined(FEAT_MOUSE_GPM)
+|| key_name[0] == KS_GPM_MOUSE
+#endif
+#if defined(FEAT_MOUSE_URXVT)
+|| key_name[0] == KS_URXVT_MOUSE
+#endif
+|| key_name[0] == KS_SGR_MOUSE
+|| key_name[0] == KS_SGR_MOUSE_RELEASE)
+{
+#if !defined(MSWIN)
+if (mouse_code >= MOUSEWHEEL_LOW
+#if defined(FEAT_GUI)
+&& !gui.in_use
+#endif
+#if defined(FEAT_MOUSE_GPM)
+&& key_name[0] != KS_GPM_MOUSE
+#endif
+)
+{
+#if defined(UNIX)
+if (use_xterm_mouse() > 1 && mouse_code >= 0x80)
+mouse_code = MOUSE_DRAG;
+else
+#endif
+wheel_code = mouse_code;
+}
+#if defined(FEAT_MOUSE_XTERM)
+else if (held_button == MOUSE_RELEASE
+#if defined(FEAT_GUI)
+&& !gui.in_use
+#endif
+&& (mouse_code == 0x23 || mouse_code == 0x24
+|| mouse_code == 0x40 || mouse_code == 0x41))
+{
+wheel_code = mouse_code - (mouse_code >= 0x40 ? 0x40 : 0x23)
++ MOUSEWHEEL_LOW;
+}
+#endif
+#if defined(UNIX)
+else if (use_xterm_mouse() > 1)
+{
+if (mouse_code & MOUSE_DRAG_XTERM)
+mouse_code |= MOUSE_DRAG;
+}
+#endif
+#if defined(FEAT_XCLIPBOARD)
+else if (!(mouse_code & MOUSE_DRAG & ~MOUSE_CLICK_MASK))
+{
+if ((mouse_code & MOUSE_RELEASE) == MOUSE_RELEASE)
+stop_xterm_trace();
+else
+start_xterm_trace(mouse_code);
+}
+#endif
+#endif
+}
+#endif 
+#if defined(FEAT_MOUSE_NET)
+if (key_name[0] == KS_NETTERM_MOUSE)
+{
+int mc, mr;
+p = tp + *slen;
+mr = getdigits(&p);
+if (*p++ != ',')
+return -1;
+mc = getdigits(&p);
+if (*p++ != '\r')
+return -1;
+mouse_col = mc - 1;
+mouse_row = mr - 1;
+mouse_code = MOUSE_LEFT;
+*slen += (int)(p - (tp + *slen));
+}
+#endif 
+#if defined(FEAT_MOUSE_JSB)
+if (key_name[0] == KS_JSBTERM_MOUSE)
+{
+int mult, val, iter, button, status;
+p = tp + *slen;
+button = mouse_code = 0;
+switch (*p++)
+{
+case 'L': button = 1; break;
+case '-': break;
+case 'x': break; 
+default: return -1; 
+}
+switch (*p++)
+{
+case 'M': button |= 2; break;
+case '-': break;
+case 'x': break; 
+default: return -1; 
+}
+switch (*p++)
+{
+case 'R': button |= 4; break;
+case '-': break;
+case 'x': break; 
+default: return -1; 
+}
+status = *p++;
+for (val = 0, mult = 100, iter = 0; iter < 3; iter++,
+mult /= 10, p++)
+if (*p >= '0' && *p <= '9')
+val += (*p - '0') * mult;
+else
+return -1;
+mouse_col = val;
+for (val = 0, mult = 100, iter = 0; iter < 3; iter++,
+mult /= 10, p++)
+if (*p >= '0' && *p <= '9')
+val += (*p - '0') * mult;
+else
+return -1;
+mouse_row = val;
+switch (*p++)
+{
+case 's': button |= 8; break; 
+case '-': break; 
+case 'x': break; 
+default: return -1; 
+}
+switch (*p++)
+{
+case 'c': button |= 16; break; 
+case '-': break; 
+case 'x': break; 
+default: return -1; 
+}
+if (*p++ != '\033')
+return -1;
+if (*p++ != '\\')
+return -1;
+switch (status)
+{
+case 'D': 
+case 'S': 
+if (button & 1) mouse_code |= MOUSE_LEFT;
+if (button & 2) mouse_code |= MOUSE_MIDDLE;
+if (button & 4) mouse_code |= MOUSE_RIGHT;
+if (button & 8) mouse_code |= MOUSE_SHIFT;
+if (button & 16) mouse_code |= MOUSE_CTRL;
+break;
+case 'm': 
+if (button & 1) mouse_code |= MOUSE_LEFT;
+if (button & 2) mouse_code |= MOUSE_MIDDLE;
+if (button & 4) mouse_code |= MOUSE_RIGHT;
+if (button & 8) mouse_code |= MOUSE_SHIFT;
+if (button & 16) mouse_code |= MOUSE_CTRL;
+if ((button & 7) != 0)
+{
+held_button = mouse_code;
+mouse_code |= MOUSE_DRAG;
+}
+is_drag = TRUE;
+showmode();
+break;
+case 'd': 
+if (button & 1) mouse_code |= MOUSE_LEFT;
+if (button & 2) mouse_code |= MOUSE_MIDDLE;
+if (button & 4) mouse_code |= MOUSE_RIGHT;
+if (button & 8) mouse_code |= MOUSE_SHIFT;
+if (button & 16) mouse_code |= MOUSE_CTRL;
+break;
+case 'u': 
+if (button & 1)
+mouse_code |= MOUSE_LEFT | MOUSE_RELEASE;
+if (button & 2)
+mouse_code |= MOUSE_MIDDLE | MOUSE_RELEASE;
+if (button & 4)
+mouse_code |= MOUSE_RIGHT | MOUSE_RELEASE;
+if (button & 8)
+mouse_code |= MOUSE_SHIFT;
+if (button & 16)
+mouse_code |= MOUSE_CTRL;
+break;
+default: return -1; 
+}
+*slen += (p - (tp + *slen));
+}
+#endif 
+#if defined(FEAT_MOUSE_DEC)
+if (key_name[0] == KS_DEC_MOUSE)
+{
+int Pe, Pb, Pr, Pc;
+p = tp + *slen;
+Pe = getdigits(&p);
+if (*p++ != ';')
+return -1;
+Pb = getdigits(&p);
+if (*p++ != ';')
+return -1;
+Pr = getdigits(&p);
+if (*p++ != ';')
+return -1;
+Pc = getdigits(&p);
+if (*p == ';')
+{
+p++;
+(void)getdigits(&p);
+}
+if (*p++ != '&')
+return -1;
+if (*p++ != 'w')
+return -1;
+mouse_code = 0;
+switch (Pe)
+{
+case 0: return -1; 
+case 1: 
+Pb &= 7; 
+if (Pb & 4)
+mouse_code = MOUSE_LEFT;
+if (Pb & 2)
+mouse_code = MOUSE_MIDDLE;
+if (Pb & 1)
+mouse_code = MOUSE_RIGHT;
+if (Pb)
+{
+held_button = mouse_code;
+mouse_code |= MOUSE_DRAG;
+WantQueryMouse = TRUE;
+}
+is_drag = TRUE;
+showmode();
+break;
+case 2: mouse_code = MOUSE_LEFT;
+WantQueryMouse = TRUE;
+break;
+case 3: mouse_code = MOUSE_RELEASE | MOUSE_LEFT;
+break;
+case 4: mouse_code = MOUSE_MIDDLE;
+WantQueryMouse = TRUE;
+break;
+case 5: mouse_code = MOUSE_RELEASE | MOUSE_MIDDLE;
+break;
+case 6: mouse_code = MOUSE_RIGHT;
+WantQueryMouse = TRUE;
+break;
+case 7: mouse_code = MOUSE_RELEASE | MOUSE_RIGHT;
+break;
+case 8: return -1; 
+case 9: return -1; 
+case 10: return -1; 
+default: return -1; 
+}
+mouse_col = Pc - 1;
+mouse_row = Pr - 1;
+*slen += (int)(p - (tp + *slen));
+}
+#endif 
+#if defined(FEAT_MOUSE_PTERM)
+if (key_name[0] == KS_PTERM_MOUSE)
+{
+int button, num_clicks, action;
+p = tp + *slen;
+action = getdigits(&p);
+if (*p++ != ';')
+return -1;
+mouse_row = getdigits(&p);
+if (*p++ != ';')
+return -1;
+mouse_col = getdigits(&p);
+if (*p++ != ';')
+return -1;
+button = getdigits(&p);
+mouse_code = 0;
+switch (button)
+{
+case 4: mouse_code = MOUSE_LEFT; break;
+case 1: mouse_code = MOUSE_RIGHT; break;
+case 2: mouse_code = MOUSE_MIDDLE; break;
+default: return -1;
+}
+switch (action)
+{
+case 31: 
+if (*p++ != ';')
+return -1;
+num_clicks = getdigits(&p); 
+break;
+case 32: 
+mouse_code |= MOUSE_RELEASE;
+break;
+case 33: 
+held_button = mouse_code;
+mouse_code |= MOUSE_DRAG;
+break;
+default:
+return -1;
+}
+if (*p++ != 't')
+return -1;
+*slen += (p - (tp + *slen));
+}
+#endif 
+current_button = (mouse_code & MOUSE_CLICK_MASK);
+if (current_button == MOUSE_RELEASE
+#if defined(FEAT_MOUSE_XTERM)
+&& wheel_code == 0
+#endif
+)
+{
+if ((mouse_code & MOUSE_DRAG) == MOUSE_DRAG)
+is_drag = TRUE;
+current_button = held_button;
+}
+else if (wheel_code == 0)
+{
+#if defined(CHECK_DOUBLE_CLICK)
+#if defined(FEAT_MOUSE_GPM)
+#if defined(FEAT_GUI)
+if (key_name[0] != KS_GPM_MOUSE && !gui.in_use)
+#else
+if (key_name[0] != KS_GPM_MOUSE)
+#endif
+#else
+#if defined(FEAT_GUI)
+if (!gui.in_use)
+#endif
+#endif
+{
+gettimeofday(&mouse_time, NULL);
+if (orig_mouse_time.tv_sec == 0)
+{
+timediff = p_mouset;
+}
+else
+timediff = time_diff_ms(&orig_mouse_time, &mouse_time);
+orig_mouse_time = mouse_time;
+if (mouse_code == orig_mouse_code
+&& timediff < p_mouset
+&& orig_num_clicks != 4
+&& orig_mouse_col == mouse_col
+&& orig_mouse_row == mouse_row
+&& (is_mouse_topline(curwin)
+|| (mouse_row == 0 && firstwin->w_winrow > 0))
+)
+++orig_num_clicks;
+else
+orig_num_clicks = 1;
+orig_mouse_col = mouse_col;
+orig_mouse_row = mouse_row;
+set_mouse_topline(curwin);
+}
+#if defined(FEAT_GUI) || defined(FEAT_MOUSE_GPM)
+else
+orig_num_clicks = NUM_MOUSE_CLICKS(mouse_code);
+#endif
+#else
+orig_num_clicks = NUM_MOUSE_CLICKS(mouse_code);
+#endif
+is_click = TRUE;
+orig_mouse_code = mouse_code;
+}
+if (!is_drag)
+held_button = mouse_code & MOUSE_CLICK_MASK;
+if (orig_mouse_code & MOUSE_SHIFT)
+*modifiers |= MOD_MASK_SHIFT;
+if (orig_mouse_code & MOUSE_CTRL)
+*modifiers |= MOD_MASK_CTRL;
+if (orig_mouse_code & MOUSE_ALT)
+*modifiers |= MOD_MASK_ALT;
+if (orig_num_clicks == 2)
+*modifiers |= MOD_MASK_2CLICK;
+else if (orig_num_clicks == 3)
+*modifiers |= MOD_MASK_3CLICK;
+else if (orig_num_clicks == 4)
+*modifiers |= MOD_MASK_4CLICK;
+key_name[0] = KS_EXTRA;
+if (wheel_code != 0
+&& (wheel_code & MOUSE_RELEASE) != MOUSE_RELEASE)
+{
+if (wheel_code & MOUSE_CTRL)
+*modifiers |= MOD_MASK_CTRL;
+if (wheel_code & MOUSE_ALT)
+*modifiers |= MOD_MASK_ALT;
+key_name[1] = (wheel_code & 1)
+? (int)KE_MOUSEUP : (int)KE_MOUSEDOWN;
+held_button = MOUSE_RELEASE;
+}
+else
+key_name[1] = get_pseudo_mouse_code(current_button,
+is_click, is_drag);
+if (mouse_col >= Columns)
+mouse_col = Columns - 1;
+if (mouse_row >= Rows)
+mouse_row = Rows - 1;
+return 0;
+}
+int
+mouse_comp_pos(
+win_T *win,
+int *rowp,
+int *colp,
+linenr_T *lnump,
+int *plines_cache)
+{
+int col = *colp;
+int row = *rowp;
+linenr_T lnum;
+int retval = FALSE;
+int off;
+int count;
+#if defined(FEAT_RIGHTLEFT)
+if (win->w_p_rl)
+col = win->w_width - 1 - col;
+#endif
+lnum = win->w_topline;
+while (row > 0)
+{
+int cache_idx = lnum - win->w_topline;
+if (plines_cache != NULL && plines_cache[cache_idx] > 0)
+count = plines_cache[cache_idx];
+else
+{
+#if defined(FEAT_DIFF)
+if (win->w_p_diff
+#if defined(FEAT_FOLDING)
+&& !hasFoldingWin(win, lnum, NULL, NULL, TRUE, NULL)
+#endif
+)
+{
+if (lnum == win->w_topline)
+row -= win->w_topfill;
+else
+row -= diff_check_fill(win, lnum);
+count = plines_win_nofill(win, lnum, TRUE);
+}
+else
+#endif
+count = plines_win(win, lnum, TRUE);
+if (plines_cache != NULL)
+plines_cache[cache_idx] = count;
+}
+if (count > row)
+break; 
+#if defined(FEAT_FOLDING)
+(void)hasFoldingWin(win, lnum, NULL, &lnum, TRUE, NULL);
+#endif
+if (lnum == win->w_buffer->b_ml.ml_line_count)
+{
+retval = TRUE;
+break; 
+}
+row -= count;
+++lnum;
+}
+if (!retval)
+{
+off = win_col_off(win) - win_col_off2(win);
+if (col < off)
+col = off;
+col += row * (win->w_width - off);
+col += win->w_skipcol;
+}
+if (!win->w_p_wrap)
+col += win->w_leftcol;
+col -= win_col_off(win);
+if (col < 0)
+{
+#if defined(FEAT_NETBEANS_INTG)
+netbeans_gutter_click(lnum);
+#endif
+col = 0;
+}
+*colp = col;
+*rowp = row;
+*lnump = lnum;
+return retval;
+}
+win_T *
+mouse_find_win(int *rowp, int *colp, mouse_find_T popup UNUSED)
+{
+frame_T *fp;
+win_T *wp;
+#if defined(FEAT_PROP_POPUP)
+win_T *pwp = NULL;
+if (popup != IGNORE_POPUP)
+{
+popup_reset_handled(POPUP_HANDLED_1);
+while ((wp = find_next_popup(TRUE, POPUP_HANDLED_1)) != NULL)
+{
+if (*rowp >= wp->w_winrow && *rowp < wp->w_winrow + popup_height(wp)
+&& *colp >= wp->w_wincol
+&& *colp < wp->w_wincol + popup_width(wp))
+pwp = wp;
+}
+if (pwp != NULL)
+{
+if (popup == FAIL_POPUP)
+return NULL;
+*rowp -= pwp->w_winrow;
+*colp -= pwp->w_wincol;
+return pwp;
+}
+}
+#endif
+fp = topframe;
+*rowp -= firstwin->w_winrow;
+for (;;)
+{
+if (fp->fr_layout == FR_LEAF)
+break;
+if (fp->fr_layout == FR_ROW)
+{
+for (fp = fp->fr_child; fp->fr_next != NULL; fp = fp->fr_next)
+{
+if (*colp < fp->fr_width)
+break;
+*colp -= fp->fr_width;
+}
+}
+else 
+{
+for (fp = fp->fr_child; fp->fr_next != NULL; fp = fp->fr_next)
+{
+if (*rowp < fp->fr_height)
+break;
+*rowp -= fp->fr_height;
+}
+}
+}
+FOR_ALL_WINDOWS(wp)
+if (wp == fp->fr_win)
+{
+#if defined(FEAT_MENU)
+*rowp -= wp->w_winbar_height;
+#endif
+return wp;
+}
+return NULL;
+}
+#if defined(NEED_VCOL2COL) || defined(FEAT_BEVAL) || defined(FEAT_PROP_POPUP) || defined(PROTO)
+int
+vcol2col(win_T *wp, linenr_T lnum, int vcol)
+{
+int count = 0;
+char_u *ptr;
+char_u *line;
+line = ptr = ml_get_buf(wp->w_buffer, lnum, FALSE);
+while (count < vcol && *ptr != NUL)
+{
+count += win_lbr_chartabsize(wp, line, ptr, count, NULL);
+MB_PTR_ADV(ptr);
+}
+return (int)(ptr - line);
+}
+#endif
+#if defined(FEAT_EVAL) || defined(PROTO)
+void
+f_getmousepos(typval_T *argvars UNUSED, typval_T *rettv)
+{
+dict_T *d;
+win_T *wp;
+int row = mouse_row;
+int col = mouse_col;
+varnumber_T winid = 0;
+varnumber_T winrow = 0;
+varnumber_T wincol = 0;
+linenr_T line = 0;
+varnumber_T column = 0;
+if (rettv_dict_alloc(rettv) != OK)
+return;
+d = rettv->vval.v_dict;
+dict_add_number(d, "screenrow", (varnumber_T)mouse_row + 1);
+dict_add_number(d, "screencol", (varnumber_T)mouse_col + 1);
+wp = mouse_find_win(&row, &col, FIND_POPUP);
+if (wp != NULL)
+{
+int top_off = 0;
+int left_off = 0;
+int height = wp->w_height + wp->w_status_height;
+#if defined(FEAT_PROP_POPUP)
+if (WIN_IS_POPUP(wp))
+{
+top_off = popup_top_extra(wp);
+left_off = popup_left_extra(wp);
+height = popup_height(wp);
+}
+#endif
+if (row < height)
+{
+winid = wp->w_id;
+winrow = row + 1;
+wincol = col + 1;
+row -= top_off;
+col -= left_off;
+if (row >= 0 && row < wp->w_height && col >= 0 && col < wp->w_width)
+{
+char_u *p;
+int count;
+mouse_comp_pos(wp, &row, &col, &line, NULL);
+p = ml_get_buf(wp->w_buffer, line, FALSE);
+count = (int)STRLEN(p);
+if (col > count)
+col = count;
+column = col + 1;
+}
+}
+}
+dict_add_number(d, "winid", winid);
+dict_add_number(d, "winrow", winrow);
+dict_add_number(d, "wincol", wincol);
+dict_add_number(d, "line", (varnumber_T)line);
+dict_add_number(d, "column", column);
+}
+#endif

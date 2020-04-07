@@ -1,0 +1,5 @@
+struct filter_t;
+struct picture_t;
+int RenderYadif( filter_t *p_filter, picture_t *p_dst, picture_t *p_src,
+int i_order, int i_field );
+int RenderYadifSingle( filter_t *p_filter, picture_t *p_dst, picture_t *p_src );

@@ -1,0 +1,548 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" revision="1.0.0" language="C" filename="D:\Pesquisa\Projects\obs-analysis\_cppstats\obs-studio\libobs\audio-monitoring\osx\coreaudio-output.c"><cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;AudioUnit/AudioUnit.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;AudioToolbox/AudioQueue.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;CoreFoundation/CFString.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;CoreAudio/CoreAudio.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"../../media-io/audio-resampler.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"../../util/circlebuf.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"../../util/threading.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"../../util/platform.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"../../obs-internal.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"../../util/darray.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"mac-helpers.h"</cpp:file></cpp:include>
+
+<struct>struct <name>audio_monitor</name> <block>{
+
+<decl_stmt><decl><type><name>obs_source_t</name> <modifier>*</modifier></type><name>source</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>AudioQueueRef</name></type> <name>queue</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>AudioQueueBufferRef</name></type> <name><name>buffers</name><index>[<expr><literal type="number">3</literal></expr>]</index></name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>pthread_mutex_t</name></type> <name>mutex</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>circlebuf</name></name></type> <name>empty_buffers</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>circlebuf</name></name></type> <name>new_data</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>audio_resampler_t</name> <modifier>*</modifier></type><name>resampler</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>size_t</name></type> <name>buffer_size</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>size_t</name></type> <name>wait_size</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>uint32_t</name></type> <name>channels</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>volatile</specifier> <name>bool</name></type> <name>active</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>bool</name></type> <name>paused</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>bool</name></type> <name>ignore</name></decl>;</decl_stmt>
+
+}</block>;</struct>
+
+<function><type><specifier>static</specifier> <specifier>inline</specifier> <name>bool</name></type> <name>fill_buffer</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>audio_monitor</name></name> <modifier>*</modifier></type><name>monitor</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>AudioQueueBufferRef</name></type> <name>buf</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>OSStatus</name></type> <name>stat</name></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>monitor</name><operator>-&gt;</operator><name>new_data</name><operator>.</operator><name>size</name></name> <operator>&lt;</operator> <name><name>monitor</name><operator>-&gt;</operator><name>buffer_size</name></name></expr>)</condition> <block>{<block_content>
+
+<return>return <expr><name>false</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>circlebuf_pop_front</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>monitor</name><operator>-&gt;</operator><name>empty_buffers</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name>buf</name></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr><name>buf</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>circlebuf_pop_front</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>monitor</name><operator>-&gt;</operator><name>new_data</name></name></expr></argument>, <argument><expr><name><name>buf</name><operator>-&gt;</operator><name>mAudioData</name></name></expr></argument>,
+
+<argument><expr><name><name>monitor</name><operator>-&gt;</operator><name>buffer_size</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>buf</name><operator>-&gt;</operator><name>mAudioDataByteSize</name></name> <operator>=</operator> <name><name>monitor</name><operator>-&gt;</operator><name>buffer_size</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>stat</name> <operator>=</operator> <call><name>AudioQueueEnqueueBuffer</name><argument_list>(<argument><expr><name><name>monitor</name><operator>-&gt;</operator><name>queue</name></name></expr></argument>, <argument><expr><name>buf</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>success</name><argument_list>(<argument><expr><name>stat</name></expr></argument>, <argument><expr><literal type="string">"AudioQueueEnqueueBuffer"</literal></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>blog</name><argument_list>(<argument><expr><name>LOG_WARNING</name></expr></argument>, <argument><expr><literal type="string">"%s: %s"</literal></expr></argument>, <argument><expr><name>__FUNCTION__</name></expr></argument>,
+
+<argument><expr><literal type="string">"Failed to enqueue buffer"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>AudioQueueStop</name><argument_list>(<argument><expr><name><name>monitor</name><operator>-&gt;</operator><name>queue</name></name></expr></argument>, <argument><expr><name>false</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<return>return <expr><name>true</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>on_audio_playback</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>param</name></decl></parameter>, <parameter><decl><type><name>obs_source_t</name> <modifier>*</modifier></type><name>source</name></decl></parameter>,
+
+<parameter><decl><type><specifier>const</specifier> <name><name>struct</name> <name>audio_data</name></name> <modifier>*</modifier></type><name>audio_data</name></decl></parameter>, <parameter><decl><type><name>bool</name></type> <name>muted</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>audio_monitor</name></name> <modifier>*</modifier></type><name>monitor</name> <init>= <expr><name>param</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>float</name></type> <name>vol</name> <init>= <expr><name><name>source</name><operator>-&gt;</operator><name>user_volume</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>uint32_t</name></type> <name>bytes</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>UNUSED_PARAMETER</name><argument_list>(<argument><expr><name>source</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>os_atomic_load_bool</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>monitor</name><operator>-&gt;</operator><name>active</name></name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<return>return;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<decl_stmt><decl><type><name>uint8_t</name> <modifier>*</modifier></type><name><name>resample_data</name><index>[<expr><name>MAX_AV_PLANES</name></expr>]</index></name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>uint32_t</name></type> <name>resample_frames</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>uint64_t</name></type> <name>ts_offset</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>bool</name></type> <name>success</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>success</name> <operator>=</operator> <call><name>audio_resampler_resample</name><argument_list>(
+
+<argument><expr><name><name>monitor</name><operator>-&gt;</operator><name>resampler</name></name></expr></argument>, <argument><expr><name>resample_data</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>resample_frames</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>ts_offset</name></expr></argument>,
+
+<argument><expr><operator>(</operator><specifier>const</specifier> <name>uint8_t</name> <operator>*</operator><specifier>const</specifier> <operator>*</operator><operator>)</operator><name><name>audio_data</name><operator>-&gt;</operator><name>data</name></name></expr></argument>,
+
+<argument><expr><operator>(</operator><name>uint32_t</name><operator>)</operator><name><name>audio_data</name><operator>-&gt;</operator><name>frames</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>success</name></expr>)</condition> <block>{<block_content>
+
+<return>return;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name>bytes</name> <operator>=</operator> <sizeof>sizeof<argument_list>(<argument><expr><name>float</name></expr></argument>)</argument_list></sizeof> <operator>*</operator> <name><name>monitor</name><operator>-&gt;</operator><name>channels</name></name> <operator>*</operator> <name>resample_frames</name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>muted</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>memset</name><argument_list>(<argument><expr><name><name>resample_data</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><name>bytes</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>close_float</name><argument_list>(<argument><expr><name>vol</name></expr></argument>, <argument><expr><literal type="number">1.0f</literal></expr></argument>, <argument><expr><name>EPSILON</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<decl_stmt><decl><type><specifier>register</specifier> <name>float</name> <modifier>*</modifier></type><name>cur</name> <init>= <expr><operator>(</operator><name>float</name> <operator>*</operator><operator>)</operator><name><name>resample_data</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>register</specifier> <name>float</name> <modifier>*</modifier></type><name>end</name> <init>=
+
+<expr><name>cur</name> <operator>+</operator> <name>resample_frames</name> <operator>*</operator> <name><name>monitor</name><operator>-&gt;</operator><name>channels</name></name></expr></init></decl>;</decl_stmt>
+
+<while>while <condition>(<expr><name>cur</name> <operator>&lt;</operator> <name>end</name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><operator>*</operator><operator>(</operator><name>cur</name><operator>++</operator><operator>)</operator> <operator>*=</operator> <name>vol</name></expr>;</expr_stmt></block_content></block></while>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_lock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>monitor</name><operator>-&gt;</operator><name>mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>circlebuf_push_back</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>monitor</name><operator>-&gt;</operator><name>new_data</name></name></expr></argument>, <argument><expr><name><name>resample_data</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>, <argument><expr><name>bytes</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>monitor</name><operator>-&gt;</operator><name>new_data</name><operator>.</operator><name>size</name></name> <operator>&gt;=</operator> <name><name>monitor</name><operator>-&gt;</operator><name>wait_size</name></name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name><name>monitor</name><operator>-&gt;</operator><name>wait_size</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<while>while <condition>(<expr><name><name>monitor</name><operator>-&gt;</operator><name>empty_buffers</name><operator>.</operator><name>size</name></name> <operator>&gt;</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>fill_buffer</name><argument_list>(<argument><expr><name>monitor</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<break>break;</break>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></while>
+
+<if_stmt><if>if <condition>(<expr><name><name>monitor</name><operator>-&gt;</operator><name>paused</name></name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>AudioQueueStart</name><argument_list>(<argument><expr><name><name>monitor</name><operator>-&gt;</operator><name>queue</name></name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>monitor</name><operator>-&gt;</operator><name>paused</name></name> <operator>=</operator> <name>false</name></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_unlock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>monitor</name><operator>-&gt;</operator><name>mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>buffer_audio</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>, <parameter><decl><type><name>AudioQueueRef</name></type> <name>aq</name></decl></parameter>, <parameter><decl><type><name>AudioQueueBufferRef</name></type> <name>buf</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>audio_monitor</name></name> <modifier>*</modifier></type><name>monitor</name> <init>= <expr><name>data</name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_lock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>monitor</name><operator>-&gt;</operator><name>mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>circlebuf_push_back</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>monitor</name><operator>-&gt;</operator><name>empty_buffers</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name>buf</name></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr><name>buf</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<while>while <condition>(<expr><name><name>monitor</name><operator>-&gt;</operator><name>empty_buffers</name><operator>.</operator><name>size</name></name> <operator>&gt;</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>fill_buffer</name><argument_list>(<argument><expr><name>monitor</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<break>break;</break>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></while>
+
+<if_stmt><if>if <condition>(<expr><name><name>monitor</name><operator>-&gt;</operator><name>empty_buffers</name><operator>.</operator><name>size</name></name> <operator>==</operator> <sizeof>sizeof<argument_list>(<argument><expr><name>buf</name></expr></argument>)</argument_list></sizeof> <operator>*</operator> <literal type="number">3</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name><name>monitor</name><operator>-&gt;</operator><name>paused</name></name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>monitor</name><operator>-&gt;</operator><name>wait_size</name></name> <operator>=</operator> <name><name>monitor</name><operator>-&gt;</operator><name>buffer_size</name></name> <operator>*</operator> <literal type="number">3</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>AudioQueuePause</name><argument_list>(<argument><expr><name><name>monitor</name><operator>-&gt;</operator><name>queue</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_unlock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>monitor</name><operator>-&gt;</operator><name>mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>UNUSED_PARAMETER</name><argument_list>(<argument><expr><name>aq</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function_decl><type><specifier>extern</specifier> <name>bool</name></type> <name>devices_match</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>id1</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>id2</name></decl></parameter>)</parameter_list>;</function_decl>
+
+<function><type><specifier>static</specifier> <name>bool</name></type> <name>audio_monitor_init</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>audio_monitor</name></name> <modifier>*</modifier></type><name>monitor</name></decl></parameter>,
+
+<parameter><decl><type><name>obs_source_t</name> <modifier>*</modifier></type><name>source</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name><name>struct</name> <name>audio_output_info</name></name> <modifier>*</modifier></type><name>info</name> <init>=
+
+<expr><call><name>audio_output_get_info</name><argument_list>(<argument><expr><name><name>obs</name><operator>-&gt;</operator><name>audio</name><operator>.</operator><name>audio</name></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>uint32_t</name></type> <name>channels</name> <init>= <expr><call><name>get_audio_channels</name><argument_list>(<argument><expr><name><name>info</name><operator>-&gt;</operator><name>speakers</name></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>OSStatus</name></type> <name>stat</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>AudioStreamBasicDescription</name></type> <name>desc</name> <init>= <expr><block>{
+
+<expr><operator>.</operator><name>mSampleRate</name> <operator>=</operator> <operator>(</operator><name>Float64</name><operator>)</operator><name><name>info</name><operator>-&gt;</operator><name>samples_per_sec</name></name></expr>,
+
+<expr><operator>.</operator><name>mFormatID</name> <operator>=</operator> <name>kAudioFormatLinearPCM</name></expr>,
+
+<expr><operator>.</operator><name>mFormatFlags</name> <operator>=</operator> <name>kAudioFormatFlagIsFloat</name> <operator>|</operator>
+
+<name>kAudioFormatFlagIsPacked</name></expr>,
+
+<expr><operator>.</operator><name>mBytesPerPacket</name> <operator>=</operator> <sizeof>sizeof<argument_list>(<argument><expr><name>float</name></expr></argument>)</argument_list></sizeof> <operator>*</operator> <name>channels</name></expr>,
+
+<expr><operator>.</operator><name>mFramesPerPacket</name> <operator>=</operator> <literal type="number">1</literal></expr>,
+
+<expr><operator>.</operator><name>mBytesPerFrame</name> <operator>=</operator> <sizeof>sizeof<argument_list>(<argument><expr><name>float</name></expr></argument>)</argument_list></sizeof> <operator>*</operator> <name>channels</name></expr>,
+
+<expr><operator>.</operator><name>mChannelsPerFrame</name> <operator>=</operator> <name>channels</name></expr>,
+
+<expr><operator>.</operator><name>mBitsPerChannel</name> <operator>=</operator> <sizeof>sizeof<argument_list>(<argument><expr><name>float</name></expr></argument>)</argument_list></sizeof> <operator>*</operator> <literal type="number">8</literal></expr>}</block></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>monitor</name><operator>-&gt;</operator><name>source</name></name> <operator>=</operator> <name>source</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>monitor</name><operator>-&gt;</operator><name>channels</name></name> <operator>=</operator> <name>channels</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>monitor</name><operator>-&gt;</operator><name>buffer_size</name></name> <operator>=</operator>
+
+<name>channels</name> <operator>*</operator> <sizeof>sizeof<argument_list>(<argument><expr><name>float</name></expr></argument>)</argument_list></sizeof> <operator>*</operator> <name><name>info</name><operator>-&gt;</operator><name>samples_per_sec</name></name> <operator>/</operator> <literal type="number">100</literal> <operator>*</operator> <literal type="number">3</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>monitor</name><operator>-&gt;</operator><name>wait_size</name></name> <operator>=</operator> <name><name>monitor</name><operator>-&gt;</operator><name>buffer_size</name></name> <operator>*</operator> <literal type="number">3</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_init_value</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>monitor</name><operator>-&gt;</operator><name>mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>uid</name> <init>= <expr><name><name>obs</name><operator>-&gt;</operator><name>audio</name><operator>.</operator><name>monitoring_device_id</name></name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>uid</name> <operator>||</operator> <operator>!</operator><operator>*</operator><name>uid</name></expr>)</condition> <block>{<block_content>
+
+<return>return <expr><name>false</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>source</name><operator>-&gt;</operator><name>info</name><operator>.</operator><name>output_flags</name></name> <operator>&amp;</operator> <name>OBS_SOURCE_DO_NOT_SELF_MONITOR</name></expr>)</condition> <block>{<block_content>
+
+<decl_stmt><decl><type><name>obs_data_t</name> <modifier>*</modifier></type><name>s</name> <init>= <expr><call><name>obs_source_get_settings</name><argument_list>(<argument><expr><name>source</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>s_dev_id</name> <init>= <expr><call><name>obs_data_get_string</name><argument_list>(<argument><expr><name>s</name></expr></argument>, <argument><expr><literal type="string">"device_id"</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>bool</name></type> <name>match</name> <init>= <expr><call><name>devices_match</name><argument_list>(<argument><expr><name>s_dev_id</name></expr></argument>, <argument><expr><name>uid</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>obs_data_release</name><argument_list>(<argument><expr><name>s</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>match</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name><name>monitor</name><operator>-&gt;</operator><name>ignore</name></name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+
+<return>return <expr><name>true</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name>stat</name> <operator>=</operator> <call><name>AudioQueueNewOutput</name><argument_list>(<argument><expr><operator>&amp;</operator><name>desc</name></expr></argument>, <argument><expr><name>buffer_audio</name></expr></argument>, <argument><expr><name>monitor</name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>,
+
+<argument><expr><operator>&amp;</operator><name><name>monitor</name><operator>-&gt;</operator><name>queue</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>success</name><argument_list>(<argument><expr><name>stat</name></expr></argument>, <argument><expr><literal type="string">"AudioStreamBasicDescription"</literal></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<return>return <expr><name>false</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>strcmp</name><argument_list>(<argument><expr><name>uid</name></expr></argument>, <argument><expr><literal type="string">"default"</literal></expr></argument>)</argument_list></call> <operator>!=</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<decl_stmt><decl><type><name>CFStringRef</name></type> <name>cf_uid</name> <init>= <expr><call><name>CFStringCreateWithBytes</name><argument_list>(
+
+<argument><expr><name>NULL</name></expr></argument>, <argument><expr><operator>(</operator><specifier>const</specifier> <name>UInt8</name> <operator>*</operator><operator>)</operator><name>uid</name></expr></argument>, <argument><expr><call><name>strlen</name><argument_list>(<argument><expr><name>uid</name></expr></argument>)</argument_list></call></expr></argument>,
+
+<argument><expr><name>kCFStringEncodingUTF8</name></expr></argument>, <argument><expr><name>false</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>stat</name> <operator>=</operator> <call><name>AudioQueueSetProperty</name><argument_list>(<argument><expr><name><name>monitor</name><operator>-&gt;</operator><name>queue</name></name></expr></argument>,
+
+<argument><expr><name>kAudioQueueProperty_CurrentDevice</name></expr></argument>,
+
+<argument><expr><operator>&amp;</operator><name>cf_uid</name></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr><name>cf_uid</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>CFRelease</name><argument_list>(<argument><expr><name>cf_uid</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>success</name><argument_list>(<argument><expr><name>stat</name></expr></argument>, <argument><expr><literal type="string">"set current device"</literal></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<return>return <expr><name>false</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name>stat</name> <operator>=</operator> <call><name>AudioQueueSetParameter</name><argument_list>(<argument><expr><name><name>monitor</name><operator>-&gt;</operator><name>queue</name></name></expr></argument>, <argument><expr><name>kAudioQueueParam_Volume</name></expr></argument>,
+
+<argument><expr><literal type="number">1.0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>success</name><argument_list>(<argument><expr><name>stat</name></expr></argument>, <argument><expr><literal type="string">"set volume"</literal></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<return>return <expr><name>false</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<for>for <control>(<init><decl><type><name>size_t</name></type> <name>i</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <literal type="number">3</literal></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+
+<expr_stmt><expr><name>stat</name> <operator>=</operator> <call><name>AudioQueueAllocateBuffer</name><argument_list>(<argument><expr><name><name>monitor</name><operator>-&gt;</operator><name>queue</name></name></expr></argument>,
+
+<argument><expr><name><name>monitor</name><operator>-&gt;</operator><name>buffer_size</name></name></expr></argument>,
+
+<argument><expr><operator>&amp;</operator><name><name>monitor</name><operator>-&gt;</operator><name>buffers</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>success</name><argument_list>(<argument><expr><name>stat</name></expr></argument>, <argument><expr><literal type="string">"allocation of buffer"</literal></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<return>return <expr><name>false</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>circlebuf_push_back</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>monitor</name><operator>-&gt;</operator><name>empty_buffers</name></name></expr></argument>,
+
+<argument><expr><operator>&amp;</operator><name><name>monitor</name><operator>-&gt;</operator><name>buffers</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>,
+
+<argument><expr><sizeof>sizeof<argument_list>(<argument><expr><name><name>monitor</name><operator>-&gt;</operator><name>buffers</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></for>
+
+<if_stmt><if>if <condition>(<expr><call><name>pthread_mutex_init</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>monitor</name><operator>-&gt;</operator><name>mutex</name></name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call> <operator>!=</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>blog</name><argument_list>(<argument><expr><name>LOG_WARNING</name></expr></argument>, <argument><expr><literal type="string">"%s: %s"</literal></expr></argument>, <argument><expr><name>__FUNCTION__</name></expr></argument>,
+
+<argument><expr><literal type="string">"Failed to init mutex"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>false</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>resample_info</name></name></type> <name>from</name> <init>= <expr><block>{<expr><operator>.</operator><name>samples_per_sec</name> <operator>=</operator> <name><name>info</name><operator>-&gt;</operator><name>samples_per_sec</name></name></expr>,
+
+<expr><operator>.</operator><name>speakers</name> <operator>=</operator> <name><name>info</name><operator>-&gt;</operator><name>speakers</name></name></expr>,
+
+<expr><operator>.</operator><name>format</name> <operator>=</operator> <name>AUDIO_FORMAT_FLOAT_PLANAR</name></expr>}</block></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>resample_info</name></name></type> <name>to</name> <init>= <expr><block>{<expr><operator>.</operator><name>samples_per_sec</name> <operator>=</operator> <name><name>info</name><operator>-&gt;</operator><name>samples_per_sec</name></name></expr>,
+
+<expr><operator>.</operator><name>speakers</name> <operator>=</operator> <name><name>info</name><operator>-&gt;</operator><name>speakers</name></name></expr>,
+
+<expr><operator>.</operator><name>format</name> <operator>=</operator> <name>AUDIO_FORMAT_FLOAT</name></expr>}</block></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>monitor</name><operator>-&gt;</operator><name>resampler</name></name> <operator>=</operator> <call><name>audio_resampler_create</name><argument_list>(<argument><expr><operator>&amp;</operator><name>to</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>from</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>monitor</name><operator>-&gt;</operator><name>resampler</name></name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>blog</name><argument_list>(<argument><expr><name>LOG_WARNING</name></expr></argument>, <argument><expr><literal type="string">"%s: %s"</literal></expr></argument>, <argument><expr><name>__FUNCTION__</name></expr></argument>,
+
+<argument><expr><literal type="string">"Failed to create resampler"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>false</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name>stat</name> <operator>=</operator> <call><name>AudioQueueStart</name><argument_list>(<argument><expr><name><name>monitor</name><operator>-&gt;</operator><name>queue</name></name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>success</name><argument_list>(<argument><expr><name>stat</name></expr></argument>, <argument><expr><literal type="string">"start"</literal></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<return>return <expr><name>false</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>monitor</name><operator>-&gt;</operator><name>active</name></name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+
+<return>return <expr><name>true</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>audio_monitor_free</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>audio_monitor</name></name> <modifier>*</modifier></type><name>monitor</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><name><name>monitor</name><operator>-&gt;</operator><name>source</name></name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>obs_source_remove_audio_capture_callback</name><argument_list>(
+
+<argument><expr><name><name>monitor</name><operator>-&gt;</operator><name>source</name></name></expr></argument>, <argument><expr><name>on_audio_playback</name></expr></argument>, <argument><expr><name>monitor</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>monitor</name><operator>-&gt;</operator><name>active</name></name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>AudioQueueStop</name><argument_list>(<argument><expr><name><name>monitor</name><operator>-&gt;</operator><name>queue</name></name></expr></argument>, <argument><expr><name>true</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<for>for <control>(<init><decl><type><name>size_t</name></type> <name>i</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <literal type="number">3</literal></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><name><name>monitor</name><operator>-&gt;</operator><name>buffers</name><index>[<expr><name>i</name></expr>]</index></name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>AudioQueueFreeBuffer</name><argument_list>(<argument><expr><name><name>monitor</name><operator>-&gt;</operator><name>queue</name></name></expr></argument>,
+
+<argument><expr><name><name>monitor</name><operator>-&gt;</operator><name>buffers</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></for>
+
+<if_stmt><if>if <condition>(<expr><name><name>monitor</name><operator>-&gt;</operator><name>queue</name></name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>AudioQueueDispose</name><argument_list>(<argument><expr><name><name>monitor</name><operator>-&gt;</operator><name>queue</name></name></expr></argument>, <argument><expr><name>true</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>audio_resampler_destroy</name><argument_list>(<argument><expr><name><name>monitor</name><operator>-&gt;</operator><name>resampler</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>circlebuf_free</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>monitor</name><operator>-&gt;</operator><name>empty_buffers</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>circlebuf_free</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>monitor</name><operator>-&gt;</operator><name>new_data</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_destroy</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>monitor</name><operator>-&gt;</operator><name>mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>audio_monitor_init_final</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>audio_monitor</name></name> <modifier>*</modifier></type><name>monitor</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><name><name>monitor</name><operator>-&gt;</operator><name>ignore</name></name></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>obs_source_add_audio_capture_callback</name><argument_list>(<argument><expr><name><name>monitor</name><operator>-&gt;</operator><name>source</name></name></expr></argument>,
+
+<argument><expr><name>on_audio_playback</name></expr></argument>, <argument><expr><name>monitor</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><name><name>struct</name> <name>audio_monitor</name></name> <modifier>*</modifier></type><name>audio_monitor_create</name><parameter_list>(<parameter><decl><type><name>obs_source_t</name> <modifier>*</modifier></type><name>source</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>audio_monitor</name></name> <modifier>*</modifier></type><name>monitor</name> <init>= <expr><call><name>bzalloc</name><argument_list>(<argument><expr><sizeof>sizeof<argument_list>(<argument><expr><operator>*</operator><name>monitor</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>audio_monitor_init</name><argument_list>(<argument><expr><name>monitor</name></expr></argument>, <argument><expr><name>source</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<goto>goto <name>fail</name>;</goto>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_lock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>obs</name><operator>-&gt;</operator><name>audio</name><operator>.</operator><name>monitoring_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>da_push_back</name><argument_list>(<argument><expr><name><name>obs</name><operator>-&gt;</operator><name>audio</name><operator>.</operator><name>monitors</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name>monitor</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_unlock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>obs</name><operator>-&gt;</operator><name>audio</name><operator>.</operator><name>monitoring_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>audio_monitor_init_final</name><argument_list>(<argument><expr><name>monitor</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>monitor</name></expr>;</return>
+
+<label><name>fail</name>:</label>
+
+<expr_stmt><expr><call><name>audio_monitor_free</name><argument_list>(<argument><expr><name>monitor</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>bfree</name><argument_list>(<argument><expr><name>monitor</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>NULL</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><name>void</name></type> <name>audio_monitor_reset</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>audio_monitor</name></name> <modifier>*</modifier></type><name>monitor</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>bool</name></type> <name>success</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>obs_source_t</name> <modifier>*</modifier></type><name>source</name> <init>= <expr><name><name>monitor</name><operator>-&gt;</operator><name>source</name></name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>audio_monitor_free</name><argument_list>(<argument><expr><name>monitor</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>memset</name><argument_list>(<argument><expr><name>monitor</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr><operator>*</operator><name>monitor</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>success</name> <operator>=</operator> <call><name>audio_monitor_init</name><argument_list>(<argument><expr><name>monitor</name></expr></argument>, <argument><expr><name>source</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>success</name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>audio_monitor_init_final</name><argument_list>(<argument><expr><name>monitor</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+</block_content>}</block></function>
+
+<function><type><name>void</name></type> <name>audio_monitor_destroy</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>audio_monitor</name></name> <modifier>*</modifier></type><name>monitor</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><name>monitor</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>audio_monitor_free</name><argument_list>(<argument><expr><name>monitor</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_lock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>obs</name><operator>-&gt;</operator><name>audio</name><operator>.</operator><name>monitoring_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>da_erase_item</name><argument_list>(<argument><expr><name><name>obs</name><operator>-&gt;</operator><name>audio</name><operator>.</operator><name>monitors</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name>monitor</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_unlock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>obs</name><operator>-&gt;</operator><name>audio</name><operator>.</operator><name>monitoring_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>bfree</name><argument_list>(<argument><expr><name>monitor</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></function>
+
+</unit>

@@ -1,0 +1,30 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#if !defined(AVFORMAT_IRCAM_H)
+#define AVFORMAT_IRCAM_H
+
+#include "internal.h"
+
+extern const AVCodecTag ff_codec_ircam_be_tags[];
+extern const AVCodecTag ff_codec_ircam_le_tags[];
+
+#endif 

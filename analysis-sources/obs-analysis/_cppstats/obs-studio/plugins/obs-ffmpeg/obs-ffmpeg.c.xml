@@ -1,0 +1,454 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" revision="1.0.0" language="C" filename="D:\Pesquisa\Projects\obs-analysis\_cppstats\obs-studio\plugins\obs-ffmpeg\obs-ffmpeg.c"><cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;obs-module.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;util/platform.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;libavutil/avutil.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;libavcodec/avcodec.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;libavformat/avformat.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"obs-ffmpeg-config.h"</cpp:file></cpp:include>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><call><name>defined</name><argument_list>(<argument><expr><name>_WIN32</name></expr></argument>)</argument_list></call></expr></cpp:if>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;dxgi.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;util/dstr.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;util/windows/win-version.h&gt;</cpp:file></cpp:include>
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+<macro><name>OBS_DECLARE_MODULE</name><argument_list>()</argument_list></macro>
+
+<macro><name>OBS_MODULE_USE_DEFAULT_LOCALE</name><argument_list>(<argument><literal type="string">"obs-ffmpeg"</literal></argument>, <argument><literal type="string">"en-US"</literal></argument>)</argument_list></macro>
+
+<function><type><name>MODULE_EXPORT</name> <specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>obs_module_description</name><parameter_list>(<parameter><decl><type><name>void</name></type></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<return>return <expr><literal type="string">"FFmpeg based sources/outputs/encoders"</literal></expr>;</return>
+
+</block_content>}</block></function>
+
+<decl_stmt><decl><type><specifier>extern</specifier> <name><name>struct</name> <name>obs_source_info</name></name></type> <name>ffmpeg_source</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>extern</specifier> <name><name>struct</name> <name>obs_output_info</name></name></type> <name>ffmpeg_output</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>extern</specifier> <name><name>struct</name> <name>obs_output_info</name></name></type> <name>ffmpeg_muxer</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>extern</specifier> <name><name>struct</name> <name>obs_output_info</name></name></type> <name>replay_buffer</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>extern</specifier> <name><name>struct</name> <name>obs_encoder_info</name></name></type> <name>aac_encoder_info</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>extern</specifier> <name><name>struct</name> <name>obs_encoder_info</name></name></type> <name>opus_encoder_info</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>extern</specifier> <name><name>struct</name> <name>obs_encoder_info</name></name></type> <name>nvenc_encoder_info</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>extern</specifier> <name><name>struct</name> <name>obs_output_info</name></name></type> <name>ffmpeg_encoded_output_info</name></decl>;</decl_stmt>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><name>LIBAVUTIL_VERSION_INT</name> <operator>&gt;=</operator> <call><name>AV_VERSION_INT</name><argument_list>(<argument><expr><literal type="number">55</literal><operator>,</operator> <literal type="number">27</literal><operator>,</operator> <literal type="number">100</literal></expr></argument>)</argument_list></call></expr></cpp:if>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>LIBAVUTIL_VAAPI_AVAILABLE</name></cpp:macro></cpp:define>
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><call><name>defined</name><argument_list>(<argument><expr><name>LIBAVUTIL_VAAPI_AVAILABLE</name></expr></argument>)</argument_list></call></expr></cpp:if>
+<decl_stmt><decl><type><specifier>extern</specifier> <name><name>struct</name> <name>obs_encoder_info</name></name></type> <name>vaapi_encoder_info</name></decl>;</decl_stmt>
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><operator>!</operator><call><name>defined</name><argument_list>(<argument><expr><name>__APPLE__</name></expr></argument>)</argument_list></call></expr></cpp:if>
+<decl_stmt><decl><type><specifier>static</specifier> <specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>nvenc_check_name</name> <init>= <expr><literal type="string">"nvenc_check"</literal></expr></init></decl>;</decl_stmt>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><call><name>defined</name><argument_list>(<argument><expr><name>_WIN32</name></expr></argument>)</argument_list></call></expr></cpp:if>
+<decl_stmt><decl><type><specifier>static</specifier> <specifier>const</specifier> <name>int</name></type> <name><name>blacklisted_adapters</name><index>[]</index></name> <init>= <expr><block>{
+
+<expr><literal type="number">0x1298</literal></expr>, 
+
+<expr><literal type="number">0x1140</literal></expr>, 
+
+<expr><literal type="number">0x1293</literal></expr>, 
+
+<expr><literal type="number">0x1290</literal></expr>, 
+
+<expr><literal type="number">0x0fe1</literal></expr>, 
+
+<expr><literal type="number">0x0fdf</literal></expr>, 
+
+<expr><literal type="number">0x1294</literal></expr>, 
+
+<expr><literal type="number">0x1292</literal></expr>, 
+
+<expr><literal type="number">0x0fe2</literal></expr>, 
+
+<expr><literal type="number">0x0fe3</literal></expr>, 
+
+<expr><literal type="number">0x1140</literal></expr>, 
+
+<expr><literal type="number">0x0fed</literal></expr>, 
+
+<expr><literal type="number">0x1340</literal></expr>, 
+
+<expr><literal type="number">0x1393</literal></expr>, 
+
+<expr><literal type="number">0x1341</literal></expr>, 
+
+<expr><literal type="number">0x1398</literal></expr>, 
+
+<expr><literal type="number">0x1390</literal></expr>, 
+
+<expr><literal type="number">0x1344</literal></expr>, 
+
+<expr><literal type="number">0x1299</literal></expr>, 
+
+<expr><literal type="number">0x134f</literal></expr>, 
+
+<expr><literal type="number">0x134e</literal></expr>, 
+
+<expr><literal type="number">0x1349</literal></expr>, 
+
+<expr><literal type="number">0x1346</literal></expr>, 
+
+<expr><literal type="number">0x179c</literal></expr>, 
+
+<expr><literal type="number">0x139c</literal></expr>, 
+
+<expr><literal type="number">0x1347</literal></expr>, 
+
+<expr><literal type="number">0x134d</literal></expr>, 
+
+<expr><literal type="number">0x134b</literal></expr>, 
+
+<expr><literal type="number">0x1399</literal></expr>, 
+
+<expr><literal type="number">0x1348</literal></expr>, 
+
+<expr><literal type="number">0x1d01</literal></expr>, 
+
+<expr><literal type="number">0x0fc5</literal></expr>, 
+
+<expr><literal type="number">0x174e</literal></expr>, 
+
+<expr><literal type="number">0x174d</literal></expr>, 
+
+<expr><literal type="number">0x1d10</literal></expr>, 
+
+<expr><literal type="number">0x1d12</literal></expr>, 
+
+<expr><literal type="number">0x1d11</literal></expr>, 
+
+<expr><literal type="number">0x1d13</literal></expr>, 
+
+<expr><literal type="number">0x1d52</literal></expr>, 
+
+<expr><literal type="number">0x137b</literal></expr>, 
+
+<expr><literal type="number">0x1d33</literal></expr>, 
+
+<expr><literal type="number">0x137a</literal></expr>, 
+
+}</block></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <specifier>const</specifier> <name>size_t</name></type> <name>num_blacklisted</name> <init>=
+
+<expr><sizeof>sizeof<argument_list>(<argument><expr><name>blacklisted_adapters</name></expr></argument>)</argument_list></sizeof> <operator>/</operator> <sizeof>sizeof<argument_list>(<argument><expr><name><name>blacklisted_adapters</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>)</argument_list></sizeof></expr></init></decl>;</decl_stmt>
+
+<function><type><specifier>static</specifier> <name>bool</name></type> <name>is_blacklisted</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name>int</name></type> <name>device_id</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<for>for <control>(<init><decl><type><name>size_t</name></type> <name>i</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>num_blacklisted</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>int</name></type> <name>blacklisted_adapter</name> <init>= <expr><name><name>blacklisted_adapters</name><index>[<expr><name>i</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>device_id</name> <operator>==</operator> <name>blacklisted_adapter</name></expr>)</condition> <block>{<block_content>
+
+<return>return <expr><name>true</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></for>
+
+<return>return <expr><name>false</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<typedef>typedef <function_decl><type><name>HRESULT</name></type>(<name>WINAPI</name> <modifier>*</modifier><name>create_dxgi_proc</name>)<parameter_list>(<parameter><decl><type><specifier>const</specifier> <name>IID</name> <modifier>*</modifier></type></decl></parameter>, <parameter><decl><type><name>IDXGIFactory1</name> <modifier>*</modifier><modifier>*</modifier></type></decl></parameter>)</parameter_list>;</function_decl></typedef>
+
+<function><type><specifier>static</specifier> <name>bool</name></type> <name>nvenc_device_available</name><parameter_list>(<parameter><decl><type><name>void</name></type></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>HMODULE</name></type> <name>dxgi</name> <init>= <expr><name>NULL</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>create_dxgi_proc</name></type> <name>create</name> <init>= <expr><name>NULL</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>IDXGIFactory1</name> <modifier>*</modifier></type><name>factory</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>IDXGIAdapter1</name> <modifier>*</modifier></type><name>adapter</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>bool</name></type> <name>available</name> <init>= <expr><name>false</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>HRESULT</name></type> <name>hr</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>UINT</name></type> <name>i</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>dxgi</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>dxgi</name> <operator>=</operator> <call><name>GetModuleHandleW</name><argument_list>(<argument><expr><literal type="string">L"dxgi"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>dxgi</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>dxgi</name> <operator>=</operator> <call><name>LoadLibraryW</name><argument_list>(<argument><expr><literal type="string">L"dxgi"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>dxgi</name></expr>)</condition> <block>{<block_content>
+
+<return>return <expr><name>true</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>create</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>create</name> <operator>=</operator> <operator>(</operator><name>create_dxgi_proc</name><operator>)</operator><call><name>GetProcAddress</name><argument_list>(<argument><expr><name>dxgi</name></expr></argument>,
+
+<argument><expr><literal type="string">"CreateDXGIFactory1"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>create</name></expr>)</condition> <block>{<block_content>
+
+<return>return <expr><name>true</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name>hr</name> <operator>=</operator> <call><name>create</name><argument_list>(<argument><expr><operator>&amp;</operator><name>IID_IDXGIFactory1</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>factory</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>FAILED</name><argument_list>(<argument><expr><name>hr</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<return>return <expr><name>true</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<while>while <condition>(<expr><call><name><name>factory</name><operator>-&gt;</operator><name>lpVtbl</name><operator>-&gt;</operator><name>EnumAdapters1</name></name><argument_list>(<argument><expr><name>factory</name></expr></argument>, <argument><expr><name>i</name><operator>++</operator></expr></argument>, <argument><expr><operator>&amp;</operator><name>adapter</name></expr></argument>)</argument_list></call> <operator>==</operator> <name>S_OK</name></expr>)</condition> <block>{<block_content>
+
+<decl_stmt><decl><type><name>DXGI_ADAPTER_DESC</name></type> <name>desc</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>hr</name> <operator>=</operator> <call><name><name>adapter</name><operator>-&gt;</operator><name>lpVtbl</name><operator>-&gt;</operator><name>GetDesc</name></name><argument_list>(<argument><expr><name>adapter</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>desc</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name><name>adapter</name><operator>-&gt;</operator><name>lpVtbl</name><operator>-&gt;</operator><name>Release</name></name><argument_list>(<argument><expr><name>adapter</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>FAILED</name><argument_list>(<argument><expr><name>hr</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<continue>continue;</continue>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>desc</name><operator>.</operator><name>VendorId</name></name> <operator>==</operator> <literal type="number">0x10de</literal> <operator>&amp;&amp;</operator> <operator>!</operator><call><name>is_blacklisted</name><argument_list>(<argument><expr><name><name>desc</name><operator>.</operator><name>DeviceId</name></name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>available</name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+
+<goto>goto <name>finish</name>;</goto>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></while>
+
+<label><name>finish</name>:</label>
+
+<expr_stmt><expr><call><name><name>factory</name><operator>-&gt;</operator><name>lpVtbl</name><operator>-&gt;</operator><name>Release</name></name><argument_list>(<argument><expr><name>factory</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>available</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><call><name>defined</name><argument_list>(<argument><expr><name>_WIN32</name></expr></argument>)</argument_list></call></expr></cpp:if>
+<function_decl><type><specifier>extern</specifier> <name>bool</name></type> <name>load_nvenc_lib</name><parameter_list>(<parameter><decl><type><name>void</name></type></decl></parameter>)</parameter_list>;</function_decl>
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+<function><type><specifier>static</specifier> <name>bool</name></type> <name>nvenc_supported</name><parameter_list>(<parameter><decl><type><name>void</name></type></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><name>LIBAVCODEC_VERSION_INT</name> <operator>&lt;</operator> <call><name>AV_VERSION_INT</name><argument_list>(<argument><expr><literal type="number">58</literal><operator>,</operator> <literal type="number">9</literal><operator>,</operator> <literal type="number">100</literal></expr></argument>)</argument_list></call></expr></cpp:if>
+
+<expr_stmt><expr><call><name>av_register_all</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+<expr_stmt><expr><call><name>profile_start</name><argument_list>(<argument><expr><name>nvenc_check_name</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<decl_stmt><decl><type><name>AVCodec</name> <modifier>*</modifier></type><name>nvenc</name> <init>= <expr><call><name>avcodec_find_encoder_by_name</name><argument_list>(<argument><expr><literal type="string">"nvenc_h264"</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>void</name> <modifier>*</modifier></type><name>lib</name> <init>= <expr><name>NULL</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>bool</name></type> <name>success</name> <init>= <expr><name>false</name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>nvenc</name></expr>)</condition> <block>{<block_content>
+
+<goto>goto <name>cleanup</name>;</goto>
+
+</block_content>}</block></if></if_stmt>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><call><name>defined</name><argument_list>(<argument><expr><name>_WIN32</name></expr></argument>)</argument_list></call></expr></cpp:if>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>nvenc_device_available</name><argument_list>()</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<goto>goto <name>cleanup</name>;</goto>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>load_nvenc_lib</name><argument_list>()</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>success</name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+
+<goto>goto <name>finish</name>;</goto>
+
+</block_content>}</block></if></if_stmt>
+
+<cpp:else>#<cpp:directive>else</cpp:directive></cpp:else>
+
+<expr_stmt><expr><name>lib</name> <operator>=</operator> <call><name>os_dlopen</name><argument_list>(<argument><expr><literal type="string">"libnvidia-encode.so.1"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+<expr_stmt><expr><name>success</name> <operator>=</operator> <operator>!</operator><operator>!</operator><name>lib</name></expr>;</expr_stmt>
+
+<label><name>cleanup</name>:</label>
+
+<if_stmt><if>if <condition>(<expr><name>lib</name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>os_dlclose</name><argument_list>(<argument><expr><name>lib</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><call><name>defined</name><argument_list>(<argument><expr><name>_WIN32</name></expr></argument>)</argument_list></call></expr></cpp:if>
+
+<label><name>finish</name>:</label>
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+<expr_stmt><expr><call><name>profile_end</name><argument_list>(<argument><expr><name>nvenc_check_name</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>success</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><call><name>defined</name><argument_list>(<argument><expr><name>LIBAVUTIL_VAAPI_AVAILABLE</name></expr></argument>)</argument_list></call></expr></cpp:if>
+<function><type><specifier>static</specifier> <name>bool</name></type> <name>vaapi_supported</name><parameter_list>(<parameter><decl><type><name>void</name></type></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>AVCodec</name> <modifier>*</modifier></type><name>vaenc</name> <init>= <expr><call><name>avcodec_find_encoder_by_name</name><argument_list>(<argument><expr><literal type="string">"h264_vaapi"</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<return>return <expr><operator>!</operator><operator>!</operator><name>vaenc</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><call><name>defined</name><argument_list>(<argument><expr><name>_WIN32</name></expr></argument>)</argument_list></call></expr></cpp:if>
+<function_decl><type><specifier>extern</specifier> <name>void</name></type> <name>jim_nvenc_load</name><parameter_list>(<parameter><decl><type><name>void</name></type></decl></parameter>)</parameter_list>;</function_decl>
+
+<function_decl><type><specifier>extern</specifier> <name>void</name></type> <name>jim_nvenc_unload</name><parameter_list>(<parameter><decl><type><name>void</name></type></decl></parameter>)</parameter_list>;</function_decl>
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><name>ENABLE_FFMPEG_LOGGING</name></expr></cpp:if>
+
+<function_decl><type><specifier>extern</specifier> <name>void</name></type> <name>obs_ffmpeg_load_logging</name><parameter_list>(<parameter><decl><type><name>void</name></type></decl></parameter>)</parameter_list>;</function_decl>
+
+<function_decl><type><specifier>extern</specifier> <name>void</name></type> <name>obs_ffmpeg_unload_logging</name><parameter_list>(<parameter><decl><type><name>void</name></type></decl></parameter>)</parameter_list>;</function_decl>
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+<function><type><name>bool</name></type> <name>obs_module_load</name><parameter_list>(<parameter><decl><type><name>void</name></type></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>obs_register_source</name><argument_list>(<argument><expr><operator>&amp;</operator><name>ffmpeg_source</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_register_output</name><argument_list>(<argument><expr><operator>&amp;</operator><name>ffmpeg_output</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_register_output</name><argument_list>(<argument><expr><operator>&amp;</operator><name>ffmpeg_muxer</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_register_output</name><argument_list>(<argument><expr><operator>&amp;</operator><name>replay_buffer</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_register_encoder</name><argument_list>(<argument><expr><operator>&amp;</operator><name>aac_encoder_info</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_register_encoder</name><argument_list>(<argument><expr><operator>&amp;</operator><name>opus_encoder_info</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_register_output</name><argument_list>(<argument><expr><operator>&amp;</operator><name>ffmpeg_encoded_output_info</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><operator>!</operator><call><name>defined</name><argument_list>(<argument><expr><name>__APPLE__</name></expr></argument>)</argument_list></call></expr></cpp:if>
+<if_stmt><if>if <condition>(<expr><call><name>nvenc_supported</name><argument_list>()</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>blog</name><argument_list>(<argument><expr><name>LOG_INFO</name></expr></argument>, <argument><expr><literal type="string">"NVENC supported"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><call><name>defined</name><argument_list>(<argument><expr><name>_WIN32</name></expr></argument>)</argument_list></call></expr></cpp:if>
+<if_stmt><if>if <condition>(<expr><call><name>get_win_ver_int</name><argument_list>()</argument_list></call> <operator>&gt;</operator> <literal type="number">0x0601</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>jim_nvenc_load</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<expr_stmt><expr><name><name>nvenc_encoder_info</name><operator>.</operator><name>caps</name></name> <operator>&amp;=</operator> <operator>~</operator><name>OBS_ENCODER_CAP_INTERNAL</name></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+<expr_stmt><expr><call><name>obs_register_encoder</name><argument_list>(<argument><expr><operator>&amp;</operator><name>nvenc_encoder_info</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><operator>!</operator><call><name>defined</name><argument_list>(<argument><expr><name>_WIN32</name></expr></argument>)</argument_list></call> <operator>&amp;&amp;</operator> <call><name>defined</name><argument_list>(<argument><expr><name>LIBAVUTIL_VAAPI_AVAILABLE</name></expr></argument>)</argument_list></call></expr></cpp:if>
+
+<if_stmt><if>if <condition>(<expr><call><name>vaapi_supported</name><argument_list>()</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>blog</name><argument_list>(<argument><expr><name>LOG_INFO</name></expr></argument>, <argument><expr><literal type="string">"FFMPEG VAAPI supported"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_register_encoder</name><argument_list>(<argument><expr><operator>&amp;</operator><name>vaapi_encoder_info</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><name>ENABLE_FFMPEG_LOGGING</name></expr></cpp:if>
+
+<expr_stmt><expr><call><name>obs_ffmpeg_load_logging</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+<return>return <expr><name>true</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><name>void</name></type> <name>obs_module_unload</name><parameter_list>(<parameter><decl><type><name>void</name></type></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><name>ENABLE_FFMPEG_LOGGING</name></expr></cpp:if>
+
+<expr_stmt><expr><call><name>obs_ffmpeg_unload_logging</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><call><name>defined</name><argument_list>(<argument><expr><name>_WIN32</name></expr></argument>)</argument_list></call></expr></cpp:if>
+<expr_stmt><expr><call><name>jim_nvenc_unload</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+</block_content>}</block></function>
+
+</unit>

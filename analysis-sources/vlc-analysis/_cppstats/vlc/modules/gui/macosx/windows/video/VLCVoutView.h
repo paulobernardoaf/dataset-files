@@ -1,0 +1,6 @@
+#import <Cocoa/Cocoa.h>
+#import <vlc_vout.h>
+@interface VLCVoutView : NSView
+@property (readwrite, assign) vout_thread_t * voutThread;
+- (void)releaseVoutThread;
+@end

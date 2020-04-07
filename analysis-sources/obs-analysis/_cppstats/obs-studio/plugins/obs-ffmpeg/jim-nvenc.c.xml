@@ -1,0 +1,1452 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" revision="1.0.0" language="C" filename="D:\Pesquisa\Projects\obs-analysis\_cppstats\obs-studio\plugins\obs-ffmpeg\jim-nvenc.c"><cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"jim-nvenc.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;util/circlebuf.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;util/darray.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;util/dstr.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;obs-avc.h&gt;</cpp:file></cpp:include>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>INITGUID</name></cpp:macro></cpp:define>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;dxgi.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;d3d11.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;d3d11_1.h&gt;</cpp:file></cpp:include>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>EXTRA_BUFFERS</name></cpp:macro> <cpp:value>5</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>do_log</name><parameter_list>(<parameter><type><name>level</name></type></parameter>, <parameter><type><name>format</name></type></parameter>, <parameter><type><modifier>...</modifier></type></parameter>)</parameter_list></cpp:macro> <cpp:value>blog(level, "[jim-nvenc: '%s'] " format, obs_encoder_get_name(enc-&gt;encoder), ##__VA_ARGS__)</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>error</name><parameter_list>(<parameter><type><name>format</name></type></parameter>, <parameter><type><modifier>...</modifier></type></parameter>)</parameter_list></cpp:macro> <cpp:value>do_log(LOG_ERROR, format, ##__VA_ARGS__)</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>warn</name><parameter_list>(<parameter><type><name>format</name></type></parameter>, <parameter><type><modifier>...</modifier></type></parameter>)</parameter_list></cpp:macro> <cpp:value>do_log(LOG_WARNING, format, ##__VA_ARGS__)</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>info</name><parameter_list>(<parameter><type><name>format</name></type></parameter>, <parameter><type><modifier>...</modifier></type></parameter>)</parameter_list></cpp:macro> <cpp:value>do_log(LOG_INFO, format, ##__VA_ARGS__)</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>debug</name><parameter_list>(<parameter><type><name>format</name></type></parameter>, <parameter><type><modifier>...</modifier></type></parameter>)</parameter_list></cpp:macro> <cpp:value>do_log(LOG_DEBUG, format, ##__VA_ARGS__)</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>error_hr</name><parameter_list>(<parameter><type><name>msg</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>error("%s: %s: 0x%08lX", __FUNCTION__, msg, (uint32_t)hr);</cpp:value></cpp:define>
+
+<struct_decl>struct <name>nv_bitstream</name>;</struct_decl>
+
+<struct_decl>struct <name>nv_texture</name>;</struct_decl>
+
+<struct>struct <name>handle_tex</name> <block>{
+
+<decl_stmt><decl><type><name>uint32_t</name></type> <name>handle</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>ID3D11Texture2D</name> <modifier>*</modifier></type><name>tex</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>IDXGIKeyedMutex</name> <modifier>*</modifier></type><name>km</name></decl>;</decl_stmt>
+
+}</block>;</struct>
+
+<struct>struct <name>nvenc_data</name> <block>{
+
+<decl_stmt><decl><type><name>obs_encoder_t</name> <modifier>*</modifier></type><name>encoder</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>void</name> <modifier>*</modifier></type><name>session</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>NV_ENC_INITIALIZE_PARAMS</name></type> <name>params</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>NV_ENC_CONFIG</name></type> <name>config</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>size_t</name></type> <name>buf_count</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>size_t</name></type> <name>output_delay</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>size_t</name></type> <name>buffers_queued</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>size_t</name></type> <name>next_bitstream</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>size_t</name></type> <name>cur_bitstream</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>bool</name></type> <name>encode_started</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>bool</name></type> <name>first_packet</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>bool</name></type> <name>can_change_bitrate</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>bool</name></type> <name>bframes</name></decl>;</decl_stmt>
+
+<macro><name>DARRAY</name><argument_list>(<argument>struct nv_bitstream</argument>)</argument_list></macro> <expr_stmt><expr><name>bitstreams</name></expr>;</expr_stmt>
+
+<macro><name>DARRAY</name><argument_list>(<argument>struct nv_texture</argument>)</argument_list></macro> <expr_stmt><expr><name>textures</name></expr>;</expr_stmt>
+
+<macro><name>DARRAY</name><argument_list>(<argument>struct handle_tex</argument>)</argument_list></macro> <expr_stmt><expr><name>input_textures</name></expr>;</expr_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>circlebuf</name></name></type> <name>dts_list</name></decl>;</decl_stmt>
+
+<macro><name>DARRAY</name><argument_list>(<argument>uint8_t</argument>)</argument_list></macro> <expr_stmt><expr><name>packet_data</name></expr>;</expr_stmt>
+
+<decl_stmt><decl><type><name>int64_t</name></type> <name>packet_pts</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>bool</name></type> <name>packet_keyframe</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>ID3D11Device</name> <modifier>*</modifier></type><name>device</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>ID3D11DeviceContext</name> <modifier>*</modifier></type><name>context</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>uint32_t</name></type> <name>cx</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>uint32_t</name></type> <name>cy</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>uint8_t</name> <modifier>*</modifier></type><name>header</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>size_t</name></type> <name>header_size</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>uint8_t</name> <modifier>*</modifier></type><name>sei</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>size_t</name></type> <name>sei_size</name></decl>;</decl_stmt>
+
+}</block>;</struct>
+
+<struct>struct <name>nv_bitstream</name> <block>{
+
+<decl_stmt><decl><type><name>void</name> <modifier>*</modifier></type><name>ptr</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>HANDLE</name></type> <name>event</name></decl>;</decl_stmt>
+
+}</block>;</struct>
+
+<function><type><specifier>static</specifier> <specifier>inline</specifier> <name>bool</name></type> <name>nv_failed</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>nvenc_data</name></name> <modifier>*</modifier></type><name>enc</name></decl></parameter>, <parameter><decl><type><name>NVENCSTATUS</name></type> <name>err</name></decl></parameter>,
+
+<parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>func</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>call</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><name>err</name> <operator>==</operator> <name>NV_ENC_SUCCESS</name></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>false</name></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>error</name><argument_list>(<argument><expr><literal type="string">"%s: %s failed: %d (%s)"</literal></expr></argument>, <argument><expr><name>func</name></expr></argument>, <argument><expr><name>call</name></expr></argument>, <argument><expr><operator>(</operator><name>int</name><operator>)</operator><name>err</name></expr></argument>,
+
+<argument><expr><call><name>nv_error_name</name><argument_list>(<argument><expr><name>err</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>true</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>NV_FAILED</name><parameter_list>(<parameter><type><name>x</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>nv_failed(enc, x, __FUNCTION__, #x)</cpp:value></cpp:define>
+
+<function><type><specifier>static</specifier> <name>bool</name></type> <name>nv_bitstream_init</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>nvenc_data</name></name> <modifier>*</modifier></type><name>enc</name></decl></parameter>, <parameter><decl><type><name><name>struct</name> <name>nv_bitstream</name></name> <modifier>*</modifier></type><name>bs</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>NV_ENC_CREATE_BITSTREAM_BUFFER</name></type> <name>buf</name> <init>= <expr><block>{
+
+<expr><name>NV_ENC_CREATE_BITSTREAM_BUFFER_VER</name></expr>}</block></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>NV_ENC_EVENT_PARAMS</name></type> <name>params</name> <init>= <expr><block>{<expr><name>NV_ENC_EVENT_PARAMS_VER</name></expr>}</block></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>HANDLE</name></type> <name>event</name> <init>= <expr><name>NULL</name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>NV_FAILED</name><argument_list>(<argument><expr><call><name><name>nv</name><operator>.</operator><name>nvEncCreateBitstreamBuffer</name></name><argument_list>(<argument><expr><name><name>enc</name><operator>-&gt;</operator><name>session</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name>buf</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<return>return <expr><name>false</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name>event</name> <operator>=</operator> <call><name>CreateEvent</name><argument_list>(<argument><expr><name>NULL</name></expr></argument>, <argument><expr><name>true</name></expr></argument>, <argument><expr><name>true</name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>event</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>error</name><argument_list>(<argument><expr><literal type="string">"%s: %s"</literal></expr></argument>, <argument><expr><name>__FUNCTION__</name></expr></argument>, <argument><expr><literal type="string">"Failed to create event"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<goto>goto <name>fail</name>;</goto>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>params</name><operator>.</operator><name>completionEvent</name></name> <operator>=</operator> <name>event</name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>NV_FAILED</name><argument_list>(<argument><expr><call><name><name>nv</name><operator>.</operator><name>nvEncRegisterAsyncEvent</name></name><argument_list>(<argument><expr><name><name>enc</name><operator>-&gt;</operator><name>session</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name>params</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<goto>goto <name>fail</name>;</goto>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>bs</name><operator>-&gt;</operator><name>ptr</name></name> <operator>=</operator> <name><name>buf</name><operator>.</operator><name>bitstreamBuffer</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>bs</name><operator>-&gt;</operator><name>event</name></name> <operator>=</operator> <name>event</name></expr>;</expr_stmt>
+
+<return>return <expr><name>true</name></expr>;</return>
+
+<label><name>fail</name>:</label>
+
+<if_stmt><if>if <condition>(<expr><name>event</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>CloseHandle</name><argument_list>(<argument><expr><name>event</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>buf</name><operator>.</operator><name>bitstreamBuffer</name></name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name><name>nv</name><operator>.</operator><name>nvEncDestroyBitstreamBuffer</name></name><argument_list>(<argument><expr><name><name>enc</name><operator>-&gt;</operator><name>session</name></name></expr></argument>,
+
+<argument><expr><name><name>buf</name><operator>.</operator><name>bitstreamBuffer</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<return>return <expr><name>false</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>nv_bitstream_free</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>nvenc_data</name></name> <modifier>*</modifier></type><name>enc</name></decl></parameter>, <parameter><decl><type><name><name>struct</name> <name>nv_bitstream</name></name> <modifier>*</modifier></type><name>bs</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><name><name>bs</name><operator>-&gt;</operator><name>ptr</name></name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name><name>nv</name><operator>.</operator><name>nvEncDestroyBitstreamBuffer</name></name><argument_list>(<argument><expr><name><name>enc</name><operator>-&gt;</operator><name>session</name></name></expr></argument>, <argument><expr><name><name>bs</name><operator>-&gt;</operator><name>ptr</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<decl_stmt><decl><type><name>NV_ENC_EVENT_PARAMS</name></type> <name>params</name> <init>= <expr><block>{<expr><name>NV_ENC_EVENT_PARAMS_VER</name></expr>}</block></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>params</name><operator>.</operator><name>completionEvent</name></name> <operator>=</operator> <name><name>bs</name><operator>-&gt;</operator><name>event</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name><name>nv</name><operator>.</operator><name>nvEncUnregisterAsyncEvent</name></name><argument_list>(<argument><expr><name><name>enc</name><operator>-&gt;</operator><name>session</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name>params</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>CloseHandle</name><argument_list>(<argument><expr><name><name>bs</name><operator>-&gt;</operator><name>event</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></function>
+
+<struct>struct <name>nv_texture</name> <block>{
+
+<decl_stmt><decl><type><name>void</name> <modifier>*</modifier></type><name>res</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>ID3D11Texture2D</name> <modifier>*</modifier></type><name>tex</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>void</name> <modifier>*</modifier></type><name>mapped_res</name></decl>;</decl_stmt>
+
+}</block>;</struct>
+
+<function><type><specifier>static</specifier> <name>bool</name></type> <name>nv_texture_init</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>nvenc_data</name></name> <modifier>*</modifier></type><name>enc</name></decl></parameter>, <parameter><decl><type><name><name>struct</name> <name>nv_texture</name></name> <modifier>*</modifier></type><name>nvtex</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>ID3D11Device</name> <modifier>*</modifier></type><name>device</name> <init>= <expr><name><name>enc</name><operator>-&gt;</operator><name>device</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>ID3D11Texture2D</name> <modifier>*</modifier></type><name>tex</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>HRESULT</name></type> <name>hr</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>D3D11_TEXTURE2D_DESC</name></type> <name>desc</name> <init>= <expr><block>{<expr><literal type="number">0</literal></expr>}</block></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>desc</name><operator>.</operator><name>Width</name></name> <operator>=</operator> <name><name>enc</name><operator>-&gt;</operator><name>cx</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>desc</name><operator>.</operator><name>Height</name></name> <operator>=</operator> <name><name>enc</name><operator>-&gt;</operator><name>cy</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>desc</name><operator>.</operator><name>MipLevels</name></name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>desc</name><operator>.</operator><name>ArraySize</name></name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>desc</name><operator>.</operator><name>Format</name></name> <operator>=</operator> <name>DXGI_FORMAT_NV12</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>desc</name><operator>.</operator><name>SampleDesc</name><operator>.</operator><name>Count</name></name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>desc</name><operator>.</operator><name>BindFlags</name></name> <operator>=</operator> <name>D3D11_BIND_RENDER_TARGET</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>hr</name> <operator>=</operator> <call><name><name>device</name><operator>-&gt;</operator><name>lpVtbl</name><operator>-&gt;</operator><name>CreateTexture2D</name></name><argument_list>(<argument><expr><name>device</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>desc</name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>tex</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>FAILED</name><argument_list>(<argument><expr><name>hr</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>error_hr</name><argument_list>(<argument><expr><literal type="string">"Failed to create texture"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>false</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name><name>tex</name><operator>-&gt;</operator><name>lpVtbl</name><operator>-&gt;</operator><name>SetEvictionPriority</name></name><argument_list>(<argument><expr><name>tex</name></expr></argument>, <argument><expr><name>DXGI_RESOURCE_PRIORITY_MAXIMUM</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<decl_stmt><decl><type><name>NV_ENC_REGISTER_RESOURCE</name></type> <name>res</name> <init>= <expr><block>{<expr><name>NV_ENC_REGISTER_RESOURCE_VER</name></expr>}</block></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>res</name><operator>.</operator><name>resourceType</name></name> <operator>=</operator> <name>NV_ENC_INPUT_RESOURCE_TYPE_DIRECTX</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>res</name><operator>.</operator><name>resourceToRegister</name></name> <operator>=</operator> <name>tex</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>res</name><operator>.</operator><name>width</name></name> <operator>=</operator> <name><name>enc</name><operator>-&gt;</operator><name>cx</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>res</name><operator>.</operator><name>height</name></name> <operator>=</operator> <name><name>enc</name><operator>-&gt;</operator><name>cy</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>res</name><operator>.</operator><name>bufferFormat</name></name> <operator>=</operator> <name>NV_ENC_BUFFER_FORMAT_NV12</name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>NV_FAILED</name><argument_list>(<argument><expr><call><name><name>nv</name><operator>.</operator><name>nvEncRegisterResource</name></name><argument_list>(<argument><expr><name><name>enc</name><operator>-&gt;</operator><name>session</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name>res</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name><name>tex</name><operator>-&gt;</operator><name>lpVtbl</name><operator>-&gt;</operator><name>Release</name></name><argument_list>(<argument><expr><name>tex</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>false</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>nvtex</name><operator>-&gt;</operator><name>res</name></name> <operator>=</operator> <name><name>res</name><operator>.</operator><name>registeredResource</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>nvtex</name><operator>-&gt;</operator><name>tex</name></name> <operator>=</operator> <name>tex</name></expr>;</expr_stmt>
+
+<return>return <expr><name>true</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>nv_texture_free</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>nvenc_data</name></name> <modifier>*</modifier></type><name>enc</name></decl></parameter>, <parameter><decl><type><name><name>struct</name> <name>nv_texture</name></name> <modifier>*</modifier></type><name>nvtex</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><name><name>nvtex</name><operator>-&gt;</operator><name>res</name></name></expr>)</condition> <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><name><name>nvtex</name><operator>-&gt;</operator><name>mapped_res</name></name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name><name>nv</name><operator>.</operator><name>nvEncUnmapInputResource</name></name><argument_list>(<argument><expr><name><name>enc</name><operator>-&gt;</operator><name>session</name></name></expr></argument>,
+
+<argument><expr><name><name>nvtex</name><operator>-&gt;</operator><name>mapped_res</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name><name>nv</name><operator>.</operator><name>nvEncUnregisterResource</name></name><argument_list>(<argument><expr><name><name>enc</name><operator>-&gt;</operator><name>session</name></name></expr></argument>, <argument><expr><name><name>nvtex</name><operator>-&gt;</operator><name>res</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name><name>nvtex</name><operator>-&gt;</operator><name>tex</name><operator>-&gt;</operator><name>lpVtbl</name><operator>-&gt;</operator><name>Release</name></name><argument_list>(<argument><expr><name><name>nvtex</name><operator>-&gt;</operator><name>tex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>nvenc_get_name</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>type_data</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>UNUSED_PARAMETER</name><argument_list>(<argument><expr><name>type_data</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><literal type="string">"NVIDIA NVENC H.264 (new)"</literal></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <specifier>inline</specifier> <name>int</name></type> <name>nv_get_cap</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>nvenc_data</name></name> <modifier>*</modifier></type><name>enc</name></decl></parameter>, <parameter><decl><type><name>NV_ENC_CAPS</name></type> <name>cap</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>enc</name><operator>-&gt;</operator><name>session</name></name></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><literal type="number">0</literal></expr>;</return></block_content></block></if></if_stmt>
+
+<decl_stmt><decl><type><name>NV_ENC_CAPS_PARAM</name></type> <name>param</name> <init>= <expr><block>{<expr><name>NV_ENC_CAPS_PARAM_VER</name></expr>}</block></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>v</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>param</name><operator>.</operator><name>capsToQuery</name></name> <operator>=</operator> <name>cap</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name><name>nv</name><operator>.</operator><name>nvEncGetEncodeCaps</name></name><argument_list>(<argument><expr><name><name>enc</name><operator>-&gt;</operator><name>session</name></name></expr></argument>, <argument><expr><name>NV_ENC_CODEC_H264_GUID</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>param</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>v</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>v</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>bool</name></type> <name>nvenc_update</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>, <parameter><decl><type><name>obs_data_t</name> <modifier>*</modifier></type><name>settings</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>nvenc_data</name></name> <modifier>*</modifier></type><name>enc</name> <init>= <expr><name>data</name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>enc</name><operator>-&gt;</operator><name>can_change_bitrate</name></name></expr>)</condition> <block>{<block_content>
+
+<decl_stmt><decl><type><name>int</name></type> <name>bitrate</name> <init>= <expr><operator>(</operator><name>int</name><operator>)</operator><call><name>obs_data_get_int</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"bitrate"</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>enc</name><operator>-&gt;</operator><name>config</name><operator>.</operator><name>rcParams</name><operator>.</operator><name>averageBitRate</name></name> <operator>=</operator> <name>bitrate</name> <operator>*</operator> <literal type="number">1000</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>enc</name><operator>-&gt;</operator><name>config</name><operator>.</operator><name>rcParams</name><operator>.</operator><name>maxBitRate</name></name> <operator>=</operator> <name>bitrate</name> <operator>*</operator> <literal type="number">1000</literal></expr>;</expr_stmt>
+
+<decl_stmt><decl><type><name>NV_ENC_RECONFIGURE_PARAMS</name></type> <name>params</name> <init>= <expr><block>{<expr><literal type="number">0</literal></expr>}</block></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>params</name><operator>.</operator><name>version</name></name> <operator>=</operator> <name>NV_ENC_RECONFIGURE_PARAMS_VER</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>params</name><operator>.</operator><name>reInitEncodeParams</name></name> <operator>=</operator> <name><name>enc</name><operator>-&gt;</operator><name>params</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>params</name><operator>.</operator><name>resetEncoder</name></name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>params</name><operator>.</operator><name>forceIDR</name></name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>NV_FAILED</name><argument_list>(<argument><expr><call><name><name>nv</name><operator>.</operator><name>nvEncReconfigureEncoder</name></name><argument_list>(<argument><expr><name><name>enc</name><operator>-&gt;</operator><name>session</name></name></expr></argument>,
+
+<argument><expr><operator>&amp;</operator><name>params</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<return>return <expr><name>false</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<return>return <expr><name>true</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>HANDLE</name></type> <name>get_lib</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>nvenc_data</name></name> <modifier>*</modifier></type><name>enc</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>lib</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>HMODULE</name></type> <name>mod</name> <init>= <expr><call><name>GetModuleHandleA</name><argument_list>(<argument><expr><name>lib</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>mod</name></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>mod</name></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>mod</name> <operator>=</operator> <call><name>LoadLibraryA</name><argument_list>(<argument><expr><name>lib</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>mod</name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>error</name><argument_list>(<argument><expr><literal type="string">"Failed to load %s"</literal></expr></argument>, <argument><expr><name>lib</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<return>return <expr><name>mod</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<typedef>typedef <function_decl><type><name>HRESULT</name></type>(<name>WINAPI</name> <modifier>*</modifier><name>CREATEDXGIFACTORY1PROC</name>)<parameter_list>(<parameter><decl><type><name>REFIID</name></type></decl></parameter>, <parameter><decl><type><name>void</name> <modifier>*</modifier><modifier>*</modifier></type></decl></parameter>)</parameter_list>;</function_decl></typedef>
+
+<function><type><specifier>static</specifier> <name>bool</name></type> <name>init_d3d11</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>nvenc_data</name></name> <modifier>*</modifier></type><name>enc</name></decl></parameter>, <parameter><decl><type><name>obs_data_t</name> <modifier>*</modifier></type><name>settings</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>HMODULE</name></type> <name>dxgi</name> <init>= <expr><call><name>get_lib</name><argument_list>(<argument><expr><name>enc</name></expr></argument>, <argument><expr><literal type="string">"DXGI.dll"</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>HMODULE</name></type> <name>d3d11</name> <init>= <expr><call><name>get_lib</name><argument_list>(<argument><expr><name>enc</name></expr></argument>, <argument><expr><literal type="string">"D3D11.dll"</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>CREATEDXGIFACTORY1PROC</name></type> <name>create_dxgi</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>PFN_D3D11_CREATE_DEVICE</name></type> <name>create_device</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>IDXGIFactory1</name> <modifier>*</modifier></type><name>factory</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>IDXGIAdapter</name> <modifier>*</modifier></type><name>adapter</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>ID3D11Device</name> <modifier>*</modifier></type><name>device</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>ID3D11DeviceContext</name> <modifier>*</modifier></type><name>context</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>HRESULT</name></type> <name>hr</name></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>dxgi</name> <operator>||</operator> <operator>!</operator><name>d3d11</name></expr>)</condition> <block>{<block_content>
+
+<return>return <expr><name>false</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name>create_dxgi</name> <operator>=</operator> <operator>(</operator><name>CREATEDXGIFACTORY1PROC</name><operator>)</operator><call><name>GetProcAddress</name><argument_list>(
+
+<argument><expr><name>dxgi</name></expr></argument>, <argument><expr><literal type="string">"CreateDXGIFactory1"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>create_device</name> <operator>=</operator> <operator>(</operator><name>PFN_D3D11_CREATE_DEVICE</name><operator>)</operator><call><name>GetProcAddress</name><argument_list>(
+
+<argument><expr><name>d3d11</name></expr></argument>, <argument><expr><literal type="string">"D3D11CreateDevice"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>create_dxgi</name> <operator>||</operator> <operator>!</operator><name>create_device</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>error</name><argument_list>(<argument><expr><literal type="string">"Failed to load D3D11/DXGI procedures"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>false</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name>hr</name> <operator>=</operator> <call><name>create_dxgi</name><argument_list>(<argument><expr><operator>&amp;</operator><name>IID_IDXGIFactory1</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>factory</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>FAILED</name><argument_list>(<argument><expr><name>hr</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>error_hr</name><argument_list>(<argument><expr><literal type="string">"CreateDXGIFactory1 failed"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>false</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name>hr</name> <operator>=</operator> <call><name><name>factory</name><operator>-&gt;</operator><name>lpVtbl</name><operator>-&gt;</operator><name>EnumAdapters</name></name><argument_list>(<argument><expr><name>factory</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><operator>&amp;</operator><name>adapter</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name><name>factory</name><operator>-&gt;</operator><name>lpVtbl</name><operator>-&gt;</operator><name>Release</name></name><argument_list>(<argument><expr><name>factory</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>FAILED</name><argument_list>(<argument><expr><name>hr</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>error_hr</name><argument_list>(<argument><expr><literal type="string">"EnumAdapters failed"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>false</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name>hr</name> <operator>=</operator> <call><name>create_device</name><argument_list>(<argument><expr><name>adapter</name></expr></argument>, <argument><expr><name>D3D_DRIVER_TYPE_UNKNOWN</name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><name>NULL</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>,
+
+<argument><expr><name>D3D11_SDK_VERSION</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>device</name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>context</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name><name>adapter</name><operator>-&gt;</operator><name>lpVtbl</name><operator>-&gt;</operator><name>Release</name></name><argument_list>(<argument><expr><name>adapter</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>FAILED</name><argument_list>(<argument><expr><name>hr</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>error_hr</name><argument_list>(<argument><expr><literal type="string">"D3D11CreateDevice failed"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>false</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>enc</name><operator>-&gt;</operator><name>device</name></name> <operator>=</operator> <name>device</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>enc</name><operator>-&gt;</operator><name>context</name></name> <operator>=</operator> <name>context</name></expr>;</expr_stmt>
+
+<return>return <expr><name>true</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>bool</name></type> <name>init_session</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>nvenc_data</name></name> <modifier>*</modifier></type><name>enc</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>NV_ENC_OPEN_ENCODE_SESSION_EX_PARAMS</name></type> <name>params</name> <init>= <expr><block>{
+
+<expr><name>NV_ENC_OPEN_ENCODE_SESSION_EX_PARAMS_VER</name></expr>}</block></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>params</name><operator>.</operator><name>device</name></name> <operator>=</operator> <name><name>enc</name><operator>-&gt;</operator><name>device</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>params</name><operator>.</operator><name>deviceType</name></name> <operator>=</operator> <name>NV_ENC_DEVICE_TYPE_DIRECTX</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>params</name><operator>.</operator><name>apiVersion</name></name> <operator>=</operator> <name>NVENCAPI_VERSION</name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>NV_FAILED</name><argument_list>(<argument><expr><call><name><name>nv</name><operator>.</operator><name>nvEncOpenEncodeSessionEx</name></name><argument_list>(<argument><expr><operator>&amp;</operator><name>params</name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>enc</name><operator>-&gt;</operator><name>session</name></name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<return>return <expr><name>false</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<return>return <expr><name>true</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>bool</name></type> <name>init_encoder</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>nvenc_data</name></name> <modifier>*</modifier></type><name>enc</name></decl></parameter>, <parameter><decl><type><name>obs_data_t</name> <modifier>*</modifier></type><name>settings</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>rc</name> <init>= <expr><call><name>obs_data_get_string</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"rate_control"</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>bitrate</name> <init>= <expr><operator>(</operator><name>int</name><operator>)</operator><call><name>obs_data_get_int</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"bitrate"</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>max_bitrate</name> <init>= <expr><operator>(</operator><name>int</name><operator>)</operator><call><name>obs_data_get_int</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"max_bitrate"</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>cqp</name> <init>= <expr><operator>(</operator><name>int</name><operator>)</operator><call><name>obs_data_get_int</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"cqp"</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>keyint_sec</name> <init>= <expr><operator>(</operator><name>int</name><operator>)</operator><call><name>obs_data_get_int</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"keyint_sec"</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>preset</name> <init>= <expr><call><name>obs_data_get_string</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"preset"</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>profile</name> <init>= <expr><call><name>obs_data_get_string</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"profile"</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>bool</name></type> <name>psycho_aq</name> <init>= <expr><call><name>obs_data_get_bool</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"psycho_aq"</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>bool</name></type> <name>lookahead</name> <init>= <expr><call><name>obs_data_get_bool</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"lookahead"</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>bf</name> <init>= <expr><operator>(</operator><name>int</name><operator>)</operator><call><name>obs_data_get_int</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"bf"</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>bool</name></type> <name>vbr</name> <init>= <expr><call><name>astrcmpi</name><argument_list>(<argument><expr><name>rc</name></expr></argument>, <argument><expr><literal type="string">"VBR"</literal></expr></argument>)</argument_list></call> <operator>==</operator> <literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>NVENCSTATUS</name></type> <name>err</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>video_t</name> <modifier>*</modifier></type><name>video</name> <init>= <expr><call><name>obs_encoder_video</name><argument_list>(<argument><expr><name><name>enc</name><operator>-&gt;</operator><name>encoder</name></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name><name>struct</name> <name>video_output_info</name></name> <modifier>*</modifier></type><name>voi</name> <init>= <expr><call><name>video_output_get_info</name><argument_list>(<argument><expr><name>video</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>enc</name><operator>-&gt;</operator><name>cx</name></name> <operator>=</operator> <name><name>voi</name><operator>-&gt;</operator><name>width</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>enc</name><operator>-&gt;</operator><name>cy</name></name> <operator>=</operator> <name><name>voi</name><operator>-&gt;</operator><name>height</name></name></expr>;</expr_stmt>
+
+<decl_stmt><decl><type><name>GUID</name></type> <name>nv_preset</name> <init>= <expr><name>NV_ENC_PRESET_DEFAULT_GUID</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>bool</name></type> <name>twopass</name> <init>= <expr><name>false</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>bool</name></type> <name>hp</name> <init>= <expr><name>false</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>bool</name></type> <name>ll</name> <init>= <expr><name>false</name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>astrcmpi</name><argument_list>(<argument><expr><name>preset</name></expr></argument>, <argument><expr><literal type="string">"hq"</literal></expr></argument>)</argument_list></call> <operator>==</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>nv_preset</name> <operator>=</operator> <name>NV_ENC_PRESET_HQ_GUID</name></expr>;</expr_stmt>
+
+</block_content>}</block></if> <if type="elseif">else if <condition>(<expr><call><name>astrcmpi</name><argument_list>(<argument><expr><name>preset</name></expr></argument>, <argument><expr><literal type="string">"mq"</literal></expr></argument>)</argument_list></call> <operator>==</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>nv_preset</name> <operator>=</operator> <name>NV_ENC_PRESET_HQ_GUID</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>twopass</name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+
+</block_content>}</block></if> <if type="elseif">else if <condition>(<expr><call><name>astrcmpi</name><argument_list>(<argument><expr><name>preset</name></expr></argument>, <argument><expr><literal type="string">"hp"</literal></expr></argument>)</argument_list></call> <operator>==</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>nv_preset</name> <operator>=</operator> <name>NV_ENC_PRESET_HP_GUID</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>hp</name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+
+</block_content>}</block></if> <if type="elseif">else if <condition>(<expr><call><name>astrcmpi</name><argument_list>(<argument><expr><name>preset</name></expr></argument>, <argument><expr><literal type="string">"ll"</literal></expr></argument>)</argument_list></call> <operator>==</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>nv_preset</name> <operator>=</operator> <name>NV_ENC_PRESET_LOW_LATENCY_DEFAULT_GUID</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>ll</name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+
+</block_content>}</block></if> <if type="elseif">else if <condition>(<expr><call><name>astrcmpi</name><argument_list>(<argument><expr><name>preset</name></expr></argument>, <argument><expr><literal type="string">"llhq"</literal></expr></argument>)</argument_list></call> <operator>==</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>nv_preset</name> <operator>=</operator> <name>NV_ENC_PRESET_LOW_LATENCY_HQ_GUID</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>ll</name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+
+</block_content>}</block></if> <if type="elseif">else if <condition>(<expr><call><name>astrcmpi</name><argument_list>(<argument><expr><name>preset</name></expr></argument>, <argument><expr><literal type="string">"llhp"</literal></expr></argument>)</argument_list></call> <operator>==</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>nv_preset</name> <operator>=</operator> <name>NV_ENC_PRESET_LOW_LATENCY_HP_GUID</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>hp</name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>ll</name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>astrcmpi</name><argument_list>(<argument><expr><name>rc</name></expr></argument>, <argument><expr><literal type="string">"lossless"</literal></expr></argument>)</argument_list></call> <operator>==</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>nv_preset</name> <operator>=</operator> <ternary><condition><expr><name>hp</name></expr> ?</condition><then> <expr><name>NV_ENC_PRESET_LOSSLESS_HP_GUID</name></expr>
+
+</then><else>: <expr><name>NV_ENC_PRESET_LOSSLESS_DEFAULT_GUID</name></expr></else></ternary></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<decl_stmt><decl><type><name>NV_ENC_PRESET_CONFIG</name></type> <name>preset_config</name> <init>= <expr><block>{<expr><name>NV_ENC_PRESET_CONFIG_VER</name></expr>,
+
+<expr><block>{<expr><name>NV_ENC_CONFIG_VER</name></expr>}</block></expr>}</block></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>err</name> <operator>=</operator> <call><name><name>nv</name><operator>.</operator><name>nvEncGetEncodePresetConfig</name></name><argument_list>(<argument><expr><name><name>enc</name><operator>-&gt;</operator><name>session</name></name></expr></argument>,
+
+<argument><expr><name>NV_ENC_CODEC_H264_GUID</name></expr></argument>, <argument><expr><name>nv_preset</name></expr></argument>,
+
+<argument><expr><operator>&amp;</operator><name>preset_config</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>nv_failed</name><argument_list>(<argument><expr><name>enc</name></expr></argument>, <argument><expr><name>err</name></expr></argument>, <argument><expr><name>__FUNCTION__</name></expr></argument>, <argument><expr><literal type="string">"nvEncGetEncodePresetConfig"</literal></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<return>return <expr><name>false</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>enc</name><operator>-&gt;</operator><name>config</name></name> <operator>=</operator> <name><name>preset_config</name><operator>.</operator><name>presetCfg</name></name></expr>;</expr_stmt>
+
+<decl_stmt><decl><type><name>uint32_t</name></type> <name>gop_size</name> <init>=
+
+<expr><ternary><condition><expr><operator>(</operator><name>keyint_sec</name><operator>)</operator></expr> ?</condition><then> <expr><name>keyint_sec</name> <operator>*</operator> <name><name>voi</name><operator>-&gt;</operator><name>fps_num</name></name> <operator>/</operator> <name><name>voi</name><operator>-&gt;</operator><name>fps_den</name></name></expr> </then><else>: <expr><literal type="number">250</literal></expr></else></ternary></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>NV_ENC_INITIALIZE_PARAMS</name> <modifier>*</modifier></type><name>params</name> <init>= <expr><operator>&amp;</operator><name><name>enc</name><operator>-&gt;</operator><name>params</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>NV_ENC_CONFIG</name> <modifier>*</modifier></type><name>config</name> <init>= <expr><operator>&amp;</operator><name><name>enc</name><operator>-&gt;</operator><name>config</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>NV_ENC_CONFIG_H264</name> <modifier>*</modifier></type><name>h264_config</name> <init>= <expr><operator>&amp;</operator><name><name>config</name><operator>-&gt;</operator><name>encodeCodecConfig</name><operator>.</operator><name>h264Config</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>NV_ENC_CONFIG_H264_VUI_PARAMETERS</name> <modifier>*</modifier></type><name>vui_params</name> <init>=
+
+<expr><operator>&amp;</operator><name><name>h264_config</name><operator>-&gt;</operator><name>h264VUIParameters</name></name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>memset</name><argument_list>(<argument><expr><name>params</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr><operator>*</operator><name>params</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>params</name><operator>-&gt;</operator><name>version</name></name> <operator>=</operator> <name>NV_ENC_INITIALIZE_PARAMS_VER</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>params</name><operator>-&gt;</operator><name>encodeGUID</name></name> <operator>=</operator> <name>NV_ENC_CODEC_H264_GUID</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>params</name><operator>-&gt;</operator><name>presetGUID</name></name> <operator>=</operator> <name>nv_preset</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>params</name><operator>-&gt;</operator><name>encodeWidth</name></name> <operator>=</operator> <name><name>voi</name><operator>-&gt;</operator><name>width</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>params</name><operator>-&gt;</operator><name>encodeHeight</name></name> <operator>=</operator> <name><name>voi</name><operator>-&gt;</operator><name>height</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>params</name><operator>-&gt;</operator><name>darWidth</name></name> <operator>=</operator> <name><name>voi</name><operator>-&gt;</operator><name>width</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>params</name><operator>-&gt;</operator><name>darHeight</name></name> <operator>=</operator> <name><name>voi</name><operator>-&gt;</operator><name>height</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>params</name><operator>-&gt;</operator><name>frameRateNum</name></name> <operator>=</operator> <name><name>voi</name><operator>-&gt;</operator><name>fps_num</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>params</name><operator>-&gt;</operator><name>frameRateDen</name></name> <operator>=</operator> <name><name>voi</name><operator>-&gt;</operator><name>fps_den</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>params</name><operator>-&gt;</operator><name>enableEncodeAsync</name></name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>params</name><operator>-&gt;</operator><name>enablePTD</name></name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>params</name><operator>-&gt;</operator><name>encodeConfig</name></name> <operator>=</operator> <operator>&amp;</operator><name><name>enc</name><operator>-&gt;</operator><name>config</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>params</name><operator>-&gt;</operator><name>maxEncodeWidth</name></name> <operator>=</operator> <name><name>voi</name><operator>-&gt;</operator><name>width</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>params</name><operator>-&gt;</operator><name>maxEncodeHeight</name></name> <operator>=</operator> <name><name>voi</name><operator>-&gt;</operator><name>height</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>config</name><operator>-&gt;</operator><name>gopLength</name></name> <operator>=</operator> <name>gop_size</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>config</name><operator>-&gt;</operator><name>frameIntervalP</name></name> <operator>=</operator> <literal type="number">1</literal> <operator>+</operator> <name>bf</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>h264_config</name><operator>-&gt;</operator><name>idrPeriod</name></name> <operator>=</operator> <name>gop_size</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>vui_params</name><operator>-&gt;</operator><name>videoSignalTypePresentFlag</name></name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>vui_params</name><operator>-&gt;</operator><name>videoFullRangeFlag</name></name> <operator>=</operator> <operator>(</operator><name><name>voi</name><operator>-&gt;</operator><name>range</name></name> <operator>==</operator> <name>VIDEO_RANGE_FULL</name><operator>)</operator></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>vui_params</name><operator>-&gt;</operator><name>colourDescriptionPresentFlag</name></name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>vui_params</name><operator>-&gt;</operator><name>colourMatrix</name></name> <operator>=</operator> <ternary><condition><expr><operator>(</operator><name><name>voi</name><operator>-&gt;</operator><name>colorspace</name></name> <operator>==</operator> <name>VIDEO_CS_709</name><operator>)</operator></expr> ?</condition><then> <expr><literal type="number">1</literal></expr> </then><else>: <expr><literal type="number">5</literal></expr></else></ternary></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>vui_params</name><operator>-&gt;</operator><name>colourPrimaries</name></name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>vui_params</name><operator>-&gt;</operator><name>transferCharacteristics</name></name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>enc</name><operator>-&gt;</operator><name>bframes</name></name> <operator>=</operator> <name>bf</name> <operator>&gt;</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>lookahead</name> <operator>&amp;&amp;</operator> <call><name>nv_get_cap</name><argument_list>(<argument><expr><name>enc</name></expr></argument>, <argument><expr><name>NV_ENC_CAPS_SUPPORT_LOOKAHEAD</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name><name>config</name><operator>-&gt;</operator><name>rcParams</name><operator>.</operator><name>lookaheadDepth</name></name> <operator>=</operator> <literal type="number">8</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>config</name><operator>-&gt;</operator><name>rcParams</name><operator>.</operator><name>enableLookahead</name></name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<expr_stmt><expr><name>lookahead</name> <operator>=</operator> <name>false</name></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>nv_get_cap</name><argument_list>(<argument><expr><name>enc</name></expr></argument>, <argument><expr><name>NV_ENC_CAPS_SUPPORT_TEMPORAL_AQ</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name><name>config</name><operator>-&gt;</operator><name>rcParams</name><operator>.</operator><name>enableAQ</name></name> <operator>=</operator> <name>psycho_aq</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>config</name><operator>-&gt;</operator><name>rcParams</name><operator>.</operator><name>enableTemporalAQ</name></name> <operator>=</operator> <name>psycho_aq</name></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>enc</name><operator>-&gt;</operator><name>can_change_bitrate</name></name> <operator>=</operator>
+
+<call><name>nv_get_cap</name><argument_list>(<argument><expr><name>enc</name></expr></argument>, <argument><expr><name>NV_ENC_CAPS_SUPPORT_DYN_BITRATE_CHANGE</name></expr></argument>)</argument_list></call> <operator>&amp;&amp;</operator>
+
+<operator>!</operator><name>lookahead</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>config</name><operator>-&gt;</operator><name>rcParams</name><operator>.</operator><name>rateControlMode</name></name> <operator>=</operator> <ternary><condition><expr><name>twopass</name></expr> ?</condition><then> <expr><name>NV_ENC_PARAMS_RC_VBR_HQ</name></expr>
+
+</then><else>: <expr><name>NV_ENC_PARAMS_RC_VBR</name></expr></else></ternary></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>astrcmpi</name><argument_list>(<argument><expr><name>rc</name></expr></argument>, <argument><expr><literal type="string">"cqp"</literal></expr></argument>)</argument_list></call> <operator>==</operator> <literal type="number">0</literal> <operator>||</operator> <call><name>astrcmpi</name><argument_list>(<argument><expr><name>rc</name></expr></argument>, <argument><expr><literal type="string">"lossless"</literal></expr></argument>)</argument_list></call> <operator>==</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><call><name>astrcmpi</name><argument_list>(<argument><expr><name>rc</name></expr></argument>, <argument><expr><literal type="string">"lossless"</literal></expr></argument>)</argument_list></call> <operator>==</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name>cqp</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name><name>config</name><operator>-&gt;</operator><name>rcParams</name><operator>.</operator><name>rateControlMode</name></name> <operator>=</operator> <name>NV_ENC_PARAMS_RC_CONSTQP</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>config</name><operator>-&gt;</operator><name>rcParams</name><operator>.</operator><name>constQP</name><operator>.</operator><name>qpInterP</name></name> <operator>=</operator> <name>cqp</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>config</name><operator>-&gt;</operator><name>rcParams</name><operator>.</operator><name>constQP</name><operator>.</operator><name>qpInterB</name></name> <operator>=</operator> <name>cqp</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>config</name><operator>-&gt;</operator><name>rcParams</name><operator>.</operator><name>constQP</name><operator>.</operator><name>qpIntra</name></name> <operator>=</operator> <name>cqp</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>enc</name><operator>-&gt;</operator><name>can_change_bitrate</name></name> <operator>=</operator> <name>false</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>bitrate</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>max_bitrate</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+</block_content>}</block></if> <if type="elseif">else if <condition>(<expr><call><name>astrcmpi</name><argument_list>(<argument><expr><name>rc</name></expr></argument>, <argument><expr><literal type="string">"vbr"</literal></expr></argument>)</argument_list></call> <operator>!=</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content> 
+
+<expr_stmt><expr><name><name>h264_config</name><operator>-&gt;</operator><name>outputBufferingPeriodSEI</name></name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>config</name><operator>-&gt;</operator><name>rcParams</name><operator>.</operator><name>rateControlMode</name></name> <operator>=</operator>
+
+<ternary><condition><expr><name>twopass</name></expr> ?</condition><then> <expr><name>NV_ENC_PARAMS_RC_2_PASS_QUALITY</name></expr>
+
+</then><else>: <expr><name>NV_ENC_PARAMS_RC_CBR</name></expr></else></ternary></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>h264_config</name><operator>-&gt;</operator><name>outputPictureTimingSEI</name></name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>config</name><operator>-&gt;</operator><name>rcParams</name><operator>.</operator><name>averageBitRate</name></name> <operator>=</operator> <name>bitrate</name> <operator>*</operator> <literal type="number">1000</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>config</name><operator>-&gt;</operator><name>rcParams</name><operator>.</operator><name>maxBitRate</name></name> <operator>=</operator> <ternary><condition><expr><name>vbr</name></expr> ?</condition><then> <expr><name>max_bitrate</name> <operator>*</operator> <literal type="number">1000</literal></expr> </then><else>: <expr><name>bitrate</name> <operator>*</operator> <literal type="number">1000</literal></expr></else></ternary></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>astrcmpi</name><argument_list>(<argument><expr><name>profile</name></expr></argument>, <argument><expr><literal type="string">"main"</literal></expr></argument>)</argument_list></call> <operator>==</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name><name>config</name><operator>-&gt;</operator><name>profileGUID</name></name> <operator>=</operator> <name>NV_ENC_H264_PROFILE_MAIN_GUID</name></expr>;</expr_stmt>
+
+</block_content>}</block></if> <if type="elseif">else if <condition>(<expr><call><name>astrcmpi</name><argument_list>(<argument><expr><name>profile</name></expr></argument>, <argument><expr><literal type="string">"baseline"</literal></expr></argument>)</argument_list></call> <operator>==</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name><name>config</name><operator>-&gt;</operator><name>profileGUID</name></name> <operator>=</operator> <name>NV_ENC_H264_PROFILE_BASELINE_GUID</name></expr>;</expr_stmt>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<expr_stmt><expr><name><name>config</name><operator>-&gt;</operator><name>profileGUID</name></name> <operator>=</operator> <name>NV_ENC_H264_PROFILE_HIGH_GUID</name></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>NV_FAILED</name><argument_list>(<argument><expr><call><name><name>nv</name><operator>.</operator><name>nvEncInitializeEncoder</name></name><argument_list>(<argument><expr><name><name>enc</name><operator>-&gt;</operator><name>session</name></name></expr></argument>, <argument><expr><name>params</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<return>return <expr><name>false</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>enc</name><operator>-&gt;</operator><name>buf_count</name></name> <operator>=</operator> <name><name>config</name><operator>-&gt;</operator><name>frameIntervalP</name></name> <operator>+</operator>
+
+<name><name>config</name><operator>-&gt;</operator><name>rcParams</name><operator>.</operator><name>lookaheadDepth</name></name> <operator>+</operator> <name>EXTRA_BUFFERS</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>enc</name><operator>-&gt;</operator><name>output_delay</name></name> <operator>=</operator> <name><name>enc</name><operator>-&gt;</operator><name>buf_count</name></name> <operator>-</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>info</name><argument_list>(<argument><expr><literal type="string">"settings:\n"</literal>
+
+<literal type="string">"\trate_control: %s\n"</literal>
+
+<literal type="string">"\tbitrate: %d\n"</literal>
+
+<literal type="string">"\tcqp: %d\n"</literal>
+
+<literal type="string">"\tkeyint: %d\n"</literal>
+
+<literal type="string">"\tpreset: %s\n"</literal>
+
+<literal type="string">"\tprofile: %s\n"</literal>
+
+<literal type="string">"\twidth: %d\n"</literal>
+
+<literal type="string">"\theight: %d\n"</literal>
+
+<literal type="string">"\t2-pass: %s\n"</literal>
+
+<literal type="string">"\tb-frames: %d\n"</literal>
+
+<literal type="string">"\tlookahead: %s\n"</literal>
+
+<literal type="string">"\tpsycho_aq: %s\n"</literal></expr></argument>,
+
+<argument><expr><name>rc</name></expr></argument>, <argument><expr><name>bitrate</name></expr></argument>, <argument><expr><name>cqp</name></expr></argument>, <argument><expr><name>gop_size</name></expr></argument>, <argument><expr><name>preset</name></expr></argument>, <argument><expr><name>profile</name></expr></argument>, <argument><expr><name><name>enc</name><operator>-&gt;</operator><name>cx</name></name></expr></argument>, <argument><expr><name><name>enc</name><operator>-&gt;</operator><name>cy</name></name></expr></argument>,
+
+<argument><expr><ternary><condition><expr><name>twopass</name></expr> ?</condition><then> <expr><literal type="string">"true"</literal></expr> </then><else>: <expr><literal type="string">"false"</literal></expr></else></ternary></expr></argument>, <argument><expr><name>bf</name></expr></argument>, <argument><expr><ternary><condition><expr><name>lookahead</name></expr> ?</condition><then> <expr><literal type="string">"true"</literal></expr> </then><else>: <expr><literal type="string">"false"</literal></expr></else></ternary></expr></argument>,
+
+<argument><expr><ternary><condition><expr><name>psycho_aq</name></expr> ?</condition><then> <expr><literal type="string">"true"</literal></expr> </then><else>: <expr><literal type="string">"false"</literal></expr></else></ternary></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>true</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>bool</name></type> <name>init_bitstreams</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>nvenc_data</name></name> <modifier>*</modifier></type><name>enc</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>da_reserve</name><argument_list>(<argument><expr><name><name>enc</name><operator>-&gt;</operator><name>bitstreams</name></name></expr></argument>, <argument><expr><name><name>enc</name><operator>-&gt;</operator><name>buf_count</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<for>for <control>(<init><decl><type><name>size_t</name></type> <name>i</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name><name>enc</name><operator>-&gt;</operator><name>buf_count</name></name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>nv_bitstream</name></name></type> <name>bitstream</name></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>nv_bitstream_init</name><argument_list>(<argument><expr><name>enc</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>bitstream</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<return>return <expr><name>false</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>da_push_back</name><argument_list>(<argument><expr><name><name>enc</name><operator>-&gt;</operator><name>bitstreams</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name>bitstream</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></for>
+
+<return>return <expr><name>true</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>bool</name></type> <name>init_textures</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>nvenc_data</name></name> <modifier>*</modifier></type><name>enc</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>da_reserve</name><argument_list>(<argument><expr><name><name>enc</name><operator>-&gt;</operator><name>bitstreams</name></name></expr></argument>, <argument><expr><name><name>enc</name><operator>-&gt;</operator><name>buf_count</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<for>for <control>(<init><decl><type><name>size_t</name></type> <name>i</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name><name>enc</name><operator>-&gt;</operator><name>buf_count</name></name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>nv_texture</name></name></type> <name>texture</name></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>nv_texture_init</name><argument_list>(<argument><expr><name>enc</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>texture</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<return>return <expr><name>false</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>da_push_back</name><argument_list>(<argument><expr><name><name>enc</name><operator>-&gt;</operator><name>textures</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name>texture</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></for>
+
+<return>return <expr><name>true</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function_decl><type><specifier>static</specifier> <name>void</name></type> <name>nvenc_destroy</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>)</parameter_list>;</function_decl>
+
+<function><type><specifier>static</specifier> <name>void</name> <modifier>*</modifier></type><name>nvenc_create</name><parameter_list>(<parameter><decl><type><name>obs_data_t</name> <modifier>*</modifier></type><name>settings</name></decl></parameter>, <parameter><decl><type><name>obs_encoder_t</name> <modifier>*</modifier></type><name>encoder</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>NV_ENCODE_API_FUNCTION_LIST</name></type> <name>init</name> <init>= <expr><block>{<expr><name>NV_ENCODE_API_FUNCTION_LIST_VER</name></expr>}</block></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>nvenc_data</name></name> <modifier>*</modifier></type><name>enc</name> <init>= <expr><call><name>bzalloc</name><argument_list>(<argument><expr><sizeof>sizeof<argument_list>(<argument><expr><operator>*</operator><name>enc</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>enc</name><operator>-&gt;</operator><name>encoder</name></name> <operator>=</operator> <name>encoder</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>enc</name><operator>-&gt;</operator><name>first_packet</name></name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>gpu</name> <init>= <expr><operator>(</operator><name>int</name><operator>)</operator><call><name>obs_data_get_int</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"gpu"</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>gpu</name> <operator>!=</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<goto>goto <name>fail</name>;</goto>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>obs_encoder_scaling_enabled</name><argument_list>(<argument><expr><name>encoder</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<goto>goto <name>fail</name>;</goto>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>obs_nv12_tex_active</name><argument_list>()</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<goto>goto <name>fail</name>;</goto>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>init_nvenc</name><argument_list>()</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<goto>goto <name>fail</name>;</goto>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>NV_FAILED</name><argument_list>(<argument><expr><call><name>nv_create_instance</name><argument_list>(<argument><expr><operator>&amp;</operator><name>init</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<goto>goto <name>fail</name>;</goto>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>init_d3d11</name><argument_list>(<argument><expr><name>enc</name></expr></argument>, <argument><expr><name>settings</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<goto>goto <name>fail</name>;</goto>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>init_session</name><argument_list>(<argument><expr><name>enc</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<goto>goto <name>fail</name>;</goto>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>init_encoder</name><argument_list>(<argument><expr><name>enc</name></expr></argument>, <argument><expr><name>settings</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<goto>goto <name>fail</name>;</goto>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>init_bitstreams</name><argument_list>(<argument><expr><name>enc</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<goto>goto <name>fail</name>;</goto>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>init_textures</name><argument_list>(<argument><expr><name>enc</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<goto>goto <name>fail</name>;</goto>
+
+</block_content>}</block></if></if_stmt>
+
+<return>return <expr><name>enc</name></expr>;</return>
+
+<label><name>fail</name>:</label>
+
+<expr_stmt><expr><call><name>nvenc_destroy</name><argument_list>(<argument><expr><name>enc</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><call><name>obs_encoder_create_rerouted</name><argument_list>(<argument><expr><name>encoder</name></expr></argument>, <argument><expr><literal type="string">"ffmpeg_nvenc"</literal></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function_decl><type><specifier>static</specifier> <name>bool</name></type> <name>get_encoded_packet</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>nvenc_data</name></name> <modifier>*</modifier></type><name>enc</name></decl></parameter>, <parameter><decl><type><name>bool</name></type> <name>finalize</name></decl></parameter>)</parameter_list>;</function_decl>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>nvenc_destroy</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>nvenc_data</name></name> <modifier>*</modifier></type><name>enc</name> <init>= <expr><name>data</name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>enc</name><operator>-&gt;</operator><name>encode_started</name></name></expr>)</condition> <block>{<block_content>
+
+<decl_stmt><decl><type><name>size_t</name></type> <name>next_bitstream</name> <init>= <expr><name><name>enc</name><operator>-&gt;</operator><name>next_bitstream</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>HANDLE</name></type> <name>next_event</name> <init>= <expr><name><name>enc</name><operator>-&gt;</operator><name>bitstreams</name><operator>.</operator><name>array</name><index>[<expr><name>next_bitstream</name></expr>]</index></name><operator>.</operator><name>event</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>NV_ENC_PIC_PARAMS</name></type> <name>params</name> <init>= <expr><block>{<expr><name>NV_ENC_PIC_PARAMS_VER</name></expr>}</block></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>params</name><operator>.</operator><name>encodePicFlags</name></name> <operator>=</operator> <name>NV_ENC_PIC_FLAG_EOS</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>params</name><operator>.</operator><name>completionEvent</name></name> <operator>=</operator> <name>next_event</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name><name>nv</name><operator>.</operator><name>nvEncEncodePicture</name></name><argument_list>(<argument><expr><name><name>enc</name><operator>-&gt;</operator><name>session</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name>params</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>get_encoded_packet</name><argument_list>(<argument><expr><name>enc</name></expr></argument>, <argument><expr><name>true</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<for>for <control>(<init><decl><type><name>size_t</name></type> <name>i</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name><name>enc</name><operator>-&gt;</operator><name>textures</name><operator>.</operator><name>num</name></name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+
+<expr_stmt><expr><call><name>nv_texture_free</name><argument_list>(<argument><expr><name>enc</name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>enc</name><operator>-&gt;</operator><name>textures</name><operator>.</operator><name>array</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></for>
+
+<for>for <control>(<init><decl><type><name>size_t</name></type> <name>i</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name><name>enc</name><operator>-&gt;</operator><name>bitstreams</name><operator>.</operator><name>num</name></name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+
+<expr_stmt><expr><call><name>nv_bitstream_free</name><argument_list>(<argument><expr><name>enc</name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>enc</name><operator>-&gt;</operator><name>bitstreams</name><operator>.</operator><name>array</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></for>
+
+<if_stmt><if>if <condition>(<expr><name><name>enc</name><operator>-&gt;</operator><name>session</name></name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name><name>nv</name><operator>.</operator><name>nvEncDestroyEncoder</name></name><argument_list>(<argument><expr><name><name>enc</name><operator>-&gt;</operator><name>session</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<for>for <control>(<init><decl><type><name>size_t</name></type> <name>i</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name><name>enc</name><operator>-&gt;</operator><name>input_textures</name><operator>.</operator><name>num</name></name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+
+<decl_stmt><decl><type><name>ID3D11Texture2D</name> <modifier>*</modifier></type><name>tex</name> <init>= <expr><name><name>enc</name><operator>-&gt;</operator><name>input_textures</name><operator>.</operator><name>array</name><index>[<expr><name>i</name></expr>]</index></name><operator>.</operator><name>tex</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>IDXGIKeyedMutex</name> <modifier>*</modifier></type><name>km</name> <init>= <expr><name><name>enc</name><operator>-&gt;</operator><name>input_textures</name><operator>.</operator><name>array</name><index>[<expr><name>i</name></expr>]</index></name><operator>.</operator><name>km</name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name><name>tex</name><operator>-&gt;</operator><name>lpVtbl</name><operator>-&gt;</operator><name>Release</name></name><argument_list>(<argument><expr><name>tex</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name><name>km</name><operator>-&gt;</operator><name>lpVtbl</name><operator>-&gt;</operator><name>Release</name></name><argument_list>(<argument><expr><name>km</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></for>
+
+<if_stmt><if>if <condition>(<expr><name><name>enc</name><operator>-&gt;</operator><name>context</name></name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name><name>enc</name><operator>-&gt;</operator><name>context</name><operator>-&gt;</operator><name>lpVtbl</name><operator>-&gt;</operator><name>Release</name></name><argument_list>(<argument><expr><name><name>enc</name><operator>-&gt;</operator><name>context</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>enc</name><operator>-&gt;</operator><name>device</name></name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name><name>enc</name><operator>-&gt;</operator><name>device</name><operator>-&gt;</operator><name>lpVtbl</name><operator>-&gt;</operator><name>Release</name></name><argument_list>(<argument><expr><name><name>enc</name><operator>-&gt;</operator><name>device</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>bfree</name><argument_list>(<argument><expr><name><name>enc</name><operator>-&gt;</operator><name>header</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>bfree</name><argument_list>(<argument><expr><name><name>enc</name><operator>-&gt;</operator><name>sei</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>circlebuf_free</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>enc</name><operator>-&gt;</operator><name>dts_list</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>da_free</name><argument_list>(<argument><expr><name><name>enc</name><operator>-&gt;</operator><name>textures</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>da_free</name><argument_list>(<argument><expr><name><name>enc</name><operator>-&gt;</operator><name>bitstreams</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>da_free</name><argument_list>(<argument><expr><name><name>enc</name><operator>-&gt;</operator><name>input_textures</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>da_free</name><argument_list>(<argument><expr><name><name>enc</name><operator>-&gt;</operator><name>packet_data</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>bfree</name><argument_list>(<argument><expr><name>enc</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>ID3D11Texture2D</name> <modifier>*</modifier></type><name>get_tex_from_handle</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>nvenc_data</name></name> <modifier>*</modifier></type><name>enc</name></decl></parameter>,
+
+<parameter><decl><type><name>uint32_t</name></type> <name>handle</name></decl></parameter>,
+
+<parameter><decl><type><name>IDXGIKeyedMutex</name> <modifier>*</modifier><modifier>*</modifier></type><name>km_out</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>ID3D11Device</name> <modifier>*</modifier></type><name>device</name> <init>= <expr><name><name>enc</name><operator>-&gt;</operator><name>device</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>IDXGIKeyedMutex</name> <modifier>*</modifier></type><name>km</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>ID3D11Texture2D</name> <modifier>*</modifier></type><name>input_tex</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>HRESULT</name></type> <name>hr</name></decl>;</decl_stmt>
+
+<for>for <control>(<init><decl><type><name>size_t</name></type> <name>i</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name><name>enc</name><operator>-&gt;</operator><name>input_textures</name><operator>.</operator><name>num</name></name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>handle_tex</name></name> <modifier>*</modifier></type><name>ht</name> <init>= <expr><operator>&amp;</operator><name><name>enc</name><operator>-&gt;</operator><name>input_textures</name><operator>.</operator><name>array</name><index>[<expr><name>i</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>ht</name><operator>-&gt;</operator><name>handle</name></name> <operator>==</operator> <name>handle</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><operator>*</operator><name>km_out</name> <operator>=</operator> <name><name>ht</name><operator>-&gt;</operator><name>km</name></name></expr>;</expr_stmt>
+
+<return>return <expr><name><name>ht</name><operator>-&gt;</operator><name>tex</name></name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></for>
+
+<expr_stmt><expr><name>hr</name> <operator>=</operator> <call><name><name>device</name><operator>-&gt;</operator><name>lpVtbl</name><operator>-&gt;</operator><name>OpenSharedResource</name></name><argument_list>(<argument><expr><name>device</name></expr></argument>,
+
+<argument><expr><operator>(</operator><name>HANDLE</name><operator>)</operator><operator>(</operator><name>uintptr_t</name><operator>)</operator><name>handle</name></expr></argument>,
+
+<argument><expr><operator>&amp;</operator><name>IID_ID3D11Texture2D</name></expr></argument>,
+
+<argument><expr><operator>&amp;</operator><name>input_tex</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>FAILED</name><argument_list>(<argument><expr><name>hr</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>error_hr</name><argument_list>(<argument><expr><literal type="string">"OpenSharedResource failed"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>NULL</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name>hr</name> <operator>=</operator> <call><name><name>input_tex</name><operator>-&gt;</operator><name>lpVtbl</name><operator>-&gt;</operator><name>QueryInterface</name></name><argument_list>(<argument><expr><name>input_tex</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>IID_IDXGIKeyedMutex</name></expr></argument>,
+
+<argument><expr><operator>&amp;</operator><name>km</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>FAILED</name><argument_list>(<argument><expr><name>hr</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>error_hr</name><argument_list>(<argument><expr><literal type="string">"QueryInterface(IDXGIKeyedMutex) failed"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name><name>input_tex</name><operator>-&gt;</operator><name>lpVtbl</name><operator>-&gt;</operator><name>Release</name></name><argument_list>(<argument><expr><name>input_tex</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>NULL</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name><name>input_tex</name><operator>-&gt;</operator><name>lpVtbl</name><operator>-&gt;</operator><name>SetEvictionPriority</name></name><argument_list>(<argument><expr><name>input_tex</name></expr></argument>,
+
+<argument><expr><name>DXGI_RESOURCE_PRIORITY_MAXIMUM</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><operator>*</operator><name>km_out</name> <operator>=</operator> <name>km</name></expr>;</expr_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>handle_tex</name></name></type> <name>new_ht</name> <init>= <expr><block>{<expr><name>handle</name></expr>, <expr><name>input_tex</name></expr>, <expr><name>km</name></expr>}</block></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>da_push_back</name><argument_list>(<argument><expr><name><name>enc</name><operator>-&gt;</operator><name>input_textures</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name>new_ht</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>input_tex</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>bool</name></type> <name>get_encoded_packet</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>nvenc_data</name></name> <modifier>*</modifier></type><name>enc</name></decl></parameter>, <parameter><decl><type><name>bool</name></type> <name>finalize</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>void</name> <modifier>*</modifier></type><name>s</name> <init>= <expr><name><name>enc</name><operator>-&gt;</operator><name>session</name></name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>da_resize</name><argument_list>(<argument><expr><name><name>enc</name><operator>-&gt;</operator><name>packet_data</name></name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>enc</name><operator>-&gt;</operator><name>buffers_queued</name></name></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>true</name></expr>;</return></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>finalize</name> <operator>&amp;&amp;</operator> <name><name>enc</name><operator>-&gt;</operator><name>buffers_queued</name></name> <operator>&lt;</operator> <name><name>enc</name><operator>-&gt;</operator><name>output_delay</name></name></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>true</name></expr>;</return></block_content></block></if></if_stmt>
+
+<decl_stmt><decl><type><name>size_t</name></type> <name>count</name> <init>= <expr><ternary><condition><expr><name>finalize</name></expr> ?</condition><then> <expr><name><name>enc</name><operator>-&gt;</operator><name>buffers_queued</name></name></expr> </then><else>: <expr><literal type="number">1</literal></expr></else></ternary></expr></init></decl>;</decl_stmt>
+
+<for>for <control>(<init><decl><type><name>size_t</name></type> <name>i</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>count</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+
+<decl_stmt><decl><type><name>size_t</name></type> <name>cur_bs_idx</name> <init>= <expr><name><name>enc</name><operator>-&gt;</operator><name>cur_bitstream</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>nv_bitstream</name></name> <modifier>*</modifier></type><name>bs</name> <init>= <expr><operator>&amp;</operator><name><name>enc</name><operator>-&gt;</operator><name>bitstreams</name><operator>.</operator><name>array</name><index>[<expr><name>cur_bs_idx</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>nv_texture</name></name> <modifier>*</modifier></type><name>nvtex</name> <init>= <expr><operator>&amp;</operator><name><name>enc</name><operator>-&gt;</operator><name>textures</name><operator>.</operator><name>array</name><index>[<expr><name>cur_bs_idx</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>NV_ENC_LOCK_BITSTREAM</name></type> <name>lock</name> <init>= <expr><block>{<expr><name>NV_ENC_LOCK_BITSTREAM_VER</name></expr>}</block></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>lock</name><operator>.</operator><name>outputBitstream</name></name> <operator>=</operator> <name><name>bs</name><operator>-&gt;</operator><name>ptr</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>lock</name><operator>.</operator><name>doNotWait</name></name> <operator>=</operator> <name>false</name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>NV_FAILED</name><argument_list>(<argument><expr><call><name><name>nv</name><operator>.</operator><name>nvEncLockBitstream</name></name><argument_list>(<argument><expr><name>s</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>lock</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<return>return <expr><name>false</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>enc</name><operator>-&gt;</operator><name>first_packet</name></name></expr>)</condition> <block>{<block_content>
+
+<decl_stmt><decl><type><name>uint8_t</name> <modifier>*</modifier></type><name>new_packet</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>size_t</name></type> <name>size</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>enc</name><operator>-&gt;</operator><name>first_packet</name></name> <operator>=</operator> <name>false</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_extract_avc_headers</name><argument_list>(<argument><expr><name><name>lock</name><operator>.</operator><name>bitstreamBufferPtr</name></name></expr></argument>,
+
+<argument><expr><name><name>lock</name><operator>.</operator><name>bitstreamSizeInBytes</name></name></expr></argument>,
+
+<argument><expr><operator>&amp;</operator><name>new_packet</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>size</name></expr></argument>,
+
+<argument><expr><operator>&amp;</operator><name><name>enc</name><operator>-&gt;</operator><name>header</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>enc</name><operator>-&gt;</operator><name>header_size</name></name></expr></argument>,
+
+<argument><expr><operator>&amp;</operator><name><name>enc</name><operator>-&gt;</operator><name>sei</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>enc</name><operator>-&gt;</operator><name>sei_size</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>da_copy_array</name><argument_list>(<argument><expr><name><name>enc</name><operator>-&gt;</operator><name>packet_data</name></name></expr></argument>, <argument><expr><name>new_packet</name></expr></argument>, <argument><expr><name>size</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>bfree</name><argument_list>(<argument><expr><name>new_packet</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<expr_stmt><expr><call><name>da_copy_array</name><argument_list>(<argument><expr><name><name>enc</name><operator>-&gt;</operator><name>packet_data</name></name></expr></argument>, <argument><expr><name><name>lock</name><operator>.</operator><name>bitstreamBufferPtr</name></name></expr></argument>,
+
+<argument><expr><name><name>lock</name><operator>.</operator><name>bitstreamSizeInBytes</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+<expr_stmt><expr><name><name>enc</name><operator>-&gt;</operator><name>packet_pts</name></name> <operator>=</operator> <operator>(</operator><name>int64_t</name><operator>)</operator><name><name>lock</name><operator>.</operator><name>outputTimeStamp</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>enc</name><operator>-&gt;</operator><name>packet_keyframe</name></name> <operator>=</operator> <name><name>lock</name><operator>.</operator><name>pictureType</name></name> <operator>==</operator> <name>NV_ENC_PIC_TYPE_IDR</name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>NV_FAILED</name><argument_list>(<argument><expr><call><name><name>nv</name><operator>.</operator><name>nvEncUnlockBitstream</name></name><argument_list>(<argument><expr><name>s</name></expr></argument>, <argument><expr><name><name>bs</name><operator>-&gt;</operator><name>ptr</name></name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<return>return <expr><name>false</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>nvtex</name><operator>-&gt;</operator><name>mapped_res</name></name></expr>)</condition> <block>{<block_content>
+
+<decl_stmt><decl><type><name>NVENCSTATUS</name></type> <name>err</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>err</name> <operator>=</operator> <call><name><name>nv</name><operator>.</operator><name>nvEncUnmapInputResource</name></name><argument_list>(<argument><expr><name>s</name></expr></argument>, <argument><expr><name><name>nvtex</name><operator>-&gt;</operator><name>mapped_res</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>nv_failed</name><argument_list>(<argument><expr><name>enc</name></expr></argument>, <argument><expr><name>err</name></expr></argument>, <argument><expr><name>__FUNCTION__</name></expr></argument>, <argument><expr><literal type="string">"unmap"</literal></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<return>return <expr><name>false</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>nvtex</name><operator>-&gt;</operator><name>mapped_res</name></name> <operator>=</operator> <name>NULL</name></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>++</operator><name><name>enc</name><operator>-&gt;</operator><name>cur_bitstream</name></name> <operator>==</operator> <name><name>enc</name><operator>-&gt;</operator><name>buf_count</name></name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name><name>enc</name><operator>-&gt;</operator><name>cur_bitstream</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name><name>enc</name><operator>-&gt;</operator><name>buffers_queued</name></name><operator>--</operator></expr>;</expr_stmt>
+
+</block_content>}</block></for>
+
+<return>return <expr><name>true</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>bool</name></type> <name>nvenc_encode_tex</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>, <parameter><decl><type><name>uint32_t</name></type> <name>handle</name></decl></parameter>, <parameter><decl><type><name>int64_t</name></type> <name>pts</name></decl></parameter>,
+
+<parameter><decl><type><name>uint64_t</name></type> <name>lock_key</name></decl></parameter>, <parameter><decl><type><name>uint64_t</name> <modifier>*</modifier></type><name>next_key</name></decl></parameter>,
+
+<parameter><decl><type><name><name>struct</name> <name>encoder_packet</name></name> <modifier>*</modifier></type><name>packet</name></decl></parameter>,
+
+<parameter><decl><type><name>bool</name> <modifier>*</modifier></type><name>received_packet</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>nvenc_data</name></name> <modifier>*</modifier></type><name>enc</name> <init>= <expr><name>data</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>ID3D11Device</name> <modifier>*</modifier></type><name>device</name> <init>= <expr><name><name>enc</name><operator>-&gt;</operator><name>device</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>ID3D11DeviceContext</name> <modifier>*</modifier></type><name>context</name> <init>= <expr><name><name>enc</name><operator>-&gt;</operator><name>context</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>ID3D11Texture2D</name> <modifier>*</modifier></type><name>input_tex</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>ID3D11Texture2D</name> <modifier>*</modifier></type><name>output_tex</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>IDXGIKeyedMutex</name> <modifier>*</modifier></type><name>km</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>nv_texture</name></name> <modifier>*</modifier></type><name>nvtex</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>nv_bitstream</name></name> <modifier>*</modifier></type><name>bs</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>NVENCSTATUS</name></type> <name>err</name></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>handle</name> <operator>==</operator> <name>GS_INVALID_HANDLE</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>error</name><argument_list>(<argument><expr><literal type="string">"Encode failed: bad texture handle"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><operator>*</operator><name>next_key</name> <operator>=</operator> <name>lock_key</name></expr>;</expr_stmt>
+
+<return>return <expr><name>false</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name>bs</name> <operator>=</operator> <operator>&amp;</operator><name><name>enc</name><operator>-&gt;</operator><name>bitstreams</name><operator>.</operator><name>array</name><index>[<expr><name><name>enc</name><operator>-&gt;</operator><name>next_bitstream</name></name></expr>]</index></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>nvtex</name> <operator>=</operator> <operator>&amp;</operator><name><name>enc</name><operator>-&gt;</operator><name>textures</name><operator>.</operator><name>array</name><index>[<expr><name><name>enc</name><operator>-&gt;</operator><name>next_bitstream</name></name></expr>]</index></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>input_tex</name> <operator>=</operator> <call><name>get_tex_from_handle</name><argument_list>(<argument><expr><name>enc</name></expr></argument>, <argument><expr><name>handle</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>km</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>output_tex</name> <operator>=</operator> <name><name>nvtex</name><operator>-&gt;</operator><name>tex</name></name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>input_tex</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><operator>*</operator><name>next_key</name> <operator>=</operator> <name>lock_key</name></expr>;</expr_stmt>
+
+<return>return <expr><name>false</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>circlebuf_push_back</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>enc</name><operator>-&gt;</operator><name>dts_list</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name>pts</name></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr><name>pts</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>WaitForSingleObject</name><argument_list>(<argument><expr><name><name>bs</name><operator>-&gt;</operator><name>event</name></name></expr></argument>, <argument><expr><name>INFINITE</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name><name>km</name><operator>-&gt;</operator><name>lpVtbl</name><operator>-&gt;</operator><name>AcquireSync</name></name><argument_list>(<argument><expr><name>km</name></expr></argument>, <argument><expr><name>lock_key</name></expr></argument>, <argument><expr><name>INFINITE</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name><name>context</name><operator>-&gt;</operator><name>lpVtbl</name><operator>-&gt;</operator><name>CopyResource</name></name><argument_list>(<argument><expr><name>context</name></expr></argument>, <argument><expr><operator>(</operator><name>ID3D11Resource</name> <operator>*</operator><operator>)</operator><name>output_tex</name></expr></argument>,
+
+<argument><expr><operator>(</operator><name>ID3D11Resource</name> <operator>*</operator><operator>)</operator><name>input_tex</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name><name>km</name><operator>-&gt;</operator><name>lpVtbl</name><operator>-&gt;</operator><name>ReleaseSync</name></name><argument_list>(<argument><expr><name>km</name></expr></argument>, <argument><expr><operator>*</operator><name>next_key</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<decl_stmt><decl><type><name>NV_ENC_MAP_INPUT_RESOURCE</name></type> <name>map</name> <init>= <expr><block>{<expr><name>NV_ENC_MAP_INPUT_RESOURCE_VER</name></expr>}</block></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>map</name><operator>.</operator><name>registeredResource</name></name> <operator>=</operator> <name><name>nvtex</name><operator>-&gt;</operator><name>res</name></name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>NV_FAILED</name><argument_list>(<argument><expr><call><name><name>nv</name><operator>.</operator><name>nvEncMapInputResource</name></name><argument_list>(<argument><expr><name><name>enc</name><operator>-&gt;</operator><name>session</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name>map</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<return>return <expr><name>false</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>nvtex</name><operator>-&gt;</operator><name>mapped_res</name></name> <operator>=</operator> <name><name>map</name><operator>.</operator><name>mappedResource</name></name></expr>;</expr_stmt>
+
+<decl_stmt><decl><type><name>NV_ENC_PIC_PARAMS</name></type> <name>params</name> <init>= <expr><block>{<expr><literal type="number">0</literal></expr>}</block></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>params</name><operator>.</operator><name>version</name></name> <operator>=</operator> <name>NV_ENC_PIC_PARAMS_VER</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>params</name><operator>.</operator><name>pictureStruct</name></name> <operator>=</operator> <name>NV_ENC_PIC_STRUCT_FRAME</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>params</name><operator>.</operator><name>inputBuffer</name></name> <operator>=</operator> <name><name>nvtex</name><operator>-&gt;</operator><name>mapped_res</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>params</name><operator>.</operator><name>bufferFmt</name></name> <operator>=</operator> <name>NV_ENC_BUFFER_FORMAT_NV12</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>params</name><operator>.</operator><name>inputTimeStamp</name></name> <operator>=</operator> <operator>(</operator><name>uint64_t</name><operator>)</operator><name>pts</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>params</name><operator>.</operator><name>inputWidth</name></name> <operator>=</operator> <name><name>enc</name><operator>-&gt;</operator><name>cx</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>params</name><operator>.</operator><name>inputHeight</name></name> <operator>=</operator> <name><name>enc</name><operator>-&gt;</operator><name>cy</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>params</name><operator>.</operator><name>outputBitstream</name></name> <operator>=</operator> <name><name>bs</name><operator>-&gt;</operator><name>ptr</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>params</name><operator>.</operator><name>completionEvent</name></name> <operator>=</operator> <name><name>bs</name><operator>-&gt;</operator><name>event</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>err</name> <operator>=</operator> <call><name><name>nv</name><operator>.</operator><name>nvEncEncodePicture</name></name><argument_list>(<argument><expr><name><name>enc</name><operator>-&gt;</operator><name>session</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name>params</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>err</name> <operator>!=</operator> <name>NV_ENC_SUCCESS</name> <operator>&amp;&amp;</operator> <name>err</name> <operator>!=</operator> <name>NV_ENC_ERR_NEED_MORE_INPUT</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>nv_failed</name><argument_list>(<argument><expr><name>enc</name></expr></argument>, <argument><expr><name>err</name></expr></argument>, <argument><expr><name>__FUNCTION__</name></expr></argument>, <argument><expr><literal type="string">"nvEncEncodePicture"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>false</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>enc</name><operator>-&gt;</operator><name>encode_started</name></name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>enc</name><operator>-&gt;</operator><name>buffers_queued</name></name><operator>++</operator></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>++</operator><name><name>enc</name><operator>-&gt;</operator><name>next_bitstream</name></name> <operator>==</operator> <name><name>enc</name><operator>-&gt;</operator><name>buf_count</name></name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name><name>enc</name><operator>-&gt;</operator><name>next_bitstream</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>get_encoded_packet</name><argument_list>(<argument><expr><name>enc</name></expr></argument>, <argument><expr><name>false</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<return>return <expr><name>false</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>enc</name><operator>-&gt;</operator><name>packet_data</name><operator>.</operator><name>num</name></name></expr>)</condition> <block>{<block_content>
+
+<decl_stmt><decl><type><name>int64_t</name></type> <name>dts</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>circlebuf_pop_front</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>enc</name><operator>-&gt;</operator><name>dts_list</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name>dts</name></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr><name>dts</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>enc</name><operator>-&gt;</operator><name>bframes</name></name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name>dts</name> <operator>-=</operator> <name><name>packet</name><operator>-&gt;</operator><name>timebase_num</name></name></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><operator>*</operator><name>received_packet</name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>packet</name><operator>-&gt;</operator><name>data</name></name> <operator>=</operator> <name><name>enc</name><operator>-&gt;</operator><name>packet_data</name><operator>.</operator><name>array</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>packet</name><operator>-&gt;</operator><name>size</name></name> <operator>=</operator> <name><name>enc</name><operator>-&gt;</operator><name>packet_data</name><operator>.</operator><name>num</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>packet</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>OBS_ENCODER_VIDEO</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>packet</name><operator>-&gt;</operator><name>pts</name></name> <operator>=</operator> <name><name>enc</name><operator>-&gt;</operator><name>packet_pts</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>packet</name><operator>-&gt;</operator><name>dts</name></name> <operator>=</operator> <name>dts</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>packet</name><operator>-&gt;</operator><name>keyframe</name></name> <operator>=</operator> <name><name>enc</name><operator>-&gt;</operator><name>packet_keyframe</name></name></expr>;</expr_stmt>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<expr_stmt><expr><operator>*</operator><name>received_packet</name> <operator>=</operator> <name>false</name></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+<return>return <expr><name>true</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function_decl><type><specifier>extern</specifier> <name>void</name></type> <name>nvenc_defaults</name><parameter_list>(<parameter><decl><type><name>obs_data_t</name> <modifier>*</modifier></type><name>settings</name></decl></parameter>)</parameter_list>;</function_decl>
+
+<function_decl><type><specifier>extern</specifier> <name>obs_properties_t</name> <modifier>*</modifier></type><name>nvenc_properties</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>unused</name></decl></parameter>)</parameter_list>;</function_decl>
+
+<function><type><specifier>static</specifier> <name>bool</name></type> <name>nvenc_extra_data</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>, <parameter><decl><type><name>uint8_t</name> <modifier>*</modifier><modifier>*</modifier></type><name>header</name></decl></parameter>, <parameter><decl><type><name>size_t</name> <modifier>*</modifier></type><name>size</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>nvenc_data</name></name> <modifier>*</modifier></type><name>enc</name> <init>= <expr><name>data</name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>enc</name><operator>-&gt;</operator><name>header</name></name></expr>)</condition> <block>{<block_content>
+
+<return>return <expr><name>false</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><operator>*</operator><name>header</name> <operator>=</operator> <name><name>enc</name><operator>-&gt;</operator><name>header</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><operator>*</operator><name>size</name> <operator>=</operator> <name><name>enc</name><operator>-&gt;</operator><name>header_size</name></name></expr>;</expr_stmt>
+
+<return>return <expr><name>true</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>bool</name></type> <name>nvenc_sei_data</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>, <parameter><decl><type><name>uint8_t</name> <modifier>*</modifier><modifier>*</modifier></type><name>sei</name></decl></parameter>, <parameter><decl><type><name>size_t</name> <modifier>*</modifier></type><name>size</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>nvenc_data</name></name> <modifier>*</modifier></type><name>enc</name> <init>= <expr><name>data</name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>enc</name><operator>-&gt;</operator><name>sei</name></name></expr>)</condition> <block>{<block_content>
+
+<return>return <expr><name>false</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><operator>*</operator><name>sei</name> <operator>=</operator> <name><name>enc</name><operator>-&gt;</operator><name>sei</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><operator>*</operator><name>size</name> <operator>=</operator> <name><name>enc</name><operator>-&gt;</operator><name>sei_size</name></name></expr>;</expr_stmt>
+
+<return>return <expr><name>true</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>obs_encoder_info</name></name></type> <name>nvenc_info</name> <init>= <expr><block>{
+
+<expr><operator>.</operator><name>id</name> <operator>=</operator> <literal type="string">"jim_nvenc"</literal></expr>,
+
+<expr><operator>.</operator><name>codec</name> <operator>=</operator> <literal type="string">"h264"</literal></expr>,
+
+<expr><operator>.</operator><name>type</name> <operator>=</operator> <name>OBS_ENCODER_VIDEO</name></expr>,
+
+<expr><operator>.</operator><name>caps</name> <operator>=</operator> <name>OBS_ENCODER_CAP_PASS_TEXTURE</name> <operator>|</operator> <name>OBS_ENCODER_CAP_DYN_BITRATE</name></expr>,
+
+<expr><operator>.</operator><name>get_name</name> <operator>=</operator> <name>nvenc_get_name</name></expr>,
+
+<expr><operator>.</operator><name>create</name> <operator>=</operator> <name>nvenc_create</name></expr>,
+
+<expr><operator>.</operator><name>destroy</name> <operator>=</operator> <name>nvenc_destroy</name></expr>,
+
+<expr><operator>.</operator><name>update</name> <operator>=</operator> <name>nvenc_update</name></expr>,
+
+<expr><operator>.</operator><name>encode_texture</name> <operator>=</operator> <name>nvenc_encode_tex</name></expr>,
+
+<expr><operator>.</operator><name>get_defaults</name> <operator>=</operator> <name>nvenc_defaults</name></expr>,
+
+<expr><operator>.</operator><name>get_properties</name> <operator>=</operator> <name>nvenc_properties</name></expr>,
+
+<expr><operator>.</operator><name>get_extra_data</name> <operator>=</operator> <name>nvenc_extra_data</name></expr>,
+
+<expr><operator>.</operator><name>get_sei_data</name> <operator>=</operator> <name>nvenc_sei_data</name></expr>,
+
+}</block></expr></init></decl>;</decl_stmt>
+
+</unit>

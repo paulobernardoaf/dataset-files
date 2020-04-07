@@ -1,0 +1,30 @@
+#include "Dependencies.h"
+struct SegPixel
+{
+unsigned char red;
+unsigned char green;
+unsigned char blue;
+};
+class SegImage
+{
+private:
+int m_width;
+int m_height;
+int m_pitch;
+long long m_timestamp;
+int m_number;
+void* m_data;
+public:
+SegImage();
+SegImage(SegImage const& src);
+SegImage(int width, int height, int pitch, void* data, long long timestamp, int number);
+~SegImage();
+SegImage& operator=(const SegImage & src);
+int Width();
+int Height();
+int Pitch();
+long long TimeStamp();
+int Number();
+SegPixel Get(int i, int j);
+void* GetData() { return m_data; };
+};

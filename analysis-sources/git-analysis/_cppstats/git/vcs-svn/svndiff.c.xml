@@ -1,0 +1,486 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" revision="1.0.0" language="C" filename="D:\Pesquisa\Projects\git-analysis\_cppstats\git\vcs-svn\svndiff.c"><cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"git-compat-util.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"sliding_window.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"line_buffer.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"svndiff.h"</cpp:file></cpp:include>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>INSN_MASK</name></cpp:macro> <cpp:value>0xc0</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>INSN_COPYFROM_SOURCE</name></cpp:macro> <cpp:value>0x00</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>INSN_COPYFROM_TARGET</name></cpp:macro> <cpp:value>0x40</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>INSN_COPYFROM_DATA</name></cpp:macro> <cpp:value>0x80</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>OPERAND_MASK</name></cpp:macro> <cpp:value>0x3f</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>VLI_CONTINUE</name></cpp:macro> <cpp:value>0x80</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>VLI_DIGIT_MASK</name></cpp:macro> <cpp:value>0x7f</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>VLI_BITS_PER_DIGIT</name></cpp:macro> <cpp:value>7</cpp:value></cpp:define>
+
+<struct>struct <name>window</name> <block>{
+
+<decl_stmt><decl><type><name><name>struct</name> <name>sliding_view</name></name> <modifier>*</modifier></type><name>in</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>strbuf</name></name></type> <name>out</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>strbuf</name></name></type> <name>instructions</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>strbuf</name></name></type> <name>data</name></decl>;</decl_stmt>
+
+}</block>;</struct>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>WINDOW_INIT</name><parameter_list>(<parameter><type><name>w</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>{ (w), STRBUF_INIT, STRBUF_INIT, STRBUF_INIT }</cpp:value></cpp:define>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>window_release</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>window</name></name> <modifier>*</modifier></type><name>ctx</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>strbuf_release</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>ctx</name><operator>-&gt;</operator><name>out</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>strbuf_release</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>ctx</name><operator>-&gt;</operator><name>instructions</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>strbuf_release</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>ctx</name><operator>-&gt;</operator><name>data</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>write_strbuf</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>strbuf</name></name> <modifier>*</modifier></type><name>sb</name></decl></parameter>, <parameter><decl><type><name>FILE</name> <modifier>*</modifier></type><name>out</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><call><name>fwrite</name><argument_list>(<argument><expr><name><name>sb</name><operator>-&gt;</operator><name>buf</name></name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>, <argument><expr><name><name>sb</name><operator>-&gt;</operator><name>len</name></name></expr></argument>, <argument><expr><name>out</name></expr></argument>)</argument_list></call> <operator>==</operator> <name><name>sb</name><operator>-&gt;</operator><name>len</name></name></expr>)</condition><block type="pseudo"><block_content> 
+
+<return>return <expr><literal type="number">0</literal></expr>;</return></block_content></block></if></if_stmt>
+
+<return>return <expr><call><name>error_errno</name><argument_list>(<argument><expr><literal type="string">"cannot write delta postimage"</literal></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>error_short_read</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>line_buffer</name></name> <modifier>*</modifier></type><name>input</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><call><name>buffer_ferror</name><argument_list>(<argument><expr><name>input</name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><call><name>error_errno</name><argument_list>(<argument><expr><literal type="string">"error reading delta"</literal></expr></argument>)</argument_list></call></expr>;</return></block_content></block></if></if_stmt>
+
+<return>return <expr><call><name>error</name><argument_list>(<argument><expr><literal type="string">"invalid delta: unexpected end of file"</literal></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>read_chunk</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>line_buffer</name></name> <modifier>*</modifier></type><name>delta</name></decl></parameter>, <parameter><decl><type><name>off_t</name> <modifier>*</modifier></type><name>delta_len</name></decl></parameter>,
+
+<parameter><decl><type><name><name>struct</name> <name>strbuf</name></name> <modifier>*</modifier></type><name>buf</name></decl></parameter>, <parameter><decl><type><name>size_t</name></type> <name>len</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>assert</name><argument_list>(<argument><expr><operator>*</operator><name>delta_len</name> <operator>&gt;=</operator> <literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>strbuf_reset</name><argument_list>(<argument><expr><name>buf</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>len</name> <operator>&gt;</operator> <operator>(</operator><name>uintmax_t</name><operator>)</operator> <operator>*</operator><name>delta_len</name> <operator>||</operator>
+
+<call><name>buffer_read_binary</name><argument_list>(<argument><expr><name>delta</name></expr></argument>, <argument><expr><name>buf</name></expr></argument>, <argument><expr><name>len</name></expr></argument>)</argument_list></call> <operator>!=</operator> <name>len</name></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><call><name>error_short_read</name><argument_list>(<argument><expr><name>delta</name></expr></argument>)</argument_list></call></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><operator>*</operator><name>delta_len</name> <operator>-=</operator> <name><name>buf</name><operator>-&gt;</operator><name>len</name></name></expr>;</expr_stmt>
+
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>read_magic</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>line_buffer</name></name> <modifier>*</modifier></type><name>in</name></decl></parameter>, <parameter><decl><type><name>off_t</name> <modifier>*</modifier></type><name>len</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><specifier>static</specifier> <specifier>const</specifier> <name>char</name></type> <name><name>magic</name><index>[]</index></name> <init>= <expr><block>{<expr><literal type="char">'S'</literal></expr>, <expr><literal type="char">'V'</literal></expr>, <expr><literal type="char">'N'</literal></expr>, <expr><literal type="char">'\0'</literal></expr>}</block></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>strbuf</name></name></type> <name>sb</name> <init>= <expr><name>STRBUF_INIT</name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>read_chunk</name><argument_list>(<argument><expr><name>in</name></expr></argument>, <argument><expr><name>len</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>sb</name></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr><name>magic</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>strbuf_release</name><argument_list>(<argument><expr><operator>&amp;</operator><name>sb</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><operator>-</operator><literal type="number">1</literal></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>memcmp</name><argument_list>(<argument><expr><name><name>sb</name><operator>.</operator><name>buf</name></name></expr></argument>, <argument><expr><name>magic</name></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr><name>magic</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>strbuf_release</name><argument_list>(<argument><expr><operator>&amp;</operator><name>sb</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><call><name>error</name><argument_list>(<argument><expr><literal type="string">"invalid delta: unrecognized file type"</literal></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>strbuf_release</name><argument_list>(<argument><expr><operator>&amp;</operator><name>sb</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>read_int</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>line_buffer</name></name> <modifier>*</modifier></type><name>in</name></decl></parameter>, <parameter><decl><type><name>uintmax_t</name> <modifier>*</modifier></type><name>result</name></decl></parameter>, <parameter><decl><type><name>off_t</name> <modifier>*</modifier></type><name>len</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>uintmax_t</name></type> <name>rv</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>off_t</name></type> <name>sz</name></decl>;</decl_stmt>
+
+<for>for <control>(<init><expr><name>sz</name> <operator>=</operator> <operator>*</operator><name>len</name></expr>;</init> <condition><expr><name>sz</name></expr>;</condition> <incr><expr><name>sz</name><operator>--</operator></expr></incr>)</control> <block>{<block_content>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>int</name></type> <name>ch</name> <init>= <expr><call><name>buffer_read_char</name><argument_list>(<argument><expr><name>in</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>ch</name> <operator>==</operator> <name>EOF</name></expr>)</condition><block type="pseudo"><block_content>
+
+<break>break;</break></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>rv</name> <operator>&lt;&lt;=</operator> <name>VLI_BITS_PER_DIGIT</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>rv</name> <operator>+=</operator> <operator>(</operator><name>ch</name> <operator>&amp;</operator> <name>VLI_DIGIT_MASK</name><operator>)</operator></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>ch</name> <operator>&amp;</operator> <name>VLI_CONTINUE</name></expr>)</condition><block type="pseudo"><block_content>
+
+<continue>continue;</continue></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><operator>*</operator><name>result</name> <operator>=</operator> <name>rv</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><operator>*</operator><name>len</name> <operator>=</operator> <name>sz</name> <operator>-</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+
+</block_content>}</block></for>
+
+<return>return <expr><call><name>error_short_read</name><argument_list>(<argument><expr><name>in</name></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>parse_int</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier><modifier>*</modifier></type><name>buf</name></decl></parameter>, <parameter><decl><type><name>size_t</name> <modifier>*</modifier></type><name>result</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>end</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>size_t</name></type> <name>rv</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>pos</name></decl>;</decl_stmt>
+
+<for>for <control>(<init><expr><name>pos</name> <operator>=</operator> <operator>*</operator><name>buf</name></expr>;</init> <condition><expr><name>pos</name> <operator>!=</operator> <name>end</name></expr>;</condition> <incr><expr><name>pos</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+
+<decl_stmt><decl><type><name>unsigned</name> <name>char</name></type> <name>ch</name> <init>= <expr><operator>*</operator><name>pos</name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>rv</name> <operator>&lt;&lt;=</operator> <name>VLI_BITS_PER_DIGIT</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>rv</name> <operator>+=</operator> <operator>(</operator><name>ch</name> <operator>&amp;</operator> <name>VLI_DIGIT_MASK</name><operator>)</operator></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>ch</name> <operator>&amp;</operator> <name>VLI_CONTINUE</name></expr>)</condition><block type="pseudo"><block_content>
+
+<continue>continue;</continue></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><operator>*</operator><name>result</name> <operator>=</operator> <name>rv</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><operator>*</operator><name>buf</name> <operator>=</operator> <name>pos</name> <operator>+</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+
+</block_content>}</block></for>
+
+<return>return <expr><call><name>error</name><argument_list>(<argument><expr><literal type="string">"invalid delta: unexpected end of instructions section"</literal></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>read_offset</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>line_buffer</name></name> <modifier>*</modifier></type><name>in</name></decl></parameter>, <parameter><decl><type><name>off_t</name> <modifier>*</modifier></type><name>result</name></decl></parameter>, <parameter><decl><type><name>off_t</name> <modifier>*</modifier></type><name>len</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>uintmax_t</name></type> <name>val</name></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>read_int</name><argument_list>(<argument><expr><name>in</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>val</name></expr></argument>, <argument><expr><name>len</name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><operator>-</operator><literal type="number">1</literal></expr>;</return></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>val</name> <operator>&gt;</operator> <call><name>maximum_signed_value_of_type</name><argument_list>(<argument><expr><name>off_t</name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><call><name>error</name><argument_list>(<argument><expr><literal type="string">"unrepresentable offset in delta: %"</literal><name>PRIuMAX</name><literal type="string">""</literal></expr></argument>, <argument><expr><name>val</name></expr></argument>)</argument_list></call></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><operator>*</operator><name>result</name> <operator>=</operator> <name>val</name></expr>;</expr_stmt>
+
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>read_length</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>line_buffer</name></name> <modifier>*</modifier></type><name>in</name></decl></parameter>, <parameter><decl><type><name>size_t</name> <modifier>*</modifier></type><name>result</name></decl></parameter>, <parameter><decl><type><name>off_t</name> <modifier>*</modifier></type><name>len</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>uintmax_t</name></type> <name>val</name></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>read_int</name><argument_list>(<argument><expr><name>in</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>val</name></expr></argument>, <argument><expr><name>len</name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><operator>-</operator><literal type="number">1</literal></expr>;</return></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>val</name> <operator>&gt;</operator> <name>SIZE_MAX</name></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><call><name>error</name><argument_list>(<argument><expr><literal type="string">"unrepresentable length in delta: %"</literal><name>PRIuMAX</name><literal type="string">""</literal></expr></argument>, <argument><expr><name>val</name></expr></argument>)</argument_list></call></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><operator>*</operator><name>result</name> <operator>=</operator> <name>val</name></expr>;</expr_stmt>
+
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>copyfrom_source</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>window</name></name> <modifier>*</modifier></type><name>ctx</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier><modifier>*</modifier></type><name>instructions</name></decl></parameter>,
+
+<parameter><decl><type><name>size_t</name></type> <name>nbytes</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>insns_end</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>size_t</name></type> <name>offset</name></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>parse_int</name><argument_list>(<argument><expr><name>instructions</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>offset</name></expr></argument>, <argument><expr><name>insns_end</name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><operator>-</operator><literal type="number">1</literal></expr>;</return></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>unsigned_add_overflows</name><argument_list>(<argument><expr><name>offset</name></expr></argument>, <argument><expr><name>nbytes</name></expr></argument>)</argument_list></call> <operator>||</operator>
+
+<name>offset</name> <operator>+</operator> <name>nbytes</name> <operator>&gt;</operator> <name><name>ctx</name><operator>-&gt;</operator><name>in</name><operator>-&gt;</operator><name>width</name></name></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><call><name>error</name><argument_list>(<argument><expr><literal type="string">"invalid delta: copies source data outside view"</literal></expr></argument>)</argument_list></call></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>strbuf_add</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>ctx</name><operator>-&gt;</operator><name>out</name></name></expr></argument>, <argument><expr><name><name>ctx</name><operator>-&gt;</operator><name>in</name><operator>-&gt;</operator><name>buf</name><operator>.</operator><name>buf</name></name> <operator>+</operator> <name>offset</name></expr></argument>, <argument><expr><name>nbytes</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>copyfrom_target</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>window</name></name> <modifier>*</modifier></type><name>ctx</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier><modifier>*</modifier></type><name>instructions</name></decl></parameter>,
+
+<parameter><decl><type><name>size_t</name></type> <name>nbytes</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>instructions_end</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>size_t</name></type> <name>offset</name></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>parse_int</name><argument_list>(<argument><expr><name>instructions</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>offset</name></expr></argument>, <argument><expr><name>instructions_end</name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><operator>-</operator><literal type="number">1</literal></expr>;</return></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>offset</name> <operator>&gt;=</operator> <name><name>ctx</name><operator>-&gt;</operator><name>out</name><operator>.</operator><name>len</name></name></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><call><name>error</name><argument_list>(<argument><expr><literal type="string">"invalid delta: copies from the future"</literal></expr></argument>)</argument_list></call></expr>;</return></block_content></block></if></if_stmt>
+
+<for>for <control>(<init>;</init> <condition><expr><name>nbytes</name> <operator>&gt;</operator> <literal type="number">0</literal></expr>;</condition> <incr><expr><name>nbytes</name><operator>--</operator></expr></incr>)</control><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>strbuf_addch</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>ctx</name><operator>-&gt;</operator><name>out</name></name></expr></argument>, <argument><expr><name><name>ctx</name><operator>-&gt;</operator><name>out</name><operator>.</operator><name>buf</name><index>[<expr><name>offset</name><operator>++</operator></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></for>
+
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>copyfrom_data</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>window</name></name> <modifier>*</modifier></type><name>ctx</name></decl></parameter>, <parameter><decl><type><name>size_t</name> <modifier>*</modifier></type><name>data_pos</name></decl></parameter>, <parameter><decl><type><name>size_t</name></type> <name>nbytes</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>size_t</name></type> <name>pos</name> <init>= <expr><operator>*</operator><name>data_pos</name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>unsigned_add_overflows</name><argument_list>(<argument><expr><name>pos</name></expr></argument>, <argument><expr><name>nbytes</name></expr></argument>)</argument_list></call> <operator>||</operator>
+
+<name>pos</name> <operator>+</operator> <name>nbytes</name> <operator>&gt;</operator> <name><name>ctx</name><operator>-&gt;</operator><name>data</name><operator>.</operator><name>len</name></name></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><call><name>error</name><argument_list>(<argument><expr><literal type="string">"invalid delta: copies unavailable inline data"</literal></expr></argument>)</argument_list></call></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>strbuf_add</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>ctx</name><operator>-&gt;</operator><name>out</name></name></expr></argument>, <argument><expr><name><name>ctx</name><operator>-&gt;</operator><name>data</name><operator>.</operator><name>buf</name></name> <operator>+</operator> <name>pos</name></expr></argument>, <argument><expr><name>nbytes</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><operator>*</operator><name>data_pos</name> <operator>+=</operator> <name>nbytes</name></expr>;</expr_stmt>
+
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>parse_first_operand</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier><modifier>*</modifier></type><name>buf</name></decl></parameter>, <parameter><decl><type><name>size_t</name> <modifier>*</modifier></type><name>out</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>end</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>size_t</name></type> <name>result</name> <init>= <expr><operator>(</operator><name>unsigned</name> <name>char</name><operator>)</operator> <operator>*</operator><operator>(</operator><operator>*</operator><name>buf</name><operator>)</operator><operator>++</operator> <operator>&amp;</operator> <name>OPERAND_MASK</name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>result</name></expr>)</condition> <block>{<block_content> 
+
+<expr_stmt><expr><operator>*</operator><name>out</name> <operator>=</operator> <name>result</name></expr>;</expr_stmt>
+
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<return>return <expr><call><name>parse_int</name><argument_list>(<argument><expr><name>buf</name></expr></argument>, <argument><expr><name>out</name></expr></argument>, <argument><expr><name>end</name></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>execute_one_instruction</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>window</name></name> <modifier>*</modifier></type><name>ctx</name></decl></parameter>,
+
+<parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier><modifier>*</modifier></type><name>instructions</name></decl></parameter>, <parameter><decl><type><name>size_t</name> <modifier>*</modifier></type><name>data_pos</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>unsigned</name> <name>int</name></type> <name>instruction</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>insns_end</name> <init>= <expr><name><name>ctx</name><operator>-&gt;</operator><name>instructions</name><operator>.</operator><name>buf</name></name> <operator>+</operator> <name><name>ctx</name><operator>-&gt;</operator><name>instructions</name><operator>.</operator><name>len</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>size_t</name></type> <name>nbytes</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>assert</name><argument_list>(<argument><expr><name>ctx</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>assert</name><argument_list>(<argument><expr><name>instructions</name> <operator>&amp;&amp;</operator> <operator>*</operator><name>instructions</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>assert</name><argument_list>(<argument><expr><name>data_pos</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>instruction</name> <operator>=</operator> <operator>(</operator><name>unsigned</name> <name>char</name><operator>)</operator> <operator>*</operator><operator>*</operator><name>instructions</name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>parse_first_operand</name><argument_list>(<argument><expr><name>instructions</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>nbytes</name></expr></argument>, <argument><expr><name>insns_end</name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><operator>-</operator><literal type="number">1</literal></expr>;</return></block_content></block></if></if_stmt>
+
+<switch>switch <condition>(<expr><name>instruction</name> <operator>&amp;</operator> <name>INSN_MASK</name></expr>)</condition> <block>{<block_content>
+
+<case>case <expr><name>INSN_COPYFROM_SOURCE</name></expr>:</case>
+
+<return>return <expr><call><name>copyfrom_source</name><argument_list>(<argument><expr><name>ctx</name></expr></argument>, <argument><expr><name>instructions</name></expr></argument>, <argument><expr><name>nbytes</name></expr></argument>, <argument><expr><name>insns_end</name></expr></argument>)</argument_list></call></expr>;</return>
+
+<case>case <expr><name>INSN_COPYFROM_TARGET</name></expr>:</case>
+
+<return>return <expr><call><name>copyfrom_target</name><argument_list>(<argument><expr><name>ctx</name></expr></argument>, <argument><expr><name>instructions</name></expr></argument>, <argument><expr><name>nbytes</name></expr></argument>, <argument><expr><name>insns_end</name></expr></argument>)</argument_list></call></expr>;</return>
+
+<case>case <expr><name>INSN_COPYFROM_DATA</name></expr>:</case>
+
+<return>return <expr><call><name>copyfrom_data</name><argument_list>(<argument><expr><name>ctx</name></expr></argument>, <argument><expr><name>data_pos</name></expr></argument>, <argument><expr><name>nbytes</name></expr></argument>)</argument_list></call></expr>;</return>
+
+<default>default:</default>
+
+<return>return <expr><call><name>error</name><argument_list>(<argument><expr><literal type="string">"invalid delta: unrecognized instruction"</literal></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></switch>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>apply_window_in_core</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>window</name></name> <modifier>*</modifier></type><name>ctx</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>instructions</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>size_t</name></type> <name>data_pos</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+
+<for>for <control>(<init><expr><name>instructions</name> <operator>=</operator> <name><name>ctx</name><operator>-&gt;</operator><name>instructions</name><operator>.</operator><name>buf</name></name></expr>;</init>
+
+<condition><expr><name>instructions</name> <operator>!=</operator> <name><name>ctx</name><operator>-&gt;</operator><name>instructions</name><operator>.</operator><name>buf</name></name> <operator>+</operator> <name><name>ctx</name><operator>-&gt;</operator><name>instructions</name><operator>.</operator><name>len</name></name></expr>;</condition>
+
+<incr/>)</control><block type="pseudo"><block_content>
+
+<if_stmt><if>if <condition>(<expr><call><name>execute_one_instruction</name><argument_list>(<argument><expr><name>ctx</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>instructions</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>data_pos</name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><operator>-</operator><literal type="number">1</literal></expr>;</return></block_content></block></if></if_stmt></block_content></block></for>
+
+<if_stmt><if>if <condition>(<expr><name>data_pos</name> <operator>!=</operator> <name><name>ctx</name><operator>-&gt;</operator><name>data</name><operator>.</operator><name>len</name></name></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><call><name>error</name><argument_list>(<argument><expr><literal type="string">"invalid delta: does not copy all inline data"</literal></expr></argument>)</argument_list></call></expr>;</return></block_content></block></if></if_stmt>
+
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>apply_one_window</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>line_buffer</name></name> <modifier>*</modifier></type><name>delta</name></decl></parameter>, <parameter><decl><type><name>off_t</name> <modifier>*</modifier></type><name>delta_len</name></decl></parameter>,
+
+<parameter><decl><type><name><name>struct</name> <name>sliding_view</name></name> <modifier>*</modifier></type><name>preimage</name></decl></parameter>, <parameter><decl><type><name>FILE</name> <modifier>*</modifier></type><name>out</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>int</name></type> <name>rv</name> <init>= <expr><operator>-</operator><literal type="number">1</literal></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>window</name></name></type> <name>ctx</name> <init>= <expr><call><name>WINDOW_INIT</name><argument_list>(<argument><expr><name>preimage</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>size_t</name></type> <name>out_len</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>size_t</name></type> <name>instructions_len</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>size_t</name></type> <name>data_len</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>assert</name><argument_list>(<argument><expr><name>delta_len</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>read_length</name><argument_list>(<argument><expr><name>delta</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>out_len</name></expr></argument>, <argument><expr><name>delta_len</name></expr></argument>)</argument_list></call> <operator>||</operator>
+
+<call><name>read_length</name><argument_list>(<argument><expr><name>delta</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>instructions_len</name></expr></argument>, <argument><expr><name>delta_len</name></expr></argument>)</argument_list></call> <operator>||</operator>
+
+<call><name>read_length</name><argument_list>(<argument><expr><name>delta</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>data_len</name></expr></argument>, <argument><expr><name>delta_len</name></expr></argument>)</argument_list></call> <operator>||</operator>
+
+<call><name>read_chunk</name><argument_list>(<argument><expr><name>delta</name></expr></argument>, <argument><expr><name>delta_len</name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>ctx</name><operator>.</operator><name>instructions</name></name></expr></argument>, <argument><expr><name>instructions_len</name></expr></argument>)</argument_list></call> <operator>||</operator>
+
+<call><name>read_chunk</name><argument_list>(<argument><expr><name>delta</name></expr></argument>, <argument><expr><name>delta_len</name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>ctx</name><operator>.</operator><name>data</name></name></expr></argument>, <argument><expr><name>data_len</name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+
+<goto>goto <name>error_out</name>;</goto></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>strbuf_grow</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>ctx</name><operator>.</operator><name>out</name></name></expr></argument>, <argument><expr><name>out_len</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>apply_window_in_core</name><argument_list>(<argument><expr><operator>&amp;</operator><name>ctx</name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+
+<goto>goto <name>error_out</name>;</goto></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>ctx</name><operator>.</operator><name>out</name><operator>.</operator><name>len</name></name> <operator>!=</operator> <name>out_len</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>rv</name> <operator>=</operator> <call><name>error</name><argument_list>(<argument><expr><literal type="string">"invalid delta: incorrect postimage length"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<goto>goto <name>error_out</name>;</goto>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>write_strbuf</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>ctx</name><operator>.</operator><name>out</name></name></expr></argument>, <argument><expr><name>out</name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+
+<goto>goto <name>error_out</name>;</goto></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>rv</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<label><name>error_out</name>:</label>
+
+<expr_stmt><expr><call><name>window_release</name><argument_list>(<argument><expr><operator>&amp;</operator><name>ctx</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>rv</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><name>int</name></type> <name>svndiff0_apply</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>line_buffer</name></name> <modifier>*</modifier></type><name>delta</name></decl></parameter>, <parameter><decl><type><name>off_t</name></type> <name>delta_len</name></decl></parameter>,
+
+<parameter><decl><type><name><name>struct</name> <name>sliding_view</name></name> <modifier>*</modifier></type><name>preimage</name></decl></parameter>, <parameter><decl><type><name>FILE</name> <modifier>*</modifier></type><name>postimage</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>assert</name><argument_list>(<argument><expr><name>delta</name> <operator>&amp;&amp;</operator> <name>preimage</name> <operator>&amp;&amp;</operator> <name>postimage</name> <operator>&amp;&amp;</operator> <name>delta_len</name> <operator>&gt;=</operator> <literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>read_magic</name><argument_list>(<argument><expr><name>delta</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>delta_len</name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><operator>-</operator><literal type="number">1</literal></expr>;</return></block_content></block></if></if_stmt>
+
+<while>while <condition>(<expr><name>delta_len</name></expr>)</condition> <block>{<block_content> 
+
+<decl_stmt><decl><type><name>off_t</name></type> <name>pre_off</name> <init>= <expr><operator>-</operator><literal type="number">1</literal></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>size_t</name></type> <name>pre_len</name></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>read_offset</name><argument_list>(<argument><expr><name>delta</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>pre_off</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>delta_len</name></expr></argument>)</argument_list></call> <operator>||</operator>
+
+<call><name>read_length</name><argument_list>(<argument><expr><name>delta</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>pre_len</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>delta_len</name></expr></argument>)</argument_list></call> <operator>||</operator>
+
+<call><name>move_window</name><argument_list>(<argument><expr><name>preimage</name></expr></argument>, <argument><expr><name>pre_off</name></expr></argument>, <argument><expr><name>pre_len</name></expr></argument>)</argument_list></call> <operator>||</operator>
+
+<call><name>apply_one_window</name><argument_list>(<argument><expr><name>delta</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>delta_len</name></expr></argument>, <argument><expr><name>preimage</name></expr></argument>, <argument><expr><name>postimage</name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><operator>-</operator><literal type="number">1</literal></expr>;</return></block_content></block></if></if_stmt>
+
+</block_content>}</block></while>
+
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+
+</block_content>}</block></function>
+
+</unit>

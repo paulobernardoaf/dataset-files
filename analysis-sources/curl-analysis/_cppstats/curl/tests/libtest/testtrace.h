@@ -1,0 +1,8 @@
+struct libtest_trace_cfg {
+int tracetime; 
+int nohex; 
+};
+extern struct libtest_trace_cfg libtest_debug_config;
+int libtest_debug_cb(CURL *handle, curl_infotype type,
+unsigned char *data, size_t size,
+void *userp);

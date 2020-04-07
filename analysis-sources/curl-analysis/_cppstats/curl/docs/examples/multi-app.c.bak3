@@ -1,0 +1,177 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#include <stdio.h>
+#include <string.h>
+
+
+#include <sys/time.h>
+#include <unistd.h>
+
+
+#include <curl/curl.h>
+
+
+
+
+
+#define HANDLECOUNT 2 
+#define HTTP_HANDLE 0 
+#define FTP_HANDLE 1 
+
+int main(void)
+{
+CURL *handles[HANDLECOUNT];
+CURLM *multi_handle;
+
+int still_running = 0; 
+int i;
+
+CURLMsg *msg; 
+int msgs_left; 
+
+
+for(i = 0; i<HANDLECOUNT; i++)
+handles[i] = curl_easy_init();
+
+
+curl_easy_setopt(handles[HTTP_HANDLE], CURLOPT_URL, "https://example.com");
+
+curl_easy_setopt(handles[FTP_HANDLE], CURLOPT_URL, "ftp://example.com");
+curl_easy_setopt(handles[FTP_HANDLE], CURLOPT_UPLOAD, 1L);
+
+
+multi_handle = curl_multi_init();
+
+
+for(i = 0; i<HANDLECOUNT; i++)
+curl_multi_add_handle(multi_handle, handles[i]);
+
+
+curl_multi_perform(multi_handle, &still_running);
+
+while(still_running) {
+struct timeval timeout;
+int rc; 
+CURLMcode mc; 
+
+fd_set fdread;
+fd_set fdwrite;
+fd_set fdexcep;
+int maxfd = -1;
+
+long curl_timeo = -1;
+
+FD_ZERO(&fdread);
+FD_ZERO(&fdwrite);
+FD_ZERO(&fdexcep);
+
+
+timeout.tv_sec = 1;
+timeout.tv_usec = 0;
+
+curl_multi_timeout(multi_handle, &curl_timeo);
+if(curl_timeo >= 0) {
+timeout.tv_sec = curl_timeo / 1000;
+if(timeout.tv_sec > 1)
+timeout.tv_sec = 1;
+else
+timeout.tv_usec = (curl_timeo % 1000) * 1000;
+}
+
+
+mc = curl_multi_fdset(multi_handle, &fdread, &fdwrite, &fdexcep, &maxfd);
+
+if(mc != CURLM_OK) {
+fprintf(stderr, "curl_multi_fdset() failed, code %d.\n", mc);
+break;
+}
+
+
+
+
+
+
+
+if(maxfd == -1) {
+#ifdef _WIN32
+Sleep(100);
+rc = 0;
+#else
+
+struct timeval wait = { 0, 100 * 1000 }; 
+rc = select(0, NULL, NULL, NULL, &wait);
+#endif
+}
+else {
+
+
+rc = select(maxfd + 1, &fdread, &fdwrite, &fdexcep, &timeout);
+}
+
+switch(rc) {
+case -1:
+
+break;
+case 0: 
+default: 
+curl_multi_perform(multi_handle, &still_running);
+break;
+}
+}
+
+
+while((msg = curl_multi_info_read(multi_handle, &msgs_left))) {
+if(msg->msg == CURLMSG_DONE) {
+int idx;
+
+
+for(idx = 0; idx<HANDLECOUNT; idx++) {
+int found = (msg->easy_handle == handles[idx]);
+if(found)
+break;
+}
+
+switch(idx) {
+case HTTP_HANDLE:
+printf("HTTP transfer completed with status %d\n", msg->data.result);
+break;
+case FTP_HANDLE:
+printf("FTP transfer completed with status %d\n", msg->data.result);
+break;
+}
+}
+}
+
+curl_multi_cleanup(multi_handle);
+
+
+for(i = 0; i<HANDLECOUNT; i++)
+curl_easy_cleanup(handles[i]);
+
+return 0;
+}

@@ -1,0 +1,144 @@
+#include "curlcheck.h"
+#include "urldata.h"
+#include "curl/urlapi.h"
+#include "urlapi-int.h"
+static CURLU *u;
+static CURLcode
+unit_setup(void)
+{
+return CURLE_OK;
+}
+static void
+unit_stop(void)
+{
+curl_global_cleanup();
+}
+#define free_and_clear(x) free(x); x = NULL
+UNITTEST_START
+{
+CURLUcode ret;
+char *ipv6port = NULL;
+char *portnum;
+u = curl_url();
+if(!u)
+goto fail;
+ipv6port = strdup("[fe80::250:56ff:fea7:da15]");
+if(!ipv6port)
+goto fail;
+ret = Curl_parse_port(u, ipv6port);
+fail_unless(ret == CURLUE_OK, "Curl_parse_port returned error");
+ret = curl_url_get(u, CURLUPART_PORT, &portnum, CURLU_NO_DEFAULT_PORT);
+fail_unless(ret != CURLUE_OK, "curl_url_get portnum returned something");
+free_and_clear(ipv6port);
+curl_url_cleanup(u);
+u = curl_url();
+if(!u)
+goto fail;
+ipv6port = strdup("[fe80::250:56ff:fea7:da15|");
+if(!ipv6port)
+goto fail;
+ret = Curl_parse_port(u, ipv6port);
+fail_unless(ret != CURLUE_OK, "Curl_parse_port true on error");
+free_and_clear(ipv6port);
+curl_url_cleanup(u);
+u = curl_url();
+if(!u)
+goto fail;
+ipv6port = strdup("[fe80::250:56ff;fea7:da15]:80");
+if(!ipv6port)
+goto fail;
+ret = Curl_parse_port(u, ipv6port);
+fail_unless(ret != CURLUE_OK, "Curl_parse_port true on error");
+free_and_clear(ipv6port);
+curl_url_cleanup(u);
+u = curl_url();
+if(!u)
+goto fail;
+ipv6port = strdup("[fe80::250:56ff:fea7:da15%25eth3]:80");
+if(!ipv6port)
+goto fail;
+ret = Curl_parse_port(u, ipv6port);
+fail_unless(ret == CURLUE_OK, "Curl_parse_port returned error");
+ret = curl_url_get(u, CURLUPART_PORT, &portnum, 0);
+fail_unless(ret == CURLUE_OK, "curl_url_get portnum returned error");
+fail_unless(portnum && !strcmp(portnum, "80"), "Check portnumber");
+curl_free(portnum);
+free_and_clear(ipv6port);
+curl_url_cleanup(u);
+u = curl_url();
+if(!u)
+goto fail;
+ipv6port = strdup("[fe80::250:56ff:fea7:da15%25eth3]");
+if(!ipv6port)
+goto fail;
+ret = Curl_parse_port(u, ipv6port);
+fail_unless(ret == CURLUE_OK, "Curl_parse_port returned error");
+free_and_clear(ipv6port);
+curl_url_cleanup(u);
+u = curl_url();
+if(!u)
+goto fail;
+ipv6port = strdup("[fe80::250:56ff:fea7:da15]:81");
+if(!ipv6port)
+goto fail;
+ret = Curl_parse_port(u, ipv6port);
+fail_unless(ret == CURLUE_OK, "Curl_parse_port returned error");
+ret = curl_url_get(u, CURLUPART_PORT, &portnum, 0);
+fail_unless(ret == CURLUE_OK, "curl_url_get portnum returned error");
+fail_unless(portnum && !strcmp(portnum, "81"), "Check portnumber");
+curl_free(portnum);
+free_and_clear(ipv6port);
+curl_url_cleanup(u);
+u = curl_url();
+if(!u)
+goto fail;
+ipv6port = strdup("[fe80::250:56ff:fea7:da15];81");
+if(!ipv6port)
+goto fail;
+ret = Curl_parse_port(u, ipv6port);
+fail_unless(ret != CURLUE_OK, "Curl_parse_port true on error");
+free_and_clear(ipv6port);
+curl_url_cleanup(u);
+u = curl_url();
+if(!u)
+goto fail;
+ipv6port = strdup("[fe80::250:56ff:fea7:da15]80");
+if(!ipv6port)
+goto fail;
+ret = Curl_parse_port(u, ipv6port);
+fail_unless(ret != CURLUE_OK, "Curl_parse_port true on error");
+free_and_clear(ipv6port);
+curl_url_cleanup(u);
+u = curl_url();
+if(!u)
+goto fail;
+ipv6port = strdup("[fe80::250:56ff:fea7:da15]:");
+if(!ipv6port)
+goto fail;
+ret = Curl_parse_port(u, ipv6port);
+fail_unless(ret == CURLUE_OK, "Curl_parse_port returned error");
+free_and_clear(ipv6port);
+curl_url_cleanup(u);
+u = curl_url();
+if(!u)
+goto fail;
+ipv6port = strdup("[fe80::250:56ff:fea7:da15!25eth3]:80");
+if(!ipv6port)
+goto fail;
+ret = Curl_parse_port(u, ipv6port);
+fail_unless(ret != CURLUE_OK, "Curl_parse_port returned non-error");
+free_and_clear(ipv6port);
+curl_url_cleanup(u);
+u = curl_url();
+if(!u)
+goto fail;
+ipv6port = strdup("[fe80::250:56ff:fea7:da15%eth3]:80");
+if(!ipv6port)
+goto fail;
+ret = Curl_parse_port(u, ipv6port);
+fail_unless(ret == CURLUE_OK, "Curl_parse_port returned error");
+fail:
+free(ipv6port);
+curl_url_cleanup(u);
+}
+UNITTEST_STOP

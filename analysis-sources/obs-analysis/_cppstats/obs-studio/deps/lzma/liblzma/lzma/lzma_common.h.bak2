@@ -1,0 +1,223 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+#ifndef LZMA_LZMA_COMMON_H
+#define LZMA_LZMA_COMMON_H
+
+#include "common.h"
+#include "range_common.h"
+
+
+
+
+
+
+
+
+
+#define POS_STATES_MAX (1 << LZMA_PB_MAX)
+
+
+
+static inline bool
+is_lclppb_valid(const lzma_options_lzma *options)
+{
+	return options->lc <= LZMA_LCLP_MAX && options->lp <= LZMA_LCLP_MAX
+			&& options->lc + options->lp <= LZMA_LCLP_MAX
+			&& options->pb <= LZMA_PB_MAX;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+typedef enum {
+	STATE_LIT_LIT,
+	STATE_MATCH_LIT_LIT,
+	STATE_REP_LIT_LIT,
+	STATE_SHORTREP_LIT_LIT,
+	STATE_MATCH_LIT,
+	STATE_REP_LIT,
+	STATE_SHORTREP_LIT,
+	STATE_LIT_MATCH,
+	STATE_LIT_LONGREP,
+	STATE_LIT_SHORTREP,
+	STATE_NONLIT_MATCH,
+	STATE_NONLIT_REP,
+} lzma_lzma_state;
+
+
+
+#define STATES 12
+
+
+#define LIT_STATES 7
+
+
+
+#define update_literal(state) state = ((state) <= STATE_SHORTREP_LIT_LIT ? STATE_LIT_LIT : ((state) <= STATE_LIT_SHORTREP ? (state) - 3 : (state) - 6))
+
+
+
+
+
+
+
+#define update_match(state) state = ((state) < LIT_STATES ? STATE_LIT_MATCH : STATE_NONLIT_MATCH)
+
+
+
+#define update_long_rep(state) state = ((state) < LIT_STATES ? STATE_LIT_LONGREP : STATE_NONLIT_REP)
+
+
+
+#define update_short_rep(state) state = ((state) < LIT_STATES ? STATE_LIT_SHORTREP : STATE_NONLIT_REP)
+
+
+
+#define is_literal_state(state) ((state) < LIT_STATES)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#define LITERAL_CODER_SIZE 0x300
+
+
+#define LITERAL_CODERS_MAX (1 << LZMA_LCLP_MAX)
+
+
+
+
+
+#define literal_subcoder(probs, lc, lp_mask, pos, prev_byte) ((probs)[(((pos) & lp_mask) << lc) + ((prev_byte) >> (8 - lc))])
+
+
+
+static inline void
+literal_init(probability (*probs)[LITERAL_CODER_SIZE],
+		uint32_t lc, uint32_t lp)
+{
+	assert(lc + lp <= LZMA_LCLP_MAX);
+
+	const uint32_t coders = 1U << (lc + lp);
+
+	for (uint32_t i = 0; i < coders; ++i)
+		for (uint32_t j = 0; j < LITERAL_CODER_SIZE; ++j)
+			bit_reset(probs[i][j]);
+
+	return;
+}
+
+
+
+
+
+
+
+#define MATCH_LEN_MIN 2
+
+
+
+
+
+
+
+#define LEN_LOW_BITS 3
+#define LEN_LOW_SYMBOLS (1 << LEN_LOW_BITS)
+#define LEN_MID_BITS 3
+#define LEN_MID_SYMBOLS (1 << LEN_MID_BITS)
+#define LEN_HIGH_BITS 8
+#define LEN_HIGH_SYMBOLS (1 << LEN_HIGH_BITS)
+#define LEN_SYMBOLS (LEN_LOW_SYMBOLS + LEN_MID_SYMBOLS + LEN_HIGH_SYMBOLS)
+
+
+
+#define MATCH_LEN_MAX (MATCH_LEN_MIN + LEN_SYMBOLS - 1)
+
+
+
+
+
+
+
+
+
+
+#define LEN_TO_POS_STATES 4
+
+
+#define get_len_to_pos_state(len) ((len) < LEN_TO_POS_STATES + MATCH_LEN_MIN ? (len) - MATCH_LEN_MIN : LEN_TO_POS_STATES - 1)
+
+
+
+
+
+
+#define POS_SLOT_BITS 6
+#define POS_SLOTS (1 << POS_SLOT_BITS)
+
+
+
+
+
+
+#define START_POS_MODEL_INDEX 4
+
+
+
+
+
+
+
+
+
+
+#define END_POS_MODEL_INDEX 14
+
+
+#define FULL_DISTANCES_BITS (END_POS_MODEL_INDEX / 2)
+#define FULL_DISTANCES (1 << FULL_DISTANCES_BITS)
+
+
+
+#define ALIGN_BITS 4
+#define ALIGN_TABLE_SIZE (1 << ALIGN_BITS)
+#define ALIGN_MASK (ALIGN_TABLE_SIZE - 1)
+
+
+
+#define REP_DISTANCES 4
+
+#endif

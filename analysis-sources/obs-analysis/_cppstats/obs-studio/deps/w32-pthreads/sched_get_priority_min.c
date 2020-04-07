@@ -1,0 +1,17 @@
+#include "pthread.h"
+#include "implement.h"
+#include "sched.h"
+int
+sched_get_priority_min (int policy)
+{
+if (policy < SCHED_MIN || policy > SCHED_MAX)
+{
+errno = EINVAL;
+return -1;
+}
+#if (THREAD_PRIORITY_LOWEST > THREAD_PRIORITY_NORMAL)
+return PTW32_MIN (THREAD_PRIORITY_IDLE, THREAD_PRIORITY_TIME_CRITICAL);
+#else
+return PTW32_MIN (THREAD_PRIORITY_IDLE, THREAD_PRIORITY_TIME_CRITICAL);
+#endif
+}

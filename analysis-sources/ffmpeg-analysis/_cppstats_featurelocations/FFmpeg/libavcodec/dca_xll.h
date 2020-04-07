@@ -1,0 +1,149 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#if !defined(AVCODEC_DCA_XLL_H)
+#define AVCODEC_DCA_XLL_H
+
+#include "libavutil/common.h"
+#include "libavutil/mem.h"
+
+#include "avcodec.h"
+#include "internal.h"
+#include "get_bits.h"
+#include "dca.h"
+#include "dcadsp.h"
+#include "dca_exss.h"
+
+#define DCA_XLL_CHSETS_MAX 3
+#define DCA_XLL_CHANNELS_MAX 8
+#define DCA_XLL_BANDS_MAX 2
+#define DCA_XLL_ADAPT_PRED_ORDER_MAX 16
+#define DCA_XLL_DECI_HISTORY_MAX 8
+#define DCA_XLL_DMIX_SCALES_MAX ((DCA_XLL_CHSETS_MAX - 1) * DCA_XLL_CHANNELS_MAX)
+#define DCA_XLL_DMIX_COEFFS_MAX (DCA_XLL_DMIX_SCALES_MAX * DCA_XLL_CHANNELS_MAX)
+#define DCA_XLL_PBR_BUFFER_MAX (240 << 10)
+#define DCA_XLL_SAMPLE_BUFFERS_MAX 3
+
+typedef struct DCAXllBand {
+int decor_enabled; 
+int orig_order[DCA_XLL_CHANNELS_MAX]; 
+int decor_coeff[DCA_XLL_CHANNELS_MAX / 2]; 
+
+int adapt_pred_order[DCA_XLL_CHANNELS_MAX]; 
+int highest_pred_order; 
+int fixed_pred_order[DCA_XLL_CHANNELS_MAX]; 
+int adapt_refl_coeff[DCA_XLL_CHANNELS_MAX][DCA_XLL_ADAPT_PRED_ORDER_MAX]; 
+
+int dmix_embedded; 
+
+int lsb_section_size; 
+int nscalablelsbs[DCA_XLL_CHANNELS_MAX]; 
+int bit_width_adjust[DCA_XLL_CHANNELS_MAX]; 
+
+int32_t *msb_sample_buffer[DCA_XLL_CHANNELS_MAX]; 
+int32_t *lsb_sample_buffer[DCA_XLL_CHANNELS_MAX]; 
+} DCAXllBand;
+
+typedef struct DCAXllChSet {
+
+int nchannels; 
+int residual_encode; 
+int pcm_bit_res; 
+int storage_bit_res; 
+int freq; 
+
+int primary_chset; 
+int dmix_coeffs_present; 
+int dmix_embedded; 
+int dmix_type; 
+int hier_chset; 
+int hier_ofs; 
+int dmix_coeff[DCA_XLL_DMIX_COEFFS_MAX]; 
+int dmix_scale[DCA_XLL_DMIX_SCALES_MAX]; 
+int dmix_scale_inv[DCA_XLL_DMIX_SCALES_MAX]; 
+int ch_mask; 
+int ch_remap[DCA_XLL_CHANNELS_MAX]; 
+
+int nfreqbands; 
+int nabits; 
+
+DCAXllBand bands[DCA_XLL_BANDS_MAX]; 
+
+
+int seg_common; 
+int rice_code_flag[DCA_XLL_CHANNELS_MAX]; 
+int bitalloc_hybrid_linear[DCA_XLL_CHANNELS_MAX]; 
+int bitalloc_part_a[DCA_XLL_CHANNELS_MAX]; 
+int bitalloc_part_b[DCA_XLL_CHANNELS_MAX]; 
+int nsamples_part_a[DCA_XLL_CHANNELS_MAX]; 
+
+
+DECLARE_ALIGNED(32, int32_t, deci_history)[DCA_XLL_CHANNELS_MAX][DCA_XLL_DECI_HISTORY_MAX]; 
+
+
+unsigned int sample_size[DCA_XLL_SAMPLE_BUFFERS_MAX];
+int32_t *sample_buffer[DCA_XLL_SAMPLE_BUFFERS_MAX];
+} DCAXllChSet;
+
+typedef struct DCAXllDecoder {
+AVCodecContext *avctx;
+GetBitContext gb;
+
+int frame_size; 
+int nchsets; 
+int nframesegs; 
+int nsegsamples_log2; 
+int nsegsamples; 
+int nframesamples_log2; 
+int nframesamples; 
+int seg_size_nbits; 
+int band_crc_present; 
+int scalable_lsbs; 
+int ch_mask_nbits; 
+int fixed_lsb_width; 
+
+DCAXllChSet chset[DCA_XLL_CHSETS_MAX]; 
+
+int *navi; 
+unsigned int navi_size;
+
+int nfreqbands; 
+int nchannels; 
+int nreschsets; 
+int nactivechsets; 
+
+int hd_stream_id; 
+
+uint8_t *pbr_buffer; 
+int pbr_length; 
+int pbr_delay; 
+
+DCADSPContext *dcadsp;
+
+int output_mask;
+int32_t *output_samples[DCA_SPEAKER_COUNT];
+} DCAXllDecoder;
+
+int ff_dca_xll_parse(DCAXllDecoder *s, uint8_t *data, DCAExssAsset *asset);
+int ff_dca_xll_filter_frame(DCAXllDecoder *s, AVFrame *frame);
+av_cold void ff_dca_xll_flush(DCAXllDecoder *s);
+av_cold void ff_dca_xll_close(DCAXllDecoder *s);
+
+#endif

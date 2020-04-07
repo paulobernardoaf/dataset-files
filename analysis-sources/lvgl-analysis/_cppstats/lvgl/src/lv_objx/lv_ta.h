@@ -1,0 +1,134 @@
+#if defined(__cplusplus)
+extern "C" {
+#endif
+#if defined(LV_CONF_INCLUDE_SIMPLE)
+#include "lv_conf.h"
+#else
+#include "../../../lv_conf.h"
+#endif
+#if LV_USE_TA != 0
+#if LV_USE_PAGE == 0
+#error "lv_ta: lv_page is required. Enable it in lv_conf.h (LV_USE_PAGE 1) "
+#endif
+#if LV_USE_LABEL == 0
+#error "lv_ta: lv_label is required. Enable it in lv_conf.h (LV_USE_LABEL 1) "
+#endif
+#include "../lv_core/lv_obj.h"
+#include "lv_page.h"
+#include "lv_label.h"
+#define LV_TA_CURSOR_LAST (0x7FFF) 
+LV_EXPORT_CONST_INT(LV_TA_CURSOR_LAST);
+enum {
+LV_CURSOR_NONE, 
+LV_CURSOR_LINE, 
+LV_CURSOR_BLOCK, 
+LV_CURSOR_OUTLINE, 
+LV_CURSOR_UNDERLINE, 
+LV_CURSOR_HIDDEN = 0x08, 
+};
+typedef uint8_t lv_cursor_type_t;
+typedef struct
+{
+lv_page_ext_t page; 
+lv_obj_t * label; 
+lv_obj_t * placeholder; 
+char * pwd_tmp; 
+const char * accapted_chars; 
+uint16_t max_length; 
+uint16_t pwd_show_time; 
+struct
+{
+const lv_style_t * style; 
+lv_coord_t valid_x; 
+uint16_t pos; 
+uint16_t blink_time; 
+lv_area_t area; 
+uint16_t txt_byte_pos; 
+lv_cursor_type_t type : 4; 
+uint8_t state : 1; 
+uint8_t click_pos : 1; 
+} cursor;
+#if LV_LABEL_TEXT_SEL
+lv_draw_label_txt_sel_t sel; 
+uint8_t text_sel_in_prog : 1; 
+uint8_t text_sel_en : 1; 
+#endif
+uint8_t pwd_mode : 1; 
+uint8_t one_line : 1; 
+} lv_ta_ext_t;
+enum {
+LV_TA_STYLE_BG, 
+LV_TA_STYLE_SB, 
+LV_TA_STYLE_CURSOR, 
+LV_TA_STYLE_EDGE_FLASH, 
+LV_TA_STYLE_PLACEHOLDER, 
+};
+typedef uint8_t lv_ta_style_t;
+lv_obj_t * lv_ta_create(lv_obj_t * par, const lv_obj_t * copy);
+void lv_ta_add_char(lv_obj_t * ta, uint32_t c);
+void lv_ta_add_text(lv_obj_t * ta, const char * txt);
+void lv_ta_del_char(lv_obj_t * ta);
+void lv_ta_del_char_forward(lv_obj_t * ta);
+void lv_ta_set_text(lv_obj_t * ta, const char * txt);
+void lv_ta_set_placeholder_text(lv_obj_t * ta, const char * txt);
+void lv_ta_set_cursor_pos(lv_obj_t * ta, int16_t pos);
+void lv_ta_set_cursor_type(lv_obj_t * ta, lv_cursor_type_t cur_type);
+void lv_ta_set_cursor_click_pos(lv_obj_t * ta, bool en);
+void lv_ta_set_pwd_mode(lv_obj_t * ta, bool en);
+void lv_ta_set_one_line(lv_obj_t * ta, bool en);
+void lv_ta_set_text_align(lv_obj_t * ta, lv_label_align_t align);
+void lv_ta_set_accepted_chars(lv_obj_t * ta, const char * list);
+void lv_ta_set_max_length(lv_obj_t * ta, uint16_t num);
+void lv_ta_set_insert_replace(lv_obj_t * ta, const char * txt);
+static inline void lv_ta_set_sb_mode(lv_obj_t * ta, lv_sb_mode_t mode)
+{
+lv_page_set_sb_mode(ta, mode);
+}
+static inline void lv_ta_set_scroll_propagation(lv_obj_t * ta, bool en)
+{
+lv_page_set_scroll_propagation(ta, en);
+}
+static inline void lv_ta_set_edge_flash(lv_obj_t * ta, bool en)
+{
+lv_page_set_edge_flash(ta, en);
+}
+void lv_ta_set_style(lv_obj_t * ta, lv_ta_style_t type, const lv_style_t * style);
+void lv_ta_set_text_sel(lv_obj_t * ta, bool en);
+void lv_ta_set_pwd_show_time(lv_obj_t * ta, uint16_t time);
+void lv_ta_set_cursor_blink_time(lv_obj_t * ta, uint16_t time);
+const char * lv_ta_get_text(const lv_obj_t * ta);
+const char * lv_ta_get_placeholder_text(lv_obj_t * ta);
+lv_obj_t * lv_ta_get_label(const lv_obj_t * ta);
+uint16_t lv_ta_get_cursor_pos(const lv_obj_t * ta);
+lv_cursor_type_t lv_ta_get_cursor_type(const lv_obj_t * ta);
+bool lv_ta_get_cursor_click_pos(lv_obj_t * ta);
+bool lv_ta_get_pwd_mode(const lv_obj_t * ta);
+bool lv_ta_get_one_line(const lv_obj_t * ta);
+const char * lv_ta_get_accepted_chars(lv_obj_t * ta);
+uint16_t lv_ta_get_max_length(lv_obj_t * ta);
+static inline lv_sb_mode_t lv_ta_get_sb_mode(const lv_obj_t * ta)
+{
+return lv_page_get_sb_mode(ta);
+}
+static inline bool lv_ta_get_scroll_propagation(lv_obj_t * ta)
+{
+return lv_page_get_scroll_propagation(ta);
+}
+static inline bool lv_ta_get_edge_flash(lv_obj_t * ta)
+{
+return lv_page_get_edge_flash(ta);
+}
+const lv_style_t * lv_ta_get_style(const lv_obj_t * ta, lv_ta_style_t type);
+bool lv_ta_text_is_selected(const lv_obj_t * ta);
+bool lv_ta_get_text_sel_en(lv_obj_t * ta);
+uint16_t lv_ta_get_pwd_show_time(lv_obj_t * ta);
+uint16_t lv_ta_get_cursor_blink_time(lv_obj_t * ta);
+void lv_ta_clear_selection(lv_obj_t * ta);
+void lv_ta_cursor_right(lv_obj_t * ta);
+void lv_ta_cursor_left(lv_obj_t * ta);
+void lv_ta_cursor_down(lv_obj_t * ta);
+void lv_ta_cursor_up(lv_obj_t * ta);
+#endif 
+#if defined(__cplusplus)
+} 
+#endif

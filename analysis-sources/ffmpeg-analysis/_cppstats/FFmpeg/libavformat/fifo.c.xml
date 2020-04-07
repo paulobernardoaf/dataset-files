@@ -1,0 +1,958 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" revision="1.0.0" language="C" filename="D:\Pesquisa\Projects\ffmpeg-analysis\_cppstats\FFmpeg\libavformat\fifo.c"><cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"libavutil/avassert.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"libavutil/opt.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"libavutil/time.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"libavutil/thread.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"libavutil/threadmessage.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"avformat.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"internal.h"</cpp:file></cpp:include>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>FIFO_DEFAULT_QUEUE_SIZE</name></cpp:macro> <cpp:value>60</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>FIFO_DEFAULT_MAX_RECOVERY_ATTEMPTS</name></cpp:macro> <cpp:value>0</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>FIFO_DEFAULT_RECOVERY_WAIT_TIME_USEC</name></cpp:macro> <cpp:value>5000000</cpp:value></cpp:define> 
+
+<typedef>typedef <type><struct>struct <name>FifoContext</name> <block>{
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>AVClass</name> <modifier>*</modifier></type><name>class</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>AVFormatContext</name> <modifier>*</modifier></type><name>avf</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>char</name> <modifier>*</modifier></type><name>format</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>AVDictionary</name> <modifier>*</modifier></type><name>format_options</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>queue_size</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>AVThreadMessageQueue</name> <modifier>*</modifier></type><name>queue</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>pthread_t</name></type> <name>writer_thread</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>write_trailer_ret</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int64_t</name></type> <name>recovery_wait_time</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>max_recovery_attempts</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>attempt_recovery</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>recovery_wait_streamtime</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>recover_any_error</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>drop_pkts_on_overflow</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>restart_with_keyframe</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>pthread_mutex_t</name></type> <name>overflow_flag_lock</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>overflow_flag_lock_initialized</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>volatile</specifier> <name>uint8_t</name></type> <name>overflow_flag</name></decl>;</decl_stmt>
+
+}</block></struct></type> <name>FifoContext</name>;</typedef>
+
+<typedef>typedef <type><struct>struct <name>FifoThreadContext</name> <block>{
+
+<decl_stmt><decl><type><name>AVFormatContext</name> <modifier>*</modifier></type><name>avf</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int64_t</name></type> <name>last_recovery_ts</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>recovery_nr</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>uint8_t</name></type> <name>drop_until_keyframe</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>uint8_t</name></type> <name>header_written</name></decl>;</decl_stmt>
+
+}</block></struct></type> <name>FifoThreadContext</name>;</typedef>
+
+<typedef>typedef <type><enum>enum <name>FifoMessageType</name> <block>{
+
+<decl><name>FIFO_WRITE_HEADER</name></decl>,
+
+<decl><name>FIFO_WRITE_PACKET</name></decl>,
+
+<decl><name>FIFO_FLUSH_OUTPUT</name></decl>
+
+}</block></enum></type> <name>FifoMessageType</name>;</typedef>
+
+<typedef>typedef <type><struct>struct <name>FifoMessage</name> <block>{
+
+<decl_stmt><decl><type><name>FifoMessageType</name></type> <name>type</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>AVPacket</name></type> <name>pkt</name></decl>;</decl_stmt>
+
+}</block></struct></type> <name>FifoMessage</name>;</typedef>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>fifo_thread_write_header</name><parameter_list>(<parameter><decl><type><name>FifoThreadContext</name> <modifier>*</modifier></type><name>ctx</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>AVFormatContext</name> <modifier>*</modifier></type><name>avf</name> <init>= <expr><name><name>ctx</name><operator>-&gt;</operator><name>avf</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>FifoContext</name> <modifier>*</modifier></type><name>fifo</name> <init>= <expr><name><name>avf</name><operator>-&gt;</operator><name>priv_data</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>AVFormatContext</name> <modifier>*</modifier></type><name>avf2</name> <init>= <expr><name><name>fifo</name><operator>-&gt;</operator><name>avf</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>AVDictionary</name> <modifier>*</modifier></type><name>format_options</name> <init>= <expr><name>NULL</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>ret</name></decl>, <decl><type ref="prev"/><name>i</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <call><name>av_dict_copy</name><argument_list>(<argument><expr><operator>&amp;</operator><name>format_options</name></expr></argument>, <argument><expr><name><name>fifo</name><operator>-&gt;</operator><name>format_options</name></name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>ret</name> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>ret</name></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <call><name>ff_format_output_open</name><argument_list>(<argument><expr><name>avf2</name></expr></argument>, <argument><expr><name><name>avf</name><operator>-&gt;</operator><name>url</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name>format_options</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>ret</name> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>av_log</name><argument_list>(<argument><expr><name>avf</name></expr></argument>, <argument><expr><name>AV_LOG_ERROR</name></expr></argument>, <argument><expr><literal type="string">"Error opening %s: %s\n"</literal></expr></argument>, <argument><expr><name><name>avf</name><operator>-&gt;</operator><name>url</name></name></expr></argument>,
+
+<argument><expr><call><name>av_err2str</name><argument_list>(<argument><expr><name>ret</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<goto>goto <name>end</name>;</goto>
+
+</block_content>}</block></if></if_stmt>
+
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init><condition><expr><name>i</name> <operator>&lt;</operator> <name><name>avf2</name><operator>-&gt;</operator><name>nb_streams</name></name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name><name>avf2</name><operator>-&gt;</operator><name>streams</name><index>[<expr><name>i</name></expr>]</index></name><operator>-&gt;</operator><name>cur_dts</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt></block_content></block></for>
+
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <call><name>avformat_write_header</name><argument_list>(<argument><expr><name>avf2</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>format_options</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>ret</name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name><name>ctx</name><operator>-&gt;</operator><name>header_written</name></name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>format_options</name></expr>)</condition> <block>{<block_content>
+
+<decl_stmt><decl><type><name>AVDictionaryEntry</name> <modifier>*</modifier></type><name>entry</name> <init>= <expr><name>NULL</name></expr></init></decl>;</decl_stmt>
+
+<while>while <condition>(<expr><operator>(</operator><name>entry</name> <operator>=</operator> <call><name>av_dict_get</name><argument_list>(<argument><expr><name>format_options</name></expr></argument>, <argument><expr><literal type="string">""</literal></expr></argument>, <argument><expr><name>entry</name></expr></argument>, <argument><expr><name>AV_DICT_IGNORE_SUFFIX</name></expr></argument>)</argument_list></call><operator>)</operator></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>av_log</name><argument_list>(<argument><expr><name>avf2</name></expr></argument>, <argument><expr><name>AV_LOG_ERROR</name></expr></argument>, <argument><expr><literal type="string">"Unknown option '%s'\n"</literal></expr></argument>, <argument><expr><name><name>entry</name><operator>-&gt;</operator><name>key</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></while>
+
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <call><name>AVERROR</name><argument_list>(<argument><expr><name>EINVAL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<label><name>end</name>:</label>
+
+<expr_stmt><expr><call><name>av_dict_free</name><argument_list>(<argument><expr><operator>&amp;</operator><name>format_options</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>ret</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>fifo_thread_flush_output</name><parameter_list>(<parameter><decl><type><name>FifoThreadContext</name> <modifier>*</modifier></type><name>ctx</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>AVFormatContext</name> <modifier>*</modifier></type><name>avf</name> <init>= <expr><name><name>ctx</name><operator>-&gt;</operator><name>avf</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>FifoContext</name> <modifier>*</modifier></type><name>fifo</name> <init>= <expr><name><name>avf</name><operator>-&gt;</operator><name>priv_data</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>AVFormatContext</name> <modifier>*</modifier></type><name>avf2</name> <init>= <expr><name><name>fifo</name><operator>-&gt;</operator><name>avf</name></name></expr></init></decl>;</decl_stmt>
+
+<return>return <expr><call><name>av_write_frame</name><argument_list>(<argument><expr><name>avf2</name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>fifo_thread_write_packet</name><parameter_list>(<parameter><decl><type><name>FifoThreadContext</name> <modifier>*</modifier></type><name>ctx</name></decl></parameter>, <parameter><decl><type><name>AVPacket</name> <modifier>*</modifier></type><name>pkt</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>AVFormatContext</name> <modifier>*</modifier></type><name>avf</name> <init>= <expr><name><name>ctx</name><operator>-&gt;</operator><name>avf</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>FifoContext</name> <modifier>*</modifier></type><name>fifo</name> <init>= <expr><name><name>avf</name><operator>-&gt;</operator><name>priv_data</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>AVFormatContext</name> <modifier>*</modifier></type><name>avf2</name> <init>= <expr><name><name>fifo</name><operator>-&gt;</operator><name>avf</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>AVRational</name></type> <name>src_tb</name></decl>, <decl><type ref="prev"/><name>dst_tb</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>ret</name></decl>, <decl><type ref="prev"/><name>s_idx</name></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>ctx</name><operator>-&gt;</operator><name>drop_until_keyframe</name></name></expr>)</condition> <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><name><name>pkt</name><operator>-&gt;</operator><name>flags</name></name> <operator>&amp;</operator> <name>AV_PKT_FLAG_KEY</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name><name>ctx</name><operator>-&gt;</operator><name>drop_until_keyframe</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>av_log</name><argument_list>(<argument><expr><name>avf</name></expr></argument>, <argument><expr><name>AV_LOG_VERBOSE</name></expr></argument>, <argument><expr><literal type="string">"Keyframe received, recovering...\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<expr_stmt><expr><call><name>av_log</name><argument_list>(<argument><expr><name>avf</name></expr></argument>, <argument><expr><name>AV_LOG_VERBOSE</name></expr></argument>, <argument><expr><literal type="string">"Dropping non-keyframe packet\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>av_packet_unref</name><argument_list>(<argument><expr><name>pkt</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+
+</block_content>}</block></else></if_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name>s_idx</name> <operator>=</operator> <name><name>pkt</name><operator>-&gt;</operator><name>stream_index</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>src_tb</name> <operator>=</operator> <name><name>avf</name><operator>-&gt;</operator><name>streams</name><index>[<expr><name>s_idx</name></expr>]</index></name><operator>-&gt;</operator><name>time_base</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>dst_tb</name> <operator>=</operator> <name><name>avf2</name><operator>-&gt;</operator><name>streams</name><index>[<expr><name>s_idx</name></expr>]</index></name><operator>-&gt;</operator><name>time_base</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>av_packet_rescale_ts</name><argument_list>(<argument><expr><name>pkt</name></expr></argument>, <argument><expr><name>src_tb</name></expr></argument>, <argument><expr><name>dst_tb</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <call><name>av_write_frame</name><argument_list>(<argument><expr><name>avf2</name></expr></argument>, <argument><expr><name>pkt</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>ret</name> <operator>&gt;=</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>av_packet_unref</name><argument_list>(<argument><expr><name>pkt</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<return>return <expr><name>ret</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>fifo_thread_write_trailer</name><parameter_list>(<parameter><decl><type><name>FifoThreadContext</name> <modifier>*</modifier></type><name>ctx</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>AVFormatContext</name> <modifier>*</modifier></type><name>avf</name> <init>= <expr><name><name>ctx</name><operator>-&gt;</operator><name>avf</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>FifoContext</name> <modifier>*</modifier></type><name>fifo</name> <init>= <expr><name><name>avf</name><operator>-&gt;</operator><name>priv_data</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>AVFormatContext</name> <modifier>*</modifier></type><name>avf2</name> <init>= <expr><name><name>fifo</name><operator>-&gt;</operator><name>avf</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>ret</name></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>ctx</name><operator>-&gt;</operator><name>header_written</name></name></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><literal type="number">0</literal></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <call><name>av_write_trailer</name><argument_list>(<argument><expr><name>avf2</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>ff_format_io_close</name><argument_list>(<argument><expr><name>avf2</name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>avf2</name><operator>-&gt;</operator><name>pb</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>ret</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>fifo_thread_dispatch_message</name><parameter_list>(<parameter><decl><type><name>FifoThreadContext</name> <modifier>*</modifier></type><name>ctx</name></decl></parameter>, <parameter><decl><type><name>FifoMessage</name> <modifier>*</modifier></type><name>msg</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>int</name></type> <name>ret</name> <init>= <expr><call><name>AVERROR</name><argument_list>(<argument><expr><name>EINVAL</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>ctx</name><operator>-&gt;</operator><name>header_written</name></name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <call><name>fifo_thread_write_header</name><argument_list>(<argument><expr><name>ctx</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>ret</name> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>ret</name></expr>;</return></block_content></block></if></if_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<switch>switch<condition>(<expr><name><name>msg</name><operator>-&gt;</operator><name>type</name></name></expr>)</condition> <block>{<block_content>
+
+<case>case <expr><name>FIFO_WRITE_HEADER</name></expr>:</case>
+
+<expr_stmt><expr><call><name>av_assert0</name><argument_list>(<argument><expr><name>ret</name> <operator>&gt;=</operator> <literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>ret</name></expr>;</return>
+
+<case>case <expr><name>FIFO_WRITE_PACKET</name></expr>:</case>
+
+<return>return <expr><call><name>fifo_thread_write_packet</name><argument_list>(<argument><expr><name>ctx</name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>msg</name><operator>-&gt;</operator><name>pkt</name></name></expr></argument>)</argument_list></call></expr>;</return>
+
+<case>case <expr><name>FIFO_FLUSH_OUTPUT</name></expr>:</case>
+
+<return>return <expr><call><name>fifo_thread_flush_output</name><argument_list>(<argument><expr><name>ctx</name></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></switch>
+
+<expr_stmt><expr><call><name>av_assert0</name><argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><call><name>AVERROR</name><argument_list>(<argument><expr><name>EINVAL</name></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>is_recoverable</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name>FifoContext</name> <modifier>*</modifier></type><name>fifo</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>err_no</name></decl></parameter>)</parameter_list> <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>fifo</name><operator>-&gt;</operator><name>attempt_recovery</name></name></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><literal type="number">0</literal></expr>;</return></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>fifo</name><operator>-&gt;</operator><name>recover_any_error</name></name></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>err_no</name> <operator>!=</operator> <name>AVERROR_EXIT</name></expr>;</return></block_content></block></if></if_stmt>
+
+<switch>switch <condition>(<expr><name>err_no</name></expr>)</condition> <block>{<block_content>
+
+<case>case <expr><call><name>AVERROR</name><argument_list>(<argument><expr><name>EINVAL</name></expr></argument>)</argument_list></call></expr>:</case>
+
+<case>case <expr><call><name>AVERROR</name><argument_list>(<argument><expr><name>ENOSYS</name></expr></argument>)</argument_list></call></expr>:</case>
+
+<case>case <expr><name>AVERROR_EOF</name></expr>:</case>
+
+<case>case <expr><name>AVERROR_EXIT</name></expr>:</case>
+
+<case>case <expr><name>AVERROR_PATCHWELCOME</name></expr>:</case>
+
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+
+<default>default:</default>
+
+<return>return <expr><literal type="number">1</literal></expr>;</return>
+
+</block_content>}</block></switch>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>free_message</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>msg</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>FifoMessage</name> <modifier>*</modifier></type><name>fifo_msg</name> <init>= <expr><name>msg</name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>fifo_msg</name><operator>-&gt;</operator><name>type</name></name> <operator>==</operator> <name>FIFO_WRITE_PACKET</name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>av_packet_unref</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>fifo_msg</name><operator>-&gt;</operator><name>pkt</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>fifo_thread_process_recovery_failure</name><parameter_list>(<parameter><decl><type><name>FifoThreadContext</name> <modifier>*</modifier></type><name>ctx</name></decl></parameter>, <parameter><decl><type><name>AVPacket</name> <modifier>*</modifier></type><name>pkt</name></decl></parameter>,
+
+<parameter><decl><type><name>int</name></type> <name>err_no</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>AVFormatContext</name> <modifier>*</modifier></type><name>avf</name> <init>= <expr><name><name>ctx</name><operator>-&gt;</operator><name>avf</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>FifoContext</name> <modifier>*</modifier></type><name>fifo</name> <init>= <expr><name><name>avf</name><operator>-&gt;</operator><name>priv_data</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>ret</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>av_log</name><argument_list>(<argument><expr><name>avf</name></expr></argument>, <argument><expr><name>AV_LOG_INFO</name></expr></argument>, <argument><expr><literal type="string">"Recovery failed: %s\n"</literal></expr></argument>,
+
+<argument><expr><call><name>av_err2str</name><argument_list>(<argument><expr><name>err_no</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>fifo</name><operator>-&gt;</operator><name>recovery_wait_streamtime</name></name></expr>)</condition> <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><name><name>pkt</name><operator>-&gt;</operator><name>pts</name></name> <operator>==</operator> <name>AV_NOPTS_VALUE</name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>av_log</name><argument_list>(<argument><expr><name>avf</name></expr></argument>, <argument><expr><name>AV_LOG_WARNING</name></expr></argument>, <argument><expr><literal type="string">"Packet does not contain presentation"</literal>
+
+<literal type="string">" timestamp, recovery will be attempted immediately"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name><name>ctx</name><operator>-&gt;</operator><name>last_recovery_ts</name></name> <operator>=</operator> <name><name>pkt</name><operator>-&gt;</operator><name>pts</name></name></expr>;</expr_stmt>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<expr_stmt><expr><name><name>ctx</name><operator>-&gt;</operator><name>last_recovery_ts</name></name> <operator>=</operator> <call><name>av_gettime_relative</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>fifo</name><operator>-&gt;</operator><name>max_recovery_attempts</name></name> <operator>&amp;&amp;</operator>
+
+<name><name>ctx</name><operator>-&gt;</operator><name>recovery_nr</name></name> <operator>&gt;=</operator> <name><name>fifo</name><operator>-&gt;</operator><name>max_recovery_attempts</name></name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>av_log</name><argument_list>(<argument><expr><name>avf</name></expr></argument>, <argument><expr><name>AV_LOG_ERROR</name></expr></argument>,
+
+<argument><expr><literal type="string">"Maximal number of %d recovery attempts reached.\n"</literal></expr></argument>,
+
+<argument><expr><name><name>fifo</name><operator>-&gt;</operator><name>max_recovery_attempts</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <name>err_no</name></expr>;</expr_stmt>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <call><name>AVERROR</name><argument_list>(<argument><expr><name>EAGAIN</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+<return>return <expr><name>ret</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>fifo_thread_attempt_recovery</name><parameter_list>(<parameter><decl><type><name>FifoThreadContext</name> <modifier>*</modifier></type><name>ctx</name></decl></parameter>, <parameter><decl><type><name>FifoMessage</name> <modifier>*</modifier></type><name>msg</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>err_no</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>AVFormatContext</name> <modifier>*</modifier></type><name>avf</name> <init>= <expr><name><name>ctx</name><operator>-&gt;</operator><name>avf</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>FifoContext</name> <modifier>*</modifier></type><name>fifo</name> <init>= <expr><name><name>avf</name><operator>-&gt;</operator><name>priv_data</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>AVPacket</name> <modifier>*</modifier></type><name>pkt</name> <init>= <expr><operator>&amp;</operator><name><name>msg</name><operator>-&gt;</operator><name>pkt</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int64_t</name></type> <name>time_since_recovery</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>ret</name></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>is_recoverable</name><argument_list>(<argument><expr><name>fifo</name></expr></argument>, <argument><expr><name>err_no</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <name>err_no</name></expr>;</expr_stmt>
+
+<goto>goto <name>fail</name>;</goto>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>ctx</name><operator>-&gt;</operator><name>header_written</name></name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name><name>fifo</name><operator>-&gt;</operator><name>write_trailer_ret</name></name> <operator>=</operator> <call><name>fifo_thread_write_trailer</name><argument_list>(<argument><expr><name>ctx</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>ctx</name><operator>-&gt;</operator><name>header_written</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>ctx</name><operator>-&gt;</operator><name>recovery_nr</name></name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name><name>ctx</name><operator>-&gt;</operator><name>last_recovery_ts</name></name> <operator>=</operator> <ternary><condition><expr><name><name>fifo</name><operator>-&gt;</operator><name>recovery_wait_streamtime</name></name></expr> ?</condition><then>
+
+<expr><name>AV_NOPTS_VALUE</name></expr> </then><else>: <expr><literal type="number">0</literal></expr></else></ternary></expr>;</expr_stmt>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><name><name>fifo</name><operator>-&gt;</operator><name>recovery_wait_streamtime</name></name></expr>)</condition> <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><name><name>ctx</name><operator>-&gt;</operator><name>last_recovery_ts</name></name> <operator>==</operator> <name>AV_NOPTS_VALUE</name></expr>)</condition> <block>{<block_content>
+
+<decl_stmt><decl><type><name>AVRational</name></type> <name>tb</name> <init>= <expr><name><name>avf</name><operator>-&gt;</operator><name>streams</name><index>[<expr><name><name>pkt</name><operator>-&gt;</operator><name>stream_index</name></name></expr>]</index></name><operator>-&gt;</operator><name>time_base</name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>time_since_recovery</name> <operator>=</operator> <call><name>av_rescale_q</name><argument_list>(<argument><expr><name><name>pkt</name><operator>-&gt;</operator><name>pts</name></name> <operator>-</operator> <name><name>ctx</name><operator>-&gt;</operator><name>last_recovery_ts</name></name></expr></argument>,
+
+<argument><expr><name>tb</name></expr></argument>, <argument><expr><name>AV_TIME_BASE_Q</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<expr_stmt><expr><name>time_since_recovery</name> <operator>=</operator> <name><name>fifo</name><operator>-&gt;</operator><name>recovery_wait_time</name></name></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<expr_stmt><expr><name>time_since_recovery</name> <operator>=</operator> <call><name>av_gettime_relative</name><argument_list>()</argument_list></call> <operator>-</operator> <name><name>ctx</name><operator>-&gt;</operator><name>last_recovery_ts</name></name></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>time_since_recovery</name> <operator>&lt;</operator> <name><name>fifo</name><operator>-&gt;</operator><name>recovery_wait_time</name></name></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><call><name>AVERROR</name><argument_list>(<argument><expr><name>EAGAIN</name></expr></argument>)</argument_list></call></expr>;</return></block_content></block></if></if_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+<expr_stmt><expr><name><name>ctx</name><operator>-&gt;</operator><name>recovery_nr</name></name><operator>++</operator></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>fifo</name><operator>-&gt;</operator><name>max_recovery_attempts</name></name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>av_log</name><argument_list>(<argument><expr><name>avf</name></expr></argument>, <argument><expr><name>AV_LOG_VERBOSE</name></expr></argument>, <argument><expr><literal type="string">"Recovery attempt #%d/%d\n"</literal></expr></argument>,
+
+<argument><expr><name><name>ctx</name><operator>-&gt;</operator><name>recovery_nr</name></name></expr></argument>, <argument><expr><name><name>fifo</name><operator>-&gt;</operator><name>max_recovery_attempts</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<expr_stmt><expr><call><name>av_log</name><argument_list>(<argument><expr><name>avf</name></expr></argument>, <argument><expr><name>AV_LOG_VERBOSE</name></expr></argument>, <argument><expr><literal type="string">"Recovery attempt #%d\n"</literal></expr></argument>,
+
+<argument><expr><name><name>ctx</name><operator>-&gt;</operator><name>recovery_nr</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>fifo</name><operator>-&gt;</operator><name>restart_with_keyframe</name></name> <operator>&amp;&amp;</operator> <name><name>fifo</name><operator>-&gt;</operator><name>drop_pkts_on_overflow</name></name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name><name>ctx</name><operator>-&gt;</operator><name>drop_until_keyframe</name></name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <call><name>fifo_thread_dispatch_message</name><argument_list>(<argument><expr><name>ctx</name></expr></argument>, <argument><expr><name>msg</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>ret</name> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><call><name>is_recoverable</name><argument_list>(<argument><expr><name>fifo</name></expr></argument>, <argument><expr><name>ret</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<return>return <expr><call><name>fifo_thread_process_recovery_failure</name><argument_list>(<argument><expr><name>ctx</name></expr></argument>, <argument><expr><name>pkt</name></expr></argument>, <argument><expr><name>ret</name></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<goto>goto <name>fail</name>;</goto>
+
+</block_content>}</block></else></if_stmt>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<expr_stmt><expr><call><name>av_log</name><argument_list>(<argument><expr><name>avf</name></expr></argument>, <argument><expr><name>AV_LOG_INFO</name></expr></argument>, <argument><expr><literal type="string">"Recovery successful\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>ctx</name><operator>-&gt;</operator><name>recovery_nr</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+
+<label><name>fail</name>:</label>
+
+<expr_stmt><expr><call><name>free_message</name><argument_list>(<argument><expr><name>msg</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>ret</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>fifo_thread_recover</name><parameter_list>(<parameter><decl><type><name>FifoThreadContext</name> <modifier>*</modifier></type><name>ctx</name></decl></parameter>, <parameter><decl><type><name>FifoMessage</name> <modifier>*</modifier></type><name>msg</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>err_no</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>AVFormatContext</name> <modifier>*</modifier></type><name>avf</name> <init>= <expr><name><name>ctx</name><operator>-&gt;</operator><name>avf</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>FifoContext</name> <modifier>*</modifier></type><name>fifo</name> <init>= <expr><name><name>avf</name><operator>-&gt;</operator><name>priv_data</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>ret</name></decl>;</decl_stmt>
+
+<do>do <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>fifo</name><operator>-&gt;</operator><name>recovery_wait_streamtime</name></name> <operator>&amp;&amp;</operator> <name><name>ctx</name><operator>-&gt;</operator><name>recovery_nr</name></name> <operator>&gt;</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<decl_stmt><decl><type><name>int64_t</name></type> <name>time_since_recovery</name> <init>= <expr><call><name>av_gettime_relative</name><argument_list>()</argument_list></call> <operator>-</operator> <name><name>ctx</name><operator>-&gt;</operator><name>last_recovery_ts</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int64_t</name></type> <name>time_to_wait</name> <init>= <expr><call><name>FFMAX</name><argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><name><name>fifo</name><operator>-&gt;</operator><name>recovery_wait_time</name></name> <operator>-</operator> <name>time_since_recovery</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>time_to_wait</name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>av_usleep</name><argument_list>(<argument><expr><call><name>FFMIN</name><argument_list>(<argument><expr><literal type="number">10000</literal></expr></argument>, <argument><expr><name>time_to_wait</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <call><name>fifo_thread_attempt_recovery</name><argument_list>(<argument><expr><name>ctx</name></expr></argument>, <argument><expr><name>msg</name></expr></argument>, <argument><expr><name>err_no</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block> while <condition>(<expr><name>ret</name> <operator>==</operator> <call><name>AVERROR</name><argument_list>(<argument><expr><name>EAGAIN</name></expr></argument>)</argument_list></call> <operator>&amp;&amp;</operator> <operator>!</operator><name><name>fifo</name><operator>-&gt;</operator><name>drop_pkts_on_overflow</name></name></expr>)</condition>;</do>
+
+<if_stmt><if>if <condition>(<expr><name>ret</name> <operator>==</operator> <call><name>AVERROR</name><argument_list>(<argument><expr><name>EAGAIN</name></expr></argument>)</argument_list></call> <operator>&amp;&amp;</operator> <name><name>fifo</name><operator>-&gt;</operator><name>drop_pkts_on_overflow</name></name></expr>)</condition> <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><name><name>msg</name><operator>-&gt;</operator><name>type</name></name> <operator>==</operator> <name>FIFO_WRITE_PACKET</name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>av_packet_unref</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>msg</name><operator>-&gt;</operator><name>pkt</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<return>return <expr><name>ret</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name> <modifier>*</modifier></type><name>fifo_consumer_thread</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>AVFormatContext</name> <modifier>*</modifier></type><name>avf</name> <init>= <expr><name>data</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>FifoContext</name> <modifier>*</modifier></type><name>fifo</name> <init>= <expr><name><name>avf</name><operator>-&gt;</operator><name>priv_data</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>AVThreadMessageQueue</name> <modifier>*</modifier></type><name>queue</name> <init>= <expr><name><name>fifo</name><operator>-&gt;</operator><name>queue</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>FifoMessage</name></type> <name>msg</name> <init>= <expr><block>{<expr><name>FIFO_WRITE_HEADER</name></expr>, <expr><block>{<expr><literal type="number">0</literal></expr>}</block></expr>}</block></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>ret</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>FifoThreadContext</name></type> <name>fifo_thread_ctx</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>memset</name><argument_list>(<argument><expr><operator>&amp;</operator><name>fifo_thread_ctx</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr><name>FifoThreadContext</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>fifo_thread_ctx</name><operator>.</operator><name>avf</name></name> <operator>=</operator> <name>avf</name></expr>;</expr_stmt>
+
+<while>while <condition>(<expr><literal type="number">1</literal></expr>)</condition> <block>{<block_content>
+
+<decl_stmt><decl><type><name>uint8_t</name></type> <name>just_flushed</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>fifo_thread_ctx</name><operator>.</operator><name>recovery_nr</name></name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <call><name>fifo_thread_dispatch_message</name><argument_list>(<argument><expr><operator>&amp;</operator><name>fifo_thread_ctx</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>msg</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>ret</name> <argument_list type="generic">&lt; <argument><expr><literal type="number">0</literal> <operator>||</operator> <name><name>fifo_thread_ctx</name><operator>.</operator><name>recovery_nr</name></name></expr></argument> &gt;</argument_list></name> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<decl_stmt><decl><type><name>int</name></type> <name>rec_ret</name> <init>= <expr><call><name>fifo_thread_recover</name><argument_list>(<argument><expr><operator>&amp;</operator><name>fifo_thread_ctx</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>msg</name></expr></argument>, <argument><expr><name>ret</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>rec_ret</name> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>av_thread_message_queue_set_err_send</name><argument_list>(<argument><expr><name>queue</name></expr></argument>, <argument><expr><name>rec_ret</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<break>break;</break>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_lock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>fifo</name><operator>-&gt;</operator><name>overflow_flag_lock</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>fifo</name><operator>-&gt;</operator><name>overflow_flag</name></name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>av_thread_message_flush</name><argument_list>(<argument><expr><name>queue</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>fifo</name><operator>-&gt;</operator><name>restart_with_keyframe</name></name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name><name>fifo_thread_ctx</name><operator>.</operator><name>drop_until_keyframe</name></name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name><name>fifo</name><operator>-&gt;</operator><name>overflow_flag</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>just_flushed</name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_unlock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>fifo</name><operator>-&gt;</operator><name>overflow_flag_lock</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>just_flushed</name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>av_log</name><argument_list>(<argument><expr><name>avf</name></expr></argument>, <argument><expr><name>AV_LOG_INFO</name></expr></argument>, <argument><expr><literal type="string">"FIFO queue flushed\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <call><name>av_thread_message_queue_recv</name><argument_list>(<argument><expr><name>queue</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>msg</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>ret</name> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>av_thread_message_queue_set_err_send</name><argument_list>(<argument><expr><name>queue</name></expr></argument>, <argument><expr><name>ret</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<break>break;</break>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></while>
+
+<expr_stmt><expr><name><name>fifo</name><operator>-&gt;</operator><name>write_trailer_ret</name></name> <operator>=</operator> <call><name>fifo_thread_write_trailer</name><argument_list>(<argument><expr><operator>&amp;</operator><name>fifo_thread_ctx</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>NULL</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>fifo_mux_init</name><parameter_list>(<parameter><decl><type><name>AVFormatContext</name> <modifier>*</modifier></type><name>avf</name></decl></parameter>, <parameter><decl><type><name>ff_const59</name> <name>AVOutputFormat</name> <modifier>*</modifier></type><name>oformat</name></decl></parameter>,
+
+<parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>filename</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>FifoContext</name> <modifier>*</modifier></type><name>fifo</name> <init>= <expr><name><name>avf</name><operator>-&gt;</operator><name>priv_data</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>AVFormatContext</name> <modifier>*</modifier></type><name>avf2</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>ret</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>, <decl><type ref="prev"/><name>i</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <call><name>avformat_alloc_output_context2</name><argument_list>(<argument><expr><operator>&amp;</operator><name>avf2</name></expr></argument>, <argument><expr><name>oformat</name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>, <argument><expr><name>filename</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>ret</name> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>ret</name></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name><name>fifo</name><operator>-&gt;</operator><name>avf</name></name> <operator>=</operator> <name>avf2</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>avf2</name><operator>-&gt;</operator><name>interrupt_callback</name></name> <operator>=</operator> <name><name>avf</name><operator>-&gt;</operator><name>interrupt_callback</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>avf2</name><operator>-&gt;</operator><name>max_delay</name></name> <operator>=</operator> <name><name>avf</name><operator>-&gt;</operator><name>max_delay</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <call><name>av_dict_copy</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>avf2</name><operator>-&gt;</operator><name>metadata</name></name></expr></argument>, <argument><expr><name><name>avf</name><operator>-&gt;</operator><name>metadata</name></name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>ret</name> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>ret</name></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name><name>avf2</name><operator>-&gt;</operator><name>opaque</name></name> <operator>=</operator> <name><name>avf</name><operator>-&gt;</operator><name>opaque</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>avf2</name><operator>-&gt;</operator><name>io_close</name></name> <operator>=</operator> <name><name>avf</name><operator>-&gt;</operator><name>io_close</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>avf2</name><operator>-&gt;</operator><name>io_open</name></name> <operator>=</operator> <name><name>avf</name><operator>-&gt;</operator><name>io_open</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>avf2</name><operator>-&gt;</operator><name>flags</name></name> <operator>=</operator> <name><name>avf</name><operator>-&gt;</operator><name>flags</name></name></expr>;</expr_stmt>
+
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name><name>avf</name><operator>-&gt;</operator><name>nb_streams</name></name></expr>;</condition> <incr><expr><operator>++</operator><name>i</name></expr></incr>)</control> <block>{<block_content>
+
+<decl_stmt><decl><type><name>AVStream</name> <modifier>*</modifier></type><name>st</name> <init>= <expr><call><name>avformat_new_stream</name><argument_list>(<argument><expr><name>avf2</name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>st</name></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><call><name>AVERROR</name><argument_list>(<argument><expr><name>ENOMEM</name></expr></argument>)</argument_list></call></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <call><name>ff_stream_encode_params_copy</name><argument_list>(<argument><expr><name>st</name></expr></argument>, <argument><expr><name><name>avf</name><operator>-&gt;</operator><name>streams</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>ret</name> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>ret</name></expr>;</return></block_content></block></if></if_stmt>
+
+</block_content>}</block></for>
+
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>fifo_init</name><parameter_list>(<parameter><decl><type><name>AVFormatContext</name> <modifier>*</modifier></type><name>avf</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>FifoContext</name> <modifier>*</modifier></type><name>fifo</name> <init>= <expr><name><name>avf</name><operator>-&gt;</operator><name>priv_data</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>ff_const59</name> <name>AVOutputFormat</name> <modifier>*</modifier></type><name>oformat</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>ret</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>fifo</name><operator>-&gt;</operator><name>recovery_wait_streamtime</name></name> <operator>&amp;&amp;</operator> <operator>!</operator><name><name>fifo</name><operator>-&gt;</operator><name>drop_pkts_on_overflow</name></name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>av_log</name><argument_list>(<argument><expr><name>avf</name></expr></argument>, <argument><expr><name>AV_LOG_ERROR</name></expr></argument>, <argument><expr><literal type="string">"recovery_wait_streamtime can be turned on"</literal>
+
+<literal type="string">" only when drop_pkts_on_overflow is also turned on\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><call><name>AVERROR</name><argument_list>(<argument><expr><name>EINVAL</name></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name>oformat</name> <operator>=</operator> <call><name>av_guess_format</name><argument_list>(<argument><expr><name><name>fifo</name><operator>-&gt;</operator><name>format</name></name></expr></argument>, <argument><expr><name><name>avf</name><operator>-&gt;</operator><name>url</name></name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>oformat</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <name>AVERROR_MUXER_NOT_FOUND</name></expr>;</expr_stmt>
+
+<return>return <expr><name>ret</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <call><name>fifo_mux_init</name><argument_list>(<argument><expr><name>avf</name></expr></argument>, <argument><expr><name>oformat</name></expr></argument>, <argument><expr><name><name>avf</name><operator>-&gt;</operator><name>url</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>ret</name> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>ret</name></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <call><name>av_thread_message_queue_alloc</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>fifo</name><operator>-&gt;</operator><name>queue</name></name></expr></argument>, <argument><expr><operator>(</operator><name>unsigned</name><operator>)</operator> <name><name>fifo</name><operator>-&gt;</operator><name>queue_size</name></name></expr></argument>,
+
+<argument><expr><sizeof>sizeof<argument_list>(<argument><expr><name>FifoMessage</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>ret</name> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>ret</name></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>av_thread_message_queue_set_free_func</name><argument_list>(<argument><expr><name><name>fifo</name><operator>-&gt;</operator><name>queue</name></name></expr></argument>, <argument><expr><name>free_message</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <call><name>pthread_mutex_init</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>fifo</name><operator>-&gt;</operator><name>overflow_flag_lock</name></name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>ret</name> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><call><name>AVERROR</name><argument_list>(<argument><expr><name>ret</name></expr></argument>)</argument_list></call></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name><name>fifo</name><operator>-&gt;</operator><name>overflow_flag_lock_initialized</name></name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>fifo_write_header</name><parameter_list>(<parameter><decl><type><name>AVFormatContext</name> <modifier>*</modifier></type><name>avf</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>FifoContext</name> <modifier>*</modifier></type> <name>fifo</name> <init>= <expr><name><name>avf</name><operator>-&gt;</operator><name>priv_data</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>ret</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <call><name>pthread_create</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>fifo</name><operator>-&gt;</operator><name>writer_thread</name></name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>, <argument><expr><name>fifo_consumer_thread</name></expr></argument>, <argument><expr><name>avf</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>ret</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>av_log</name><argument_list>(<argument><expr><name>avf</name></expr></argument>, <argument><expr><name>AV_LOG_ERROR</name></expr></argument>, <argument><expr><literal type="string">"Failed to start thread: %s\n"</literal></expr></argument>,
+
+<argument><expr><call><name>av_err2str</name><argument_list>(<argument><expr><call><name>AVERROR</name><argument_list>(<argument><expr><name>ret</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <call><name>AVERROR</name><argument_list>(<argument><expr><name>ret</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<return>return <expr><name>ret</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>fifo_write_packet</name><parameter_list>(<parameter><decl><type><name>AVFormatContext</name> <modifier>*</modifier></type><name>avf</name></decl></parameter>, <parameter><decl><type><name>AVPacket</name> <modifier>*</modifier></type><name>pkt</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>FifoContext</name> <modifier>*</modifier></type><name>fifo</name> <init>= <expr><name><name>avf</name><operator>-&gt;</operator><name>priv_data</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>FifoMessage</name></type> <name>msg</name> <init>= <expr><block>{<expr><operator>.</operator><name>type</name> <operator>=</operator> <name>pkt</name> <operator>?</operator> <name>FIFO_WRITE_PACKET</name> <operator>:</operator> <name>FIFO_FLUSH_OUTPUT</name></expr>}</block></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>ret</name></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>pkt</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <call><name>av_packet_ref</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>msg</name><operator>.</operator><name>pkt</name></name></expr></argument>,<argument><expr><name>pkt</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>ret</name> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>ret</name></expr>;</return></block_content></block></if></if_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <call><name>av_thread_message_queue_send</name><argument_list>(<argument><expr><name><name>fifo</name><operator>-&gt;</operator><name>queue</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name>msg</name></expr></argument>,
+
+<argument><expr><ternary><condition><expr><name><name>fifo</name><operator>-&gt;</operator><name>drop_pkts_on_overflow</name></name></expr> ?</condition><then>
+
+<expr><name>AV_THREAD_MESSAGE_NONBLOCK</name></expr> </then><else>: <expr><literal type="number">0</literal></expr></else></ternary></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>ret</name> <operator>==</operator> <call><name>AVERROR</name><argument_list>(<argument><expr><name>EAGAIN</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<decl_stmt><decl><type><name>uint8_t</name></type> <name>overflow_set</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_lock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>fifo</name><operator>-&gt;</operator><name>overflow_flag_lock</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>fifo</name><operator>-&gt;</operator><name>overflow_flag</name></name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name><name>fifo</name><operator>-&gt;</operator><name>overflow_flag</name></name> <operator>=</operator> <name>overflow_set</name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_unlock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>fifo</name><operator>-&gt;</operator><name>overflow_flag_lock</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>overflow_set</name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>av_log</name><argument_list>(<argument><expr><name>avf</name></expr></argument>, <argument><expr><name>AV_LOG_WARNING</name></expr></argument>, <argument><expr><literal type="string">"FIFO queue full\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<goto>goto <name>fail</name>;</goto>
+
+</block_content>}</block></if> <if type="elseif">else if <condition>(<expr><name>ret</name> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<goto>goto <name>fail</name>;</goto>
+
+</block_content>}</block></if></if_stmt>
+
+<return>return <expr><name>ret</name></expr>;</return>
+
+<label><name>fail</name>:</label>
+
+<if_stmt><if>if <condition>(<expr><name>pkt</name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>av_packet_unref</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>msg</name><operator>.</operator><name>pkt</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<return>return <expr><name>ret</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>fifo_write_trailer</name><parameter_list>(<parameter><decl><type><name>AVFormatContext</name> <modifier>*</modifier></type><name>avf</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>FifoContext</name> <modifier>*</modifier></type><name>fifo</name><init>= <expr><name><name>avf</name><operator>-&gt;</operator><name>priv_data</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>ret</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>av_thread_message_queue_set_err_recv</name><argument_list>(<argument><expr><name><name>fifo</name><operator>-&gt;</operator><name>queue</name></name></expr></argument>, <argument><expr><name>AVERROR_EOF</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <call><name>pthread_join</name><argument_list>(<argument><expr><name><name>fifo</name><operator>-&gt;</operator><name>writer_thread</name></name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>ret</name> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>av_log</name><argument_list>(<argument><expr><name>avf</name></expr></argument>, <argument><expr><name>AV_LOG_ERROR</name></expr></argument>, <argument><expr><literal type="string">"pthread join error: %s\n"</literal></expr></argument>,
+
+<argument><expr><call><name>av_err2str</name><argument_list>(<argument><expr><call><name>AVERROR</name><argument_list>(<argument><expr><name>ret</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><call><name>AVERROR</name><argument_list>(<argument><expr><name>ret</name></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <name><name>fifo</name><operator>-&gt;</operator><name>write_trailer_ret</name></name></expr>;</expr_stmt>
+
+<return>return <expr><name>ret</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>fifo_deinit</name><parameter_list>(<parameter><decl><type><name>AVFormatContext</name> <modifier>*</modifier></type><name>avf</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>FifoContext</name> <modifier>*</modifier></type><name>fifo</name> <init>= <expr><name><name>avf</name><operator>-&gt;</operator><name>priv_data</name></name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>avformat_free_context</name><argument_list>(<argument><expr><name><name>fifo</name><operator>-&gt;</operator><name>avf</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>av_thread_message_queue_free</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>fifo</name><operator>-&gt;</operator><name>queue</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>fifo</name><operator>-&gt;</operator><name>overflow_flag_lock_initialized</name></name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>pthread_mutex_destroy</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>fifo</name><operator>-&gt;</operator><name>overflow_flag_lock</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+</block_content>}</block></function>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>OFFSET</name><parameter_list>(<parameter><type><name>x</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>offsetof(FifoContext, x)</cpp:value></cpp:define>
+
+<decl_stmt><decl><type><specifier>static</specifier> <specifier>const</specifier> <name>AVOption</name></type> <name><name>options</name><index>[]</index></name> <init>= <expr><block>{
+
+<expr><block>{<expr><literal type="string">"fifo_format"</literal></expr>, <expr><literal type="string">"Target muxer"</literal></expr>, <expr><call><name>OFFSET</name><argument_list>(<argument><expr><name>format</name></expr></argument>)</argument_list></call></expr>,
+
+<expr><name>AV_OPT_TYPE_STRING</name></expr>, <expr><block>{<expr><operator>.</operator><name>str</name> <operator>=</operator> <name>NULL</name></expr>}</block></expr>, <expr><literal type="number">0</literal></expr>, <expr><literal type="number">0</literal></expr>, <expr><name>AV_OPT_FLAG_ENCODING_PARAM</name></expr>}</block></expr>,
+
+<expr><block>{<expr><literal type="string">"queue_size"</literal></expr>, <expr><literal type="string">"Size of fifo queue"</literal></expr>, <expr><call><name>OFFSET</name><argument_list>(<argument><expr><name>queue_size</name></expr></argument>)</argument_list></call></expr>,
+
+<expr><name>AV_OPT_TYPE_INT</name></expr>, <expr><block>{<expr><operator>.</operator><name>i64</name> <operator>=</operator> <name>FIFO_DEFAULT_QUEUE_SIZE</name></expr>}</block></expr>, <expr><literal type="number">1</literal></expr>, <expr><name>INT_MAX</name></expr>, <expr><name>AV_OPT_FLAG_ENCODING_PARAM</name></expr>}</block></expr>,
+
+<expr><block>{<expr><literal type="string">"format_opts"</literal></expr>, <expr><literal type="string">"Options to be passed to underlying muxer"</literal></expr>, <expr><call><name>OFFSET</name><argument_list>(<argument><expr><name>format_options</name></expr></argument>)</argument_list></call></expr>,
+
+<expr><name>AV_OPT_TYPE_DICT</name></expr>, <expr><block>{<expr><operator>.</operator><name>str</name> <operator>=</operator> <name>NULL</name></expr>}</block></expr>, <expr><literal type="number">0</literal></expr>, <expr><literal type="number">0</literal></expr>, <expr><name>AV_OPT_FLAG_ENCODING_PARAM</name></expr>}</block></expr>,
+
+<expr><block>{<expr><literal type="string">"drop_pkts_on_overflow"</literal></expr>, <expr><literal type="string">"Drop packets on fifo queue overflow not to block encoder"</literal></expr>, <expr><call><name>OFFSET</name><argument_list>(<argument><expr><name>drop_pkts_on_overflow</name></expr></argument>)</argument_list></call></expr>,
+
+<expr><name>AV_OPT_TYPE_BOOL</name></expr>, <expr><block>{<expr><operator>.</operator><name>i64</name> <operator>=</operator> <literal type="number">0</literal></expr>}</block></expr>, <expr><literal type="number">0</literal></expr>, <expr><literal type="number">1</literal></expr>, <expr><name>AV_OPT_FLAG_ENCODING_PARAM</name></expr>}</block></expr>,
+
+<expr><block>{<expr><literal type="string">"restart_with_keyframe"</literal></expr>, <expr><literal type="string">"Wait for keyframe when restarting output"</literal></expr>, <expr><call><name>OFFSET</name><argument_list>(<argument><expr><name>restart_with_keyframe</name></expr></argument>)</argument_list></call></expr>,
+
+<expr><name>AV_OPT_TYPE_BOOL</name></expr>, <expr><block>{<expr><operator>.</operator><name>i64</name> <operator>=</operator> <literal type="number">0</literal></expr>}</block></expr>, <expr><literal type="number">0</literal></expr>, <expr><literal type="number">1</literal></expr>, <expr><name>AV_OPT_FLAG_ENCODING_PARAM</name></expr>}</block></expr>,
+
+<expr><block>{<expr><literal type="string">"attempt_recovery"</literal></expr>, <expr><literal type="string">"Attempt recovery in case of failure"</literal></expr>, <expr><call><name>OFFSET</name><argument_list>(<argument><expr><name>attempt_recovery</name></expr></argument>)</argument_list></call></expr>,
+
+<expr><name>AV_OPT_TYPE_BOOL</name></expr>, <expr><block>{<expr><operator>.</operator><name>i64</name> <operator>=</operator> <literal type="number">0</literal></expr>}</block></expr>, <expr><literal type="number">0</literal></expr>, <expr><literal type="number">1</literal></expr>, <expr><name>AV_OPT_FLAG_ENCODING_PARAM</name></expr>}</block></expr>,
+
+<expr><block>{<expr><literal type="string">"max_recovery_attempts"</literal></expr>, <expr><literal type="string">"Maximal number of recovery attempts"</literal></expr>, <expr><call><name>OFFSET</name><argument_list>(<argument><expr><name>max_recovery_attempts</name></expr></argument>)</argument_list></call></expr>,
+
+<expr><name>AV_OPT_TYPE_INT</name></expr>, <expr><block>{<expr><operator>.</operator><name>i64</name> <operator>=</operator> <name>FIFO_DEFAULT_MAX_RECOVERY_ATTEMPTS</name></expr>}</block></expr>, <expr><literal type="number">0</literal></expr>, <expr><name>INT_MAX</name></expr>, <expr><name>AV_OPT_FLAG_ENCODING_PARAM</name></expr>}</block></expr>,
+
+<expr><block>{<expr><literal type="string">"recovery_wait_time"</literal></expr>, <expr><literal type="string">"Waiting time between recovery attempts"</literal></expr>, <expr><call><name>OFFSET</name><argument_list>(<argument><expr><name>recovery_wait_time</name></expr></argument>)</argument_list></call></expr>,
+
+<expr><name>AV_OPT_TYPE_DURATION</name></expr>, <expr><block>{<expr><operator>.</operator><name>i64</name> <operator>=</operator> <name>FIFO_DEFAULT_RECOVERY_WAIT_TIME_USEC</name></expr>}</block></expr>, <expr><literal type="number">0</literal></expr>, <expr><name>INT64_MAX</name></expr>, <expr><name>AV_OPT_FLAG_ENCODING_PARAM</name></expr>}</block></expr>,
+
+<expr><block>{<expr><literal type="string">"recovery_wait_streamtime"</literal></expr>, <expr><literal type="string">"Use stream time instead of real time while waiting for recovery"</literal></expr>,
+
+<expr><call><name>OFFSET</name><argument_list>(<argument><expr><name>recovery_wait_streamtime</name></expr></argument>)</argument_list></call></expr>, <expr><name>AV_OPT_TYPE_BOOL</name></expr>, <expr><block>{<expr><operator>.</operator><name>i64</name> <operator>=</operator> <literal type="number">0</literal></expr>}</block></expr>, <expr><literal type="number">0</literal></expr>, <expr><literal type="number">1</literal></expr>, <expr><name>AV_OPT_FLAG_ENCODING_PARAM</name></expr>}</block></expr>,
+
+<expr><block>{<expr><literal type="string">"recover_any_error"</literal></expr>, <expr><literal type="string">"Attempt recovery regardless of type of the error"</literal></expr>, <expr><call><name>OFFSET</name><argument_list>(<argument><expr><name>recover_any_error</name></expr></argument>)</argument_list></call></expr>,
+
+<expr><name>AV_OPT_TYPE_BOOL</name></expr>, <expr><block>{<expr><operator>.</operator><name>i64</name> <operator>=</operator> <literal type="number">0</literal></expr>}</block></expr>, <expr><literal type="number">0</literal></expr>, <expr><literal type="number">1</literal></expr>, <expr><name>AV_OPT_FLAG_ENCODING_PARAM</name></expr>}</block></expr>,
+
+<expr><block>{<expr><name>NULL</name></expr>}</block></expr>,
+
+}</block></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <specifier>const</specifier> <name>AVClass</name></type> <name>fifo_muxer_class</name> <init>= <expr><block>{
+
+<expr><operator>.</operator><name>class_name</name> <operator>=</operator> <literal type="string">"Fifo muxer"</literal></expr>,
+
+<expr><operator>.</operator><name>item_name</name> <operator>=</operator> <name>av_default_item_name</name></expr>,
+
+<expr><operator>.</operator><name>option</name> <operator>=</operator> <name>options</name></expr>,
+
+<expr><operator>.</operator><name>version</name> <operator>=</operator> <name>LIBAVUTIL_VERSION_INT</name></expr>,
+
+}</block></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>AVOutputFormat</name></type> <name>ff_fifo_muxer</name> <init>= <expr><block>{
+
+<expr><operator>.</operator><name>name</name> <operator>=</operator> <literal type="string">"fifo"</literal></expr>,
+
+<expr><operator>.</operator><name>long_name</name> <operator>=</operator> <call><name>NULL_IF_CONFIG_SMALL</name><argument_list>(<argument><expr><literal type="string">"FIFO queue pseudo-muxer"</literal></expr></argument>)</argument_list></call></expr>,
+
+<expr><operator>.</operator><name>priv_data_size</name> <operator>=</operator> <sizeof>sizeof<argument_list>(<argument><expr><name>FifoContext</name></expr></argument>)</argument_list></sizeof></expr>,
+
+<expr><operator>.</operator><name>init</name> <operator>=</operator> <name>fifo_init</name></expr>,
+
+<expr><operator>.</operator><name>write_header</name> <operator>=</operator> <name>fifo_write_header</name></expr>,
+
+<expr><operator>.</operator><name>write_packet</name> <operator>=</operator> <name>fifo_write_packet</name></expr>,
+
+<expr><operator>.</operator><name>write_trailer</name> <operator>=</operator> <name>fifo_write_trailer</name></expr>,
+
+<expr><operator>.</operator><name>deinit</name> <operator>=</operator> <name>fifo_deinit</name></expr>,
+
+<expr><operator>.</operator><name>priv_class</name> <operator>=</operator> <operator>&amp;</operator><name>fifo_muxer_class</name></expr>,
+
+<expr><operator>.</operator><name>flags</name> <operator>=</operator> <name>AVFMT_NOFILE</name> <operator>|</operator> <name>AVFMT_ALLOW_FLUSH</name> <operator>|</operator> <name>AVFMT_TS_NEGATIVE</name></expr>,
+
+}</block></expr></init></decl>;</decl_stmt>
+
+</unit>

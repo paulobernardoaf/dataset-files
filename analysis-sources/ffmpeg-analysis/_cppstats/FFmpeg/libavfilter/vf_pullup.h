@@ -1,0 +1,42 @@
+#include "avfilter.h"
+typedef struct PullupBuffer {
+int lock[2];
+uint8_t *planes[4];
+} PullupBuffer;
+typedef struct PullupField {
+int parity;
+PullupBuffer *buffer;
+unsigned flags;
+int breaks;
+int affinity;
+int *diffs;
+int *combs;
+int *vars;
+struct PullupField *prev, *next;
+} PullupField;
+typedef struct PullupFrame {
+int lock;
+int length;
+int parity;
+PullupBuffer *ifields[4], *ofields[2];
+PullupBuffer *buffer;
+} PullupFrame;
+typedef struct PullupContext {
+const AVClass *class;
+int junk_left, junk_right, junk_top, junk_bottom;
+int metric_plane;
+int strict_breaks;
+int strict_pairs;
+int metric_w, metric_h, metric_length;
+int metric_offset;
+int nb_planes;
+int planewidth[4];
+int planeheight[4];
+PullupField *first, *last, *head;
+PullupBuffer buffers[10];
+PullupFrame frame;
+int (*diff)(const uint8_t *a, const uint8_t *b, ptrdiff_t s);
+int (*comb)(const uint8_t *a, const uint8_t *b, ptrdiff_t s);
+int (*var )(const uint8_t *a, const uint8_t *b, ptrdiff_t s);
+} PullupContext;
+void ff_pullup_init_x86(PullupContext *s);

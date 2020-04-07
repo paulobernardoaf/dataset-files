@@ -1,0 +1,573 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" revision="1.0.0" language="C" filename="D:\Pesquisa\Projects\radare2-analysis\_cppstats_featurelocations\radare2\libr\debug\p\debug_bochs.c">
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;r_asm.h&gt;</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;r_debug.h&gt;</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;libbochs.h&gt;</cpp:file></cpp:include>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>bool</name></type> <name>bCapturaRegs</name> <init>= <expr><name>true</name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><specifier>static</specifier> <name>bool</name></type> <name>bStep</name> <init>= <expr><name>false</name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><specifier>static</specifier> <name>bool</name></type> <name>bBreak</name> <init>= <expr><name>false</name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><specifier>static</specifier> <name>bool</name></type> <name>bAjusta</name> <init>= <expr><name>true</name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><specifier>static</specifier> <name>char</name> <modifier>*</modifier></type><name>saveRegs</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><specifier>static</specifier> <name>ut64</name></type> <name>ripStop</name> <init>= <expr><literal type="number">0LL</literal></expr></init></decl>;</decl_stmt>
+
+<typedef>typedef <type><struct>struct <block>{
+<decl_stmt><decl><type><name>libbochs_t</name></type> <name>desc</name></decl>;</decl_stmt>
+}</block></struct></type> <name>RIOBochs</name>;</typedef>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>libbochs_t</name> <modifier>*</modifier></type><name>desc</name> <init>= <expr><name>NULL</name></expr></init></decl>;</decl_stmt>
+
+<function><type><specifier>static</specifier> <name>bool</name></type> <name>isBochs</name><parameter_list>(<parameter><decl><type><name>RDebug</name> <modifier>*</modifier></type><name>dbg</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<decl_stmt><decl><type><name>RIODesc</name> <modifier>*</modifier></type><name>d</name> <init>= <expr><name><name>dbg</name><operator>-&gt;</operator><name>iob</name><operator>.</operator><name>io</name><operator>-&gt;</operator><name>desc</name></name></expr></init></decl>;</decl_stmt>
+<if_stmt><if>if <condition>(<expr><name>d</name> <operator>&amp;&amp;</operator> <name><name>d</name><operator>-&gt;</operator><name>plugin</name></name> <operator>&amp;&amp;</operator> <name><name>d</name><operator>-&gt;</operator><name>plugin</name><operator>-&gt;</operator><name>name</name></name></expr>)</condition> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>strcmp</name> <argument_list>(<argument><expr><literal type="string">"bochs"</literal></expr></argument>, <argument><expr><name><name>d</name><operator>-&gt;</operator><name>plugin</name><operator>-&gt;</operator><name>name</name></name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+<return>return <expr><name>true</name></expr>;</return>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block></if></if_stmt>
+<expr_stmt><expr><call><name>eprintf</name> <argument_list>(<argument><expr><literal type="string">"error: the iodesc data is not bochs friendly\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>false</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>r_debug_bochs_breakpoint</name> <parameter_list>(<parameter><decl><type><name>RBreakpoint</name> <modifier>*</modifier></type><name>bp</name></decl></parameter>, <parameter><decl><type><name>RBreakpointItem</name> <modifier>*</modifier></type><name>b</name></decl></parameter>, <parameter><decl><type><name>bool</name></type> <name>set</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<decl_stmt><decl><type><name>char</name></type> <name><name>cmd</name><index>[<expr><literal type="number">64</literal></expr>]</index></name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>char</name></type> <name><name>num</name><index>[<expr><literal type="number">4</literal></expr>]</index></name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>char</name></type> <name><name>addr</name><index>[<expr><literal type="number">19</literal></expr>]</index></name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>char</name></type> <name><name>bufcmd</name><index>[<expr><literal type="number">100</literal></expr>]</index></name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>ut64</name></type> <name>a</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>n</name></decl>,<decl><type ref="prev"/><name>i</name></decl>,<decl><type ref="prev"/><name>lenRec</name></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>b</name></expr>)</condition> <block>{<block_content>
+<return>return <expr><name>false</name></expr>;</return>
+</block_content>}</block></if></if_stmt>
+<if_stmt><if>if <condition>(<expr><name>set</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>sprintf</name> <argument_list>(<argument><expr><name>cmd</name></expr></argument>, <argument><expr><literal type="string">"lb 0x%x"</literal></expr></argument>, <argument><expr><operator>(</operator><name>ut32</name><operator>)</operator><name><name>b</name><operator>-&gt;</operator><name>addr</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>bochs_send_cmd</name> <argument_list>(<argument><expr><name>desc</name></expr></argument>, <argument><expr><name>cmd</name></expr></argument>, <argument><expr><name>true</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>bCapturaRegs</name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+
+
+
+
+
+
+<expr_stmt><expr><call><name>bochs_send_cmd</name> <argument_list>(<argument><expr><name>desc</name></expr></argument>,<argument><expr><literal type="string">"blist"</literal></expr></argument>,<argument><expr><name>true</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>lenRec</name> <operator>=</operator> <call><name>strlen</name> <argument_list>(<argument><expr><name><name>desc</name><operator>-&gt;</operator><name>data</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>a</name> <operator>=</operator> <operator>-</operator><literal type="number">1</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name>n</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>strncmp</name> <argument_list>(<argument><expr><name><name>desc</name><operator>-&gt;</operator><name>data</name></name></expr></argument>, <argument><expr><literal type="string">"Num Type"</literal></expr></argument>, <argument><expr><literal type="number">8</literal></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name>i</name> <operator>=</operator> <literal type="number">37</literal></expr>;</expr_stmt>
+<do>do <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name><name>desc</name><operator>-&gt;</operator><name>data</name><index>[<expr><name>i</name> <operator>+</operator> <literal type="number">24</literal></expr>]</index></name> <operator>==</operator> <literal type="char">'y'</literal></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>strncpy</name><argument_list>(<argument><expr><name>num</name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>desc</name><operator>-&gt;</operator><name>data</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>, <argument><expr><literal type="number">3</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>num</name><index>[<expr><literal type="number">3</literal></expr>]</index></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>strncpy</name><argument_list>(<argument><expr><name>addr</name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>desc</name><operator>-&gt;</operator><name>data</name><index>[<expr><name>i</name> <operator>+</operator> <literal type="number">28</literal></expr>]</index></name></expr></argument>, <argument><expr><literal type="number">18</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>addr</name><index>[<expr><literal type="number">18</literal></expr>]</index></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name>n</name> <operator>=</operator> <call><name>r_num_get</name> <argument_list>(<argument><expr><name>NULL</name></expr></argument>,<argument><expr><name>num</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>a</name> <operator>=</operator> <call><name>r_num_get</name> <argument_list>(<argument><expr><name>NULL</name></expr></argument>,<argument><expr><name>addr</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>a</name> <operator>==</operator> <name><name>b</name><operator>-&gt;</operator><name>addr</name></name></expr>)</condition> <block>{<block_content>
+<break>break;</break>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block></if></if_stmt>
+<expr_stmt><expr><name>i</name> <operator>+=</operator> <literal type="number">48</literal></expr>;</expr_stmt>
+</block_content>}</block> while <condition>(<expr><name><name>desc</name><operator>-&gt;</operator><name>data</name><index>[<expr><name>i</name></expr>]</index></name> <operator>!=</operator> <literal type="char">'&lt;'</literal> <operator>&amp;&amp;</operator> <name>i</name><operator>&lt;</operator><name>lenRec</name><operator>-</operator><literal type="number">4</literal></expr>)</condition>;</do>
+</block_content>}</block></if></if_stmt>
+<if_stmt><if>if <condition>(<expr><name>a</name> <operator>==</operator> <name><name>b</name><operator>-&gt;</operator><name>addr</name></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>snprintf</name> <argument_list>(<argument><expr><name>bufcmd</name></expr></argument>, <argument><expr><sizeof>sizeof <argument_list>(<argument><expr><name>bufcmd</name></expr></argument>)</argument_list></sizeof></expr></argument>, <argument><expr><literal type="string">"d %i"</literal></expr></argument>, <argument><expr><name>n</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>bochs_send_cmd</name> <argument_list>(<argument><expr><name>desc</name></expr></argument>, <argument><expr><name>bufcmd</name></expr></argument>, <argument><expr><name>true</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></else></if_stmt>
+<return>return <expr><name>true</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>r_debug_bochs_reg_read</name><parameter_list>(<parameter><decl><type><name>RDebug</name> <modifier>*</modifier></type><name>dbg</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>type</name></decl></parameter>, <parameter><decl><type><name>ut8</name> <modifier>*</modifier></type><name>buf</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>size</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<decl_stmt><decl><type><name>char</name></type> <name><name>strReg</name><index>[<expr><literal type="number">19</literal></expr>]</index></name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>char</name></type> <name><name>regname</name><index>[<expr><literal type="number">4</literal></expr>]</index></name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>char</name></type> <name><name>strBase</name><index>[<expr><literal type="number">19</literal></expr>]</index></name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>char</name></type> <name><name>strLimit</name><index>[<expr><literal type="number">19</literal></expr>]</index></name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>i</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>, <decl><type ref="prev"/><name>pos</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>, <decl><type ref="prev"/><name>lenRec</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>ut64</name></type> <name>val</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>, <decl><type ref="prev"/><name>valRIP</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt> 
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>isBochs</name> <argument_list>(<argument><expr><name>dbg</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+</block_content>}</block></if></if_stmt>
+
+
+<if_stmt><if>if <condition>(<expr><name>bCapturaRegs</name> <operator>==</operator> <name>true</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>bochs_send_cmd</name> <argument_list>(<argument><expr><name>desc</name></expr></argument>, <argument><expr><literal type="string">"regs"</literal></expr></argument>, <argument><expr><name>true</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+
+
+
+<expr_stmt><expr><name>pos</name> <operator>=</operator> <literal type="number">0x78</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name>lenRec</name> <operator>=</operator> <call><name>strlen</name> <argument_list>(<argument><expr><name><name>desc</name><operator>-&gt;</operator><name>data</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<while>while <condition>(<expr><name><name>desc</name><operator>-&gt;</operator><name>data</name><index>[<expr><name>i</name></expr>]</index></name> <operator>!=</operator> <literal type="number">0</literal> <operator>&amp;&amp;</operator> <name>i</name> <operator>&lt;</operator> <name>lenRec</name> <operator>-</operator><literal type="number">4</literal></expr> )</condition> <block>{<block_content>
+<if_stmt><if>if <condition>( <expr><operator>(</operator><name><name>desc</name><operator>-&gt;</operator><name>data</name><index>[<expr><name>i</name></expr>]</index></name> <operator>==</operator> <operator>(</operator><name>ut8</name><operator>)</operator><literal type="char">'r'</literal> <operator>&amp;&amp;</operator> <name><name>desc</name><operator>-&gt;</operator><name>data</name><index>[<expr><name>i</name> <operator>+</operator> <literal type="number">3</literal></expr>]</index></name> <operator>==</operator> <operator>(</operator><name>ut8</name><operator>)</operator><literal type="char">':'</literal><operator>)</operator></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>strncpy</name> <argument_list>(<argument><expr><name>regname</name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>desc</name><operator>-&gt;</operator><name>data</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>, <argument><expr><literal type="number">3</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>regname</name><index>[<expr><literal type="number">3</literal></expr>]</index></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>strncpy</name> <argument_list>(<argument><expr><operator>&amp;</operator><name><name>strReg</name><index>[<expr><literal type="number">2</literal></expr>]</index></name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>desc</name><operator>-&gt;</operator><name>data</name><index>[<expr><name>i</name> <operator>+</operator> <literal type="number">5</literal></expr>]</index></name></expr></argument>, <argument><expr><literal type="number">8</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>strncpy</name> <argument_list>(<argument><expr><operator>&amp;</operator><name><name>strReg</name><index>[<expr><literal type="number">10</literal></expr>]</index></name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>desc</name><operator>-&gt;</operator><name>data</name><index>[<expr><name>i</name> <operator>+</operator> <literal type="number">14</literal></expr>]</index></name></expr></argument>, <argument><expr><literal type="number">8</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>strReg</name><index>[<expr><literal type="number">0</literal></expr>]</index></name><operator>=</operator><literal type="char">'0'</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>strReg</name><index>[<expr><literal type="number">1</literal></expr>]</index></name><operator>=</operator><literal type="char">'x'</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>strReg</name><index>[<expr><literal type="number">18</literal></expr>]</index></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name>i</name> <operator>+=</operator> <literal type="number">22</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name>val</name> <operator>=</operator> <call><name>r_num_get</name> <argument_list>(<argument><expr><name>NULL</name></expr></argument>, <argument><expr><name>strReg</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>memcpy</name> <argument_list>(<argument><expr><operator>&amp;</operator><name><name>buf</name><index>[<expr><name>pos</name></expr>]</index></name></expr></argument>, <argument><expr><operator>&amp;</operator><name>val</name></expr></argument>, <argument><expr><literal type="number">8</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>strncmp</name> <argument_list>(<argument><expr><name>regname</name></expr></argument>, <argument><expr><literal type="string">"rip"</literal></expr></argument>, <argument><expr><literal type="number">3</literal></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>valRIP</name> <operator>=</operator> <name>val</name></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+<expr_stmt><expr><name>pos</name><operator>+=</operator> <literal type="number">8</literal></expr>;</expr_stmt>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+<expr_stmt><expr><name>i</name><operator>++</operator></expr>;</expr_stmt>
+</block_content>}</block></else></if_stmt>
+</block_content>}</block></while>
+
+<expr_stmt><expr><call><name>bochs_send_cmd</name> <argument_list>(<argument><expr><name>desc</name></expr></argument>, <argument><expr><literal type="string">"info cpu"</literal></expr></argument>, <argument><expr><name>true</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><call><name>strstr</name> <argument_list>(<argument><expr><name><name>desc</name><operator>-&gt;</operator><name>data</name></name></expr></argument>,<argument><expr><literal type="string">"PC_32"</literal></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name>bAjusta</name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+
+</block_content>}</block></if> <if type="elseif">else if <condition>(<expr><call><name>strstr</name> <argument_list>(<argument><expr><name><name>desc</name><operator>-&gt;</operator><name>data</name></name></expr></argument>,<argument><expr><literal type="string">"PC_80"</literal></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name>bAjusta</name> <operator>=</operator> <name>false</name></expr>;</expr_stmt>
+
+</block_content>}</block></if> <if type="elseif">else if <condition>(<expr><call><name>strstr</name> <argument_list>(<argument><expr><name><name>desc</name><operator>-&gt;</operator><name>data</name></name></expr></argument>,<argument><expr><literal type="string">"PC_64"</literal></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name>bAjusta</name> <operator>=</operator> <name>false</name></expr>;</expr_stmt>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+<expr_stmt><expr><call><name>eprintf</name> <argument_list>(<argument><expr><literal type="string">"[unknown mode]\n%s\n"</literal></expr></argument>, <argument><expr><name><name>desc</name><operator>-&gt;</operator><name>data</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></else></if_stmt>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<expr_stmt><expr><call><name>bochs_send_cmd</name> <argument_list>(<argument><expr><name>desc</name></expr></argument>, <argument><expr><literal type="string">"sreg"</literal></expr></argument>, <argument><expr><name>true</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>pos</name> <operator>=</operator> <literal type="number">0x38</literal></expr>;</expr_stmt>
+<decl_stmt><decl><type><name>char</name> <modifier>*</modifier></type> <name><name>s</name> <index>[]</index></name> <init>= <expr><block>{ <expr><literal type="string">"es:0x"</literal></expr>, <expr><literal type="string">"cs:0x"</literal></expr>,<expr><literal type="string">"ss:0x"</literal></expr>,<expr><literal type="string">"ds:0x"</literal></expr>,<expr><literal type="string">"fs:0x"</literal></expr>,<expr><literal type="string">"gs:0x"</literal></expr>,<expr><literal type="number">0</literal></expr>}</block></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>x</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>n</name></decl>;</decl_stmt>
+<for>for <control>(<init><expr><name>n</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name><name>s</name><index>[<expr><name>n</name></expr>]</index></name> <operator>!=</operator> <literal type="number">0</literal></expr>;</condition> <incr><expr><name>n</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><operator>(</operator><name>x</name> <operator>=</operator> <call><name>strstr</name> <argument_list>(<argument><expr><name><name>desc</name><operator>-&gt;</operator><name>data</name></name></expr></argument>,<argument><expr><name><name>s</name><index>[<expr><name>n</name></expr>]</index></name></expr></argument>)</argument_list></call><operator>)</operator></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>strncpy</name> <argument_list>(<argument><expr><operator>&amp;</operator><name><name>strReg</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>, <argument><expr><name>x</name><operator>+</operator><literal type="number">3</literal></expr></argument>, <argument><expr><literal type="number">7</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>strReg</name><index>[<expr><literal type="number">6</literal></expr>]</index></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name>val</name> <operator>=</operator> <call><name>r_num_get</name> <argument_list>(<argument><expr><name>NULL</name></expr></argument>, <argument><expr><name>strReg</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>strncpy</name> <argument_list>(<argument><expr><name>regname</name></expr></argument>, <argument><expr><name><name>s</name><index>[<expr><name>n</name></expr>]</index></name></expr></argument>, <argument><expr><literal type="number">2</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>regname</name><index>[<expr><literal type="number">2</literal></expr>]</index></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><operator>(</operator><name>x</name> <operator>=</operator> <call><name>strstr</name> <argument_list>(<argument><expr><name>x</name></expr></argument>, <argument><expr><literal type="string">"base="</literal></expr></argument>)</argument_list></call><operator>)</operator></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>strncpy</name> <argument_list>(<argument><expr><name>strBase</name></expr></argument>, <argument><expr><name>x</name> <operator>+</operator> <literal type="number">5</literal></expr></argument>, <argument><expr><literal type="number">10</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>strBase</name><index>[<expr><literal type="number">10</literal></expr>]</index></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><operator>(</operator><name>x</name> <operator>=</operator> <call><name>strstr</name> <argument_list>(<argument><expr><name>x</name></expr></argument>, <argument><expr><literal type="string">"limit="</literal></expr></argument>)</argument_list></call><operator>)</operator></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>strncpy</name> <argument_list>(<argument><expr><name>strLimit</name></expr></argument>, <argument><expr><name>x</name> <operator>+</operator> <literal type="number">6</literal></expr></argument>, <argument><expr><literal type="number">10</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>strLimit</name><index>[<expr><literal type="number">10</literal></expr>]</index></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>memcpy</name> <argument_list>(<argument><expr><operator>&amp;</operator><name><name>buf</name><index>[<expr><name>pos</name></expr>]</index></name></expr></argument>, <argument><expr><operator>&amp;</operator><name>val</name></expr></argument>, <argument><expr><literal type="number">2</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>pos</name> <operator>+=</operator> <literal type="number">2</literal></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name>bAjusta</name></expr>)</condition> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>strncmp</name> <argument_list>(<argument><expr><name>regname</name></expr></argument>,<argument><expr><literal type="string">"cs"</literal></expr></argument>,<argument><expr><literal type="number">2</literal></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name>valRIP</name> <operator>+=</operator> <operator>(</operator><name>val</name><operator>*</operator><literal type="number">0x10</literal><operator>)</operator></expr>;</expr_stmt> 
+
+</block_content>}</block></if></if_stmt>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block></for>
+
+<if_stmt><if>if <condition>(<expr><name>ripStop</name> <operator>!=</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>memcpy</name> <argument_list>(<argument><expr><operator>&amp;</operator><name><name>buf</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>, <argument><expr><operator>&amp;</operator><name>ripStop</name></expr></argument>, <argument><expr><literal type="number">8</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<expr_stmt><expr><call><name>memcpy</name> <argument_list>(<argument><expr><operator>&amp;</operator><name><name>buf</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>, <argument><expr><operator>&amp;</operator><name>valRIP</name></expr></argument>, <argument><expr><literal type="number">8</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt> 
+</block_content>}</block></else></if_stmt>
+
+<expr_stmt><expr><call><name>memcpy</name> <argument_list>(<argument><expr><name>saveRegs</name></expr></argument>,<argument><expr><name>buf</name></expr></argument>,<argument><expr><name>size</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>bCapturaRegs</name> <operator>=</operator> <name>false</name></expr>;</expr_stmt>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+<expr_stmt><expr><call><name>memcpy</name> <argument_list>(<argument><expr><name>buf</name></expr></argument>, <argument><expr><name>saveRegs</name></expr></argument>, <argument><expr><name>size</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+<return>return <expr><name>size</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>r_debug_bochs_reg_write</name><parameter_list>(<parameter><decl><type><name>RDebug</name> <modifier>*</modifier></type><name>dbg</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>type</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>ut8</name> <modifier>*</modifier></type><name>buf</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>size</name></decl></parameter>)</parameter_list> <block>{<block_content>
+
+<return>return <expr><operator>-</operator><literal type="number">1</literal></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><name>void</name></type> <name>map_free</name><parameter_list>(<parameter><decl><type><name>RDebugMap</name> <modifier>*</modifier></type><name>map</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<expr_stmt><expr><call><name>free</name> <argument_list>(<argument><expr><name><name>map</name><operator>-&gt;</operator><name>name</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>free</name> <argument_list>(<argument><expr><name>map</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>RList</name> <modifier>*</modifier></type><name>r_debug_bochs_map_get</name><parameter_list>(<parameter><decl><type><name>RDebug</name><modifier>*</modifier></type> <name>dbg</name></decl></parameter>)</parameter_list> <block>{<block_content> 
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>isBochs</name> <argument_list>(<argument><expr><name>dbg</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+<return>return <expr><name>NULL</name></expr>;</return>
+</block_content>}</block></if></if_stmt>
+
+<decl_stmt><decl><type><name>RDebugMap</name> <modifier>*</modifier></type><name>mr</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>RList</name> <modifier>*</modifier></type><name>list</name> <init>= <expr><call><name>r_list_newf</name> <argument_list>(<argument><expr><operator>(</operator><name>RListFree</name><operator>)</operator><name>map_free</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>list</name></expr>)</condition> <block>{<block_content>
+<return>return <expr><name>NULL</name></expr>;</return>
+</block_content>}</block></if></if_stmt>
+<expr_stmt><expr><name>mr</name> <operator>=</operator> <call><name>R_NEW0</name> <argument_list>(<argument><expr><name>RDebugMap</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>mr</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>r_list_free</name> <argument_list>(<argument><expr><name>list</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>NULL</name></expr>;</return>
+</block_content>}</block></if></if_stmt>
+<expr_stmt><expr><name><name>mr</name><operator>-&gt;</operator><name>name</name></name> <operator>=</operator> <call><name>strdup</name> <argument_list>(<argument><expr><literal type="string">"fake"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>mr</name><operator>-&gt;</operator><name>addr</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>mr</name><operator>-&gt;</operator><name>addr_end</name></name> <operator>=</operator> <name>UT32_MAX</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>mr</name><operator>-&gt;</operator><name>size</name></name> <operator>=</operator> <name>UT32_MAX</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>mr</name><operator>-&gt;</operator><name>perm</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>mr</name><operator>-&gt;</operator><name>user</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>r_list_append</name> <argument_list>(<argument><expr><name>list</name></expr></argument>, <argument><expr><name>mr</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>list</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>r_debug_bochs_step</name><parameter_list>(<parameter><decl><type><name>RDebug</name> <modifier>*</modifier></type><name>dbg</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>isBochs</name> <argument_list>(<argument><expr><name>dbg</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+<return>return <expr><name>false</name></expr>;</return>
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>bochs_send_cmd</name> <argument_list>(<argument><expr><name>desc</name></expr></argument>,<argument><expr><literal type="string">"s"</literal></expr></argument>,<argument><expr><name>true</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>bCapturaRegs</name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+<expr_stmt><expr><name>bStep</name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+<return>return <expr><name>true</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>r_debug_bochs_continue</name><parameter_list>(<parameter><decl><type><name>RDebug</name> <modifier>*</modifier></type><name>dbg</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>pid</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>tid</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>sig</name></decl></parameter>)</parameter_list> <block>{<block_content>
+
+<expr_stmt><expr><call><name>bochs_send_cmd</name> <argument_list>(<argument><expr><name>desc</name></expr></argument>, <argument><expr><literal type="string">"c"</literal></expr></argument>, <argument><expr><name>false</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>bCapturaRegs</name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+<expr_stmt><expr><name>bBreak</name> <operator>=</operator> <name>false</name></expr>;</expr_stmt>
+<return>return <expr><name>true</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>bochs_debug_break</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>u</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<expr_stmt><expr><call><name>eprintf</name><argument_list>(<argument><expr><literal type="string">"bochs_debug_break: Sending break...\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>bochs_cmd_stop</name> <argument_list>(<argument><expr><name>desc</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>bBreak</name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>r_debug_bochs_wait</name><parameter_list>(<parameter><decl><type><name>RDebug</name> <modifier>*</modifier></type><name>dbg</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>pid</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>isBochs</name> <argument_list>(<argument><expr><name>dbg</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+<return>return <expr><name>false</name></expr>;</return>
+</block_content>}</block></if></if_stmt>
+<decl_stmt><decl><type><name>char</name></type> <name><name>strIP</name><index>[<expr><literal type="number">19</literal></expr>]</index></name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>i</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>x</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>char</name> <modifier>*</modifier></type><name>ini</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>, <decl><type ref="prev"><modifier>*</modifier></type><name>fin</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+
+
+
+<if_stmt><if>if <condition>(<expr><name>bStep</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name>bStep</name> <operator>=</operator> <name>false</name></expr>;</expr_stmt>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<expr_stmt><expr><call><name>r_cons_break_push</name> <argument_list>(<argument><expr><name>bochs_debug_break</name></expr></argument>, <argument><expr><name>dbg</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>i</name> <operator>=</operator> <literal type="number">500</literal></expr>;</expr_stmt>
+<do>do <block>{<block_content>
+<expr_stmt><expr><call><name>bochs_wait</name> <argument_list>(<argument><expr><name>desc</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name>bBreak</name></expr>)</condition> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name><name>desc</name><operator>-&gt;</operator><name>data</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>eprintf</name> <argument_list>(<argument><expr><literal type="string">"ctrl+c %s\n"</literal></expr></argument>, <argument><expr><name><name>desc</name><operator>-&gt;</operator><name>data</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>bBreak</name> <operator>=</operator> <name>false</name></expr>;</expr_stmt>
+<break>break;</break>
+</block_content>}</block></if></if_stmt>
+<expr_stmt><expr><name>i</name><operator>--</operator></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>i</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name>bBreak</name> <operator>=</operator> <name>false</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>eprintf</name> <argument_list>(<argument><expr><literal type="string">"empty ctrl+c.\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block></if> <if type="elseif">else if <condition>(<expr><name><name>desc</name><operator>-&gt;</operator><name>data</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr>)</condition> <block>{<block_content>
+
+<break>break;</break>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block> while<condition>(<expr><literal type="number">1</literal></expr>)</condition>;</do>
+<expr_stmt><expr><call><name>r_cons_break_pop</name> <argument_list>()</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></else></if_stmt>
+
+
+
+<expr_stmt><expr><name>ripStop</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><operator>(</operator><name>x</name> <operator>=</operator> <call><name>strstr</name> <argument_list>(<argument><expr><name><name>desc</name><operator>-&gt;</operator><name>data</name></name></expr></argument>, <argument><expr><literal type="string">"Next at"</literal></expr></argument>)</argument_list></call><operator>)</operator></expr>)</condition> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><operator>(</operator><name>ini</name> <operator>=</operator> <call><name>strstr</name> <argument_list>(<argument><expr><name>x</name></expr></argument>, <argument><expr><literal type="string">"[0x"</literal></expr></argument>)</argument_list></call><operator>)</operator></expr>)</condition> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><operator>(</operator><name>fin</name> <operator>=</operator> <call><name>strchr</name> <argument_list>(<argument><expr><name>ini</name></expr></argument>, <argument><expr><literal type="char">']'</literal></expr></argument>)</argument_list></call><operator>)</operator></expr>)</condition> <block>{<block_content>
+<decl_stmt><decl><type><name>int</name></type> <name>len</name> <init>= <expr><name>fin</name> <operator>-</operator> <name>ini</name> <operator>-</operator> <literal type="number">1</literal></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><call><name>strncpy</name> <argument_list>(<argument><expr><name>strIP</name></expr></argument>, <argument><expr><name>ini</name><operator>+</operator><literal type="number">1</literal></expr></argument>, <argument><expr><name>len</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>strIP</name><index>[<expr><name>len</name></expr>]</index></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>ripStop</name> <operator>=</operator> <call><name>r_num_get</name> <argument_list>(<argument><expr><name>NULL</name></expr></argument>, <argument><expr><name>strIP</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block></if></if_stmt>
+<expr_stmt><expr><name><name>desc</name><operator>-&gt;</operator><name>data</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<return>return <expr><name>true</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>r_debug_bochs_stop</name><parameter_list>(<parameter><decl><type><name>RDebug</name> <modifier>*</modifier></type><name>dbg</name></decl></parameter>)</parameter_list> <block>{<block_content>
+
+
+
+
+<return>return <expr><name>true</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>r_debug_bochs_attach</name><parameter_list>(<parameter><decl><type><name>RDebug</name> <modifier>*</modifier></type><name>dbg</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>pid</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<decl_stmt><decl><type><name>RIODesc</name> <modifier>*</modifier></type><name>d</name> <init>= <expr><name><name>dbg</name><operator>-&gt;</operator><name>iob</name><operator>.</operator><name>io</name><operator>-&gt;</operator><name>desc</name></name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>dbg</name><operator>-&gt;</operator><name>swstep</name></name> <operator>=</operator> <name>false</name></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name>d</name> <operator>&amp;&amp;</operator> <name><name>d</name><operator>-&gt;</operator><name>plugin</name></name> <operator>&amp;&amp;</operator> <name><name>d</name><operator>-&gt;</operator><name>plugin</name><operator>-&gt;</operator><name>name</name></name> <operator>&amp;&amp;</operator> <name><name>d</name><operator>-&gt;</operator><name>data</name></name></expr>)</condition> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>strcmp</name> <argument_list>(<argument><expr><literal type="string">"bochs"</literal></expr></argument>, <argument><expr><name><name>d</name><operator>-&gt;</operator><name>plugin</name><operator>-&gt;</operator><name>name</name></name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+<decl_stmt><decl><type><name>RIOBochs</name> <modifier>*</modifier></type><name>g</name> <init>= <expr><name><name>d</name><operator>-&gt;</operator><name>data</name></name></expr></init></decl>;</decl_stmt>
+
+
+<if_stmt><if>if <condition>(<expr><operator>(</operator> <name>desc</name> <operator>=</operator> <operator>&amp;</operator><name><name>g</name><operator>-&gt;</operator><name>desc</name></name> <operator>)</operator></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>eprintf</name><argument_list>(<argument><expr><literal type="string">"bochs attach: ok\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>saveRegs</name> <operator>=</operator> <call><name>malloc</name><argument_list>(<argument><expr><literal type="number">1024</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>bCapturaRegs</name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+<expr_stmt><expr><name>bStep</name> <operator>=</operator> <name>false</name></expr>;</expr_stmt>
+<expr_stmt><expr><name>bBreak</name> <operator>=</operator> <name>false</name></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block></if></if_stmt>
+<return>return <expr><name>true</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>r_debug_bochs_detach</name><parameter_list>(<parameter><decl><type><name>RDebug</name> <modifier>*</modifier></type><name>dbg</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>pid</name></decl></parameter>)</parameter_list> <block>{<block_content>
+
+<expr_stmt><expr><call><name>free</name> <argument_list>(<argument><expr><name>saveRegs</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>true</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>r_debug_bochs_reg_profile</name><parameter_list>(<parameter><decl><type><name>RDebug</name> <modifier>*</modifier></type><name>dbg</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<decl_stmt><decl><type><name>int</name></type> <name>bits</name> <init>= <expr><name><name>dbg</name><operator>-&gt;</operator><name>anal</name><operator>-&gt;</operator><name>bits</name></name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>bits</name> <operator>==</operator> <literal type="number">16</literal> <operator>||</operator> <name>bits</name> <operator>==</operator> <literal type="number">32</literal> <operator>||</operator> <name>bits</name> <operator>==</operator> <literal type="number">64</literal></expr>)</condition> <block>{<block_content>
+<return>return <expr><call><name>strdup</name> <argument_list>(
+<argument><expr><literal type="string">"=PC csip\n"</literal>
+<literal type="string">"=SP rsp\n"</literal>
+<literal type="string">"=BP rbp\n"</literal>
+<literal type="string">"=A0 rax\n"</literal>
+<literal type="string">"=A1 rbx\n"</literal>
+<literal type="string">"=A2 rcx\n"</literal>
+<literal type="string">"=A3 rdi\n"</literal>
+
+<literal type="string">"seg es 2 0x038 0 \n"</literal>
+<literal type="string">"seg cs 2 0x03A 0 \n"</literal>
+<literal type="string">"seg ss 2 0x03C 0 \n"</literal>
+<literal type="string">"seg ds 2 0x03E 0 \n"</literal>
+<literal type="string">"seg fs 2 0x040 0 \n"</literal>
+<literal type="string">"seg gs 2 0x042 0 \n"</literal>
+
+<literal type="string">"gpr rax 8 0x078 0 \n"</literal>
+<literal type="string">"gpr eax 4 0x078 0 \n"</literal>
+<literal type="string">"gpr ax 2 0x078 0 \n"</literal>
+<literal type="string">"gpr al 1 0x078 0 \n"</literal>
+<literal type="string">"gpr rcx 8 0x080 0 \n"</literal>
+<literal type="string">"gpr ecx 4 0x080 0 \n"</literal>
+<literal type="string">"gpr cx 2 0x080 0 \n"</literal>
+<literal type="string">"gpr cl 1 0x078 0 \n"</literal>
+<literal type="string">"gpr rdx 8 0x088 0 \n"</literal>
+<literal type="string">"gpr edx 4 0x088 0 \n"</literal>
+<literal type="string">"gpr dx 2 0x088 0 \n"</literal>
+<literal type="string">"gpr dl 1 0x088 0 \n"</literal>
+<literal type="string">"gpr rbx 8 0x090 0 \n"</literal>
+<literal type="string">"gpr ebx 4 0x090 0 \n"</literal>
+<literal type="string">"gpr bx 2 0x090 0 \n"</literal>
+<literal type="string">"gpr bl 1 0x090 0 \n"</literal>
+<literal type="string">"gpr rsp 8 0x098 0 \n"</literal>
+<literal type="string">"gpr esp 4 0x098 0 \n"</literal>
+<literal type="string">"gpr sp 2 0x098 0 \n"</literal>
+<literal type="string">"gpr spl 1 0x098 0 \n"</literal>
+<literal type="string">"gpr rbp 8 0x0A0 0 \n"</literal>
+<literal type="string">"gpr ebp 4 0x0A0 0 \n"</literal>
+<literal type="string">"gpr bp 2 0x0A0 0 \n"</literal>
+<literal type="string">"gpr bpl 1 0x0A0 0 \n"</literal>
+<literal type="string">"gpr rsi 8 0x0A8 0 \n"</literal>
+<literal type="string">"gpr esi 4 0x0A8 0 \n"</literal>
+<literal type="string">"gpr si 2 0x0A8 0 \n"</literal>
+<literal type="string">"gpr sil 1 0x0A8 0 \n"</literal>
+<literal type="string">"gpr rdi 8 0x0B0 0 \n"</literal>
+<literal type="string">"gpr edi 4 0x0B0 0 \n"</literal>
+<literal type="string">"gpr di 2 0x0B0 0 \n"</literal>
+<literal type="string">"gpr dil 1 0x0B0 0 \n"</literal>
+<literal type="string">"gpr r8 8 0x0B8 0 \n"</literal>
+<literal type="string">"gpr r8d 4 0x0B8 0 \n"</literal>
+<literal type="string">"gpr r8w 2 0x0B8 0 \n"</literal>
+<literal type="string">"gpr r8b 1 0x0B8 0 \n"</literal>
+<literal type="string">"gpr r9 8 0x0C0 0 \n"</literal>
+<literal type="string">"gpr r9d 4 0x0C0 0 \n"</literal>
+<literal type="string">"gpr r9w 2 0x0C0 0 \n"</literal>
+<literal type="string">"gpr r9b 1 0x0C0 0 \n"</literal>
+<literal type="string">"gpr r10 8 0x0C8 0 \n"</literal>
+<literal type="string">"gpr r10d 4 0x0C8 0 \n"</literal>
+<literal type="string">"gpr r10w 2 0x0C8 0 \n"</literal>
+<literal type="string">"gpr r10b 1 0x0C8 0 \n"</literal>
+<literal type="string">"gpr r11 8 0x0D0 0 \n"</literal>
+<literal type="string">"gpr r11d 4 0x0D0 0 \n"</literal>
+<literal type="string">"gpr r11w 2 0x0D0 0 \n"</literal>
+<literal type="string">"gpr r11b 1 0x0D0 0 \n"</literal>
+<literal type="string">"gpr r12 8 0x0D8 0 \n"</literal>
+<literal type="string">"gpr r12d 4 0x0D8 0 \n"</literal>
+<literal type="string">"gpr r12w 2 0x0D8 0 \n"</literal>
+<literal type="string">"gpr r12b 1 0x0D8 0 \n"</literal>
+<literal type="string">"gpr r13 8 0x0E0 0 \n"</literal>
+<literal type="string">"gpr r13d 4 0x0E0 0 \n"</literal>
+<literal type="string">"gpr r13w 2 0x0E0 0 \n"</literal>
+<literal type="string">"gpr r13b 1 0x0E0 0 \n"</literal>
+<literal type="string">"gpr r14 8 0x0E8 0 \n"</literal>
+<literal type="string">"gpr r14d 4 0x0E8 0 \n"</literal>
+<literal type="string">"gpr r14w 2 0x0E8 0 \n"</literal>
+<literal type="string">"gpr r14b 1 0x0E8 0 \n"</literal>
+<literal type="string">"gpr r15 8 0x0F0 0 \n"</literal>
+<literal type="string">"gpr r15d 4 0x0F0 0 \n"</literal>
+<literal type="string">"gpr r15w 2 0x0F0 0 \n"</literal>
+<literal type="string">"gpr r15b 1 0x0F0 0 \n"</literal>
+<literal type="string">"gpr rip 8 0x0F8 0 \n"</literal>
+<literal type="string">"gpr eip 4 0x0F8 0 \n"</literal>
+<literal type="string">"gpr csip 8 0x000 0 \n"</literal></expr></argument>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+)</argument_list></call></expr>;</return>
+</block_content>}</block></if></if_stmt>
+<return>return <expr><name>NULL</name></expr>;</return>
+</block_content>}</block></function>
+
+<decl_stmt><decl><type><name>RDebugPlugin</name></type> <name>r_debug_plugin_bochs</name> <init>= <expr><block>{
+<expr><operator>.</operator><name>name</name> <operator>=</operator> <literal type="string">"bochs"</literal></expr>,
+<expr><operator>.</operator><name>license</name> <operator>=</operator> <literal type="string">"LGPL3"</literal></expr>,
+<expr><operator>.</operator><name>arch</name> <operator>=</operator> <literal type="string">"x86"</literal></expr>,
+<expr><operator>.</operator><name>bits</name> <operator>=</operator> <name>R_SYS_BITS_16</name> <operator>|</operator> <name>R_SYS_BITS_32</name> <operator>|</operator> <name>R_SYS_BITS_64</name></expr>,
+<expr><operator>.</operator><name>step</name> <operator>=</operator> <name>r_debug_bochs_step</name></expr>,
+<expr><operator>.</operator><name>cont</name> <operator>=</operator> <name>r_debug_bochs_continue</name></expr>,
+<expr><operator>.</operator><name>attach</name> <operator>=</operator> <operator>&amp;</operator><name>r_debug_bochs_attach</name></expr>,
+<expr><operator>.</operator><name>detach</name> <operator>=</operator> <operator>&amp;</operator><name>r_debug_bochs_detach</name></expr>,
+<expr><operator>.</operator><name>canstep</name> <operator>=</operator> <literal type="number">1</literal></expr>,
+<expr><operator>.</operator><name>stop</name> <operator>=</operator> <operator>&amp;</operator><name>r_debug_bochs_stop</name></expr>,
+<expr><operator>.</operator><name>wait</name> <operator>=</operator> <operator>&amp;</operator><name>r_debug_bochs_wait</name></expr>,
+<expr><operator>.</operator><name>map_get</name> <operator>=</operator> <name>r_debug_bochs_map_get</name></expr>,
+<expr><operator>.</operator><name>breakpoint</name> <operator>=</operator> <name>r_debug_bochs_breakpoint</name></expr>,
+<expr><operator>.</operator><name>reg_read</name> <operator>=</operator> <operator>&amp;</operator><name>r_debug_bochs_reg_read</name></expr>,
+<expr><operator>.</operator><name>reg_write</name> <operator>=</operator> <operator>&amp;</operator><name>r_debug_bochs_reg_write</name></expr>,
+<expr><operator>.</operator><name>reg_profile</name> <operator>=</operator> <operator>(</operator><name>void</name> <operator>*</operator><operator>)</operator><name>r_debug_bochs_reg_profile</name></expr>,
+}</block></expr></init></decl>;</decl_stmt>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><operator>!</operator><call><name>defined</name><argument_list>(<argument><expr><name>R2_PLUGIN_INCORE</name></expr></argument>)</argument_list></call></expr></cpp:if>
+<decl_stmt><decl><type><name>R_API</name> <name>RLibStruct</name></type> <name>radare_plugin</name> <init>= <expr><block>{
+<expr><operator>.</operator><name>type</name> <operator>=</operator> <name>R_LIB_TYPE_DBG</name></expr>,
+<expr><operator>.</operator><name>data</name> <operator>=</operator> <operator>&amp;</operator><name>r_debug_plugin_bochs</name></expr>,
+<expr><operator>.</operator><name>version</name> <operator>=</operator> <name>R2_VERSION</name></expr>
+}</block></expr></init></decl>;</decl_stmt>
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+</unit>

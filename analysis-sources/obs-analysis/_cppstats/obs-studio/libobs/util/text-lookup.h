@@ -1,0 +1,15 @@
+#pragma once
+#include "c99defs.h"
+#if defined(__cplusplus)
+extern "C" {
+#endif
+struct text_lookup;
+typedef struct text_lookup lookup_t;
+EXPORT lookup_t *text_lookup_create(const char *path);
+EXPORT bool text_lookup_add(lookup_t *lookup, const char *path);
+EXPORT void text_lookup_destroy(lookup_t *lookup);
+EXPORT bool text_lookup_getstr(lookup_t *lookup, const char *lookup_val,
+const char **out);
+#if defined(__cplusplus)
+}
+#endif

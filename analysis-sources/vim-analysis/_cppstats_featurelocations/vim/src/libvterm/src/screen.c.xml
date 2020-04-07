@@ -1,0 +1,962 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" revision="1.0.0" language="C" filename="D:\Pesquisa\Projects\_cppstats_featurelocations\vim\src\libvterm\src\screen.c"><cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"vterm_internal.h"</cpp:file></cpp:include>
+
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;stdio.h&gt;</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;string.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"rect.h"</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"utf8.h"</cpp:file></cpp:include>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>UNICODE_SPACE</name></cpp:macro> <cpp:value>0x20</cpp:value></cpp:define>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>UNICODE_LINEFEED</name></cpp:macro> <cpp:value>0x0a</cpp:value></cpp:define>
+
+
+<typedef>typedef <type><struct>struct
+<block>{
+
+<decl_stmt><decl><type><name>VTermColor</name></type> <name>fg</name></decl>, <name>bg</name>;</decl_stmt>
+
+<decl_stmt><decl><type><name>unsigned</name> <name>int</name></type> <name>bold</name> <range>: <expr><literal type="number">1</literal></expr></range></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>unsigned</name> <name>int</name></type> <name>underline</name> <range>: <expr><literal type="number">2</literal></expr></range></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>unsigned</name> <name>int</name></type> <name>italic</name> <range>: <expr><literal type="number">1</literal></expr></range></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>unsigned</name> <name>int</name></type> <name>blink</name> <range>: <expr><literal type="number">1</literal></expr></range></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>unsigned</name> <name>int</name></type> <name>reverse</name> <range>: <expr><literal type="number">1</literal></expr></range></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>unsigned</name> <name>int</name></type> <name>strike</name> <range>: <expr><literal type="number">1</literal></expr></range></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>unsigned</name> <name>int</name></type> <name>font</name> <range>: <expr><literal type="number">4</literal></expr></range></decl>;</decl_stmt> 
+
+
+<decl_stmt><decl><type><name>unsigned</name> <name>int</name></type> <name>protected_cell</name> <range>: <expr><literal type="number">1</literal></expr></range></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>unsigned</name> <name>int</name></type> <name>dwl</name> <range>: <expr><literal type="number">1</literal></expr></range></decl>;</decl_stmt> 
+<decl_stmt><decl><type><name>unsigned</name> <name>int</name></type> <name>dhl</name> <range>: <expr><literal type="number">2</literal></expr></range></decl>;</decl_stmt> 
+}</block></struct></type> <name>ScreenPen</name>;</typedef>
+
+
+<typedef>typedef <type><struct>struct
+<block>{
+<decl_stmt><decl><type><name>uint32_t</name></type> <name><name>chars</name><index>[<expr><name>VTERM_MAX_CHARS_PER_CELL</name></expr>]</index></name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>ScreenPen</name></type> <name>pen</name></decl>;</decl_stmt>
+}</block></struct></type> <name>ScreenCell</name>;</typedef>
+
+<function_decl><type><specifier>static</specifier> <name>int</name></type> <name>vterm_screen_set_cell</name><parameter_list>(<parameter><decl><type><name>VTermScreen</name> <modifier>*</modifier></type><name>screen</name></decl></parameter>, <parameter><decl><type><name>VTermPos</name></type> <name>pos</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>VTermScreenCell</name> <modifier>*</modifier></type><name>cell</name></decl></parameter>)</parameter_list>;</function_decl>
+
+<struct>struct <name>VTermScreen</name>
+<block>{
+<decl_stmt><decl><type><name>VTerm</name> <modifier>*</modifier></type><name>vt</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>VTermState</name> <modifier>*</modifier></type><name>state</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>VTermScreenCallbacks</name> <modifier>*</modifier></type><name>callbacks</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>void</name> <modifier>*</modifier></type><name>cbdata</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>VTermDamageSize</name></type> <name>damage_merge</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>VTermRect</name></type> <name>damaged</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>VTermRect</name></type> <name>pending_scrollrect</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>pending_scroll_downward</name></decl>, <decl><type ref="prev"/><name>pending_scroll_rightward</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>rows</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>cols</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>global_reverse</name></decl>;</decl_stmt>
+
+
+<decl_stmt><decl><type><name>ScreenCell</name> <modifier>*</modifier></type><name><name>buffers</name><index>[<expr><literal type="number">2</literal></expr>]</index></name></decl>;</decl_stmt>
+
+
+<decl_stmt><decl><type><name>ScreenCell</name> <modifier>*</modifier></type><name>buffer</name></decl>;</decl_stmt>
+
+
+<decl_stmt><decl><type><name>VTermScreenCell</name> <modifier>*</modifier></type><name>sb_buffer</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>ScreenPen</name></type> <name>pen</name></decl>;</decl_stmt>
+}</block>;</struct>
+
+<function><type><specifier>static</specifier> <name>ScreenCell</name> <modifier>*</modifier></type><name>getcell</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name>VTermScreen</name> <modifier>*</modifier></type><name>screen</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>row</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>col</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<if_stmt><if>if<condition>(<expr><name>row</name> <operator>&lt;</operator> <literal type="number">0</literal> <operator>||</operator> <name>row</name> <operator>&gt;=</operator> <name><name>screen</name><operator>-&gt;</operator><name>rows</name></name></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><name>NULL</name></expr>;</return></block_content></block></if></if_stmt>
+<if_stmt><if>if<condition>(<expr><name>col</name> <operator>&lt;</operator> <literal type="number">0</literal> <operator>||</operator> <name>col</name> <operator>&gt;=</operator> <name><name>screen</name><operator>-&gt;</operator><name>cols</name></name></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><name>NULL</name></expr>;</return></block_content></block></if></if_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>screen</name><operator>-&gt;</operator><name>buffer</name></name> <operator>==</operator> <name>NULL</name></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><name>NULL</name></expr>;</return></block_content></block></if></if_stmt>
+<return>return <expr><name><name>screen</name><operator>-&gt;</operator><name>buffer</name></name> <operator>+</operator> <operator>(</operator><name><name>screen</name><operator>-&gt;</operator><name>cols</name></name> <operator>*</operator> <name>row</name><operator>)</operator> <operator>+</operator> <name>col</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>ScreenCell</name> <modifier>*</modifier></type><name>realloc_buffer</name><parameter_list>(<parameter><decl><type><name>VTermScreen</name> <modifier>*</modifier></type><name>screen</name></decl></parameter>, <parameter><decl><type><name>ScreenCell</name> <modifier>*</modifier></type><name>buffer</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>new_rows</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>new_cols</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>ScreenCell</name> <modifier>*</modifier></type><name>new_buffer</name> <init>= <expr><call><name>vterm_allocator_malloc</name><argument_list>(<argument><expr><name><name>screen</name><operator>-&gt;</operator><name>vt</name></name></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr><name>ScreenCell</name></expr></argument>)</argument_list></sizeof> <operator>*</operator> <name>new_rows</name> <operator>*</operator> <name>new_cols</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>row</name></decl>, <decl><type ref="prev"/><name>col</name></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>new_buffer</name> <operator>==</operator> <name>NULL</name></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><name>NULL</name></expr>;</return></block_content></block></if></if_stmt>
+<for>for<control>(<init><expr><name>row</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>row</name> <operator>&lt;</operator> <name>new_rows</name></expr>;</condition> <incr><expr><name>row</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<for>for<control>(<init><expr><name>col</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>col</name> <operator>&lt;</operator> <name>new_cols</name></expr>;</condition> <incr><expr><name>col</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<decl_stmt><decl><type><name>ScreenCell</name> <modifier>*</modifier></type><name>new_cell</name> <init>= <expr><name>new_buffer</name> <operator>+</operator> <name>row</name><operator>*</operator><name>new_cols</name> <operator>+</operator> <name>col</name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if<condition>(<expr><name>buffer</name> <operator>&amp;&amp;</operator> <name>row</name> <operator>&lt;</operator> <name><name>screen</name><operator>-&gt;</operator><name>rows</name></name> <operator>&amp;&amp;</operator> <name>col</name> <operator>&lt;</operator> <name><name>screen</name><operator>-&gt;</operator><name>cols</name></name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><operator>*</operator><name>new_cell</name> <operator>=</operator> <name><name>buffer</name><index>[<expr><name>row</name> <operator>*</operator> <name><name>screen</name><operator>-&gt;</operator><name>cols</name></name> <operator>+</operator> <name>col</name></expr>]</index></name></expr>;</expr_stmt></block_content></block></if>
+<else>else <block>{<block_content>
+<expr_stmt><expr><name><name>new_cell</name><operator>-&gt;</operator><name>chars</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>new_cell</name><operator>-&gt;</operator><name>pen</name></name> <operator>=</operator> <name><name>screen</name><operator>-&gt;</operator><name>pen</name></name></expr>;</expr_stmt>
+</block_content>}</block></else></if_stmt>
+</block_content>}</block></for>
+</block_content>}</block></for>
+
+<expr_stmt><expr><call><name>vterm_allocator_free</name><argument_list>(<argument><expr><name><name>screen</name><operator>-&gt;</operator><name>vt</name></name></expr></argument>, <argument><expr><name>buffer</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>new_buffer</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>damagerect</name><parameter_list>(<parameter><decl><type><name>VTermScreen</name> <modifier>*</modifier></type><name>screen</name></decl></parameter>, <parameter><decl><type><name>VTermRect</name></type> <name>rect</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>VTermRect</name></type> <name>emit</name></decl>;</decl_stmt>
+
+<switch>switch<condition>(<expr><name><name>screen</name><operator>-&gt;</operator><name>damage_merge</name></name></expr>)</condition> <block>{<block_content>
+<case>case <expr><name>VTERM_DAMAGE_CELL</name></expr>:</case>
+
+<expr_stmt><expr><name>emit</name> <operator>=</operator> <name>rect</name></expr>;</expr_stmt>
+<break>break;</break>
+
+<case>case <expr><name>VTERM_DAMAGE_ROW</name></expr>:</case>
+
+
+<if_stmt><if>if<condition>(<expr><name><name>rect</name><operator>.</operator><name>end_row</name></name> <operator>&gt;</operator> <name><name>rect</name><operator>.</operator><name>start_row</name></name> <operator>+</operator> <literal type="number">1</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>vterm_screen_flush_damage</name><argument_list>(<argument><expr><name>screen</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>emit</name> <operator>=</operator> <name>rect</name></expr>;</expr_stmt>
+</block_content>}</block></if>
+<if type="elseif">else if<condition>(<expr><name><name>screen</name><operator>-&gt;</operator><name>damaged</name><operator>.</operator><name>start_row</name></name> <operator>==</operator> <operator>-</operator><literal type="number">1</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name><name>screen</name><operator>-&gt;</operator><name>damaged</name></name> <operator>=</operator> <name>rect</name></expr>;</expr_stmt>
+<return>return;</return>
+</block_content>}</block></if>
+<if type="elseif">else if<condition>(<expr><name><name>rect</name><operator>.</operator><name>start_row</name></name> <operator>==</operator> <name><name>screen</name><operator>-&gt;</operator><name>damaged</name><operator>.</operator><name>start_row</name></name></expr>)</condition> <block>{<block_content>
+
+<if_stmt><if>if<condition>(<expr><name><name>screen</name><operator>-&gt;</operator><name>damaged</name><operator>.</operator><name>start_col</name></name> <operator>&gt;</operator> <name><name>rect</name><operator>.</operator><name>start_col</name></name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name><name>screen</name><operator>-&gt;</operator><name>damaged</name><operator>.</operator><name>start_col</name></name> <operator>=</operator> <name><name>rect</name><operator>.</operator><name>start_col</name></name></expr>;</expr_stmt></block_content></block></if></if_stmt>
+<if_stmt><if>if<condition>(<expr><name><name>screen</name><operator>-&gt;</operator><name>damaged</name><operator>.</operator><name>end_col</name></name> <operator>&lt;</operator> <name><name>rect</name><operator>.</operator><name>end_col</name></name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name><name>screen</name><operator>-&gt;</operator><name>damaged</name><operator>.</operator><name>end_col</name></name> <operator>=</operator> <name><name>rect</name><operator>.</operator><name>end_col</name></name></expr>;</expr_stmt></block_content></block></if></if_stmt>
+<return>return;</return>
+</block_content>}</block></if>
+<else>else <block>{<block_content>
+
+<expr_stmt><expr><name>emit</name> <operator>=</operator> <name><name>screen</name><operator>-&gt;</operator><name>damaged</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>screen</name><operator>-&gt;</operator><name>damaged</name></name> <operator>=</operator> <name>rect</name></expr>;</expr_stmt>
+</block_content>}</block></else></if_stmt>
+<break>break;</break>
+
+<case>case <expr><name>VTERM_DAMAGE_SCREEN</name></expr>:</case>
+<case>case <expr><name>VTERM_DAMAGE_SCROLL</name></expr>:</case>
+
+<if_stmt><if>if<condition>(<expr><name><name>screen</name><operator>-&gt;</operator><name>damaged</name><operator>.</operator><name>start_row</name></name> <operator>==</operator> <operator>-</operator><literal type="number">1</literal></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name><name>screen</name><operator>-&gt;</operator><name>damaged</name></name> <operator>=</operator> <name>rect</name></expr>;</expr_stmt></block_content></block></if>
+<else>else <block>{<block_content>
+<expr_stmt><expr><call><name>rect_expand</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>screen</name><operator>-&gt;</operator><name>damaged</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name>rect</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></else></if_stmt>
+<return>return;</return>
+
+<default>default:</default>
+<expr_stmt><expr><call><name>DEBUG_LOG1</name><argument_list>(<argument><expr><literal type="string">"TODO: Maybe merge damage for level %d\n"</literal></expr></argument>, <argument><expr><name><name>screen</name><operator>-&gt;</operator><name>damage_merge</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return;</return>
+</block_content>}</block></switch>
+
+<if_stmt><if>if<condition>(<expr><name><name>screen</name><operator>-&gt;</operator><name>callbacks</name></name> <operator>&amp;&amp;</operator> <name><name>screen</name><operator>-&gt;</operator><name>callbacks</name><operator>-&gt;</operator><name>damage</name></name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><call>(<modifier>*</modifier><name><name>screen</name><operator>-&gt;</operator><name>callbacks</name><operator>-&gt;</operator><name>damage</name></name>)<argument_list>(<argument><expr><name>emit</name></expr></argument>, <argument><expr><name><name>screen</name><operator>-&gt;</operator><name>cbdata</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>damagescreen</name><parameter_list>(<parameter><decl><type><name>VTermScreen</name> <modifier>*</modifier></type><name>screen</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>VTermRect</name></type> <name>rect</name> <init>= <expr><block>{<expr><literal type="number">0</literal></expr>,<expr><literal type="number">0</literal></expr>,<expr><literal type="number">0</literal></expr>,<expr><literal type="number">0</literal></expr>}</block></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><name><name>rect</name><operator>.</operator><name>end_row</name></name> <operator>=</operator> <name><name>screen</name><operator>-&gt;</operator><name>rows</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>rect</name><operator>.</operator><name>end_col</name></name> <operator>=</operator> <name><name>screen</name><operator>-&gt;</operator><name>cols</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>damagerect</name><argument_list>(<argument><expr><name>screen</name></expr></argument>, <argument><expr><name>rect</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>putglyph</name><parameter_list>(<parameter><decl><type><name>VTermGlyphInfo</name> <modifier>*</modifier></type><name>info</name></decl></parameter>, <parameter><decl><type><name>VTermPos</name></type> <name>pos</name></decl></parameter>, <parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>user</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>int</name></type> <name>i</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>col</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>VTermRect</name></type> <name>rect</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>VTermScreen</name> <modifier>*</modifier></type><name>screen</name> <init>= <expr><name>user</name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>ScreenCell</name> <modifier>*</modifier></type><name>cell</name> <init>= <expr><call><name>getcell</name><argument_list>(<argument><expr><name>screen</name></expr></argument>, <argument><expr><name><name>pos</name><operator>.</operator><name>row</name></name></expr></argument>, <argument><expr><name><name>pos</name><operator>.</operator><name>col</name></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if<condition>(<expr><operator>!</operator><name>cell</name></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><literal type="number">0</literal></expr>;</return></block_content></block></if></if_stmt>
+
+<for>for<control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>VTERM_MAX_CHARS_PER_CELL</name> <operator>&amp;&amp;</operator> <name><name>info</name><operator>-&gt;</operator><name>chars</name><index>[<expr><name>i</name></expr>]</index></name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<expr_stmt><expr><name><name>cell</name><operator>-&gt;</operator><name>chars</name><index>[<expr><name>i</name></expr>]</index></name> <operator>=</operator> <name><name>info</name><operator>-&gt;</operator><name>chars</name><index>[<expr><name>i</name></expr>]</index></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>cell</name><operator>-&gt;</operator><name>pen</name></name> <operator>=</operator> <name><name>screen</name><operator>-&gt;</operator><name>pen</name></name></expr>;</expr_stmt>
+</block_content>}</block></for>
+<if_stmt><if>if<condition>(<expr><name>i</name> <operator>&lt;</operator> <name>VTERM_MAX_CHARS_PER_CELL</name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name><name>cell</name><operator>-&gt;</operator><name>chars</name><index>[<expr><name>i</name></expr>]</index></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<for>for<control>(<init><expr><name>col</name> <operator>=</operator> <literal type="number">1</literal></expr>;</init> <condition><expr><name>col</name> <operator>&lt;</operator> <name><name>info</name><operator>-&gt;</operator><name>width</name></name></expr>;</condition> <incr><expr><name>col</name><operator>++</operator></expr></incr>)</control><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>getcell</name><argument_list>(<argument><expr><name>screen</name></expr></argument>, <argument><expr><name><name>pos</name><operator>.</operator><name>row</name></name></expr></argument>, <argument><expr><name><name>pos</name><operator>.</operator><name>col</name></name> <operator>+</operator> <name>col</name></expr></argument>)</argument_list></call><operator>-&gt;</operator><name><name>chars</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>=</operator> <operator>(</operator><name>uint32_t</name><operator>)</operator><operator>-</operator><literal type="number">1</literal></expr>;</expr_stmt></block_content></block></for>
+
+<expr_stmt><expr><name><name>rect</name><operator>.</operator><name>start_row</name></name> <operator>=</operator> <name><name>pos</name><operator>.</operator><name>row</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>rect</name><operator>.</operator><name>end_row</name></name> <operator>=</operator> <name><name>pos</name><operator>.</operator><name>row</name></name><operator>+</operator><literal type="number">1</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>rect</name><operator>.</operator><name>start_col</name></name> <operator>=</operator> <name><name>pos</name><operator>.</operator><name>col</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>rect</name><operator>.</operator><name>end_col</name></name> <operator>=</operator> <name><name>pos</name><operator>.</operator><name>col</name></name><operator>+</operator><name><name>info</name><operator>-&gt;</operator><name>width</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>cell</name><operator>-&gt;</operator><name>pen</name><operator>.</operator><name>protected_cell</name></name> <operator>=</operator> <name><name>info</name><operator>-&gt;</operator><name>protected_cell</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>cell</name><operator>-&gt;</operator><name>pen</name><operator>.</operator><name>dwl</name></name> <operator>=</operator> <name><name>info</name><operator>-&gt;</operator><name>dwl</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>cell</name><operator>-&gt;</operator><name>pen</name><operator>.</operator><name>dhl</name></name> <operator>=</operator> <name><name>info</name><operator>-&gt;</operator><name>dhl</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>damagerect</name><argument_list>(<argument><expr><name>screen</name></expr></argument>, <argument><expr><name>rect</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><literal type="number">1</literal></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>moverect_internal</name><parameter_list>(<parameter><decl><type><name>VTermRect</name></type> <name>dest</name></decl></parameter>, <parameter><decl><type><name>VTermRect</name></type> <name>src</name></decl></parameter>, <parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>user</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>VTermScreen</name> <modifier>*</modifier></type><name>screen</name> <init>= <expr><name>user</name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if<condition>(<expr><name><name>screen</name><operator>-&gt;</operator><name>callbacks</name></name> <operator>&amp;&amp;</operator> <name><name>screen</name><operator>-&gt;</operator><name>callbacks</name><operator>-&gt;</operator><name>sb_pushline</name></name> <operator>&amp;&amp;</operator>
+<name><name>dest</name><operator>.</operator><name>start_row</name></name> <operator>==</operator> <literal type="number">0</literal> <operator>&amp;&amp;</operator> <name><name>dest</name><operator>.</operator><name>start_col</name></name> <operator>==</operator> <literal type="number">0</literal> <operator>&amp;&amp;</operator> 
+<name><name>dest</name><operator>.</operator><name>end_col</name></name> <operator>==</operator> <name><name>screen</name><operator>-&gt;</operator><name>cols</name></name> <operator>&amp;&amp;</operator> 
+<name><name>screen</name><operator>-&gt;</operator><name>buffer</name></name> <operator>==</operator> <name><name>screen</name><operator>-&gt;</operator><name>buffers</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr>)</condition> <block>{<block_content> 
+<decl_stmt><decl><type><name>VTermPos</name></type> <name>pos</name></decl>;</decl_stmt>
+<for>for<control>(<init><expr><name><name>pos</name><operator>.</operator><name>row</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name><name>pos</name><operator>.</operator><name>row</name></name> <operator>&lt;</operator> <name><name>src</name><operator>.</operator><name>start_row</name></name></expr>;</condition> <incr><expr><name><name>pos</name><operator>.</operator><name>row</name></name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<for>for<control>(<init><expr><name><name>pos</name><operator>.</operator><name>col</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name><name>pos</name><operator>.</operator><name>col</name></name> <operator>&lt;</operator> <name><name>screen</name><operator>-&gt;</operator><name>cols</name></name></expr>;</condition> <incr><expr><name><name>pos</name><operator>.</operator><name>col</name></name><operator>++</operator></expr></incr>)</control><block type="pseudo"><block_content>
+<expr_stmt><expr><operator>(</operator><name>void</name><operator>)</operator><call><name>vterm_screen_get_cell</name><argument_list>(<argument><expr><name>screen</name></expr></argument>, <argument><expr><name>pos</name></expr></argument>, <argument><expr><name><name>screen</name><operator>-&gt;</operator><name>sb_buffer</name></name> <operator>+</operator> <name><name>pos</name><operator>.</operator><name>col</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></for>
+
+<expr_stmt><expr><operator>(</operator><name><name>screen</name><operator>-&gt;</operator><name>callbacks</name><operator>-&gt;</operator><name>sb_pushline</name></name><operator>)</operator><operator>(</operator><name><name>screen</name><operator>-&gt;</operator><name>cols</name></name><operator>,</operator> <name><name>screen</name><operator>-&gt;</operator><name>sb_buffer</name></name><operator>,</operator> <name><name>screen</name><operator>-&gt;</operator><name>cbdata</name></name><operator>)</operator></expr>;</expr_stmt>
+</block_content>}</block></for>
+</block_content>}</block></if></if_stmt>
+
+<block>{<block_content>
+<decl_stmt><decl><type><name>int</name></type> <name>cols</name> <init>= <expr><name><name>src</name><operator>.</operator><name>end_col</name></name> <operator>-</operator> <name><name>src</name><operator>.</operator><name>start_col</name></name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>downward</name> <init>= <expr><name><name>src</name><operator>.</operator><name>start_row</name></name> <operator>-</operator> <name><name>dest</name><operator>.</operator><name>start_row</name></name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>init_row</name></decl>, <decl><type ref="prev"/><name>test_row</name></decl>, <decl><type ref="prev"/><name>inc_row</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>row</name></decl>;</decl_stmt>
+
+<if_stmt><if>if<condition>(<expr><name>downward</name> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name>init_row</name> <operator>=</operator> <name><name>dest</name><operator>.</operator><name>end_row</name></name> <operator>-</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name>test_row</name> <operator>=</operator> <name><name>dest</name><operator>.</operator><name>start_row</name></name> <operator>-</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name>inc_row</name> <operator>=</operator> <operator>-</operator><literal type="number">1</literal></expr>;</expr_stmt>
+</block_content>}</block></if>
+<else>else <block>{<block_content>
+<expr_stmt><expr><name>init_row</name> <operator>=</operator> <name><name>dest</name><operator>.</operator><name>start_row</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name>test_row</name> <operator>=</operator> <name><name>dest</name><operator>.</operator><name>end_row</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name>inc_row</name> <operator>=</operator> <operator>+</operator><literal type="number">1</literal></expr>;</expr_stmt>
+</block_content>}</block></else></if_stmt>
+
+<for>for<control>(<init><expr><name>row</name> <operator>=</operator> <name>init_row</name></expr>;</init> <condition><expr><name>row</name> <operator>!=</operator> <name>test_row</name></expr>;</condition> <incr><expr><name>row</name> <operator>+=</operator> <name>inc_row</name></expr></incr>)</control><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>memmove</name><argument_list>(<argument><expr><call><name>getcell</name><argument_list>(<argument><expr><name>screen</name></expr></argument>, <argument><expr><name>row</name></expr></argument>, <argument><expr><name><name>dest</name><operator>.</operator><name>start_col</name></name></expr></argument>)</argument_list></call></expr></argument>,
+<argument><expr><call><name>getcell</name><argument_list>(<argument><expr><name>screen</name></expr></argument>, <argument><expr><name>row</name> <operator>+</operator> <name>downward</name></expr></argument>, <argument><expr><name><name>src</name><operator>.</operator><name>start_col</name></name></expr></argument>)</argument_list></call></expr></argument>,
+<argument><expr><name>cols</name> <operator>*</operator> <sizeof>sizeof<argument_list>(<argument><expr><name>ScreenCell</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></for>
+</block_content>}</block>
+
+<return>return <expr><literal type="number">1</literal></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>moverect_user</name><parameter_list>(<parameter><decl><type><name>VTermRect</name></type> <name>dest</name></decl></parameter>, <parameter><decl><type><name>VTermRect</name></type> <name>src</name></decl></parameter>, <parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>user</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>VTermScreen</name> <modifier>*</modifier></type><name>screen</name> <init>= <expr><name>user</name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if<condition>(<expr><name><name>screen</name><operator>-&gt;</operator><name>callbacks</name></name> <operator>&amp;&amp;</operator> <name><name>screen</name><operator>-&gt;</operator><name>callbacks</name><operator>-&gt;</operator><name>moverect</name></name></expr>)</condition> <block>{<block_content>
+<if_stmt><if>if<condition>(<expr><name><name>screen</name><operator>-&gt;</operator><name>damage_merge</name></name> <operator>!=</operator> <name>VTERM_DAMAGE_SCROLL</name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>vterm_screen_flush_damage</name><argument_list>(<argument><expr><name>screen</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<if_stmt><if>if<condition>(<expr><call>(<modifier>*</modifier><name><name>screen</name><operator>-&gt;</operator><name>callbacks</name><operator>-&gt;</operator><name>moverect</name></name>)<argument_list>(<argument><expr><name>dest</name></expr></argument>, <argument><expr><name>src</name></expr></argument>, <argument><expr><name><name>screen</name><operator>-&gt;</operator><name>cbdata</name></name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><literal type="number">1</literal></expr>;</return></block_content></block></if></if_stmt>
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>damagerect</name><argument_list>(<argument><expr><name>screen</name></expr></argument>, <argument><expr><name>dest</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><literal type="number">1</literal></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>erase_internal</name><parameter_list>(<parameter><decl><type><name>VTermRect</name></type> <name>rect</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>selective</name></decl></parameter>, <parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>user</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>VTermScreen</name> <modifier>*</modifier></type><name>screen</name> <init>= <expr><name>user</name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>row</name></decl>, <decl><type ref="prev"/><name>col</name></decl>;</decl_stmt>
+
+<for>for<control>(<init><expr><name>row</name> <operator>=</operator> <name><name>rect</name><operator>.</operator><name>start_row</name></name></expr>;</init> <condition><expr><name>row</name> <operator>&lt;</operator> <name><name>screen</name><operator>-&gt;</operator><name>state</name><operator>-&gt;</operator><name>rows</name></name> <operator>&amp;&amp;</operator> <name>row</name> <operator>&lt;</operator> <name><name>rect</name><operator>.</operator><name>end_row</name></name></expr>;</condition> <incr><expr><name>row</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<decl_stmt><decl><type><specifier>const</specifier> <name>VTermLineInfo</name> <modifier>*</modifier></type><name>info</name> <init>= <expr><call><name>vterm_state_get_lineinfo</name><argument_list>(<argument><expr><name><name>screen</name><operator>-&gt;</operator><name>state</name></name></expr></argument>, <argument><expr><name>row</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<for>for<control>(<init><expr><name>col</name> <operator>=</operator> <name><name>rect</name><operator>.</operator><name>start_col</name></name></expr>;</init> <condition><expr><name>col</name> <operator>&lt;</operator> <name><name>rect</name><operator>.</operator><name>end_col</name></name></expr>;</condition> <incr><expr><name>col</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<decl_stmt><decl><type><name>ScreenCell</name> <modifier>*</modifier></type><name>cell</name> <init>= <expr><call><name>getcell</name><argument_list>(<argument><expr><name>screen</name></expr></argument>, <argument><expr><name>row</name></expr></argument>, <argument><expr><name>col</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if<condition>(<expr><name>selective</name> <operator>&amp;&amp;</operator> <name><name>cell</name><operator>-&gt;</operator><name>pen</name><operator>.</operator><name>protected_cell</name></name></expr>)</condition><block type="pseudo"><block_content>
+<continue>continue;</continue></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name><name>cell</name><operator>-&gt;</operator><name>chars</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>cell</name><operator>-&gt;</operator><name>pen</name></name> <operator>=</operator> <name><name>screen</name><operator>-&gt;</operator><name>pen</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>cell</name><operator>-&gt;</operator><name>pen</name><operator>.</operator><name>dwl</name></name> <operator>=</operator> <name><name>info</name><operator>-&gt;</operator><name>doublewidth</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>cell</name><operator>-&gt;</operator><name>pen</name><operator>.</operator><name>dhl</name></name> <operator>=</operator> <name><name>info</name><operator>-&gt;</operator><name>doubleheight</name></name></expr>;</expr_stmt>
+</block_content>}</block></for>
+</block_content>}</block></for>
+
+<return>return <expr><literal type="number">1</literal></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>erase_user</name><parameter_list>(<parameter><decl><type><name>VTermRect</name></type> <name>rect</name></decl></parameter>, <parameter><decl><type><name>int</name> <name>selective</name></type> <name>UNUSED</name></decl></parameter>, <parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>user</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>VTermScreen</name> <modifier>*</modifier></type><name>screen</name> <init>= <expr><name>user</name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>damagerect</name><argument_list>(<argument><expr><name>screen</name></expr></argument>, <argument><expr><name>rect</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><literal type="number">1</literal></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>erase</name><parameter_list>(<parameter><decl><type><name>VTermRect</name></type> <name>rect</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>selective</name></decl></parameter>, <parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>user</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<expr_stmt><expr><call><name>erase_internal</name><argument_list>(<argument><expr><name>rect</name></expr></argument>, <argument><expr><name>selective</name></expr></argument>, <argument><expr><name>user</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><call><name>erase_user</name><argument_list>(<argument><expr><name>rect</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><name>user</name></expr></argument>)</argument_list></call></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>scrollrect</name><parameter_list>(<parameter><decl><type><name>VTermRect</name></type> <name>rect</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>downward</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>rightward</name></decl></parameter>, <parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>user</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>VTermScreen</name> <modifier>*</modifier></type><name>screen</name> <init>= <expr><name>user</name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if<condition>(<expr><name><name>screen</name><operator>-&gt;</operator><name>damage_merge</name></name> <operator>!=</operator> <name>VTERM_DAMAGE_SCROLL</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>vterm_scroll_rect</name><argument_list>(<argument><expr><name>rect</name></expr></argument>, <argument><expr><name>downward</name></expr></argument>, <argument><expr><name>rightward</name></expr></argument>,
+<argument><expr><name>moverect_internal</name></expr></argument>, <argument><expr><name>erase_internal</name></expr></argument>, <argument><expr><name>screen</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>vterm_screen_flush_damage</name><argument_list>(<argument><expr><name>screen</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>vterm_scroll_rect</name><argument_list>(<argument><expr><name>rect</name></expr></argument>, <argument><expr><name>downward</name></expr></argument>, <argument><expr><name>rightward</name></expr></argument>,
+<argument><expr><name>moverect_user</name></expr></argument>, <argument><expr><name>erase_user</name></expr></argument>, <argument><expr><name>screen</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><literal type="number">1</literal></expr>;</return>
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if<condition>(<expr><name><name>screen</name><operator>-&gt;</operator><name>damaged</name><operator>.</operator><name>start_row</name></name> <operator>!=</operator> <operator>-</operator><literal type="number">1</literal> <operator>&amp;&amp;</operator>
+<operator>!</operator><call><name>rect_intersects</name><argument_list>(<argument><expr><operator>&amp;</operator><name>rect</name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>screen</name><operator>-&gt;</operator><name>damaged</name></name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>vterm_screen_flush_damage</name><argument_list>(<argument><expr><name>screen</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if<condition>(<expr><name><name>screen</name><operator>-&gt;</operator><name>pending_scrollrect</name><operator>.</operator><name>start_row</name></name> <operator>==</operator> <operator>-</operator><literal type="number">1</literal></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name><name>screen</name><operator>-&gt;</operator><name>pending_scrollrect</name></name> <operator>=</operator> <name>rect</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>screen</name><operator>-&gt;</operator><name>pending_scroll_downward</name></name> <operator>=</operator> <name>downward</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>screen</name><operator>-&gt;</operator><name>pending_scroll_rightward</name></name> <operator>=</operator> <name>rightward</name></expr>;</expr_stmt>
+</block_content>}</block></if>
+<if type="elseif">else if<condition>(<expr><call><name>rect_equal</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>screen</name><operator>-&gt;</operator><name>pending_scrollrect</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name>rect</name></expr></argument>)</argument_list></call> <operator>&amp;&amp;</operator>
+<operator>(</operator><operator>(</operator><name><name>screen</name><operator>-&gt;</operator><name>pending_scroll_downward</name></name> <operator>==</operator> <literal type="number">0</literal> <operator>&amp;&amp;</operator> <name>downward</name> <operator>==</operator> <literal type="number">0</literal><operator>)</operator> <operator>||</operator>
+<operator>(</operator><name><name>screen</name><operator>-&gt;</operator><name>pending_scroll_rightward</name></name> <operator>==</operator> <literal type="number">0</literal> <operator>&amp;&amp;</operator> <name>rightward</name> <operator>==</operator> <literal type="number">0</literal><operator>)</operator><operator>)</operator></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name><name>screen</name><operator>-&gt;</operator><name>pending_scroll_downward</name></name> <operator>+=</operator> <name>downward</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>screen</name><operator>-&gt;</operator><name>pending_scroll_rightward</name></name> <operator>+=</operator> <name>rightward</name></expr>;</expr_stmt>
+</block_content>}</block></if>
+<else>else <block>{<block_content>
+<expr_stmt><expr><call><name>vterm_screen_flush_damage</name><argument_list>(<argument><expr><name>screen</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>screen</name><operator>-&gt;</operator><name>pending_scrollrect</name></name> <operator>=</operator> <name>rect</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>screen</name><operator>-&gt;</operator><name>pending_scroll_downward</name></name> <operator>=</operator> <name>downward</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>screen</name><operator>-&gt;</operator><name>pending_scroll_rightward</name></name> <operator>=</operator> <name>rightward</name></expr>;</expr_stmt>
+</block_content>}</block></else></if_stmt>
+
+<expr_stmt><expr><call><name>vterm_scroll_rect</name><argument_list>(<argument><expr><name>rect</name></expr></argument>, <argument><expr><name>downward</name></expr></argument>, <argument><expr><name>rightward</name></expr></argument>,
+<argument><expr><name>moverect_internal</name></expr></argument>, <argument><expr><name>erase_internal</name></expr></argument>, <argument><expr><name>screen</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if<condition>(<expr><name><name>screen</name><operator>-&gt;</operator><name>damaged</name><operator>.</operator><name>start_row</name></name> <operator>==</operator> <operator>-</operator><literal type="number">1</literal></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><literal type="number">1</literal></expr>;</return></block_content></block></if></if_stmt>
+
+<if_stmt><if>if<condition>(<expr><call><name>rect_contains</name><argument_list>(<argument><expr><operator>&amp;</operator><name>rect</name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>screen</name><operator>-&gt;</operator><name>damaged</name></name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>vterm_rect_move</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>screen</name><operator>-&gt;</operator><name>damaged</name></name></expr></argument>, <argument><expr><operator>-</operator><name>downward</name></expr></argument>, <argument><expr><operator>-</operator><name>rightward</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>rect_clip</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>screen</name><operator>-&gt;</operator><name>damaged</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name>rect</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if>
+
+
+
+
+<if type="elseif">else if<condition>(<expr><name><name>rect</name><operator>.</operator><name>start_col</name></name> <operator>&lt;=</operator> <name><name>screen</name><operator>-&gt;</operator><name>damaged</name><operator>.</operator><name>start_col</name></name> <operator>&amp;&amp;</operator>
+<name><name>rect</name><operator>.</operator><name>end_col</name></name> <operator>&gt;=</operator> <name><name>screen</name><operator>-&gt;</operator><name>damaged</name><operator>.</operator><name>end_col</name></name> <operator>&amp;&amp;</operator>
+<name>rightward</name> <operator>==</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+<if_stmt><if>if<condition>(<expr><name><name>screen</name><operator>-&gt;</operator><name>damaged</name><operator>.</operator><name>start_row</name></name> <operator>&gt;=</operator> <name><name>rect</name><operator>.</operator><name>start_row</name></name> <operator>&amp;&amp;</operator>
+<name><name>screen</name><operator>-&gt;</operator><name>damaged</name><operator>.</operator><name>start_row</name></name> <operator>&lt;</operator> <name><name>rect</name><operator>.</operator><name>end_row</name></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name><name>screen</name><operator>-&gt;</operator><name>damaged</name><operator>.</operator><name>start_row</name></name> <operator>-=</operator> <name>downward</name></expr>;</expr_stmt>
+<if_stmt><if>if<condition>(<expr><name><name>screen</name><operator>-&gt;</operator><name>damaged</name><operator>.</operator><name>start_row</name></name> <operator>&lt;</operator> <name><name>rect</name><operator>.</operator><name>start_row</name></name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name><name>screen</name><operator>-&gt;</operator><name>damaged</name><operator>.</operator><name>start_row</name></name> <operator>=</operator> <name><name>rect</name><operator>.</operator><name>start_row</name></name></expr>;</expr_stmt></block_content></block></if></if_stmt>
+<if_stmt><if>if<condition>(<expr><name><name>screen</name><operator>-&gt;</operator><name>damaged</name><operator>.</operator><name>start_row</name></name> <operator>&gt;</operator> <name><name>rect</name><operator>.</operator><name>end_row</name></name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name><name>screen</name><operator>-&gt;</operator><name>damaged</name><operator>.</operator><name>start_row</name></name> <operator>=</operator> <name><name>rect</name><operator>.</operator><name>end_row</name></name></expr>;</expr_stmt></block_content></block></if></if_stmt>
+</block_content>}</block></if></if_stmt>
+<if_stmt><if>if<condition>(<expr><name><name>screen</name><operator>-&gt;</operator><name>damaged</name><operator>.</operator><name>end_row</name></name> <operator>&gt;=</operator> <name><name>rect</name><operator>.</operator><name>start_row</name></name> <operator>&amp;&amp;</operator>
+<name><name>screen</name><operator>-&gt;</operator><name>damaged</name><operator>.</operator><name>end_row</name></name> <operator>&lt;</operator> <name><name>rect</name><operator>.</operator><name>end_row</name></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name><name>screen</name><operator>-&gt;</operator><name>damaged</name><operator>.</operator><name>end_row</name></name> <operator>-=</operator> <name>downward</name></expr>;</expr_stmt>
+<if_stmt><if>if<condition>(<expr><name><name>screen</name><operator>-&gt;</operator><name>damaged</name><operator>.</operator><name>end_row</name></name> <operator>&lt;</operator> <name><name>rect</name><operator>.</operator><name>start_row</name></name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name><name>screen</name><operator>-&gt;</operator><name>damaged</name><operator>.</operator><name>end_row</name></name> <operator>=</operator> <name><name>rect</name><operator>.</operator><name>start_row</name></name></expr>;</expr_stmt></block_content></block></if></if_stmt>
+<if_stmt><if>if<condition>(<expr><name><name>screen</name><operator>-&gt;</operator><name>damaged</name><operator>.</operator><name>end_row</name></name> <operator>&gt;</operator> <name><name>rect</name><operator>.</operator><name>end_row</name></name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name><name>screen</name><operator>-&gt;</operator><name>damaged</name><operator>.</operator><name>end_row</name></name> <operator>=</operator> <name><name>rect</name><operator>.</operator><name>end_row</name></name></expr>;</expr_stmt></block_content></block></if></if_stmt>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block></if>
+<else>else <block>{<block_content>
+<expr_stmt><expr><call><name>DEBUG_LOG2</name><argument_list>(<argument><expr><literal type="string">"TODO: Just flush and redo damaged="</literal> <name>STRFrect</name> <literal type="string">" rect="</literal> <name>STRFrect</name> <literal type="string">"\n"</literal></expr></argument>,
+<argument><expr><call><name>ARGSrect</name><argument_list>(<argument><expr><name><name>screen</name><operator>-&gt;</operator><name>damaged</name></name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>ARGSrect</name><argument_list>(<argument><expr><name>rect</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></else></if_stmt>
+
+<return>return <expr><literal type="number">1</literal></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>movecursor</name><parameter_list>(<parameter><decl><type><name>VTermPos</name></type> <name>pos</name></decl></parameter>, <parameter><decl><type><name>VTermPos</name></type> <name>oldpos</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>visible</name></decl></parameter>, <parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>user</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>VTermScreen</name> <modifier>*</modifier></type><name>screen</name> <init>= <expr><name>user</name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if<condition>(<expr><name><name>screen</name><operator>-&gt;</operator><name>callbacks</name></name> <operator>&amp;&amp;</operator> <name><name>screen</name><operator>-&gt;</operator><name>callbacks</name><operator>-&gt;</operator><name>movecursor</name></name></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><call>(<modifier>*</modifier><name><name>screen</name><operator>-&gt;</operator><name>callbacks</name><operator>-&gt;</operator><name>movecursor</name></name>)<argument_list>(<argument><expr><name>pos</name></expr></argument>, <argument><expr><name>oldpos</name></expr></argument>, <argument><expr><name>visible</name></expr></argument>, <argument><expr><name><name>screen</name><operator>-&gt;</operator><name>cbdata</name></name></expr></argument>)</argument_list></call></expr>;</return></block_content></block></if></if_stmt>
+
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>setpenattr</name><parameter_list>(<parameter><decl><type><name>VTermAttr</name></type> <name>attr</name></decl></parameter>, <parameter><decl><type><name>VTermValue</name> <modifier>*</modifier></type><name>val</name></decl></parameter>, <parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>user</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>VTermScreen</name> <modifier>*</modifier></type><name>screen</name> <init>= <expr><name>user</name></expr></init></decl>;</decl_stmt>
+
+<switch>switch<condition>(<expr><name>attr</name></expr>)</condition> <block>{<block_content>
+<case>case <expr><name>VTERM_ATTR_BOLD</name></expr>:</case>
+<expr_stmt><expr><name><name>screen</name><operator>-&gt;</operator><name>pen</name><operator>.</operator><name>bold</name></name> <operator>=</operator> <name><name>val</name><operator>-&gt;</operator><name>boolean</name></name></expr>;</expr_stmt>
+<return>return <expr><literal type="number">1</literal></expr>;</return>
+<case>case <expr><name>VTERM_ATTR_UNDERLINE</name></expr>:</case>
+<expr_stmt><expr><name><name>screen</name><operator>-&gt;</operator><name>pen</name><operator>.</operator><name>underline</name></name> <operator>=</operator> <name><name>val</name><operator>-&gt;</operator><name>number</name></name></expr>;</expr_stmt>
+<return>return <expr><literal type="number">1</literal></expr>;</return>
+<case>case <expr><name>VTERM_ATTR_ITALIC</name></expr>:</case>
+<expr_stmt><expr><name><name>screen</name><operator>-&gt;</operator><name>pen</name><operator>.</operator><name>italic</name></name> <operator>=</operator> <name><name>val</name><operator>-&gt;</operator><name>boolean</name></name></expr>;</expr_stmt>
+<return>return <expr><literal type="number">1</literal></expr>;</return>
+<case>case <expr><name>VTERM_ATTR_BLINK</name></expr>:</case>
+<expr_stmt><expr><name><name>screen</name><operator>-&gt;</operator><name>pen</name><operator>.</operator><name>blink</name></name> <operator>=</operator> <name><name>val</name><operator>-&gt;</operator><name>boolean</name></name></expr>;</expr_stmt>
+<return>return <expr><literal type="number">1</literal></expr>;</return>
+<case>case <expr><name>VTERM_ATTR_REVERSE</name></expr>:</case>
+<expr_stmt><expr><name><name>screen</name><operator>-&gt;</operator><name>pen</name><operator>.</operator><name>reverse</name></name> <operator>=</operator> <name><name>val</name><operator>-&gt;</operator><name>boolean</name></name></expr>;</expr_stmt>
+<return>return <expr><literal type="number">1</literal></expr>;</return>
+<case>case <expr><name>VTERM_ATTR_STRIKE</name></expr>:</case>
+<expr_stmt><expr><name><name>screen</name><operator>-&gt;</operator><name>pen</name><operator>.</operator><name>strike</name></name> <operator>=</operator> <name><name>val</name><operator>-&gt;</operator><name>boolean</name></name></expr>;</expr_stmt>
+<return>return <expr><literal type="number">1</literal></expr>;</return>
+<case>case <expr><name>VTERM_ATTR_FONT</name></expr>:</case>
+<expr_stmt><expr><name><name>screen</name><operator>-&gt;</operator><name>pen</name><operator>.</operator><name>font</name></name> <operator>=</operator> <name><name>val</name><operator>-&gt;</operator><name>number</name></name></expr>;</expr_stmt>
+<return>return <expr><literal type="number">1</literal></expr>;</return>
+<case>case <expr><name>VTERM_ATTR_FOREGROUND</name></expr>:</case>
+<expr_stmt><expr><name><name>screen</name><operator>-&gt;</operator><name>pen</name><operator>.</operator><name>fg</name></name> <operator>=</operator> <name><name>val</name><operator>-&gt;</operator><name>color</name></name></expr>;</expr_stmt>
+<return>return <expr><literal type="number">1</literal></expr>;</return>
+<case>case <expr><name>VTERM_ATTR_BACKGROUND</name></expr>:</case>
+<expr_stmt><expr><name><name>screen</name><operator>-&gt;</operator><name>pen</name><operator>.</operator><name>bg</name></name> <operator>=</operator> <name><name>val</name><operator>-&gt;</operator><name>color</name></name></expr>;</expr_stmt>
+<return>return <expr><literal type="number">1</literal></expr>;</return>
+
+<case>case <expr><name>VTERM_N_ATTRS</name></expr>:</case>
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+</block_content>}</block></switch>
+
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>settermprop</name><parameter_list>(<parameter><decl><type><name>VTermProp</name></type> <name>prop</name></decl></parameter>, <parameter><decl><type><name>VTermValue</name> <modifier>*</modifier></type><name>val</name></decl></parameter>, <parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>user</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>VTermScreen</name> <modifier>*</modifier></type><name>screen</name> <init>= <expr><name>user</name></expr></init></decl>;</decl_stmt>
+
+<switch>switch<condition>(<expr><name>prop</name></expr>)</condition> <block>{<block_content>
+<case>case <expr><name>VTERM_PROP_ALTSCREEN</name></expr>:</case>
+<if_stmt><if>if<condition>(<expr><name><name>val</name><operator>-&gt;</operator><name>boolean</name></name> <operator>&amp;&amp;</operator> <operator>!</operator><name><name>screen</name><operator>-&gt;</operator><name>buffers</name><index>[<expr><literal type="number">1</literal></expr>]</index></name></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><literal type="number">0</literal></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name><name>screen</name><operator>-&gt;</operator><name>buffer</name></name> <operator>=</operator> <ternary><condition><expr><name><name>val</name><operator>-&gt;</operator><name>boolean</name></name></expr> ?</condition><then> <expr><name><name>screen</name><operator>-&gt;</operator><name>buffers</name><index>[<expr><literal type="number">1</literal></expr>]</index></name></expr> </then><else>: <expr><name><name>screen</name><operator>-&gt;</operator><name>buffers</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></else></ternary></expr>;</expr_stmt>
+
+
+<if_stmt><if>if<condition>(<expr><operator>!</operator><name><name>val</name><operator>-&gt;</operator><name>boolean</name></name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>damagescreen</name><argument_list>(<argument><expr><name>screen</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+<break>break;</break>
+<case>case <expr><name>VTERM_PROP_REVERSE</name></expr>:</case>
+<expr_stmt><expr><name><name>screen</name><operator>-&gt;</operator><name>global_reverse</name></name> <operator>=</operator> <name><name>val</name><operator>-&gt;</operator><name>boolean</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>damagescreen</name><argument_list>(<argument><expr><name>screen</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+<default>default:</default>
+<empty_stmt>;</empty_stmt> 
+</block_content>}</block></switch>
+
+<if_stmt><if>if<condition>(<expr><name><name>screen</name><operator>-&gt;</operator><name>callbacks</name></name> <operator>&amp;&amp;</operator> <name><name>screen</name><operator>-&gt;</operator><name>callbacks</name><operator>-&gt;</operator><name>settermprop</name></name></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><call>(<modifier>*</modifier><name><name>screen</name><operator>-&gt;</operator><name>callbacks</name><operator>-&gt;</operator><name>settermprop</name></name>)<argument_list>(<argument><expr><name>prop</name></expr></argument>, <argument><expr><name>val</name></expr></argument>, <argument><expr><name><name>screen</name><operator>-&gt;</operator><name>cbdata</name></name></expr></argument>)</argument_list></call></expr>;</return></block_content></block></if></if_stmt>
+
+<return>return <expr><literal type="number">1</literal></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>bell</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>user</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>VTermScreen</name> <modifier>*</modifier></type><name>screen</name> <init>= <expr><name>user</name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if<condition>(<expr><name><name>screen</name><operator>-&gt;</operator><name>callbacks</name></name> <operator>&amp;&amp;</operator> <name><name>screen</name><operator>-&gt;</operator><name>callbacks</name><operator>-&gt;</operator><name>bell</name></name></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><call>(<modifier>*</modifier><name><name>screen</name><operator>-&gt;</operator><name>callbacks</name><operator>-&gt;</operator><name>bell</name></name>)<argument_list>(<argument><expr><name><name>screen</name><operator>-&gt;</operator><name>cbdata</name></name></expr></argument>)</argument_list></call></expr>;</return></block_content></block></if></if_stmt>
+
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>resize</name><parameter_list>(<parameter><decl><type><name>int</name></type> <name>new_rows</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>new_cols</name></decl></parameter>, <parameter><decl><type><name>VTermPos</name> <modifier>*</modifier></type><name>delta</name></decl></parameter>, <parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>user</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>VTermScreen</name> <modifier>*</modifier></type><name>screen</name> <init>= <expr><name>user</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>is_altscreen</name> <init>= <expr><operator>(</operator><name><name>screen</name><operator>-&gt;</operator><name>buffers</name><index>[<expr><literal type="number">1</literal></expr>]</index></name> <operator>&amp;&amp;</operator> <name><name>screen</name><operator>-&gt;</operator><name>buffer</name></name> <operator>==</operator> <name><name>screen</name><operator>-&gt;</operator><name>buffers</name><index>[<expr><literal type="number">1</literal></expr>]</index></name><operator>)</operator></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>old_rows</name> <init>= <expr><name><name>screen</name><operator>-&gt;</operator><name>rows</name></name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>old_cols</name> <init>= <expr><name><name>screen</name><operator>-&gt;</operator><name>cols</name></name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>first_blank_row</name></decl>;</decl_stmt>
+
+<if_stmt><if>if<condition>(<expr><operator>!</operator><name>is_altscreen</name> <operator>&amp;&amp;</operator> <name>new_rows</name> <operator>&lt;</operator> <name>old_rows</name></expr>)</condition> <block>{<block_content>
+
+
+<decl_stmt><decl><type><name>VTermPos</name></type> <name>pos</name> <init>= <expr><block>{ <expr><literal type="number">0</literal></expr>, <expr><literal type="number">0</literal></expr> }</block></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>VTermPos</name></type> <name>cursor</name> <init>= <expr><name><name>screen</name><operator>-&gt;</operator><name>state</name><operator>-&gt;</operator><name>pos</name></name></expr></init></decl>;</decl_stmt>
+
+<for>for<control>(<init><expr><name><name>pos</name><operator>.</operator><name>row</name></name> <operator>=</operator> <name>old_rows</name> <operator>-</operator> <literal type="number">1</literal></expr>;</init> <condition><expr><name><name>pos</name><operator>.</operator><name>row</name></name> <operator>&gt;=</operator> <name>new_rows</name></expr>;</condition> <incr><expr><name><name>pos</name><operator>.</operator><name>row</name></name><operator>--</operator></expr></incr>)</control><block type="pseudo"><block_content>
+<if_stmt><if>if<condition>(<expr><operator>!</operator><call><name>vterm_screen_is_eol</name><argument_list>(<argument><expr><name>screen</name></expr></argument>, <argument><expr><name>pos</name></expr></argument>)</argument_list></call> <operator>||</operator> <name><name>cursor</name><operator>.</operator><name>row</name></name> <operator>==</operator> <name><name>pos</name><operator>.</operator><name>row</name></name></expr>)</condition><block type="pseudo"><block_content>
+<break>break;</break></block_content></block></if></if_stmt></block_content></block></for>
+
+<expr_stmt><expr><name>first_blank_row</name> <operator>=</operator> <name><name>pos</name><operator>.</operator><name>row</name></name> <operator>+</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+<if_stmt><if>if<condition>(<expr><name>first_blank_row</name> <operator>&gt;</operator> <name>new_rows</name></expr>)</condition> <block>{<block_content>
+<decl_stmt><decl><type><name>VTermRect</name></type> <name>rect</name> <init>= <expr><block>{<expr><literal type="number">0</literal></expr>,<expr><literal type="number">0</literal></expr>,<expr><literal type="number">0</literal></expr>,<expr><literal type="number">0</literal></expr>}</block></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><name><name>rect</name><operator>.</operator><name>end_row</name></name> <operator>=</operator> <name>old_rows</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>rect</name><operator>.</operator><name>end_col</name></name> <operator>=</operator> <name>old_cols</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>scrollrect</name><argument_list>(<argument><expr><name>rect</name></expr></argument>, <argument><expr><name>first_blank_row</name> <operator>-</operator> <name>new_rows</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><name>user</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>vterm_screen_flush_damage</name><argument_list>(<argument><expr><name>screen</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>delta</name><operator>-&gt;</operator><name>row</name></name> <operator>-=</operator> <name>first_blank_row</name> <operator>-</operator> <name>new_rows</name></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>screen</name><operator>-&gt;</operator><name>buffers</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>=</operator> <call><name>realloc_buffer</name><argument_list>(<argument><expr><name>screen</name></expr></argument>, <argument><expr><name><name>screen</name><operator>-&gt;</operator><name>buffers</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>, <argument><expr><name>new_rows</name></expr></argument>, <argument><expr><name>new_cols</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if<condition>(<expr><name><name>screen</name><operator>-&gt;</operator><name>buffers</name><index>[<expr><literal type="number">1</literal></expr>]</index></name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name><name>screen</name><operator>-&gt;</operator><name>buffers</name><index>[<expr><literal type="number">1</literal></expr>]</index></name> <operator>=</operator> <call><name>realloc_buffer</name><argument_list>(<argument><expr><name>screen</name></expr></argument>, <argument><expr><name><name>screen</name><operator>-&gt;</operator><name>buffers</name><index>[<expr><literal type="number">1</literal></expr>]</index></name></expr></argument>, <argument><expr><name>new_rows</name></expr></argument>, <argument><expr><name>new_cols</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name><name>screen</name><operator>-&gt;</operator><name>buffer</name></name> <operator>=</operator> <ternary><condition><expr><name>is_altscreen</name></expr> ?</condition><then> <expr><name><name>screen</name><operator>-&gt;</operator><name>buffers</name><index>[<expr><literal type="number">1</literal></expr>]</index></name></expr> </then><else>: <expr><name><name>screen</name><operator>-&gt;</operator><name>buffers</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></else></ternary></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>screen</name><operator>-&gt;</operator><name>rows</name></name> <operator>=</operator> <name>new_rows</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>screen</name><operator>-&gt;</operator><name>cols</name></name> <operator>=</operator> <name>new_cols</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>vterm_allocator_free</name><argument_list>(<argument><expr><name><name>screen</name><operator>-&gt;</operator><name>vt</name></name></expr></argument>, <argument><expr><name><name>screen</name><operator>-&gt;</operator><name>sb_buffer</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>screen</name><operator>-&gt;</operator><name>sb_buffer</name></name> <operator>=</operator> <call><name>vterm_allocator_malloc</name><argument_list>(<argument><expr><name><name>screen</name><operator>-&gt;</operator><name>vt</name></name></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr><name>VTermScreenCell</name></expr></argument>)</argument_list></sizeof> <operator>*</operator> <name>new_cols</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if<condition>(<expr><name>new_cols</name> <operator>&gt;</operator> <name>old_cols</name></expr>)</condition> <block>{<block_content>
+<decl_stmt><decl><type><name>VTermRect</name></type> <name>rect</name></decl>;</decl_stmt>
+<expr_stmt><expr><name><name>rect</name><operator>.</operator><name>start_row</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>rect</name><operator>.</operator><name>end_row</name></name> <operator>=</operator> <name>old_rows</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>rect</name><operator>.</operator><name>start_col</name></name> <operator>=</operator> <name>old_cols</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>rect</name><operator>.</operator><name>end_col</name></name> <operator>=</operator> <name>new_cols</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>damagerect</name><argument_list>(<argument><expr><name>screen</name></expr></argument>, <argument><expr><name>rect</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if<condition>(<expr><name>new_rows</name> <operator>&gt;</operator> <name>old_rows</name></expr>)</condition> <block>{<block_content>
+<if_stmt><if>if<condition>(<expr><operator>!</operator><name>is_altscreen</name> <operator>&amp;&amp;</operator> <name><name>screen</name><operator>-&gt;</operator><name>callbacks</name></name> <operator>&amp;&amp;</operator> <name><name>screen</name><operator>-&gt;</operator><name>callbacks</name><operator>-&gt;</operator><name>sb_popline</name></name></expr>)</condition> <block>{<block_content>
+<decl_stmt><decl><type><name>int</name></type> <name>rows</name> <init>= <expr><name>new_rows</name> <operator>-</operator> <name>old_rows</name></expr></init></decl>;</decl_stmt>
+<while>while<condition>(<expr><name>rows</name></expr>)</condition> <block>{<block_content>
+<decl_stmt><decl><type><name>VTermRect</name></type> <name>rect</name> <init>= <expr><block>{<expr><literal type="number">0</literal></expr>,<expr><literal type="number">0</literal></expr>,<expr><literal type="number">0</literal></expr>,<expr><literal type="number">0</literal></expr>}</block></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>VTermPos</name></type> <name>pos</name> <init>= <expr><block>{ <expr><literal type="number">0</literal></expr>, <expr><literal type="number">0</literal></expr> }</block></expr></init></decl>;</decl_stmt>
+<if_stmt><if>if<condition>(<expr><operator>!</operator><operator>(</operator><call><name><name>screen</name><operator>-&gt;</operator><name>callbacks</name><operator>-&gt;</operator><name>sb_popline</name></name><argument_list>(<argument><expr><name><name>screen</name><operator>-&gt;</operator><name>cols</name></name></expr></argument>, <argument><expr><name><name>screen</name><operator>-&gt;</operator><name>sb_buffer</name></name></expr></argument>, <argument><expr><name><name>screen</name><operator>-&gt;</operator><name>cbdata</name></name></expr></argument>)</argument_list></call><operator>)</operator></expr>)</condition><block type="pseudo"><block_content>
+<break>break;</break></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name><name>rect</name><operator>.</operator><name>end_row</name></name> <operator>=</operator> <name><name>screen</name><operator>-&gt;</operator><name>rows</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>rect</name><operator>.</operator><name>end_col</name></name> <operator>=</operator> <name><name>screen</name><operator>-&gt;</operator><name>cols</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>scrollrect</name><argument_list>(<argument><expr><name>rect</name></expr></argument>, <argument><expr><operator>-</operator><literal type="number">1</literal></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><name>user</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<for>for<control>(<init><expr><name><name>pos</name><operator>.</operator><name>col</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name><name>pos</name><operator>.</operator><name>col</name></name> <operator>&lt;</operator> <name><name>screen</name><operator>-&gt;</operator><name>cols</name></name></expr>;</condition> <incr><expr><name><name>pos</name><operator>.</operator><name>col</name></name> <operator>+=</operator> <name><name>screen</name><operator>-&gt;</operator><name>sb_buffer</name><index>[<expr><name><name>pos</name><operator>.</operator><name>col</name></name></expr>]</index></name><operator>.</operator><name>width</name></expr></incr>)</control><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>vterm_screen_set_cell</name><argument_list>(<argument><expr><name>screen</name></expr></argument>, <argument><expr><name>pos</name></expr></argument>, <argument><expr><name><name>screen</name><operator>-&gt;</operator><name>sb_buffer</name></name> <operator>+</operator> <name><name>pos</name><operator>.</operator><name>col</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></for>
+
+<expr_stmt><expr><name><name>rect</name><operator>.</operator><name>end_row</name></name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>damagerect</name><argument_list>(<argument><expr><name>screen</name></expr></argument>, <argument><expr><name>rect</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>vterm_screen_flush_damage</name><argument_list>(<argument><expr><name>screen</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>rows</name><operator>--</operator></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>delta</name><operator>-&gt;</operator><name>row</name></name><operator>++</operator></expr>;</expr_stmt>
+</block_content>}</block></while>
+</block_content>}</block></if></if_stmt>
+
+<block>{<block_content>
+<decl_stmt><decl><type><name>VTermRect</name></type> <name>rect</name></decl>;</decl_stmt>
+<expr_stmt><expr><name><name>rect</name><operator>.</operator><name>start_row</name></name> <operator>=</operator> <name>old_rows</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>rect</name><operator>.</operator><name>end_row</name></name> <operator>=</operator> <name>new_rows</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>rect</name><operator>.</operator><name>start_col</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>rect</name><operator>.</operator><name>end_col</name></name> <operator>=</operator> <name>new_cols</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>damagerect</name><argument_list>(<argument><expr><name>screen</name></expr></argument>, <argument><expr><name>rect</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block>
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if<condition>(<expr><name><name>screen</name><operator>-&gt;</operator><name>callbacks</name></name> <operator>&amp;&amp;</operator> <name><name>screen</name><operator>-&gt;</operator><name>callbacks</name><operator>-&gt;</operator><name>resize</name></name></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><call>(<modifier>*</modifier><name><name>screen</name><operator>-&gt;</operator><name>callbacks</name><operator>-&gt;</operator><name>resize</name></name>)<argument_list>(<argument><expr><name>new_rows</name></expr></argument>, <argument><expr><name>new_cols</name></expr></argument>, <argument><expr><name><name>screen</name><operator>-&gt;</operator><name>cbdata</name></name></expr></argument>)</argument_list></call></expr>;</return></block_content></block></if></if_stmt>
+
+<return>return <expr><literal type="number">1</literal></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>setlineinfo</name><parameter_list>(<parameter><decl><type><name>int</name></type> <name>row</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>VTermLineInfo</name> <modifier>*</modifier></type><name>newinfo</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>VTermLineInfo</name> <modifier>*</modifier></type><name>oldinfo</name></decl></parameter>, <parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>user</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>VTermScreen</name> <modifier>*</modifier></type><name>screen</name> <init>= <expr><name>user</name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>col</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>VTermRect</name></type> <name>rect</name></decl>;</decl_stmt>
+
+<if_stmt><if>if<condition>(<expr><name><name>newinfo</name><operator>-&gt;</operator><name>doublewidth</name></name> <operator>!=</operator> <name><name>oldinfo</name><operator>-&gt;</operator><name>doublewidth</name></name> <operator>||</operator>
+<name><name>newinfo</name><operator>-&gt;</operator><name>doubleheight</name></name> <operator>!=</operator> <name><name>oldinfo</name><operator>-&gt;</operator><name>doubleheight</name></name></expr>)</condition> <block>{<block_content>
+<for>for<control>(<init><expr><name>col</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>col</name> <operator>&lt;</operator> <name><name>screen</name><operator>-&gt;</operator><name>cols</name></name></expr>;</condition> <incr><expr><name>col</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<decl_stmt><decl><type><name>ScreenCell</name> <modifier>*</modifier></type><name>cell</name> <init>= <expr><call><name>getcell</name><argument_list>(<argument><expr><name>screen</name></expr></argument>, <argument><expr><name>row</name></expr></argument>, <argument><expr><name>col</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><name><name>cell</name><operator>-&gt;</operator><name>pen</name><operator>.</operator><name>dwl</name></name> <operator>=</operator> <name><name>newinfo</name><operator>-&gt;</operator><name>doublewidth</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>cell</name><operator>-&gt;</operator><name>pen</name><operator>.</operator><name>dhl</name></name> <operator>=</operator> <name><name>newinfo</name><operator>-&gt;</operator><name>doubleheight</name></name></expr>;</expr_stmt>
+</block_content>}</block></for>
+
+<expr_stmt><expr><name><name>rect</name><operator>.</operator><name>start_row</name></name> <operator>=</operator> <name>row</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>rect</name><operator>.</operator><name>end_row</name></name> <operator>=</operator> <name>row</name> <operator>+</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>rect</name><operator>.</operator><name>start_col</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>rect</name><operator>.</operator><name>end_col</name></name> <operator>=</operator> <ternary><condition><expr><name><name>newinfo</name><operator>-&gt;</operator><name>doublewidth</name></name></expr> ?</condition><then> <expr><name><name>screen</name><operator>-&gt;</operator><name>cols</name></name> <operator>/</operator> <literal type="number">2</literal></expr> </then><else>: <expr><name><name>screen</name><operator>-&gt;</operator><name>cols</name></name></expr></else></ternary></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>damagerect</name><argument_list>(<argument><expr><name>screen</name></expr></argument>, <argument><expr><name>rect</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if<condition>(<expr><name><name>newinfo</name><operator>-&gt;</operator><name>doublewidth</name></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name><name>rect</name><operator>.</operator><name>start_col</name></name> <operator>=</operator> <name><name>screen</name><operator>-&gt;</operator><name>cols</name></name> <operator>/</operator> <literal type="number">2</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>rect</name><operator>.</operator><name>end_col</name></name> <operator>=</operator> <name><name>screen</name><operator>-&gt;</operator><name>cols</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>erase_internal</name><argument_list>(<argument><expr><name>rect</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><name>user</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block></if></if_stmt>
+
+<return>return <expr><literal type="number">1</literal></expr>;</return>
+</block_content>}</block></function>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>VTermStateCallbacks</name></type> <name>state_cbs</name> <init>= <expr><block>{
+<expr><operator>&amp;</operator><name>putglyph</name></expr>, 
+<expr><operator>&amp;</operator><name>movecursor</name></expr>, 
+<expr><operator>&amp;</operator><name>scrollrect</name></expr>, 
+<expr><name>NULL</name></expr>, 
+<expr><operator>&amp;</operator><name>erase</name></expr>, 
+<expr><name>NULL</name></expr>, 
+<expr><operator>&amp;</operator><name>setpenattr</name></expr>, 
+<expr><operator>&amp;</operator><name>settermprop</name></expr>, 
+<expr><operator>&amp;</operator><name>bell</name></expr>, 
+<expr><operator>&amp;</operator><name>resize</name></expr>, 
+<expr><operator>&amp;</operator><name>setlineinfo</name></expr> 
+}</block></expr></init></decl>;</decl_stmt>
+
+
+
+
+
+<function><type><specifier>static</specifier> <name>VTermScreen</name> <modifier>*</modifier></type><name>screen_new</name><parameter_list>(<parameter><decl><type><name>VTerm</name> <modifier>*</modifier></type><name>vt</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>VTermState</name> <modifier>*</modifier></type><name>state</name> <init>= <expr><call><name>vterm_obtain_state</name><argument_list>(<argument><expr><name>vt</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>VTermScreen</name> <modifier>*</modifier></type><name>screen</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>rows</name></decl>, <decl><type ref="prev"/><name>cols</name></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>state</name> <operator>==</operator> <name>NULL</name></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><name>NULL</name></expr>;</return></block_content></block></if></if_stmt>
+<expr_stmt><expr><name>screen</name> <operator>=</operator> <call><name>vterm_allocator_malloc</name><argument_list>(<argument><expr><name>vt</name></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr><name>VTermScreen</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name>screen</name> <operator>==</operator> <name>NULL</name></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><name>NULL</name></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>vterm_get_size</name><argument_list>(<argument><expr><name>vt</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>rows</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>cols</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>screen</name><operator>-&gt;</operator><name>vt</name></name> <operator>=</operator> <name>vt</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>screen</name><operator>-&gt;</operator><name>state</name></name> <operator>=</operator> <name>state</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>screen</name><operator>-&gt;</operator><name>damage_merge</name></name> <operator>=</operator> <name>VTERM_DAMAGE_CELL</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>screen</name><operator>-&gt;</operator><name>damaged</name><operator>.</operator><name>start_row</name></name> <operator>=</operator> <operator>-</operator><literal type="number">1</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>screen</name><operator>-&gt;</operator><name>pending_scrollrect</name><operator>.</operator><name>start_row</name></name> <operator>=</operator> <operator>-</operator><literal type="number">1</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>screen</name><operator>-&gt;</operator><name>rows</name></name> <operator>=</operator> <name>rows</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>screen</name><operator>-&gt;</operator><name>cols</name></name> <operator>=</operator> <name>cols</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>screen</name><operator>-&gt;</operator><name>callbacks</name></name> <operator>=</operator> <name>NULL</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>screen</name><operator>-&gt;</operator><name>cbdata</name></name> <operator>=</operator> <name>NULL</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>screen</name><operator>-&gt;</operator><name>buffers</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>=</operator> <call><name>realloc_buffer</name><argument_list>(<argument><expr><name>screen</name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>, <argument><expr><name>rows</name></expr></argument>, <argument><expr><name>cols</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>screen</name><operator>-&gt;</operator><name>buffer</name></name> <operator>=</operator> <name><name>screen</name><operator>-&gt;</operator><name>buffers</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>screen</name><operator>-&gt;</operator><name>sb_buffer</name></name> <operator>=</operator> <call><name>vterm_allocator_malloc</name><argument_list>(<argument><expr><name><name>screen</name><operator>-&gt;</operator><name>vt</name></name></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr><name>VTermScreenCell</name></expr></argument>)</argument_list></sizeof> <operator>*</operator> <name>cols</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>screen</name><operator>-&gt;</operator><name>buffer</name></name> <operator>==</operator> <name>NULL</name> <operator>||</operator> <name><name>screen</name><operator>-&gt;</operator><name>sb_buffer</name></name> <operator>==</operator> <name>NULL</name></expr>)</condition>
+<block>{<block_content>
+<expr_stmt><expr><call><name>vterm_screen_free</name><argument_list>(<argument><expr><name>screen</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>NULL</name></expr>;</return>
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>vterm_state_set_callbacks</name><argument_list>(<argument><expr><name><name>screen</name><operator>-&gt;</operator><name>state</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name>state_cbs</name></expr></argument>, <argument><expr><name>screen</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>screen</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><name>INTERNAL</name> <name>void</name></type> <name>vterm_screen_free</name><parameter_list>(<parameter><decl><type><name>VTermScreen</name> <modifier>*</modifier></type><name>screen</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<expr_stmt><expr><call><name>vterm_allocator_free</name><argument_list>(<argument><expr><name><name>screen</name><operator>-&gt;</operator><name>vt</name></name></expr></argument>, <argument><expr><name><name>screen</name><operator>-&gt;</operator><name>buffers</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>vterm_allocator_free</name><argument_list>(<argument><expr><name><name>screen</name><operator>-&gt;</operator><name>vt</name></name></expr></argument>, <argument><expr><name><name>screen</name><operator>-&gt;</operator><name>buffers</name><index>[<expr><literal type="number">1</literal></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>vterm_allocator_free</name><argument_list>(<argument><expr><name><name>screen</name><operator>-&gt;</operator><name>vt</name></name></expr></argument>, <argument><expr><name><name>screen</name><operator>-&gt;</operator><name>sb_buffer</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>vterm_allocator_free</name><argument_list>(<argument><expr><name><name>screen</name><operator>-&gt;</operator><name>vt</name></name></expr></argument>, <argument><expr><name>screen</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><name>void</name></type> <name>vterm_screen_reset</name><parameter_list>(<parameter><decl><type><name>VTermScreen</name> <modifier>*</modifier></type><name>screen</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>hard</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<expr_stmt><expr><name><name>screen</name><operator>-&gt;</operator><name>damaged</name><operator>.</operator><name>start_row</name></name> <operator>=</operator> <operator>-</operator><literal type="number">1</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>screen</name><operator>-&gt;</operator><name>pending_scrollrect</name><operator>.</operator><name>start_row</name></name> <operator>=</operator> <operator>-</operator><literal type="number">1</literal></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>vterm_state_reset</name><argument_list>(<argument><expr><name><name>screen</name><operator>-&gt;</operator><name>state</name></name></expr></argument>, <argument><expr><name>hard</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>vterm_screen_flush_damage</name><argument_list>(<argument><expr><name>screen</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>size_t</name></type> <name>_get_chars</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name>VTermScreen</name> <modifier>*</modifier></type><name>screen</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>int</name></type> <name>utf8</name></decl></parameter>, <parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>buffer</name></decl></parameter>, <parameter><decl><type><name>size_t</name></type> <name>len</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>VTermRect</name></type> <name>rect</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>size_t</name></type> <name>outpos</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>padding</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>row</name></decl>, <decl><type ref="prev"/><name>col</name></decl>;</decl_stmt>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>PUT</name><parameter_list>(<parameter><type><name>c</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>if(utf8) { size_t thislen = utf8_seqlen(c); if(buffer &amp;&amp; outpos + thislen &lt;= len) outpos += fill_utf8((c), (char *)buffer + outpos); else outpos += thislen; } else { if(buffer &amp;&amp; outpos + 1 &lt;= len) ((uint32_t*)buffer)[outpos++] = (c); else outpos++; }</cpp:value></cpp:define>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<for>for<control>(<init><expr><name>row</name> <operator>=</operator> <name><name>rect</name><operator>.</operator><name>start_row</name></name></expr>;</init> <condition><expr><name>row</name> <operator>&lt;</operator> <name><name>rect</name><operator>.</operator><name>end_row</name></name></expr>;</condition> <incr><expr><name>row</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<for>for<control>(<init><expr><name>col</name> <operator>=</operator> <name><name>rect</name><operator>.</operator><name>start_col</name></name></expr>;</init> <condition><expr><name>col</name> <operator>&lt;</operator> <name><name>rect</name><operator>.</operator><name>end_col</name></name></expr>;</condition> <incr><expr><name>col</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<decl_stmt><decl><type><name>ScreenCell</name> <modifier>*</modifier></type><name>cell</name> <init>= <expr><call><name>getcell</name><argument_list>(<argument><expr><name>screen</name></expr></argument>, <argument><expr><name>row</name></expr></argument>, <argument><expr><name>col</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>i</name></decl>;</decl_stmt>
+
+<if_stmt><if>if<condition>(<expr><name><name>cell</name><operator>-&gt;</operator><name>chars</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>==</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name>padding</name><operator>++</operator></expr>;</expr_stmt></block_content></block></if>
+<if type="elseif">else if<condition>(<expr><name><name>cell</name><operator>-&gt;</operator><name>chars</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>==</operator> <operator>(</operator><name>uint32_t</name><operator>)</operator><operator>-</operator><literal type="number">1</literal></expr>)</condition><block type="pseudo"><block_content>
+
+<empty_stmt>;</empty_stmt></block_content></block></if>
+<else>else <block>{<block_content>
+<while>while<condition>(<expr><name>padding</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>PUT</name><argument_list>(<argument><expr><name>UNICODE_SPACE</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>padding</name><operator>--</operator></expr>;</expr_stmt>
+</block_content>}</block></while>
+<for>for<control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>VTERM_MAX_CHARS_PER_CELL</name> <operator>&amp;&amp;</operator> <name><name>cell</name><operator>-&gt;</operator><name>chars</name><index>[<expr><name>i</name></expr>]</index></name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<expr_stmt><expr><call><name>PUT</name><argument_list>(<argument><expr><name><name>cell</name><operator>-&gt;</operator><name>chars</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></for>
+</block_content>}</block></else></if_stmt>
+</block_content>}</block></for>
+
+<if_stmt><if>if<condition>(<expr><name>row</name> <operator>&lt;</operator> <name><name>rect</name><operator>.</operator><name>end_row</name></name> <operator>-</operator> <literal type="number">1</literal></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>PUT</name><argument_list>(<argument><expr><name>UNICODE_LINEFEED</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>padding</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block></for>
+
+<return>return <expr><name>outpos</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><name>size_t</name></type> <name>vterm_screen_get_chars</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name>VTermScreen</name> <modifier>*</modifier></type><name>screen</name></decl></parameter>, <parameter><decl><type><name>uint32_t</name> <modifier>*</modifier></type><name>chars</name></decl></parameter>, <parameter><decl><type><name>size_t</name></type> <name>len</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>VTermRect</name></type> <name>rect</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<return>return <expr><call><name>_get_chars</name><argument_list>(<argument><expr><name>screen</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><name>chars</name></expr></argument>, <argument><expr><name>len</name></expr></argument>, <argument><expr><name>rect</name></expr></argument>)</argument_list></call></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><name>size_t</name></type> <name>vterm_screen_get_text</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name>VTermScreen</name> <modifier>*</modifier></type><name>screen</name></decl></parameter>, <parameter><decl><type><name>char</name> <modifier>*</modifier></type><name>str</name></decl></parameter>, <parameter><decl><type><name>size_t</name></type> <name>len</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>VTermRect</name></type> <name>rect</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<return>return <expr><call><name>_get_chars</name><argument_list>(<argument><expr><name>screen</name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>, <argument><expr><name>str</name></expr></argument>, <argument><expr><name>len</name></expr></argument>, <argument><expr><name>rect</name></expr></argument>)</argument_list></call></expr>;</return>
+</block_content>}</block></function>
+
+
+<function><type><name>int</name></type> <name>vterm_screen_get_cell</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name>VTermScreen</name> <modifier>*</modifier></type><name>screen</name></decl></parameter>, <parameter><decl><type><name>VTermPos</name></type> <name>pos</name></decl></parameter>, <parameter><decl><type><name>VTermScreenCell</name> <modifier>*</modifier></type><name>cell</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>ScreenCell</name> <modifier>*</modifier></type><name>intcell</name> <init>= <expr><call><name>getcell</name><argument_list>(<argument><expr><name>screen</name></expr></argument>, <argument><expr><name><name>pos</name><operator>.</operator><name>row</name></name></expr></argument>, <argument><expr><name><name>pos</name><operator>.</operator><name>col</name></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>i</name></decl>;</decl_stmt>
+
+<if_stmt><if>if<condition>(<expr><operator>!</operator><name>intcell</name></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><literal type="number">0</literal></expr>;</return></block_content></block></if></if_stmt>
+
+<for>for<control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<expr_stmt><expr><name><name>cell</name><operator>-&gt;</operator><name>chars</name><index>[<expr><name>i</name></expr>]</index></name> <operator>=</operator> <name><name>intcell</name><operator>-&gt;</operator><name>chars</name><index>[<expr><name>i</name></expr>]</index></name></expr>;</expr_stmt>
+<if_stmt><if>if<condition>(<expr><operator>!</operator><name><name>intcell</name><operator>-&gt;</operator><name>chars</name><index>[<expr><name>i</name></expr>]</index></name></expr>)</condition><block type="pseudo"><block_content>
+<break>break;</break></block_content></block></if></if_stmt>
+</block_content>}</block></for>
+
+<expr_stmt><expr><name><name>cell</name><operator>-&gt;</operator><name>attrs</name><operator>.</operator><name>bold</name></name> <operator>=</operator> <name><name>intcell</name><operator>-&gt;</operator><name>pen</name><operator>.</operator><name>bold</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>cell</name><operator>-&gt;</operator><name>attrs</name><operator>.</operator><name>underline</name></name> <operator>=</operator> <name><name>intcell</name><operator>-&gt;</operator><name>pen</name><operator>.</operator><name>underline</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>cell</name><operator>-&gt;</operator><name>attrs</name><operator>.</operator><name>italic</name></name> <operator>=</operator> <name><name>intcell</name><operator>-&gt;</operator><name>pen</name><operator>.</operator><name>italic</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>cell</name><operator>-&gt;</operator><name>attrs</name><operator>.</operator><name>blink</name></name> <operator>=</operator> <name><name>intcell</name><operator>-&gt;</operator><name>pen</name><operator>.</operator><name>blink</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>cell</name><operator>-&gt;</operator><name>attrs</name><operator>.</operator><name>reverse</name></name> <operator>=</operator> <name><name>intcell</name><operator>-&gt;</operator><name>pen</name><operator>.</operator><name>reverse</name></name> <operator>^</operator> <name><name>screen</name><operator>-&gt;</operator><name>global_reverse</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>cell</name><operator>-&gt;</operator><name>attrs</name><operator>.</operator><name>strike</name></name> <operator>=</operator> <name><name>intcell</name><operator>-&gt;</operator><name>pen</name><operator>.</operator><name>strike</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>cell</name><operator>-&gt;</operator><name>attrs</name><operator>.</operator><name>font</name></name> <operator>=</operator> <name><name>intcell</name><operator>-&gt;</operator><name>pen</name><operator>.</operator><name>font</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>cell</name><operator>-&gt;</operator><name>attrs</name><operator>.</operator><name>dwl</name></name> <operator>=</operator> <name><name>intcell</name><operator>-&gt;</operator><name>pen</name><operator>.</operator><name>dwl</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>cell</name><operator>-&gt;</operator><name>attrs</name><operator>.</operator><name>dhl</name></name> <operator>=</operator> <name><name>intcell</name><operator>-&gt;</operator><name>pen</name><operator>.</operator><name>dhl</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>cell</name><operator>-&gt;</operator><name>fg</name></name> <operator>=</operator> <name><name>intcell</name><operator>-&gt;</operator><name>pen</name><operator>.</operator><name>fg</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>cell</name><operator>-&gt;</operator><name>bg</name></name> <operator>=</operator> <name><name>intcell</name><operator>-&gt;</operator><name>pen</name><operator>.</operator><name>bg</name></name></expr>;</expr_stmt>
+
+<if_stmt><if>if<condition>(<expr><call><name>vterm_get_special_pty_type</name><argument_list>()</argument_list></call> <operator>==</operator> <literal type="number">2</literal></expr>)</condition> <block>{<block_content>
+
+<if_stmt><if>if<condition>(<expr><name><name>pos</name><operator>.</operator><name>col</name></name> <operator>&lt;</operator> <operator>(</operator><name><name>screen</name><operator>-&gt;</operator><name>cols</name></name> <operator>-</operator> <literal type="number">1</literal><operator>)</operator> <operator>&amp;&amp;</operator>
+<call><name>getcell</name><argument_list>(<argument><expr><name>screen</name></expr></argument>, <argument><expr><name><name>pos</name><operator>.</operator><name>row</name></name></expr></argument>, <argument><expr><name><name>pos</name><operator>.</operator><name>col</name></name> <operator>+</operator> <literal type="number">1</literal></expr></argument>)</argument_list></call><operator>-&gt;</operator><name><name>chars</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>==</operator> <operator>(</operator><name>uint32_t</name><operator>)</operator><operator>-</operator><literal type="number">1</literal></expr>)</condition> <block>{<block_content>
+<if_stmt><if>if<condition>(<expr><call><name>getcell</name><argument_list>(<argument><expr><name>screen</name></expr></argument>, <argument><expr><name><name>pos</name><operator>.</operator><name>row</name></name></expr></argument>, <argument><expr><name><name>pos</name><operator>.</operator><name>col</name></name></expr></argument>)</argument_list></call><operator>-&gt;</operator><name><name>chars</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>==</operator> <literal type="number">0x20</literal></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>getcell</name><argument_list>(<argument><expr><name>screen</name></expr></argument>, <argument><expr><name><name>pos</name><operator>.</operator><name>row</name></name></expr></argument>, <argument><expr><name><name>pos</name><operator>.</operator><name>col</name></name></expr></argument>)</argument_list></call><operator>-&gt;</operator><name><name>chars</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>cell</name><operator>-&gt;</operator><name>width</name></name> <operator>=</operator> <literal type="number">2</literal></expr>;</expr_stmt>
+</block_content>}</block></if> <if type="elseif">else if<condition>(<expr><call><name>getcell</name><argument_list>(<argument><expr><name>screen</name></expr></argument>, <argument><expr><name><name>pos</name><operator>.</operator><name>row</name></name></expr></argument>, <argument><expr><name><name>pos</name><operator>.</operator><name>col</name></name></expr></argument>)</argument_list></call><operator>-&gt;</operator><name><name>chars</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>==</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>getcell</name><argument_list>(<argument><expr><name>screen</name></expr></argument>, <argument><expr><name><name>pos</name><operator>.</operator><name>row</name></name></expr></argument>, <argument><expr><name><name>pos</name><operator>.</operator><name>col</name></name> <operator>+</operator> <literal type="number">1</literal></expr></argument>)</argument_list></call><operator>-&gt;</operator><name><name>chars</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>cell</name><operator>-&gt;</operator><name>width</name></name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<expr_stmt><expr><name><name>cell</name><operator>-&gt;</operator><name>width</name></name> <operator>=</operator> <literal type="number">2</literal></expr>;</expr_stmt>
+</block_content>}</block></else></if_stmt>
+</block_content>}</block></if> <else>else<block type="pseudo"><block_content>
+<expr_stmt><expr><name><name>cell</name><operator>-&gt;</operator><name>width</name></name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt></block_content></block></else></if_stmt>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<if_stmt><if>if<condition>(<expr><name><name>pos</name><operator>.</operator><name>col</name></name> <operator>&lt;</operator> <operator>(</operator><name><name>screen</name><operator>-&gt;</operator><name>cols</name></name> <operator>-</operator> <literal type="number">1</literal><operator>)</operator> <operator>&amp;&amp;</operator>
+<call><name>getcell</name><argument_list>(<argument><expr><name>screen</name></expr></argument>, <argument><expr><name><name>pos</name><operator>.</operator><name>row</name></name></expr></argument>, <argument><expr><name><name>pos</name><operator>.</operator><name>col</name></name> <operator>+</operator> <literal type="number">1</literal></expr></argument>)</argument_list></call><operator>-&gt;</operator><name><name>chars</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>==</operator> <operator>(</operator><name>uint32_t</name><operator>)</operator><operator>-</operator><literal type="number">1</literal></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name><name>cell</name><operator>-&gt;</operator><name>width</name></name> <operator>=</operator> <literal type="number">2</literal></expr>;</expr_stmt></block_content></block></if>
+<else>else<block type="pseudo"><block_content>
+<expr_stmt><expr><name><name>cell</name><operator>-&gt;</operator><name>width</name></name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt></block_content></block></else></if_stmt>
+</block_content>}</block></else></if_stmt>
+
+<return>return <expr><literal type="number">1</literal></expr>;</return>
+</block_content>}</block></function>
+
+
+
+
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>vterm_screen_set_cell</name><parameter_list>(<parameter><decl><type><name>VTermScreen</name> <modifier>*</modifier></type><name>screen</name></decl></parameter>, <parameter><decl><type><name>VTermPos</name></type> <name>pos</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>VTermScreenCell</name> <modifier>*</modifier></type><name>cell</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>ScreenCell</name> <modifier>*</modifier></type><name>intcell</name> <init>= <expr><call><name>getcell</name><argument_list>(<argument><expr><name>screen</name></expr></argument>, <argument><expr><name><name>pos</name><operator>.</operator><name>row</name></name></expr></argument>, <argument><expr><name><name>pos</name><operator>.</operator><name>col</name></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>i</name></decl>;</decl_stmt>
+
+<if_stmt><if>if<condition>(<expr><operator>!</operator><name>intcell</name></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><literal type="number">0</literal></expr>;</return></block_content></block></if></if_stmt>
+
+<for>for<control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<expr_stmt><expr><name><name>intcell</name><operator>-&gt;</operator><name>chars</name><index>[<expr><name>i</name></expr>]</index></name> <operator>=</operator> <name><name>cell</name><operator>-&gt;</operator><name>chars</name><index>[<expr><name>i</name></expr>]</index></name></expr>;</expr_stmt>
+<if_stmt><if>if<condition>(<expr><operator>!</operator><name><name>cell</name><operator>-&gt;</operator><name>chars</name><index>[<expr><name>i</name></expr>]</index></name></expr>)</condition><block type="pseudo"><block_content>
+<break>break;</break></block_content></block></if></if_stmt>
+</block_content>}</block></for>
+
+<expr_stmt><expr><name><name>intcell</name><operator>-&gt;</operator><name>pen</name><operator>.</operator><name>bold</name></name> <operator>=</operator> <name><name>cell</name><operator>-&gt;</operator><name>attrs</name><operator>.</operator><name>bold</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>intcell</name><operator>-&gt;</operator><name>pen</name><operator>.</operator><name>underline</name></name> <operator>=</operator> <name><name>cell</name><operator>-&gt;</operator><name>attrs</name><operator>.</operator><name>underline</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>intcell</name><operator>-&gt;</operator><name>pen</name><operator>.</operator><name>italic</name></name> <operator>=</operator> <name><name>cell</name><operator>-&gt;</operator><name>attrs</name><operator>.</operator><name>italic</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>intcell</name><operator>-&gt;</operator><name>pen</name><operator>.</operator><name>blink</name></name> <operator>=</operator> <name><name>cell</name><operator>-&gt;</operator><name>attrs</name><operator>.</operator><name>blink</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>intcell</name><operator>-&gt;</operator><name>pen</name><operator>.</operator><name>reverse</name></name> <operator>=</operator> <name><name>cell</name><operator>-&gt;</operator><name>attrs</name><operator>.</operator><name>reverse</name></name> <operator>^</operator> <name><name>screen</name><operator>-&gt;</operator><name>global_reverse</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>intcell</name><operator>-&gt;</operator><name>pen</name><operator>.</operator><name>strike</name></name> <operator>=</operator> <name><name>cell</name><operator>-&gt;</operator><name>attrs</name><operator>.</operator><name>strike</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>intcell</name><operator>-&gt;</operator><name>pen</name><operator>.</operator><name>font</name></name> <operator>=</operator> <name><name>cell</name><operator>-&gt;</operator><name>attrs</name><operator>.</operator><name>font</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>intcell</name><operator>-&gt;</operator><name>pen</name><operator>.</operator><name>fg</name></name> <operator>=</operator> <name><name>cell</name><operator>-&gt;</operator><name>fg</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>intcell</name><operator>-&gt;</operator><name>pen</name><operator>.</operator><name>bg</name></name> <operator>=</operator> <name><name>cell</name><operator>-&gt;</operator><name>bg</name></name></expr>;</expr_stmt>
+
+<if_stmt><if>if<condition>(<expr><name><name>cell</name><operator>-&gt;</operator><name>width</name></name> <operator>==</operator> <literal type="number">2</literal></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>getcell</name><argument_list>(<argument><expr><name>screen</name></expr></argument>, <argument><expr><name><name>pos</name><operator>.</operator><name>row</name></name></expr></argument>, <argument><expr><name><name>pos</name><operator>.</operator><name>col</name></name> <operator>+</operator> <literal type="number">1</literal></expr></argument>)</argument_list></call><operator>-&gt;</operator><name><name>chars</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>=</operator> <operator>(</operator><name>uint32_t</name><operator>)</operator><operator>-</operator><literal type="number">1</literal></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<return>return <expr><literal type="number">1</literal></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><name>int</name></type> <name>vterm_screen_is_eol</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name>VTermScreen</name> <modifier>*</modifier></type><name>screen</name></decl></parameter>, <parameter><decl><type><name>VTermPos</name></type> <name>pos</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+
+<for>for<control>(<init>;</init> <condition><expr><name><name>pos</name><operator>.</operator><name>col</name></name> <operator>&lt;</operator> <name><name>screen</name><operator>-&gt;</operator><name>cols</name></name></expr>;</condition> <incr><expr><name><name>pos</name><operator>.</operator><name>col</name></name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<decl_stmt><decl><type><name>ScreenCell</name> <modifier>*</modifier></type><name>cell</name> <init>= <expr><call><name>getcell</name><argument_list>(<argument><expr><name>screen</name></expr></argument>, <argument><expr><name><name>pos</name><operator>.</operator><name>row</name></name></expr></argument>, <argument><expr><name><name>pos</name><operator>.</operator><name>col</name></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<if_stmt><if>if<condition>(<expr><name><name>cell</name><operator>-&gt;</operator><name>chars</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>!=</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><literal type="number">0</literal></expr>;</return></block_content></block></if></if_stmt>
+</block_content>}</block></for>
+
+<return>return <expr><literal type="number">1</literal></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><name>VTermScreen</name> <modifier>*</modifier></type><name>vterm_obtain_screen</name><parameter_list>(<parameter><decl><type><name>VTerm</name> <modifier>*</modifier></type><name>vt</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<if_stmt><if>if<condition>(<expr><operator>!</operator><name><name>vt</name><operator>-&gt;</operator><name>screen</name></name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name><name>vt</name><operator>-&gt;</operator><name>screen</name></name> <operator>=</operator> <call><name>screen_new</name><argument_list>(<argument><expr><name>vt</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+<return>return <expr><name><name>vt</name><operator>-&gt;</operator><name>screen</name></name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><name>void</name></type> <name>vterm_screen_enable_altscreen</name><parameter_list>(<parameter><decl><type><name>VTermScreen</name> <modifier>*</modifier></type><name>screen</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>altscreen</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+
+<if_stmt><if>if<condition>(<expr><operator>!</operator><name><name>screen</name><operator>-&gt;</operator><name>buffers</name><index>[<expr><literal type="number">1</literal></expr>]</index></name> <operator>&amp;&amp;</operator> <name>altscreen</name></expr>)</condition> <block>{<block_content>
+<decl_stmt><decl><type><name>int</name></type> <name>rows</name></decl>, <decl><type ref="prev"/><name>cols</name></decl>;</decl_stmt>
+<expr_stmt><expr><call><name>vterm_get_size</name><argument_list>(<argument><expr><name><name>screen</name><operator>-&gt;</operator><name>vt</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name>rows</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>cols</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>screen</name><operator>-&gt;</operator><name>buffers</name><index>[<expr><literal type="number">1</literal></expr>]</index></name> <operator>=</operator> <call><name>realloc_buffer</name><argument_list>(<argument><expr><name>screen</name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>, <argument><expr><name>rows</name></expr></argument>, <argument><expr><name>cols</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block></function>
+
+<function><type><name>void</name></type> <name>vterm_screen_set_callbacks</name><parameter_list>(<parameter><decl><type><name>VTermScreen</name> <modifier>*</modifier></type><name>screen</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>VTermScreenCallbacks</name> <modifier>*</modifier></type><name>callbacks</name></decl></parameter>, <parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>user</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<expr_stmt><expr><name><name>screen</name><operator>-&gt;</operator><name>callbacks</name></name> <operator>=</operator> <name>callbacks</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>screen</name><operator>-&gt;</operator><name>cbdata</name></name> <operator>=</operator> <name>user</name></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><name>void</name> <modifier>*</modifier></type><name>vterm_screen_get_cbdata</name><parameter_list>(<parameter><decl><type><name>VTermScreen</name> <modifier>*</modifier></type><name>screen</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<return>return <expr><name><name>screen</name><operator>-&gt;</operator><name>cbdata</name></name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><name>void</name></type> <name>vterm_screen_set_unrecognised_fallbacks</name><parameter_list>(<parameter><decl><type><name>VTermScreen</name> <modifier>*</modifier></type><name>screen</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>VTermParserCallbacks</name> <modifier>*</modifier></type><name>fallbacks</name></decl></parameter>, <parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>user</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<expr_stmt><expr><call><name>vterm_state_set_unrecognised_fallbacks</name><argument_list>(<argument><expr><name><name>screen</name><operator>-&gt;</operator><name>state</name></name></expr></argument>, <argument><expr><name>fallbacks</name></expr></argument>, <argument><expr><name>user</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><name>void</name> <modifier>*</modifier></type><name>vterm_screen_get_unrecognised_fbdata</name><parameter_list>(<parameter><decl><type><name>VTermScreen</name> <modifier>*</modifier></type><name>screen</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<return>return <expr><call><name>vterm_state_get_unrecognised_fbdata</name><argument_list>(<argument><expr><name><name>screen</name><operator>-&gt;</operator><name>state</name></name></expr></argument>)</argument_list></call></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><name>void</name></type> <name>vterm_screen_flush_damage</name><parameter_list>(<parameter><decl><type><name>VTermScreen</name> <modifier>*</modifier></type><name>screen</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<if_stmt><if>if<condition>(<expr><name><name>screen</name><operator>-&gt;</operator><name>pending_scrollrect</name><operator>.</operator><name>start_row</name></name> <operator>!=</operator> <operator>-</operator><literal type="number">1</literal></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>vterm_scroll_rect</name><argument_list>(<argument><expr><name><name>screen</name><operator>-&gt;</operator><name>pending_scrollrect</name></name></expr></argument>, <argument><expr><name><name>screen</name><operator>-&gt;</operator><name>pending_scroll_downward</name></name></expr></argument>, <argument><expr><name><name>screen</name><operator>-&gt;</operator><name>pending_scroll_rightward</name></name></expr></argument>,
+<argument><expr><name>moverect_user</name></expr></argument>, <argument><expr><name>erase_user</name></expr></argument>, <argument><expr><name>screen</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>screen</name><operator>-&gt;</operator><name>pending_scrollrect</name><operator>.</operator><name>start_row</name></name> <operator>=</operator> <operator>-</operator><literal type="number">1</literal></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if<condition>(<expr><name><name>screen</name><operator>-&gt;</operator><name>damaged</name><operator>.</operator><name>start_row</name></name> <operator>!=</operator> <operator>-</operator><literal type="number">1</literal></expr>)</condition> <block>{<block_content>
+<if_stmt><if>if<condition>(<expr><name><name>screen</name><operator>-&gt;</operator><name>callbacks</name></name> <operator>&amp;&amp;</operator> <name><name>screen</name><operator>-&gt;</operator><name>callbacks</name><operator>-&gt;</operator><name>damage</name></name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><call>(<modifier>*</modifier><name><name>screen</name><operator>-&gt;</operator><name>callbacks</name><operator>-&gt;</operator><name>damage</name></name>)<argument_list>(<argument><expr><name><name>screen</name><operator>-&gt;</operator><name>damaged</name></name></expr></argument>, <argument><expr><name><name>screen</name><operator>-&gt;</operator><name>cbdata</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name><name>screen</name><operator>-&gt;</operator><name>damaged</name><operator>.</operator><name>start_row</name></name> <operator>=</operator> <operator>-</operator><literal type="number">1</literal></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block></function>
+
+<function><type><name>void</name></type> <name>vterm_screen_set_damage_merge</name><parameter_list>(<parameter><decl><type><name>VTermScreen</name> <modifier>*</modifier></type><name>screen</name></decl></parameter>, <parameter><decl><type><name>VTermDamageSize</name></type> <name>size</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<expr_stmt><expr><call><name>vterm_screen_flush_damage</name><argument_list>(<argument><expr><name>screen</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>screen</name><operator>-&gt;</operator><name>damage_merge</name></name> <operator>=</operator> <name>size</name></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>attrs_differ</name><parameter_list>(<parameter><decl><type><name>VTermAttrMask</name></type> <name>attrs</name></decl></parameter>, <parameter><decl><type><name>ScreenCell</name> <modifier>*</modifier></type><name>a</name></decl></parameter>, <parameter><decl><type><name>ScreenCell</name> <modifier>*</modifier></type><name>b</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<if_stmt><if>if<condition>(<expr><operator>(</operator><name>attrs</name> <operator>&amp;</operator> <name>VTERM_ATTR_BOLD_MASK</name><operator>)</operator> <operator>&amp;&amp;</operator> <operator>(</operator><name><name>a</name><operator>-&gt;</operator><name>pen</name><operator>.</operator><name>bold</name></name> <operator>!=</operator> <name><name>b</name><operator>-&gt;</operator><name>pen</name><operator>.</operator><name>bold</name></name><operator>)</operator></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><literal type="number">1</literal></expr>;</return></block_content></block></if></if_stmt>
+<if_stmt><if>if<condition>(<expr><operator>(</operator><name>attrs</name> <operator>&amp;</operator> <name>VTERM_ATTR_UNDERLINE_MASK</name><operator>)</operator> <operator>&amp;&amp;</operator> <operator>(</operator><name><name>a</name><operator>-&gt;</operator><name>pen</name><operator>.</operator><name>underline</name></name> <operator>!=</operator> <name><name>b</name><operator>-&gt;</operator><name>pen</name><operator>.</operator><name>underline</name></name><operator>)</operator></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><literal type="number">1</literal></expr>;</return></block_content></block></if></if_stmt>
+<if_stmt><if>if<condition>(<expr><operator>(</operator><name>attrs</name> <operator>&amp;</operator> <name>VTERM_ATTR_ITALIC_MASK</name><operator>)</operator> <operator>&amp;&amp;</operator> <operator>(</operator><name><name>a</name><operator>-&gt;</operator><name>pen</name><operator>.</operator><name>italic</name></name> <operator>!=</operator> <name><name>b</name><operator>-&gt;</operator><name>pen</name><operator>.</operator><name>italic</name></name><operator>)</operator></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><literal type="number">1</literal></expr>;</return></block_content></block></if></if_stmt>
+<if_stmt><if>if<condition>(<expr><operator>(</operator><name>attrs</name> <operator>&amp;</operator> <name>VTERM_ATTR_BLINK_MASK</name><operator>)</operator> <operator>&amp;&amp;</operator> <operator>(</operator><name><name>a</name><operator>-&gt;</operator><name>pen</name><operator>.</operator><name>blink</name></name> <operator>!=</operator> <name><name>b</name><operator>-&gt;</operator><name>pen</name><operator>.</operator><name>blink</name></name><operator>)</operator></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><literal type="number">1</literal></expr>;</return></block_content></block></if></if_stmt>
+<if_stmt><if>if<condition>(<expr><operator>(</operator><name>attrs</name> <operator>&amp;</operator> <name>VTERM_ATTR_REVERSE_MASK</name><operator>)</operator> <operator>&amp;&amp;</operator> <operator>(</operator><name><name>a</name><operator>-&gt;</operator><name>pen</name><operator>.</operator><name>reverse</name></name> <operator>!=</operator> <name><name>b</name><operator>-&gt;</operator><name>pen</name><operator>.</operator><name>reverse</name></name><operator>)</operator></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><literal type="number">1</literal></expr>;</return></block_content></block></if></if_stmt>
+<if_stmt><if>if<condition>(<expr><operator>(</operator><name>attrs</name> <operator>&amp;</operator> <name>VTERM_ATTR_STRIKE_MASK</name><operator>)</operator> <operator>&amp;&amp;</operator> <operator>(</operator><name><name>a</name><operator>-&gt;</operator><name>pen</name><operator>.</operator><name>strike</name></name> <operator>!=</operator> <name><name>b</name><operator>-&gt;</operator><name>pen</name><operator>.</operator><name>strike</name></name><operator>)</operator></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><literal type="number">1</literal></expr>;</return></block_content></block></if></if_stmt>
+<if_stmt><if>if<condition>(<expr><operator>(</operator><name>attrs</name> <operator>&amp;</operator> <name>VTERM_ATTR_FONT_MASK</name><operator>)</operator> <operator>&amp;&amp;</operator> <operator>(</operator><name><name>a</name><operator>-&gt;</operator><name>pen</name><operator>.</operator><name>font</name></name> <operator>!=</operator> <name><name>b</name><operator>-&gt;</operator><name>pen</name><operator>.</operator><name>font</name></name><operator>)</operator></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><literal type="number">1</literal></expr>;</return></block_content></block></if></if_stmt>
+<if_stmt><if>if<condition>(<expr><operator>(</operator><name>attrs</name> <operator>&amp;</operator> <name>VTERM_ATTR_FOREGROUND_MASK</name><operator>)</operator> <operator>&amp;&amp;</operator> <operator>!</operator><call><name>vterm_color_equal</name><argument_list>(<argument><expr><name><name>a</name><operator>-&gt;</operator><name>pen</name><operator>.</operator><name>fg</name></name></expr></argument>, <argument><expr><name><name>b</name><operator>-&gt;</operator><name>pen</name><operator>.</operator><name>fg</name></name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><literal type="number">1</literal></expr>;</return></block_content></block></if></if_stmt>
+<if_stmt><if>if<condition>(<expr><operator>(</operator><name>attrs</name> <operator>&amp;</operator> <name>VTERM_ATTR_BACKGROUND_MASK</name><operator>)</operator> <operator>&amp;&amp;</operator> <operator>!</operator><call><name>vterm_color_equal</name><argument_list>(<argument><expr><name><name>a</name><operator>-&gt;</operator><name>pen</name><operator>.</operator><name>bg</name></name></expr></argument>, <argument><expr><name><name>b</name><operator>-&gt;</operator><name>pen</name><operator>.</operator><name>bg</name></name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><literal type="number">1</literal></expr>;</return></block_content></block></if></if_stmt>
+
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><name>int</name></type> <name>vterm_screen_get_attrs_extent</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name>VTermScreen</name> <modifier>*</modifier></type><name>screen</name></decl></parameter>, <parameter><decl><type><name>VTermRect</name> <modifier>*</modifier></type><name>extent</name></decl></parameter>, <parameter><decl><type><name>VTermPos</name></type> <name>pos</name></decl></parameter>, <parameter><decl><type><name>VTermAttrMask</name></type> <name>attrs</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>int</name></type> <name>col</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>ScreenCell</name> <modifier>*</modifier></type><name>target</name> <init>= <expr><call><name>getcell</name><argument_list>(<argument><expr><name>screen</name></expr></argument>, <argument><expr><name><name>pos</name><operator>.</operator><name>row</name></name></expr></argument>, <argument><expr><name><name>pos</name><operator>.</operator><name>col</name></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+
+<expr_stmt><expr><name><name>extent</name><operator>-&gt;</operator><name>start_row</name></name> <operator>=</operator> <name><name>pos</name><operator>.</operator><name>row</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>extent</name><operator>-&gt;</operator><name>end_row</name></name> <operator>=</operator> <name><name>pos</name><operator>.</operator><name>row</name></name> <operator>+</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+
+<if_stmt><if>if<condition>(<expr><name><name>extent</name><operator>-&gt;</operator><name>start_col</name></name> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name><name>extent</name><operator>-&gt;</operator><name>start_col</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt></block_content></block></if></if_stmt>
+<if_stmt><if>if<condition>(<expr><name><name>extent</name><operator>-&gt;</operator><name>end_col</name></name> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name><name>extent</name><operator>-&gt;</operator><name>end_col</name></name> <operator>=</operator> <name><name>screen</name><operator>-&gt;</operator><name>cols</name></name></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<for>for<control>(<init><expr><name>col</name> <operator>=</operator> <name><name>pos</name><operator>.</operator><name>col</name></name> <operator>-</operator> <literal type="number">1</literal></expr>;</init> <condition><expr><name>col</name> <operator>&gt;=</operator> <name><name>extent</name><operator>-&gt;</operator><name>start_col</name></name></expr>;</condition> <incr><expr><name>col</name><operator>--</operator></expr></incr>)</control><block type="pseudo"><block_content>
+<if_stmt><if>if<condition>(<expr><call><name>attrs_differ</name><argument_list>(<argument><expr><name>attrs</name></expr></argument>, <argument><expr><name>target</name></expr></argument>, <argument><expr><call><name>getcell</name><argument_list>(<argument><expr><name>screen</name></expr></argument>, <argument><expr><name><name>pos</name><operator>.</operator><name>row</name></name></expr></argument>, <argument><expr><name>col</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+<break>break;</break></block_content></block></if></if_stmt></block_content></block></for>
+<expr_stmt><expr><name><name>extent</name><operator>-&gt;</operator><name>start_col</name></name> <operator>=</operator> <name>col</name> <operator>+</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+
+<for>for<control>(<init><expr><name>col</name> <operator>=</operator> <name><name>pos</name><operator>.</operator><name>col</name></name> <operator>+</operator> <literal type="number">1</literal></expr>;</init> <condition><expr><name>col</name> <operator>&lt;</operator> <name><name>extent</name><operator>-&gt;</operator><name>end_col</name></name></expr>;</condition> <incr><expr><name>col</name><operator>++</operator></expr></incr>)</control><block type="pseudo"><block_content>
+<if_stmt><if>if<condition>(<expr><call><name>attrs_differ</name><argument_list>(<argument><expr><name>attrs</name></expr></argument>, <argument><expr><name>target</name></expr></argument>, <argument><expr><call><name>getcell</name><argument_list>(<argument><expr><name>screen</name></expr></argument>, <argument><expr><name><name>pos</name><operator>.</operator><name>row</name></name></expr></argument>, <argument><expr><name>col</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+<break>break;</break></block_content></block></if></if_stmt></block_content></block></for>
+<expr_stmt><expr><name><name>extent</name><operator>-&gt;</operator><name>end_col</name></name> <operator>=</operator> <name>col</name> <operator>-</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+
+<return>return <expr><literal type="number">1</literal></expr>;</return>
+</block_content>}</block></function>
+</unit>

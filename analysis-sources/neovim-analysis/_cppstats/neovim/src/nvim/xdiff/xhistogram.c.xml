@@ -1,0 +1,526 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" revision="1.0.0" language="C" filename="D:\Pesquisa\Projects\neovim-analysis\_cppstats\neovim\src\nvim\xdiff\xhistogram.c"><cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"xinclude.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"xtypes.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"xdiff.h"</cpp:file></cpp:include>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>MAX_PTR</name></cpp:macro> <cpp:value>INT_MAX</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>MAX_CNT</name></cpp:macro> <cpp:value>INT_MAX</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>LINE_END</name><parameter_list>(<parameter><type><name>n</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>(line##n + count##n - 1)</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>LINE_END_PTR</name><parameter_list>(<parameter><type><name>n</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>(*line##n + *count##n - 1)</cpp:value></cpp:define>
+
+<struct>struct <name>histindex</name> <block>{
+
+<struct>struct <name>record</name> <block>{
+
+<decl_stmt><decl><type><name>unsigned</name> <name>int</name></type> <name>ptr</name></decl>, <decl><type ref="prev"/><name>cnt</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>record</name></name> <modifier>*</modifier></type><name>next</name></decl>;</decl_stmt>
+
+}</block> <decl><modifier>*</modifier><modifier>*</modifier><name>records</name></decl>, 
+
+<decl><type ref="prev"><modifier>*</modifier><modifier>*</modifier></type><name>line_map</name></decl>;</struct> 
+
+<decl_stmt><decl><type><name>chastore_t</name></type> <name>rcha</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>unsigned</name> <name>int</name> <modifier>*</modifier></type><name>next_ptrs</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>unsigned</name> <name>int</name></type> <name>table_bits</name></decl>,
+
+<decl><type ref="prev"/><name>records_size</name></decl>,
+
+<decl><type ref="prev"/><name>line_map_size</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>unsigned</name> <name>int</name></type> <name>max_chain_length</name></decl>,
+
+<decl><type ref="prev"/><name>key_shift</name></decl>,
+
+<decl><type ref="prev"/><name>ptr_shift</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>unsigned</name> <name>int</name></type> <name>cnt</name></decl>,
+
+<decl><type ref="prev"/><name>has_common</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>xdfenv_t</name> <modifier>*</modifier></type><name>env</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>xpparam_t</name> <specifier>const</specifier> <modifier>*</modifier></type><name>xpp</name></decl>;</decl_stmt>
+
+}</block>;</struct>
+
+<struct>struct <name>region</name> <block>{
+
+<decl_stmt><decl><type><name>unsigned</name> <name>int</name></type> <name>begin1</name></decl>, <decl><type ref="prev"/><name>end1</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>unsigned</name> <name>int</name></type> <name>begin2</name></decl>, <decl><type ref="prev"/><name>end2</name></decl>;</decl_stmt>
+
+}</block>;</struct>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>LINE_MAP</name><parameter_list>(<parameter><type><name>i</name></type></parameter>, <parameter><type><name>a</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>(i-&gt;line_map[(a) - i-&gt;ptr_shift])</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>NEXT_PTR</name><parameter_list>(<parameter><type><name>index</name></type></parameter>, <parameter><type><name>ptr</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>(index-&gt;next_ptrs[(ptr) - index-&gt;ptr_shift])</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>CNT</name><parameter_list>(<parameter><type><name>index</name></type></parameter>, <parameter><type><name>ptr</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>((LINE_MAP(index, ptr))-&gt;cnt)</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>REC</name><parameter_list>(<parameter><type><name>env</name></type></parameter>, <parameter><type><name>s</name></type></parameter>, <parameter><type><name>l</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>(env-&gt;xdf##s.recs[l - 1])</cpp:value></cpp:define>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>cmp_recs</name><parameter_list>(<parameter><decl><type><name>xpparam_t</name> <specifier>const</specifier> <modifier>*</modifier></type><name>xpp</name></decl></parameter>,
+
+<parameter><decl><type><name>xrecord_t</name> <modifier>*</modifier></type><name>r1</name></decl></parameter>, <parameter><decl><type><name>xrecord_t</name> <modifier>*</modifier></type><name>r2</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<return>return <expr><name><name>r1</name><operator>-&gt;</operator><name>ha</name></name> <operator>==</operator> <name><name>r2</name><operator>-&gt;</operator><name>ha</name></name> <operator>&amp;&amp;</operator>
+
+<call><name>xdl_recmatch</name><argument_list>(<argument><expr><name><name>r1</name><operator>-&gt;</operator><name>ptr</name></name></expr></argument>, <argument><expr><name><name>r1</name><operator>-&gt;</operator><name>size</name></name></expr></argument>, <argument><expr><name><name>r2</name><operator>-&gt;</operator><name>ptr</name></name></expr></argument>, <argument><expr><name><name>r2</name><operator>-&gt;</operator><name>size</name></name></expr></argument>,
+
+<argument><expr><name><name>xpp</name><operator>-&gt;</operator><name>flags</name></name></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>CMP_ENV</name><parameter_list>(<parameter><type><name>xpp</name></type></parameter>, <parameter><type><name>env</name></type></parameter>, <parameter><type><name>s1</name></type></parameter>, <parameter><type><name>l1</name></type></parameter>, <parameter><type><name>s2</name></type></parameter>, <parameter><type><name>l2</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>(cmp_recs(xpp, REC(env, s1, l1), REC(env, s2, l2)))</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>CMP</name><parameter_list>(<parameter><type><name>i</name></type></parameter>, <parameter><type><name>s1</name></type></parameter>, <parameter><type><name>l1</name></type></parameter>, <parameter><type><name>s2</name></type></parameter>, <parameter><type><name>l2</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>(cmp_recs(i-&gt;xpp, REC(i-&gt;env, s1, l1), REC(i-&gt;env, s2, l2)))</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>TABLE_HASH</name><parameter_list>(<parameter><type><name>index</name></type></parameter>, <parameter><type><name>side</name></type></parameter>, <parameter><type><name>line</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>XDL_HASHLONG((REC(index-&gt;env, side, line))-&gt;ha, index-&gt;table_bits)</cpp:value></cpp:define>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>scanA</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>histindex</name></name> <modifier>*</modifier></type><name>index</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>line1</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>count1</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>int</name></type> <name>ptr</name></decl>, <decl><type ref="prev"/><name>tbl_idx</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>unsigned</name> <name>int</name></type> <name>chain_len</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>record</name></name> <modifier>*</modifier><modifier>*</modifier></type><name>rec_chain</name></decl>, <decl><type ref="prev"><modifier>*</modifier></type><name>rec</name></decl>;</decl_stmt>
+
+<for>for <control>(<init><expr><name>ptr</name> <operator>=</operator> <call><name>LINE_END</name><argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</init> <condition><expr><name>line1</name> <operator>&lt;=</operator> <name>ptr</name></expr>;</condition> <incr><expr><name>ptr</name><operator>--</operator></expr></incr>)</control> <block>{<block_content>
+
+<expr_stmt><expr><name>tbl_idx</name> <operator>=</operator> <call><name>TABLE_HASH</name><argument_list>(<argument><expr><name>index</name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>, <argument><expr><name>ptr</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>rec_chain</name> <operator>=</operator> <name><name>index</name><operator>-&gt;</operator><name>records</name></name> <operator>+</operator> <name>tbl_idx</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>rec</name> <operator>=</operator> <operator>*</operator><name>rec_chain</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>chain_len</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<while>while <condition>(<expr><name>rec</name></expr>)</condition> <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><call><name>CMP</name><argument_list>(<argument><expr><name>index</name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>, <argument><expr><name><name>rec</name><operator>-&gt;</operator><name>ptr</name></name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>, <argument><expr><name>ptr</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>NEXT_PTR</name><argument_list>(<argument><expr><name>index</name></expr></argument>, <argument><expr><name>ptr</name></expr></argument>)</argument_list></call> <operator>=</operator> <name><name>rec</name><operator>-&gt;</operator><name>ptr</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>rec</name><operator>-&gt;</operator><name>ptr</name></name> <operator>=</operator> <name>ptr</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>rec</name><operator>-&gt;</operator><name>cnt</name></name> <operator>=</operator> <call><name>XDL_MIN</name><argument_list>(<argument><expr><name>MAX_CNT</name></expr></argument>, <argument><expr><name><name>rec</name><operator>-&gt;</operator><name>cnt</name></name> <operator>+</operator> <literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>LINE_MAP</name><argument_list>(<argument><expr><name>index</name></expr></argument>, <argument><expr><name>ptr</name></expr></argument>)</argument_list></call> <operator>=</operator> <name>rec</name></expr>;</expr_stmt>
+
+<goto>goto <name>continue_scan</name>;</goto>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name>rec</name> <operator>=</operator> <name><name>rec</name><operator>-&gt;</operator><name>next</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>chain_len</name><operator>++</operator></expr>;</expr_stmt>
+
+</block_content>}</block></while>
+
+<if_stmt><if>if <condition>(<expr><name>chain_len</name> <operator>==</operator> <name><name>index</name><operator>-&gt;</operator><name>max_chain_length</name></name></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><operator>-</operator><literal type="number">1</literal></expr>;</return></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><operator>(</operator><name>rec</name> <operator>=</operator> <call><name>xdl_cha_alloc</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>index</name><operator>-&gt;</operator><name>rcha</name></name></expr></argument>)</argument_list></call><operator>)</operator></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><operator>-</operator><literal type="number">1</literal></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name><name>rec</name><operator>-&gt;</operator><name>ptr</name></name> <operator>=</operator> <name>ptr</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>rec</name><operator>-&gt;</operator><name>cnt</name></name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>rec</name><operator>-&gt;</operator><name>next</name></name> <operator>=</operator> <operator>*</operator><name>rec_chain</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><operator>*</operator><name>rec_chain</name> <operator>=</operator> <name>rec</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>LINE_MAP</name><argument_list>(<argument><expr><name>index</name></expr></argument>, <argument><expr><name>ptr</name></expr></argument>)</argument_list></call> <operator>=</operator> <name>rec</name></expr>;</expr_stmt>
+
+<label><name>continue_scan</name>:</label>
+
+<empty_stmt>;</empty_stmt> 
+
+</block_content>}</block></for>
+
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>try_lcs</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>histindex</name></name> <modifier>*</modifier></type><name>index</name></decl></parameter>, <parameter><decl><type><name><name>struct</name> <name>region</name></name> <modifier>*</modifier></type><name>lcs</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>b_ptr</name></decl></parameter>,
+
+<parameter><decl><type><name>int</name></type> <name>line1</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>count1</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>line2</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>count2</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>unsigned</name> <name>int</name></type> <name>b_next</name> <init>= <expr><name>b_ptr</name> <operator>+</operator> <literal type="number">1</literal></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>record</name></name> <modifier>*</modifier></type><name>rec</name> <init>= <expr><name><name>index</name><operator>-&gt;</operator><name>records</name><index>[<expr><call><name>TABLE_HASH</name><argument_list>(<argument><expr><name>index</name></expr></argument>, <argument><expr><literal type="number">2</literal></expr></argument>, <argument><expr><name>b_ptr</name></expr></argument>)</argument_list></call></expr>]</index></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>unsigned</name> <name>int</name></type> <name>as</name></decl>, <decl><type ref="prev"/><name>ae</name></decl>, <decl><type ref="prev"/><name>bs</name></decl>, <decl><type ref="prev"/><name>be</name></decl>, <decl><type ref="prev"/><name>np</name></decl>, <decl><type ref="prev"/><name>rc</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>should_break</name></decl>;</decl_stmt>
+
+<for>for <control>(<init>;</init> <condition><expr><name>rec</name></expr>;</condition> <incr><expr><name>rec</name> <operator>=</operator> <name><name>rec</name><operator>-&gt;</operator><name>next</name></name></expr></incr>)</control> <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><name><name>rec</name><operator>-&gt;</operator><name>cnt</name></name> <operator>&gt;</operator> <name><name>index</name><operator>-&gt;</operator><name>cnt</name></name></expr>)</condition> <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>index</name><operator>-&gt;</operator><name>has_common</name></name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name><name>index</name><operator>-&gt;</operator><name>has_common</name></name> <operator>=</operator> <call><name>CMP</name><argument_list>(<argument><expr><name>index</name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>, <argument><expr><name><name>rec</name><operator>-&gt;</operator><name>ptr</name></name></expr></argument>, <argument><expr><literal type="number">2</literal></expr></argument>, <argument><expr><name>b_ptr</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<continue>continue;</continue>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name>as</name> <operator>=</operator> <name><name>rec</name><operator>-&gt;</operator><name>ptr</name></name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>CMP</name><argument_list>(<argument><expr><name>index</name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>, <argument><expr><name>as</name></expr></argument>, <argument><expr><literal type="number">2</literal></expr></argument>, <argument><expr><name>b_ptr</name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+
+<continue>continue;</continue></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name><name>index</name><operator>-&gt;</operator><name>has_common</name></name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+
+<for>for <control>(<init>;</init><condition>;</condition><incr/>)</control> <block>{<block_content>
+
+<expr_stmt><expr><name>should_break</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>np</name> <operator>=</operator> <call><name>NEXT_PTR</name><argument_list>(<argument><expr><name>index</name></expr></argument>, <argument><expr><name>as</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>bs</name> <operator>=</operator> <name>b_ptr</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>ae</name> <operator>=</operator> <name>as</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>be</name> <operator>=</operator> <name>bs</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>rc</name> <operator>=</operator> <name><name>rec</name><operator>-&gt;</operator><name>cnt</name></name></expr>;</expr_stmt>
+
+<while>while <condition>(<expr><name>line1</name> <operator>&lt;</operator> <operator>(</operator><name>int</name><operator>)</operator><name>as</name> <operator>&amp;&amp;</operator> <name>line2</name> <operator>&lt;</operator> <operator>(</operator><name>int</name><operator>)</operator><name>bs</name>
+
+<operator>&amp;&amp;</operator> <call><name>CMP</name><argument_list>(<argument><expr><name>index</name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>, <argument><expr><name>as</name> <operator>-</operator> <literal type="number">1</literal></expr></argument>, <argument><expr><literal type="number">2</literal></expr></argument>, <argument><expr><name>bs</name> <operator>-</operator> <literal type="number">1</literal></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>as</name><operator>--</operator></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>bs</name><operator>--</operator></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><literal type="number">1</literal> <operator>&lt;</operator> <name>rc</name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name>rc</name> <operator>=</operator> <call><name>XDL_MIN</name><argument_list>(<argument><expr><name>rc</name></expr></argument>, <argument><expr><call><name>CNT</name><argument_list>(<argument><expr><name>index</name></expr></argument>, <argument><expr><name>as</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+</block_content>}</block></while>
+
+<while>while <condition>(<expr><operator>(</operator><name>int</name><operator>)</operator><name>ae</name> <operator>&lt;</operator> <call><name>LINE_END</name><argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call> <operator>&amp;&amp;</operator> <operator>(</operator><name>int</name><operator>)</operator><name>be</name> <operator>&lt;</operator> <call><name>LINE_END</name><argument_list>(<argument><expr><literal type="number">2</literal></expr></argument>)</argument_list></call>
+
+<operator>&amp;&amp;</operator> <call><name>CMP</name><argument_list>(<argument><expr><name>index</name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>, <argument><expr><name>ae</name> <operator>+</operator> <literal type="number">1</literal></expr></argument>, <argument><expr><literal type="number">2</literal></expr></argument>, <argument><expr><name>be</name> <operator>+</operator> <literal type="number">1</literal></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>ae</name><operator>++</operator></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>be</name><operator>++</operator></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><literal type="number">1</literal> <operator>&lt;</operator> <name>rc</name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name>rc</name> <operator>=</operator> <call><name>XDL_MIN</name><argument_list>(<argument><expr><name>rc</name></expr></argument>, <argument><expr><call><name>CNT</name><argument_list>(<argument><expr><name>index</name></expr></argument>, <argument><expr><name>ae</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+</block_content>}</block></while>
+
+<if_stmt><if>if <condition>(<expr><name>b_next</name> <operator>&lt;=</operator> <name>be</name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name>b_next</name> <operator>=</operator> <name>be</name> <operator>+</operator> <literal type="number">1</literal></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>lcs</name><operator>-&gt;</operator><name>end1</name></name> <operator>-</operator> <name><name>lcs</name><operator>-&gt;</operator><name>begin1</name></name> <operator>&lt;</operator> <name>ae</name> <operator>-</operator> <name>as</name> <operator>||</operator> <name>rc</name> <operator>&lt;</operator> <name><name>index</name><operator>-&gt;</operator><name>cnt</name></name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name><name>lcs</name><operator>-&gt;</operator><name>begin1</name></name> <operator>=</operator> <name>as</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>lcs</name><operator>-&gt;</operator><name>begin2</name></name> <operator>=</operator> <name>bs</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>lcs</name><operator>-&gt;</operator><name>end1</name></name> <operator>=</operator> <name>ae</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>lcs</name><operator>-&gt;</operator><name>end2</name></name> <operator>=</operator> <name>be</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>index</name><operator>-&gt;</operator><name>cnt</name></name> <operator>=</operator> <name>rc</name></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>np</name> <operator>==</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+
+<break>break;</break></block_content></block></if></if_stmt>
+
+<while>while <condition>(<expr><name>np</name> <operator>&lt;=</operator> <name>ae</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>np</name> <operator>=</operator> <call><name>NEXT_PTR</name><argument_list>(<argument><expr><name>index</name></expr></argument>, <argument><expr><name>np</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>np</name> <operator>==</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>should_break</name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+
+<break>break;</break>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></while>
+
+<if_stmt><if>if <condition>(<expr><name>should_break</name></expr>)</condition><block type="pseudo"><block_content>
+
+<break>break;</break></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>as</name> <operator>=</operator> <name>np</name></expr>;</expr_stmt>
+
+</block_content>}</block></for>
+
+</block_content>}</block></for>
+
+<return>return <expr><name>b_next</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>fall_back_to_classic_diff</name><parameter_list>(<parameter><decl><type><name>xpparam_t</name> <specifier>const</specifier> <modifier>*</modifier></type><name>xpp</name></decl></parameter>, <parameter><decl><type><name>xdfenv_t</name> <modifier>*</modifier></type><name>env</name></decl></parameter>,
+
+<parameter><decl><type><name>int</name></type> <name>line1</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>count1</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>line2</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>count2</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>xpparam_t</name></type> <name>xpparam</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>xpparam</name><operator>.</operator><name>flags</name></name> <operator>=</operator> <name><name>xpp</name><operator>-&gt;</operator><name>flags</name></name> <operator>&amp;</operator> <operator>~</operator><name>XDF_DIFF_ALGORITHM_MASK</name></expr>;</expr_stmt>
+
+<return>return <expr><call><name>xdl_fall_back_diff</name><argument_list>(<argument><expr><name>env</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>xpparam</name></expr></argument>,
+
+<argument><expr><name>line1</name></expr></argument>, <argument><expr><name>count1</name></expr></argument>, <argument><expr><name>line2</name></expr></argument>, <argument><expr><name>count2</name></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <specifier>inline</specifier> <name>void</name></type> <name>free_index</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>histindex</name></name> <modifier>*</modifier></type><name>index</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>xdl_free</name><argument_list>(<argument><expr><name><name>index</name><operator>-&gt;</operator><name>records</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>xdl_free</name><argument_list>(<argument><expr><name><name>index</name><operator>-&gt;</operator><name>line_map</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>xdl_free</name><argument_list>(<argument><expr><name><name>index</name><operator>-&gt;</operator><name>next_ptrs</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>xdl_cha_free</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>index</name><operator>-&gt;</operator><name>rcha</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>find_lcs</name><parameter_list>(<parameter><decl><type><name>xpparam_t</name> <specifier>const</specifier> <modifier>*</modifier></type><name>xpp</name></decl></parameter>, <parameter><decl><type><name>xdfenv_t</name> <modifier>*</modifier></type><name>env</name></decl></parameter>,
+
+<parameter><decl><type><name><name>struct</name> <name>region</name></name> <modifier>*</modifier></type><name>lcs</name></decl></parameter>,
+
+<parameter><decl><type><name>int</name></type> <name>line1</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>count1</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>line2</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>count2</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>int</name></type> <name>b_ptr</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>sz</name></decl>, <decl><type ref="prev"/><name>ret</name> <init>= <expr><operator>-</operator><literal type="number">1</literal></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>histindex</name></name></type> <name>index</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>memset</name><argument_list>(<argument><expr><operator>&amp;</operator><name>index</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr><name>index</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>index</name><operator>.</operator><name>env</name></name> <operator>=</operator> <name>env</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>index</name><operator>.</operator><name>xpp</name></name> <operator>=</operator> <name>xpp</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>index</name><operator>.</operator><name>records</name></name> <operator>=</operator> <name>NULL</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>index</name><operator>.</operator><name>line_map</name></name> <operator>=</operator> <name>NULL</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>index</name><operator>.</operator><name>rcha</name><operator>.</operator><name>head</name></name> <operator>=</operator> <name>NULL</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>index</name><operator>.</operator><name>table_bits</name></name> <operator>=</operator> <call><name>xdl_hashbits</name><argument_list>(<argument><expr><name>count1</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>sz</name> <operator>=</operator> <name><name>index</name><operator>.</operator><name>records_size</name></name> <operator>=</operator> <literal type="number">1</literal> <operator>&lt;&lt;</operator> <name><name>index</name><operator>.</operator><name>table_bits</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>sz</name> <operator>*=</operator> <sizeof>sizeof<argument_list>(<argument><expr>struct <name>record</name> <operator>*</operator></expr></argument>)</argument_list></sizeof></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><operator>(</operator><name><name>index</name><operator>.</operator><name>records</name></name> <operator>=</operator> <operator>(</operator>struct <name>record</name> <operator>*</operator><operator>*</operator><operator>)</operator> <call><name>xdl_malloc</name><argument_list>(<argument><expr><name>sz</name></expr></argument>)</argument_list></call><operator>)</operator></expr>)</condition><block type="pseudo"><block_content>
+
+<goto>goto <name>cleanup</name>;</goto></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>memset</name><argument_list>(<argument><expr><name><name>index</name><operator>.</operator><name>records</name></name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><name>sz</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>sz</name> <operator>=</operator> <name><name>index</name><operator>.</operator><name>line_map_size</name></name> <operator>=</operator> <name>count1</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>sz</name> <operator>*=</operator> <sizeof>sizeof<argument_list>(<argument><expr>struct <name>record</name> <operator>*</operator></expr></argument>)</argument_list></sizeof></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><operator>(</operator><name><name>index</name><operator>.</operator><name>line_map</name></name> <operator>=</operator> <operator>(</operator>struct <name>record</name> <operator>*</operator><operator>*</operator><operator>)</operator> <call><name>xdl_malloc</name><argument_list>(<argument><expr><name>sz</name></expr></argument>)</argument_list></call><operator>)</operator></expr>)</condition><block type="pseudo"><block_content>
+
+<goto>goto <name>cleanup</name>;</goto></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>memset</name><argument_list>(<argument><expr><name><name>index</name><operator>.</operator><name>line_map</name></name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><name>sz</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>sz</name> <operator>=</operator> <name><name>index</name><operator>.</operator><name>line_map_size</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>sz</name> <operator>*=</operator> sizeof<operator>(</operator><name>unsigned</name> <name>int</name><operator>)</operator></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><operator>(</operator><name><name>index</name><operator>.</operator><name>next_ptrs</name></name> <operator>=</operator> <operator>(</operator><name>unsigned</name> <name>int</name> <operator>*</operator><operator>)</operator> <call><name>xdl_malloc</name><argument_list>(<argument><expr><name>sz</name></expr></argument>)</argument_list></call><operator>)</operator></expr>)</condition><block type="pseudo"><block_content>
+
+<goto>goto <name>cleanup</name>;</goto></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>memset</name><argument_list>(<argument><expr><name><name>index</name><operator>.</operator><name>next_ptrs</name></name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><name>sz</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>xdl_cha_init</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>index</name><operator>.</operator><name>rcha</name></name></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr>struct <name>record</name></expr></argument>)</argument_list></sizeof></expr></argument>, <argument><expr><name>count1</name> <operator>/</operator> <literal type="number">4</literal> <operator>+</operator> <literal type="number">1</literal></expr></argument>)</argument_list></call> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+
+<goto>goto <name>cleanup</name>;</goto></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name><name>index</name><operator>.</operator><name>ptr_shift</name></name> <operator>=</operator> <name>line1</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>index</name><operator>.</operator><name>max_chain_length</name></name> <operator>=</operator> <literal type="number">64</literal></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>scanA</name><argument_list>(<argument><expr><operator>&amp;</operator><name>index</name></expr></argument>, <argument><expr><name>line1</name></expr></argument>, <argument><expr><name>count1</name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+
+<goto>goto <name>cleanup</name>;</goto></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name><name>index</name><operator>.</operator><name>cnt</name></name> <operator>=</operator> <name><name>index</name><operator>.</operator><name>max_chain_length</name></name> <operator>+</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+
+<for>for <control>(<init><expr><name>b_ptr</name> <operator>=</operator> <name>line2</name></expr>;</init> <condition><expr><name>b_ptr</name> <operator>&lt;=</operator> <call><name>LINE_END</name><argument_list>(<argument><expr><literal type="number">2</literal></expr></argument>)</argument_list></call></expr>;</condition> <incr/>)</control><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name>b_ptr</name> <operator>=</operator> <call><name>try_lcs</name><argument_list>(<argument><expr><operator>&amp;</operator><name>index</name></expr></argument>, <argument><expr><name>lcs</name></expr></argument>, <argument><expr><name>b_ptr</name></expr></argument>, <argument><expr><name>line1</name></expr></argument>, <argument><expr><name>count1</name></expr></argument>, <argument><expr><name>line2</name></expr></argument>, <argument><expr><name>count2</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></for>
+
+<if_stmt><if>if <condition>(<expr><name><name>index</name><operator>.</operator><name>has_common</name></name> <operator>&amp;&amp;</operator> <name><name>index</name><operator>.</operator><name>max_chain_length</name></name> <operator>&lt;</operator> <name><name>index</name><operator>.</operator><name>cnt</name></name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt></block_content></block></if>
+
+<else>else<block type="pseudo"><block_content>
+
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt></block_content></block></else></if_stmt>
+
+<label><name>cleanup</name>:</label>
+
+<expr_stmt><expr><call><name>free_index</name><argument_list>(<argument><expr><operator>&amp;</operator><name>index</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>ret</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>histogram_diff</name><parameter_list>(<parameter><decl><type><name>xpparam_t</name> <specifier>const</specifier> <modifier>*</modifier></type><name>xpp</name></decl></parameter>, <parameter><decl><type><name>xdfenv_t</name> <modifier>*</modifier></type><name>env</name></decl></parameter>,
+
+<parameter><decl><type><name>int</name></type> <name>line1</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>count1</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>line2</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>count2</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>region</name></name></type> <name>lcs</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>lcs_found</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>result</name></decl>;</decl_stmt>
+
+<label><name>redo</name>:</label>
+
+<expr_stmt><expr><name>result</name> <operator>=</operator> <operator>-</operator><literal type="number">1</literal></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>count1</name> <operator>&lt;=</operator> <literal type="number">0</literal> <operator>&amp;&amp;</operator> <name>count2</name> <operator>&lt;=</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><literal type="number">0</literal></expr>;</return></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>LINE_END</name><argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call> <operator>&gt;=</operator> <name>MAX_PTR</name></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><operator>-</operator><literal type="number">1</literal></expr>;</return></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>count1</name></expr>)</condition> <block>{<block_content>
+
+<while>while<condition>(<expr><name>count2</name><operator>--</operator></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name><name>env</name><operator>-&gt;</operator><name>xdf2</name><operator>.</operator><name>rchg</name><index>[<expr><name>line2</name><operator>++</operator> <operator>-</operator> <literal type="number">1</literal></expr>]</index></name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt></block_content></block></while>
+
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+
+</block_content>}</block></if> <if type="elseif">else if <condition>(<expr><operator>!</operator><name>count2</name></expr>)</condition> <block>{<block_content>
+
+<while>while<condition>(<expr><name>count1</name><operator>--</operator></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name><name>env</name><operator>-&gt;</operator><name>xdf1</name><operator>.</operator><name>rchg</name><index>[<expr><name>line1</name><operator>++</operator> <operator>-</operator> <literal type="number">1</literal></expr>]</index></name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt></block_content></block></while>
+
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>memset</name><argument_list>(<argument><expr><operator>&amp;</operator><name>lcs</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr><name>lcs</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>lcs_found</name> <operator>=</operator> <call><name>find_lcs</name><argument_list>(<argument><expr><name>xpp</name></expr></argument>, <argument><expr><name>env</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>lcs</name></expr></argument>, <argument><expr><name>line1</name></expr></argument>, <argument><expr><name>count1</name></expr></argument>, <argument><expr><name>line2</name></expr></argument>, <argument><expr><name>count2</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>lcs_found</name> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+
+<goto>goto <name>out</name>;</goto></block_content></block></if>
+
+<if type="elseif">else if <condition>(<expr><name>lcs_found</name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name>result</name> <operator>=</operator> <call><name>fall_back_to_classic_diff</name><argument_list>(<argument><expr><name>xpp</name></expr></argument>, <argument><expr><name>env</name></expr></argument>, <argument><expr><name>line1</name></expr></argument>, <argument><expr><name>count1</name></expr></argument>, <argument><expr><name>line2</name></expr></argument>, <argument><expr><name>count2</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if>
+
+<else>else <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><name><name>lcs</name><operator>.</operator><name>begin1</name></name> <operator>==</operator> <literal type="number">0</literal> <operator>&amp;&amp;</operator> <name><name>lcs</name><operator>.</operator><name>begin2</name></name> <operator>==</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<while>while <condition>(<expr><name>count1</name><operator>--</operator></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name><name>env</name><operator>-&gt;</operator><name>xdf1</name><operator>.</operator><name>rchg</name><index>[<expr><name>line1</name><operator>++</operator> <operator>-</operator> <literal type="number">1</literal></expr>]</index></name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt></block_content></block></while>
+
+<while>while <condition>(<expr><name>count2</name><operator>--</operator></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name><name>env</name><operator>-&gt;</operator><name>xdf2</name><operator>.</operator><name>rchg</name><index>[<expr><name>line2</name><operator>++</operator> <operator>-</operator> <literal type="number">1</literal></expr>]</index></name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt></block_content></block></while>
+
+<expr_stmt><expr><name>result</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<expr_stmt><expr><name>result</name> <operator>=</operator> <call><name>histogram_diff</name><argument_list>(<argument><expr><name>xpp</name></expr></argument>, <argument><expr><name>env</name></expr></argument>,
+
+<argument><expr><name>line1</name></expr></argument>, <argument><expr><name><name>lcs</name><operator>.</operator><name>begin1</name></name> <operator>-</operator> <name>line1</name></expr></argument>,
+
+<argument><expr><name>line2</name></expr></argument>, <argument><expr><name><name>lcs</name><operator>.</operator><name>begin2</name></name> <operator>-</operator> <name>line2</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>result</name></expr>)</condition><block type="pseudo"><block_content>
+
+<goto>goto <name>out</name>;</goto></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>count1</name> <operator>=</operator> <call><name>LINE_END</name><argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call> <operator>-</operator> <name><name>lcs</name><operator>.</operator><name>end1</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>line1</name> <operator>=</operator> <name><name>lcs</name><operator>.</operator><name>end1</name></name> <operator>+</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>count2</name> <operator>=</operator> <call><name>LINE_END</name><argument_list>(<argument><expr><literal type="number">2</literal></expr></argument>)</argument_list></call> <operator>-</operator> <name><name>lcs</name><operator>.</operator><name>end2</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>line2</name> <operator>=</operator> <name><name>lcs</name><operator>.</operator><name>end2</name></name> <operator>+</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+
+<goto>goto <name>redo</name>;</goto>
+
+</block_content>}</block></else></if_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+<label><name>out</name>:</label>
+
+<return>return <expr><name>result</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><name>int</name></type> <name>xdl_do_histogram_diff</name><parameter_list>(<parameter><decl><type><name>mmfile_t</name> <modifier>*</modifier></type><name>file1</name></decl></parameter>, <parameter><decl><type><name>mmfile_t</name> <modifier>*</modifier></type><name>file2</name></decl></parameter>,
+
+<parameter><decl><type><name>xpparam_t</name> <specifier>const</specifier> <modifier>*</modifier></type><name>xpp</name></decl></parameter>, <parameter><decl><type><name>xdfenv_t</name> <modifier>*</modifier></type><name>env</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><call><name>xdl_prepare_env</name><argument_list>(<argument><expr><name>file1</name></expr></argument>, <argument><expr><name>file2</name></expr></argument>, <argument><expr><name>xpp</name></expr></argument>, <argument><expr><name>env</name></expr></argument>)</argument_list></call> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><operator>-</operator><literal type="number">1</literal></expr>;</return></block_content></block></if></if_stmt>
+
+<return>return <expr><call><name>histogram_diff</name><argument_list>(<argument><expr><name>xpp</name></expr></argument>, <argument><expr><name>env</name></expr></argument>,
+
+<argument><expr><name><name>env</name><operator>-&gt;</operator><name>xdf1</name><operator>.</operator><name>dstart</name></name> <operator>+</operator> <literal type="number">1</literal></expr></argument>, <argument><expr><name><name>env</name><operator>-&gt;</operator><name>xdf1</name><operator>.</operator><name>dend</name></name> <operator>-</operator> <name><name>env</name><operator>-&gt;</operator><name>xdf1</name><operator>.</operator><name>dstart</name></name> <operator>+</operator> <literal type="number">1</literal></expr></argument>,
+
+<argument><expr><name><name>env</name><operator>-&gt;</operator><name>xdf2</name><operator>.</operator><name>dstart</name></name> <operator>+</operator> <literal type="number">1</literal></expr></argument>, <argument><expr><name><name>env</name><operator>-&gt;</operator><name>xdf2</name><operator>.</operator><name>dend</name></name> <operator>-</operator> <name><name>env</name><operator>-&gt;</operator><name>xdf2</name><operator>.</operator><name>dstart</name></name> <operator>+</operator> <literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+</unit>

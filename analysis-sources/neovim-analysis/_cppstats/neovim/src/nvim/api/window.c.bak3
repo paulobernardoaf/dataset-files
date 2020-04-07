@@ -1,0 +1,565 @@
+
+
+
+#include <stdbool.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <limits.h>
+
+#include "nvim/ascii.h"
+#include "nvim/globals.h"
+#include "nvim/api/window.h"
+#include "nvim/api/private/defs.h"
+#include "nvim/api/private/helpers.h"
+#include "nvim/ex_docmd.h"
+#include "nvim/vim.h"
+#include "nvim/buffer.h"
+#include "nvim/cursor.h"
+#include "nvim/option.h"
+#include "nvim/window.h"
+#include "nvim/screen.h"
+#include "nvim/move.h"
+
+
+
+
+
+
+Buffer nvim_win_get_buf(Window window, Error *err)
+FUNC_API_SINCE(1)
+{
+win_T *win = find_window_by_handle(window, err);
+
+if (!win) {
+return 0;
+}
+
+return win->w_buffer->handle;
+}
+
+
+
+
+
+
+void nvim_win_set_buf(Window window, Buffer buffer, Error *err)
+FUNC_API_SINCE(5)
+{
+win_T *win = find_window_by_handle(window, err), *save_curwin = curwin;
+buf_T *buf = find_buffer_by_handle(buffer, err);
+tabpage_T *tab = win_find_tabpage(win), *save_curtab = curtab;
+
+if (!win || !buf) {
+return;
+}
+
+if (switch_win(&save_curwin, &save_curtab, win, tab, false) == FAIL) {
+api_set_error(err,
+kErrorTypeException,
+"Failed to switch to window %d",
+window);
+}
+
+try_start();
+int result = do_buffer(DOBUF_GOTO, DOBUF_FIRST, FORWARD, buf->b_fnum, 0);
+if (!try_end(err) && result == FAIL) {
+api_set_error(err,
+kErrorTypeException,
+"Failed to set buffer %d",
+buffer);
+}
+
+
+
+validate_cursor();
+
+restore_win(save_curwin, save_curtab, false);
+}
+
+
+
+
+
+
+ArrayOf(Integer, 2) nvim_win_get_cursor(Window window, Error *err)
+FUNC_API_SINCE(1)
+{
+Array rv = ARRAY_DICT_INIT;
+win_T *win = find_window_by_handle(window, err);
+
+if (win) {
+ADD(rv, INTEGER_OBJ(win->w_cursor.lnum));
+ADD(rv, INTEGER_OBJ(win->w_cursor.col));
+}
+
+return rv;
+}
+
+
+
+
+
+
+void nvim_win_set_cursor(Window window, ArrayOf(Integer, 2) pos, Error *err)
+FUNC_API_SINCE(1)
+{
+win_T *win = find_window_by_handle(window, err);
+
+if (!win) {
+return;
+}
+
+if (pos.size != 2 || pos.items[0].type != kObjectTypeInteger
+|| pos.items[1].type != kObjectTypeInteger) {
+api_set_error(err,
+kErrorTypeValidation,
+"Argument \"pos\" must be a [row, col] array");
+return;
+}
+
+int64_t row = pos.items[0].data.integer;
+int64_t col = pos.items[1].data.integer;
+
+if (row <= 0 || row > win->w_buffer->b_ml.ml_line_count) {
+api_set_error(err, kErrorTypeValidation, "Cursor position outside buffer");
+return;
+}
+
+if (col > MAXCOL || col < 0) {
+api_set_error(err, kErrorTypeValidation, "Column value outside range");
+return;
+}
+
+win->w_cursor.lnum = (linenr_T)row;
+win->w_cursor.col = (colnr_T)col;
+win->w_cursor.coladd = 0;
+
+check_cursor_col_win(win);
+
+
+win->w_set_curswant = true;
+
+
+update_topline_win(win);
+
+redraw_win_later(win, VALID);
+}
+
+
+
+
+
+
+Integer nvim_win_get_height(Window window, Error *err)
+FUNC_API_SINCE(1)
+{
+win_T *win = find_window_by_handle(window, err);
+
+if (!win) {
+return 0;
+}
+
+return win->w_height;
+}
+
+
+
+
+
+
+
+void nvim_win_set_height(Window window, Integer height, Error *err)
+FUNC_API_SINCE(1)
+{
+win_T *win = find_window_by_handle(window, err);
+
+if (!win) {
+return;
+}
+
+if (height > INT_MAX || height < INT_MIN) {
+api_set_error(err, kErrorTypeValidation, "Height value outside range");
+return;
+}
+
+win_T *savewin = curwin;
+curwin = win;
+try_start();
+win_setheight((int)height);
+curwin = savewin;
+try_end(err);
+}
+
+
+
+
+
+
+Integer nvim_win_get_width(Window window, Error *err)
+FUNC_API_SINCE(1)
+{
+win_T *win = find_window_by_handle(window, err);
+
+if (!win) {
+return 0;
+}
+
+return win->w_width;
+}
+
+
+
+
+
+
+
+void nvim_win_set_width(Window window, Integer width, Error *err)
+FUNC_API_SINCE(1)
+{
+win_T *win = find_window_by_handle(window, err);
+
+if (!win) {
+return;
+}
+
+if (width > INT_MAX || width < INT_MIN) {
+api_set_error(err, kErrorTypeValidation, "Width value outside range");
+return;
+}
+
+win_T *savewin = curwin;
+curwin = win;
+try_start();
+win_setwidth((int)width);
+curwin = savewin;
+try_end(err);
+}
+
+
+
+
+
+
+
+Object nvim_win_get_var(Window window, String name, Error *err)
+FUNC_API_SINCE(1)
+{
+win_T *win = find_window_by_handle(window, err);
+
+if (!win) {
+return (Object) OBJECT_INIT;
+}
+
+return dict_get_value(win->w_vars, name, err);
+}
+
+
+
+
+
+
+
+void nvim_win_set_var(Window window, String name, Object value, Error *err)
+FUNC_API_SINCE(1)
+{
+win_T *win = find_window_by_handle(window, err);
+
+if (!win) {
+return;
+}
+
+dict_set_var(win->w_vars, name, value, false, false, err);
+}
+
+
+
+
+
+
+void nvim_win_del_var(Window window, String name, Error *err)
+FUNC_API_SINCE(1)
+{
+win_T *win = find_window_by_handle(window, err);
+
+if (!win) {
+return;
+}
+
+dict_set_var(win->w_vars, name, NIL, true, false, err);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+Object window_set_var(Window window, String name, Object value, Error *err)
+{
+win_T *win = find_window_by_handle(window, err);
+
+if (!win) {
+return (Object) OBJECT_INIT;
+}
+
+return dict_set_var(win->w_vars, name, value, false, true, err);
+}
+
+
+
+
+
+
+
+
+
+Object window_del_var(Window window, String name, Error *err)
+{
+win_T *win = find_window_by_handle(window, err);
+
+if (!win) {
+return (Object) OBJECT_INIT;
+}
+
+return dict_set_var(win->w_vars, name, NIL, true, true, err);
+}
+
+
+
+
+
+
+
+Object nvim_win_get_option(Window window, String name, Error *err)
+FUNC_API_SINCE(1)
+{
+win_T *win = find_window_by_handle(window, err);
+
+if (!win) {
+return (Object) OBJECT_INIT;
+}
+
+return get_option_from(win, SREQ_WIN, name, err);
+}
+
+
+
+
+
+
+
+
+
+void nvim_win_set_option(uint64_t channel_id, Window window,
+String name, Object value, Error *err)
+FUNC_API_SINCE(1)
+{
+win_T *win = find_window_by_handle(window, err);
+
+if (!win) {
+return;
+}
+
+set_option_to(channel_id, win, SREQ_WIN, name, value, err);
+}
+
+
+
+
+
+
+ArrayOf(Integer, 2) nvim_win_get_position(Window window, Error *err)
+FUNC_API_SINCE(1)
+{
+Array rv = ARRAY_DICT_INIT;
+win_T *win = find_window_by_handle(window, err);
+
+if (win) {
+ADD(rv, INTEGER_OBJ(win->w_winrow));
+ADD(rv, INTEGER_OBJ(win->w_wincol));
+}
+
+return rv;
+}
+
+
+
+
+
+
+Tabpage nvim_win_get_tabpage(Window window, Error *err)
+FUNC_API_SINCE(1)
+{
+Tabpage rv = 0;
+win_T *win = find_window_by_handle(window, err);
+
+if (win) {
+rv = win_find_tabpage(win)->handle;
+}
+
+return rv;
+}
+
+
+
+
+
+
+Integer nvim_win_get_number(Window window, Error *err)
+FUNC_API_SINCE(1)
+{
+int rv = 0;
+win_T *win = find_window_by_handle(window, err);
+
+if (!win) {
+return rv;
+}
+
+int tabnr;
+win_get_tabwin(window, &tabnr, &rv);
+
+return rv;
+}
+
+
+
+
+
+Boolean nvim_win_is_valid(Window window)
+FUNC_API_SINCE(1)
+{
+Error stub = ERROR_INIT;
+Boolean ret = find_window_by_handle(window, &stub) != NULL;
+api_clear_error(&stub);
+return ret;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+void nvim_win_set_config(Window window, Dictionary config, Error *err)
+FUNC_API_SINCE(6)
+{
+win_T *win = find_window_by_handle(window, err);
+if (!win) {
+return;
+}
+bool new_float = !win->w_floating;
+
+FloatConfig fconfig = new_float ? FLOAT_CONFIG_INIT : win->w_float_config;
+
+if (!parse_float_config(config, &fconfig, !new_float, err)) {
+return;
+}
+if (new_float) {
+if (!win_new_float(win, fconfig, err)) {
+return;
+}
+redraw_later(NOT_VALID);
+} else {
+win_config_float(win, fconfig);
+win->w_pos_changed = true;
+}
+if (fconfig.style == kWinStyleMinimal) {
+win_set_minimal_style(win);
+didset_window_options(win);
+}
+}
+
+
+
+
+
+
+
+
+
+
+Dictionary nvim_win_get_config(Window window, Error *err)
+FUNC_API_SINCE(6)
+{
+Dictionary rv = ARRAY_DICT_INIT;
+
+win_T *wp = find_window_by_handle(window, err);
+if (!wp) {
+return rv;
+}
+
+FloatConfig *config = &wp->w_float_config;
+
+PUT(rv, "focusable", BOOLEAN_OBJ(config->focusable));
+PUT(rv, "external", BOOLEAN_OBJ(config->external));
+
+if (wp->w_floating) {
+PUT(rv, "width", INTEGER_OBJ(config->width));
+PUT(rv, "height", INTEGER_OBJ(config->height));
+if (!config->external) {
+if (config->relative == kFloatRelativeWindow) {
+PUT(rv, "win", INTEGER_OBJ(config->window));
+if (config->bufpos.lnum >= 0) {
+Array pos = ARRAY_DICT_INIT;
+ADD(pos, INTEGER_OBJ(config->bufpos.lnum));
+ADD(pos, INTEGER_OBJ(config->bufpos.col));
+PUT(rv, "bufpos", ARRAY_OBJ(pos));
+}
+}
+PUT(rv, "anchor", STRING_OBJ(cstr_to_string(
+float_anchor_str[config->anchor])));
+PUT(rv, "row", FLOAT_OBJ(config->row));
+PUT(rv, "col", FLOAT_OBJ(config->col));
+}
+}
+
+const char *rel = (wp->w_floating && !config->external
+? float_relative_str[config->relative] : "");
+PUT(rv, "relative", STRING_OBJ(cstr_to_string(rel)));
+
+return rv;
+}
+
+
+
+
+
+
+
+
+void nvim_win_close(Window window, Boolean force, Error *err)
+FUNC_API_SINCE(6)
+{
+win_T *win = find_window_by_handle(window, err);
+if (!win) {
+return;
+}
+
+if (cmdwin_type != 0) {
+if (win == curwin) {
+cmdwin_result = Ctrl_C;
+} else {
+api_set_error(err, kErrorTypeException, "%s", _(e_cmdwin));
+}
+return;
+}
+
+tabpage_T *tabpage = win_find_tabpage(win);
+TryState tstate;
+try_enter(&tstate);
+ex_win_close(force, win, tabpage == curtab ? NULL : tabpage);
+vim_ignored = try_leave(&tstate, err);
+}

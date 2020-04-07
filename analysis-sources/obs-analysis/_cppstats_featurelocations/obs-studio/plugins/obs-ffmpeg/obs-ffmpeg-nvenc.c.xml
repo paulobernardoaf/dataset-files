@@ -1,0 +1,580 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" revision="1.0.0" language="C" filename="D:\Pesquisa\Projects\obs-analysis\_cppstats_featurelocations\obs-studio\plugins\obs-ffmpeg\obs-ffmpeg-nvenc.c">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;util/darray.h&gt;</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;util/dstr.h&gt;</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;util/base.h&gt;</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;media-io/video-io.h&gt;</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;obs-module.h&gt;</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;obs-avc.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;libavutil/opt.h&gt;</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;libavutil/pixdesc.h&gt;</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;libavformat/avformat.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"obs-ffmpeg-formats.h"</cpp:file></cpp:include>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>do_log</name><parameter_list>(<parameter><type><name>level</name></type></parameter>, <parameter><type><name>format</name></type></parameter>, <parameter><type><modifier>...</modifier></type></parameter>)</parameter_list></cpp:macro> <cpp:value>blog(level, "[NVENC encoder: '%s'] " format, obs_encoder_get_name(enc-&gt;encoder), ##__VA_ARGS__)</cpp:value></cpp:define>
+
+
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>warn</name><parameter_list>(<parameter><type><name>format</name></type></parameter>, <parameter><type><modifier>...</modifier></type></parameter>)</parameter_list></cpp:macro> <cpp:value>do_log(LOG_WARNING, format, ##__VA_ARGS__)</cpp:value></cpp:define>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>info</name><parameter_list>(<parameter><type><name>format</name></type></parameter>, <parameter><type><modifier>...</modifier></type></parameter>)</parameter_list></cpp:macro> <cpp:value>do_log(LOG_INFO, format, ##__VA_ARGS__)</cpp:value></cpp:define>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>debug</name><parameter_list>(<parameter><type><name>format</name></type></parameter>, <parameter><type><modifier>...</modifier></type></parameter>)</parameter_list></cpp:macro> <cpp:value>do_log(LOG_DEBUG, format, ##__VA_ARGS__)</cpp:value></cpp:define>
+
+<struct>struct <name>nvenc_encoder</name> <block>{
+<decl_stmt><decl><type><name>obs_encoder_t</name> <modifier>*</modifier></type><name>encoder</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>AVCodec</name> <modifier>*</modifier></type><name>nvenc</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>AVCodecContext</name> <modifier>*</modifier></type><name>context</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>AVFrame</name> <modifier>*</modifier></type><name>vframe</name></decl>;</decl_stmt>
+
+<macro><name>DARRAY</name><argument_list>(<argument>uint8_t</argument>)</argument_list></macro> <expr_stmt><expr><name>buffer</name></expr>;</expr_stmt>
+
+<decl_stmt><decl><type><name>uint8_t</name> <modifier>*</modifier></type><name>header</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>size_t</name></type> <name>header_size</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>uint8_t</name> <modifier>*</modifier></type><name>sei</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>size_t</name></type> <name>sei_size</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>height</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>bool</name></type> <name>first_packet</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>bool</name></type> <name>initialized</name></decl>;</decl_stmt>
+}</block>;</struct>
+
+<function><type><specifier>static</specifier> <specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>nvenc_getname</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>unused</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<expr_stmt><expr><call><name>UNUSED_PARAMETER</name><argument_list>(<argument><expr><name>unused</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><literal type="string">"NVIDIA NVENC H.264"</literal></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <specifier>inline</specifier> <name>bool</name></type> <name>valid_format</name><parameter_list>(<parameter><decl><type><name><name>enum</name> <name>video_format</name></name></type> <name>format</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<return>return <expr><name>format</name> <operator>==</operator> <name>VIDEO_FORMAT_I420</name> <operator>||</operator> <name>format</name> <operator>==</operator> <name>VIDEO_FORMAT_NV12</name> <operator>||</operator>
+<name>format</name> <operator>==</operator> <name>VIDEO_FORMAT_I444</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>nvenc_video_info</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>, <parameter><decl><type><name><name>struct</name> <name>video_scale_info</name></name> <modifier>*</modifier></type><name>info</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>nvenc_encoder</name></name> <modifier>*</modifier></type><name>enc</name> <init>= <expr><name>data</name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name><name>enum</name> <name>video_format</name></name></type> <name>pref_format</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>pref_format</name> <operator>=</operator> <call><name>obs_encoder_get_preferred_video_format</name><argument_list>(<argument><expr><name><name>enc</name><operator>-&gt;</operator><name>encoder</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>valid_format</name><argument_list>(<argument><expr><name>pref_format</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name>pref_format</name> <operator>=</operator> <ternary><condition><expr><call><name>valid_format</name><argument_list>(<argument><expr><name><name>info</name><operator>-&gt;</operator><name>format</name></name></expr></argument>)</argument_list></call></expr> ?</condition><then> <expr><name><name>info</name><operator>-&gt;</operator><name>format</name></name></expr>
+</then><else>: <expr><name>VIDEO_FORMAT_NV12</name></expr></else></ternary></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>info</name><operator>-&gt;</operator><name>format</name></name> <operator>=</operator> <name>pref_format</name></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>bool</name></type> <name>nvenc_init_codec</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>nvenc_encoder</name></name> <modifier>*</modifier></type><name>enc</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>int</name></type> <name>ret</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <call><name>avcodec_open2</name><argument_list>(<argument><expr><name><name>enc</name><operator>-&gt;</operator><name>context</name></name></expr></argument>, <argument><expr><name><name>enc</name><operator>-&gt;</operator><name>nvenc</name></name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name>ret</name> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>warn</name><argument_list>(<argument><expr><literal type="string">"Failed to open NVENC codec: %s"</literal></expr></argument>, <argument><expr><call><name>av_err2str</name><argument_list>(<argument><expr><name>ret</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>false</name></expr>;</return>
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>enc</name><operator>-&gt;</operator><name>vframe</name></name> <operator>=</operator> <call><name>av_frame_alloc</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>enc</name><operator>-&gt;</operator><name>vframe</name></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>warn</name><argument_list>(<argument><expr><literal type="string">"Failed to allocate video frame"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>false</name></expr>;</return>
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>enc</name><operator>-&gt;</operator><name>vframe</name><operator>-&gt;</operator><name>format</name></name> <operator>=</operator> <name><name>enc</name><operator>-&gt;</operator><name>context</name><operator>-&gt;</operator><name>pix_fmt</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>enc</name><operator>-&gt;</operator><name>vframe</name><operator>-&gt;</operator><name>width</name></name> <operator>=</operator> <name><name>enc</name><operator>-&gt;</operator><name>context</name><operator>-&gt;</operator><name>width</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>enc</name><operator>-&gt;</operator><name>vframe</name><operator>-&gt;</operator><name>height</name></name> <operator>=</operator> <name><name>enc</name><operator>-&gt;</operator><name>context</name><operator>-&gt;</operator><name>height</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>enc</name><operator>-&gt;</operator><name>vframe</name><operator>-&gt;</operator><name>colorspace</name></name> <operator>=</operator> <name><name>enc</name><operator>-&gt;</operator><name>context</name><operator>-&gt;</operator><name>colorspace</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>enc</name><operator>-&gt;</operator><name>vframe</name><operator>-&gt;</operator><name>color_range</name></name> <operator>=</operator> <name><name>enc</name><operator>-&gt;</operator><name>context</name><operator>-&gt;</operator><name>color_range</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <call><name>av_frame_get_buffer</name><argument_list>(<argument><expr><name><name>enc</name><operator>-&gt;</operator><name>vframe</name></name></expr></argument>, <argument><expr><call><name>base_get_alignment</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name>ret</name> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>warn</name><argument_list>(<argument><expr><literal type="string">"Failed to allocate vframe: %s"</literal></expr></argument>, <argument><expr><call><name>av_err2str</name><argument_list>(<argument><expr><name>ret</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>false</name></expr>;</return>
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>enc</name><operator>-&gt;</operator><name>initialized</name></name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+<return>return <expr><name>true</name></expr>;</return>
+</block_content>}</block></function>
+
+<enum>enum <name>RC_MODE</name> <block>{ <decl><name>RC_MODE_CBR</name></decl>, <decl><name>RC_MODE_VBR</name></decl>, <decl><name>RC_MODE_CQP</name></decl>, <decl><name>RC_MODE_LOSSLESS</name></decl> }</block>;</enum>
+
+<function><type><specifier>static</specifier> <name>bool</name></type> <name>nvenc_update</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>, <parameter><decl><type><name>obs_data_t</name> <modifier>*</modifier></type><name>settings</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>nvenc_encoder</name></name> <modifier>*</modifier></type><name>enc</name> <init>= <expr><name>data</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>rc</name> <init>= <expr><call><name>obs_data_get_string</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"rate_control"</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>bitrate</name> <init>= <expr><operator>(</operator><name>int</name><operator>)</operator><call><name>obs_data_get_int</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"bitrate"</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>cqp</name> <init>= <expr><operator>(</operator><name>int</name><operator>)</operator><call><name>obs_data_get_int</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"cqp"</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>keyint_sec</name> <init>= <expr><operator>(</operator><name>int</name><operator>)</operator><call><name>obs_data_get_int</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"keyint_sec"</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>preset</name> <init>= <expr><call><name>obs_data_get_string</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"preset"</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>profile</name> <init>= <expr><call><name>obs_data_get_string</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"profile"</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>gpu</name> <init>= <expr><operator>(</operator><name>int</name><operator>)</operator><call><name>obs_data_get_int</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"gpu"</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>bool</name></type> <name>cbr_override</name> <init>= <expr><call><name>obs_data_get_bool</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"cbr"</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>bf</name> <init>= <expr><operator>(</operator><name>int</name><operator>)</operator><call><name>obs_data_get_int</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"bf"</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>video_t</name> <modifier>*</modifier></type><name>video</name> <init>= <expr><call><name>obs_encoder_video</name><argument_list>(<argument><expr><name><name>enc</name><operator>-&gt;</operator><name>encoder</name></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><specifier>const</specifier> <name><name>struct</name> <name>video_output_info</name></name> <modifier>*</modifier></type><name>voi</name> <init>= <expr><call><name>video_output_get_info</name><argument_list>(<argument><expr><name>video</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name><name>struct</name> <name>video_scale_info</name></name></type> <name>info</name></decl>;</decl_stmt>
+
+
+<if_stmt><if>if <condition>(<expr><name>cbr_override</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>warn</name><argument_list>(<argument><expr><literal type="string">"\"cbr\" setting has been deprecated for all encoders! "</literal>
+<literal type="string">"Please set \"rate_control\" to \"CBR\" instead. "</literal>
+<literal type="string">"Forcing CBR mode. "</literal>
+<literal type="string">"(Note to all: this is why you shouldn't use strings for "</literal>
+<literal type="string">"common settings)"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>rc</name> <operator>=</operator> <literal type="string">"CBR"</literal></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>info</name><operator>.</operator><name>format</name></name> <operator>=</operator> <name><name>voi</name><operator>-&gt;</operator><name>format</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>info</name><operator>.</operator><name>colorspace</name></name> <operator>=</operator> <name><name>voi</name><operator>-&gt;</operator><name>colorspace</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>info</name><operator>.</operator><name>range</name></name> <operator>=</operator> <name><name>voi</name><operator>-&gt;</operator><name>range</name></name></expr>;</expr_stmt>
+
+<decl_stmt><decl><type><name>bool</name></type> <name>twopass</name> <init>= <expr><name>false</name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>astrcmpi</name><argument_list>(<argument><expr><name>preset</name></expr></argument>, <argument><expr><literal type="string">"mq"</literal></expr></argument>)</argument_list></call> <operator>==</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name>twopass</name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+<expr_stmt><expr><name>preset</name> <operator>=</operator> <literal type="string">"hq"</literal></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>nvenc_video_info</name><argument_list>(<argument><expr><name>enc</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>info</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>av_opt_set_int</name><argument_list>(<argument><expr><name><name>enc</name><operator>-&gt;</operator><name>context</name><operator>-&gt;</operator><name>priv_data</name></name></expr></argument>, <argument><expr><literal type="string">"cbr"</literal></expr></argument>, <argument><expr><name>false</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>av_opt_set</name><argument_list>(<argument><expr><name><name>enc</name><operator>-&gt;</operator><name>context</name><operator>-&gt;</operator><name>priv_data</name></name></expr></argument>, <argument><expr><literal type="string">"profile"</literal></expr></argument>, <argument><expr><name>profile</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>av_opt_set</name><argument_list>(<argument><expr><name><name>enc</name><operator>-&gt;</operator><name>context</name><operator>-&gt;</operator><name>priv_data</name></name></expr></argument>, <argument><expr><literal type="string">"preset"</literal></expr></argument>, <argument><expr><name>preset</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>astrcmpi</name><argument_list>(<argument><expr><name>rc</name></expr></argument>, <argument><expr><literal type="string">"cqp"</literal></expr></argument>)</argument_list></call> <operator>==</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name>bitrate</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>enc</name><operator>-&gt;</operator><name>context</name><operator>-&gt;</operator><name>global_quality</name></name> <operator>=</operator> <name>cqp</name></expr>;</expr_stmt>
+
+</block_content>}</block></if> <if type="elseif">else if <condition>(<expr><call><name>astrcmpi</name><argument_list>(<argument><expr><name>rc</name></expr></argument>, <argument><expr><literal type="string">"lossless"</literal></expr></argument>)</argument_list></call> <operator>==</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name>bitrate</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name>cqp</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<decl_stmt><decl><type><name>bool</name></type> <name>hp</name> <init>= <expr><operator>(</operator><call><name>astrcmpi</name><argument_list>(<argument><expr><name>preset</name></expr></argument>, <argument><expr><literal type="string">"hp"</literal></expr></argument>)</argument_list></call> <operator>==</operator> <literal type="number">0</literal> <operator>||</operator>
+<call><name>astrcmpi</name><argument_list>(<argument><expr><name>preset</name></expr></argument>, <argument><expr><literal type="string">"llhp"</literal></expr></argument>)</argument_list></call> <operator>==</operator> <literal type="number">0</literal><operator>)</operator></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>av_opt_set</name><argument_list>(<argument><expr><name><name>enc</name><operator>-&gt;</operator><name>context</name><operator>-&gt;</operator><name>priv_data</name></name></expr></argument>, <argument><expr><literal type="string">"preset"</literal></expr></argument>,
+<argument><expr><ternary><condition><expr><name>hp</name></expr> ?</condition><then> <expr><literal type="string">"losslesshp"</literal></expr> </then><else>: <expr><literal type="string">"lossless"</literal></expr></else></ternary></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if> <if type="elseif">else if <condition>(<expr><call><name>astrcmpi</name><argument_list>(<argument><expr><name>rc</name></expr></argument>, <argument><expr><literal type="string">"vbr"</literal></expr></argument>)</argument_list></call> <operator>!=</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content> 
+<expr_stmt><expr><call><name>av_opt_set_int</name><argument_list>(<argument><expr><name><name>enc</name><operator>-&gt;</operator><name>context</name><operator>-&gt;</operator><name>priv_data</name></name></expr></argument>, <argument><expr><literal type="string">"cbr"</literal></expr></argument>, <argument><expr><name>true</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>enc</name><operator>-&gt;</operator><name>context</name><operator>-&gt;</operator><name>rc_max_rate</name></name> <operator>=</operator> <name>bitrate</name> <operator>*</operator> <literal type="number">1000</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>enc</name><operator>-&gt;</operator><name>context</name><operator>-&gt;</operator><name>rc_min_rate</name></name> <operator>=</operator> <name>bitrate</name> <operator>*</operator> <literal type="number">1000</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name>cqp</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>av_opt_set</name><argument_list>(<argument><expr><name><name>enc</name><operator>-&gt;</operator><name>context</name><operator>-&gt;</operator><name>priv_data</name></name></expr></argument>, <argument><expr><literal type="string">"level"</literal></expr></argument>, <argument><expr><literal type="string">"auto"</literal></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>av_opt_set_int</name><argument_list>(<argument><expr><name><name>enc</name><operator>-&gt;</operator><name>context</name><operator>-&gt;</operator><name>priv_data</name></name></expr></argument>, <argument><expr><literal type="string">"2pass"</literal></expr></argument>, <argument><expr><name>twopass</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>av_opt_set_int</name><argument_list>(<argument><expr><name><name>enc</name><operator>-&gt;</operator><name>context</name><operator>-&gt;</operator><name>priv_data</name></name></expr></argument>, <argument><expr><literal type="string">"gpu"</literal></expr></argument>, <argument><expr><name>gpu</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>enc</name><operator>-&gt;</operator><name>context</name><operator>-&gt;</operator><name>bit_rate</name></name> <operator>=</operator> <name>bitrate</name> <operator>*</operator> <literal type="number">1000</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>enc</name><operator>-&gt;</operator><name>context</name><operator>-&gt;</operator><name>rc_buffer_size</name></name> <operator>=</operator> <name>bitrate</name> <operator>*</operator> <literal type="number">1000</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>enc</name><operator>-&gt;</operator><name>context</name><operator>-&gt;</operator><name>width</name></name> <operator>=</operator> <call><name>obs_encoder_get_width</name><argument_list>(<argument><expr><name><name>enc</name><operator>-&gt;</operator><name>encoder</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>enc</name><operator>-&gt;</operator><name>context</name><operator>-&gt;</operator><name>height</name></name> <operator>=</operator> <call><name>obs_encoder_get_height</name><argument_list>(<argument><expr><name><name>enc</name><operator>-&gt;</operator><name>encoder</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>enc</name><operator>-&gt;</operator><name>context</name><operator>-&gt;</operator><name>time_base</name></name> <operator>=</operator> <operator>(</operator><name>AVRational</name><operator>)</operator><block>{<expr><name><name>voi</name><operator>-&gt;</operator><name>fps_den</name></name></expr>, <expr><name><name>voi</name><operator>-&gt;</operator><name>fps_num</name></name></expr>}</block></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>enc</name><operator>-&gt;</operator><name>context</name><operator>-&gt;</operator><name>pix_fmt</name></name> <operator>=</operator> <call><name>obs_to_ffmpeg_video_format</name><argument_list>(<argument><expr><name><name>info</name><operator>.</operator><name>format</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>enc</name><operator>-&gt;</operator><name>context</name><operator>-&gt;</operator><name>colorspace</name></name> <operator>=</operator> <ternary><condition><expr><name><name>info</name><operator>.</operator><name>colorspace</name></name> <operator>==</operator> <name>VIDEO_CS_709</name></expr>
+?</condition><then> <expr><name>AVCOL_SPC_BT709</name></expr>
+</then><else>: <expr><name>AVCOL_SPC_BT470BG</name></expr></else></ternary></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>enc</name><operator>-&gt;</operator><name>context</name><operator>-&gt;</operator><name>color_range</name></name> <operator>=</operator> <ternary><condition><expr><name><name>info</name><operator>.</operator><name>range</name></name> <operator>==</operator> <name>VIDEO_RANGE_FULL</name></expr>
+?</condition><then> <expr><name>AVCOL_RANGE_JPEG</name></expr>
+</then><else>: <expr><name>AVCOL_RANGE_MPEG</name></expr></else></ternary></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>enc</name><operator>-&gt;</operator><name>context</name><operator>-&gt;</operator><name>max_b_frames</name></name> <operator>=</operator> <name>bf</name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>keyint_sec</name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name><name>enc</name><operator>-&gt;</operator><name>context</name><operator>-&gt;</operator><name>gop_size</name></name> <operator>=</operator>
+<name>keyint_sec</name> <operator>*</operator> <name><name>voi</name><operator>-&gt;</operator><name>fps_num</name></name> <operator>/</operator> <name><name>voi</name><operator>-&gt;</operator><name>fps_den</name></name></expr>;</expr_stmt></block_content></block></if>
+<else>else<block type="pseudo"><block_content>
+<expr_stmt><expr><name><name>enc</name><operator>-&gt;</operator><name>context</name><operator>-&gt;</operator><name>gop_size</name></name> <operator>=</operator> <literal type="number">250</literal></expr>;</expr_stmt></block_content></block></else></if_stmt>
+
+<expr_stmt><expr><name><name>enc</name><operator>-&gt;</operator><name>height</name></name> <operator>=</operator> <name><name>enc</name><operator>-&gt;</operator><name>context</name><operator>-&gt;</operator><name>height</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>info</name><argument_list>(<argument><expr><literal type="string">"settings:\n"</literal>
+<literal type="string">"\trate_control: %s\n"</literal>
+<literal type="string">"\tbitrate: %d\n"</literal>
+<literal type="string">"\tcqp: %d\n"</literal>
+<literal type="string">"\tkeyint: %d\n"</literal>
+<literal type="string">"\tpreset: %s\n"</literal>
+<literal type="string">"\tprofile: %s\n"</literal>
+<literal type="string">"\twidth: %d\n"</literal>
+<literal type="string">"\theight: %d\n"</literal>
+<literal type="string">"\t2-pass: %s\n"</literal>
+<literal type="string">"\tb-frames: %d\n"</literal>
+<literal type="string">"\tGPU: %d\n"</literal></expr></argument>,
+<argument><expr><name>rc</name></expr></argument>, <argument><expr><name>bitrate</name></expr></argument>, <argument><expr><name>cqp</name></expr></argument>, <argument><expr><name><name>enc</name><operator>-&gt;</operator><name>context</name><operator>-&gt;</operator><name>gop_size</name></name></expr></argument>, <argument><expr><name>preset</name></expr></argument>, <argument><expr><name>profile</name></expr></argument>,
+<argument><expr><name><name>enc</name><operator>-&gt;</operator><name>context</name><operator>-&gt;</operator><name>width</name></name></expr></argument>, <argument><expr><name><name>enc</name><operator>-&gt;</operator><name>context</name><operator>-&gt;</operator><name>height</name></name></expr></argument>,
+<argument><expr><ternary><condition><expr><name>twopass</name></expr> ?</condition><then> <expr><literal type="string">"true"</literal></expr> </then><else>: <expr><literal type="string">"false"</literal></expr></else></ternary></expr></argument>, <argument><expr><name><name>enc</name><operator>-&gt;</operator><name>context</name><operator>-&gt;</operator><name>max_b_frames</name></name></expr></argument>, <argument><expr><name>gpu</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><call><name>nvenc_init_codec</name><argument_list>(<argument><expr><name>enc</name></expr></argument>)</argument_list></call></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>bool</name></type> <name>nvenc_reconfigure</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>, <parameter><decl><type><name>obs_data_t</name> <modifier>*</modifier></type><name>settings</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><name>LIBAVCODEC_VERSION_INT</name> <operator>&gt;=</operator> <call><name>AV_VERSION_INT</name><argument_list>(<argument><expr><literal type="number">58</literal><operator>,</operator> <literal type="number">19</literal><operator>,</operator> <literal type="number">101</literal></expr></argument>)</argument_list></call></expr></cpp:if>
+<decl_stmt><decl><type><name><name>struct</name> <name>nvenc_encoder</name></name> <modifier>*</modifier></type><name>enc</name> <init>= <expr><name>data</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>bitrate</name> <init>= <expr><operator>(</operator><name>int</name><operator>)</operator><call><name>obs_data_get_int</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"bitrate"</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>rc</name> <init>= <expr><call><name>obs_data_get_string</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"rate_control"</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>bool</name></type> <name>cbr</name> <init>= <expr><call><name>astrcmpi</name><argument_list>(<argument><expr><name>rc</name></expr></argument>, <argument><expr><literal type="string">"CBR"</literal></expr></argument>)</argument_list></call> <operator>==</operator> <literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>bool</name></type> <name>vbr</name> <init>= <expr><call><name>astrcmpi</name><argument_list>(<argument><expr><name>rc</name></expr></argument>, <argument><expr><literal type="string">"VBR"</literal></expr></argument>)</argument_list></call> <operator>==</operator> <literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+<if_stmt><if>if <condition>(<expr><name>cbr</name> <operator>||</operator> <name>vbr</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name><name>enc</name><operator>-&gt;</operator><name>context</name><operator>-&gt;</operator><name>bit_rate</name></name> <operator>=</operator> <name>bitrate</name> <operator>*</operator> <literal type="number">1000</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>enc</name><operator>-&gt;</operator><name>context</name><operator>-&gt;</operator><name>rc_max_rate</name></name> <operator>=</operator> <name>bitrate</name> <operator>*</operator> <literal type="number">1000</literal></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+<return>return <expr><name>true</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>nvenc_destroy</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>nvenc_encoder</name></name> <modifier>*</modifier></type><name>enc</name> <init>= <expr><name>data</name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>enc</name><operator>-&gt;</operator><name>initialized</name></name></expr>)</condition> <block>{<block_content>
+<decl_stmt><decl><type><name>AVPacket</name></type> <name>pkt</name> <init>= <expr><block>{<expr><literal type="number">0</literal></expr>}</block></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>r_pkt</name> <init>= <expr><literal type="number">1</literal></expr></init></decl>;</decl_stmt>
+
+<while>while <condition>(<expr><name>r_pkt</name></expr>)</condition> <block>{<block_content>
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><name>LIBAVFORMAT_VERSION_INT</name> <operator>&gt;=</operator> <call><name>AV_VERSION_INT</name><argument_list>(<argument><expr><literal type="number">57</literal><operator>,</operator> <literal type="number">40</literal><operator>,</operator> <literal type="number">101</literal></expr></argument>)</argument_list></call></expr></cpp:if>
+<if_stmt><if>if <condition>(<expr><call><name>avcodec_receive_packet</name><argument_list>(<argument><expr><name><name>enc</name><operator>-&gt;</operator><name>context</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name>pkt</name></expr></argument>)</argument_list></call> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+<break>break;</break></block_content></block></if></if_stmt>
+<cpp:else>#<cpp:directive>else</cpp:directive></cpp:else>
+<if_stmt><if>if <condition>(<expr><call><name>avcodec_encode_video2</name><argument_list>(<argument><expr><name><name>enc</name><operator>-&gt;</operator><name>context</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name>pkt</name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>,
+<argument><expr><operator>&amp;</operator><name>r_pkt</name></expr></argument>)</argument_list></call> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+<break>break;</break></block_content></block></if></if_stmt>
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+<if_stmt><if>if <condition>(<expr><name>r_pkt</name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>av_packet_unref</name><argument_list>(<argument><expr><operator>&amp;</operator><name>pkt</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+</block_content>}</block></while>
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>avcodec_close</name><argument_list>(<argument><expr><name><name>enc</name><operator>-&gt;</operator><name>context</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>av_frame_unref</name><argument_list>(<argument><expr><name><name>enc</name><operator>-&gt;</operator><name>vframe</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>av_frame_free</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>enc</name><operator>-&gt;</operator><name>vframe</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>da_free</name><argument_list>(<argument><expr><name><name>enc</name><operator>-&gt;</operator><name>buffer</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>bfree</name><argument_list>(<argument><expr><name><name>enc</name><operator>-&gt;</operator><name>header</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>bfree</name><argument_list>(<argument><expr><name><name>enc</name><operator>-&gt;</operator><name>sei</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>bfree</name><argument_list>(<argument><expr><name>enc</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name> <modifier>*</modifier></type><name>nvenc_create</name><parameter_list>(<parameter><decl><type><name>obs_data_t</name> <modifier>*</modifier></type><name>settings</name></decl></parameter>, <parameter><decl><type><name>obs_encoder_t</name> <modifier>*</modifier></type><name>encoder</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>nvenc_encoder</name></name> <modifier>*</modifier></type><name>enc</name></decl>;</decl_stmt>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><name>LIBAVCODEC_VERSION_INT</name> <operator>&lt;</operator> <call><name>AV_VERSION_INT</name><argument_list>(<argument><expr><literal type="number">58</literal><operator>,</operator> <literal type="number">9</literal><operator>,</operator> <literal type="number">100</literal></expr></argument>)</argument_list></call></expr></cpp:if>
+<expr_stmt><expr><call><name>avcodec_register_all</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+<expr_stmt><expr><name>enc</name> <operator>=</operator> <call><name>bzalloc</name><argument_list>(<argument><expr><sizeof>sizeof<argument_list>(<argument><expr><operator>*</operator><name>enc</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>enc</name><operator>-&gt;</operator><name>encoder</name></name> <operator>=</operator> <name>encoder</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>enc</name><operator>-&gt;</operator><name>nvenc</name></name> <operator>=</operator> <call><name>avcodec_find_encoder_by_name</name><argument_list>(<argument><expr><literal type="string">"h264_nvenc"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>enc</name><operator>-&gt;</operator><name>nvenc</name></name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name><name>enc</name><operator>-&gt;</operator><name>nvenc</name></name> <operator>=</operator> <call><name>avcodec_find_encoder_by_name</name><argument_list>(<argument><expr><literal type="string">"nvenc_h264"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+<expr_stmt><expr><name><name>enc</name><operator>-&gt;</operator><name>first_packet</name></name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>blog</name><argument_list>(<argument><expr><name>LOG_INFO</name></expr></argument>, <argument><expr><literal type="string">"---------------------------------"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>enc</name><operator>-&gt;</operator><name>nvenc</name></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>warn</name><argument_list>(<argument><expr><literal type="string">"Couldn't find encoder"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<goto>goto <name>fail</name>;</goto>
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>enc</name><operator>-&gt;</operator><name>context</name></name> <operator>=</operator> <call><name>avcodec_alloc_context3</name><argument_list>(<argument><expr><name><name>enc</name><operator>-&gt;</operator><name>nvenc</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>enc</name><operator>-&gt;</operator><name>context</name></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>warn</name><argument_list>(<argument><expr><literal type="string">"Failed to create codec context"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<goto>goto <name>fail</name>;</goto>
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>nvenc_update</name><argument_list>(<argument><expr><name>enc</name></expr></argument>, <argument><expr><name>settings</name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+<goto>goto <name>fail</name>;</goto></block_content></block></if></if_stmt>
+
+<return>return <expr><name>enc</name></expr>;</return>
+
+<label><name>fail</name>:</label>
+<expr_stmt><expr><call><name>nvenc_destroy</name><argument_list>(<argument><expr><name>enc</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>NULL</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <specifier>inline</specifier> <name>void</name></type> <name>copy_data</name><parameter_list>(<parameter><decl><type><name>AVFrame</name> <modifier>*</modifier></type><name>pic</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name><name>struct</name> <name>encoder_frame</name></name> <modifier>*</modifier></type><name>frame</name></decl></parameter>,
+<parameter><decl><type><name>int</name></type> <name>height</name></decl></parameter>, <parameter><decl><type><name><name>enum</name> <name>AVPixelFormat</name></name></type> <name>format</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>int</name></type> <name>h_chroma_shift</name></decl>, <decl><type ref="prev"/><name>v_chroma_shift</name></decl>;</decl_stmt>
+<expr_stmt><expr><call><name>av_pix_fmt_get_chroma_sub_sample</name><argument_list>(<argument><expr><name>format</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>h_chroma_shift</name></expr></argument>,
+<argument><expr><operator>&amp;</operator><name>v_chroma_shift</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<for>for <control>(<init><decl><type><name>int</name></type> <name>plane</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>plane</name> <operator>&lt;</operator> <name>MAX_AV_PLANES</name></expr>;</condition> <incr><expr><name>plane</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>frame</name><operator>-&gt;</operator><name>data</name><index>[<expr><name>plane</name></expr>]</index></name></expr>)</condition><block type="pseudo"><block_content>
+<continue>continue;</continue></block_content></block></if></if_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>frame_rowsize</name> <init>= <expr><operator>(</operator><name>int</name><operator>)</operator><name><name>frame</name><operator>-&gt;</operator><name>linesize</name><index>[<expr><name>plane</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>pic_rowsize</name> <init>= <expr><name><name>pic</name><operator>-&gt;</operator><name>linesize</name><index>[<expr><name>plane</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>bytes</name> <init>= <expr><ternary><condition><expr><name>frame_rowsize</name> <operator>&lt;</operator> <name>pic_rowsize</name></expr> ?</condition><then> <expr><name>frame_rowsize</name></expr>
+</then><else>: <expr><name>pic_rowsize</name></expr></else></ternary></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>plane_height</name> <init>= <expr><name>height</name> <operator>&gt;&gt;</operator> <operator>(</operator><ternary><condition><expr><name>plane</name></expr> ?</condition><then> <expr><name>v_chroma_shift</name></expr> </then><else>: <expr><literal type="number">0</literal></expr></else></ternary><operator>)</operator></expr></init></decl>;</decl_stmt>
+
+<for>for <control>(<init><decl><type><name>int</name></type> <name>y</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>y</name> <operator>&lt;</operator> <name>plane_height</name></expr>;</condition> <incr><expr><name>y</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<decl_stmt><decl><type><name>int</name></type> <name>pos_frame</name> <init>= <expr><name>y</name> <operator>*</operator> <name>frame_rowsize</name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>pos_pic</name> <init>= <expr><name>y</name> <operator>*</operator> <name>pic_rowsize</name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>memcpy</name><argument_list>(<argument><expr><name><name>pic</name><operator>-&gt;</operator><name>data</name><index>[<expr><name>plane</name></expr>]</index></name> <operator>+</operator> <name>pos_pic</name></expr></argument>,
+<argument><expr><name><name>frame</name><operator>-&gt;</operator><name>data</name><index>[<expr><name>plane</name></expr>]</index></name> <operator>+</operator> <name>pos_frame</name></expr></argument>, <argument><expr><name>bytes</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></for>
+</block_content>}</block></for>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>bool</name></type> <name>nvenc_encode</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>, <parameter><decl><type><name><name>struct</name> <name>encoder_frame</name></name> <modifier>*</modifier></type><name>frame</name></decl></parameter>,
+<parameter><decl><type><name><name>struct</name> <name>encoder_packet</name></name> <modifier>*</modifier></type><name>packet</name></decl></parameter>, <parameter><decl><type><name>bool</name> <modifier>*</modifier></type><name>received_packet</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>nvenc_encoder</name></name> <modifier>*</modifier></type><name>enc</name> <init>= <expr><name>data</name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>AVPacket</name></type> <name>av_pkt</name> <init>= <expr><block>{<expr><literal type="number">0</literal></expr>}</block></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>got_packet</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>ret</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>av_init_packet</name><argument_list>(<argument><expr><operator>&amp;</operator><name>av_pkt</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>copy_data</name><argument_list>(<argument><expr><name><name>enc</name><operator>-&gt;</operator><name>vframe</name></name></expr></argument>, <argument><expr><name>frame</name></expr></argument>, <argument><expr><name><name>enc</name><operator>-&gt;</operator><name>height</name></name></expr></argument>, <argument><expr><name><name>enc</name><operator>-&gt;</operator><name>context</name><operator>-&gt;</operator><name>pix_fmt</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>enc</name><operator>-&gt;</operator><name>vframe</name><operator>-&gt;</operator><name>pts</name></name> <operator>=</operator> <name><name>frame</name><operator>-&gt;</operator><name>pts</name></name></expr>;</expr_stmt>
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><name>LIBAVFORMAT_VERSION_INT</name> <operator>&gt;=</operator> <call><name>AV_VERSION_INT</name><argument_list>(<argument><expr><literal type="number">57</literal><operator>,</operator> <literal type="number">40</literal><operator>,</operator> <literal type="number">101</literal></expr></argument>)</argument_list></call></expr></cpp:if>
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <call><name>avcodec_send_frame</name><argument_list>(<argument><expr><name><name>enc</name><operator>-&gt;</operator><name>context</name></name></expr></argument>, <argument><expr><name><name>enc</name><operator>-&gt;</operator><name>vframe</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name>ret</name> <operator>==</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <call><name>avcodec_receive_packet</name><argument_list>(<argument><expr><name><name>enc</name><operator>-&gt;</operator><name>context</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name>av_pkt</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>got_packet</name> <operator>=</operator> <operator>(</operator><name>ret</name> <operator>==</operator> <literal type="number">0</literal><operator>)</operator></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>ret</name> <operator>==</operator> <name>AVERROR_EOF</name> <operator>||</operator> <name>ret</name> <operator>==</operator> <call><name>AVERROR</name><argument_list>(<argument><expr><name>EAGAIN</name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt></block_content></block></if></if_stmt>
+<cpp:else>#<cpp:directive>else</cpp:directive></cpp:else>
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <call><name>avcodec_encode_video2</name><argument_list>(<argument><expr><name><name>enc</name><operator>-&gt;</operator><name>context</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name>av_pkt</name></expr></argument>, <argument><expr><name><name>enc</name><operator>-&gt;</operator><name>vframe</name></name></expr></argument>,
+<argument><expr><operator>&amp;</operator><name>got_packet</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+<if_stmt><if>if <condition>(<expr><name>ret</name> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>warn</name><argument_list>(<argument><expr><literal type="string">"nvenc_encode: Error encoding: %s"</literal></expr></argument>, <argument><expr><call><name>av_err2str</name><argument_list>(<argument><expr><name>ret</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>false</name></expr>;</return>
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>got_packet</name> <operator>&amp;&amp;</operator> <name><name>av_pkt</name><operator>.</operator><name>size</name></name></expr>)</condition> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name><name>enc</name><operator>-&gt;</operator><name>first_packet</name></name></expr>)</condition> <block>{<block_content>
+<decl_stmt><decl><type><name>uint8_t</name> <modifier>*</modifier></type><name>new_packet</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>size_t</name></type> <name>size</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>enc</name><operator>-&gt;</operator><name>first_packet</name></name> <operator>=</operator> <name>false</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>obs_extract_avc_headers</name><argument_list>(<argument><expr><name><name>av_pkt</name><operator>.</operator><name>data</name></name></expr></argument>, <argument><expr><name><name>av_pkt</name><operator>.</operator><name>size</name></name></expr></argument>,
+<argument><expr><operator>&amp;</operator><name>new_packet</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>size</name></expr></argument>,
+<argument><expr><operator>&amp;</operator><name><name>enc</name><operator>-&gt;</operator><name>header</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>enc</name><operator>-&gt;</operator><name>header_size</name></name></expr></argument>,
+<argument><expr><operator>&amp;</operator><name><name>enc</name><operator>-&gt;</operator><name>sei</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>enc</name><operator>-&gt;</operator><name>sei_size</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>da_copy_array</name><argument_list>(<argument><expr><name><name>enc</name><operator>-&gt;</operator><name>buffer</name></name></expr></argument>, <argument><expr><name>new_packet</name></expr></argument>, <argument><expr><name>size</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>bfree</name><argument_list>(<argument><expr><name>new_packet</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<expr_stmt><expr><call><name>da_copy_array</name><argument_list>(<argument><expr><name><name>enc</name><operator>-&gt;</operator><name>buffer</name></name></expr></argument>, <argument><expr><name><name>av_pkt</name><operator>.</operator><name>data</name></name></expr></argument>, <argument><expr><name><name>av_pkt</name><operator>.</operator><name>size</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></else></if_stmt>
+
+<expr_stmt><expr><name><name>packet</name><operator>-&gt;</operator><name>pts</name></name> <operator>=</operator> <name><name>av_pkt</name><operator>.</operator><name>pts</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>packet</name><operator>-&gt;</operator><name>dts</name></name> <operator>=</operator> <name><name>av_pkt</name><operator>.</operator><name>dts</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>packet</name><operator>-&gt;</operator><name>data</name></name> <operator>=</operator> <name><name>enc</name><operator>-&gt;</operator><name>buffer</name><operator>.</operator><name>array</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>packet</name><operator>-&gt;</operator><name>size</name></name> <operator>=</operator> <name><name>enc</name><operator>-&gt;</operator><name>buffer</name><operator>.</operator><name>num</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>packet</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>OBS_ENCODER_VIDEO</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>packet</name><operator>-&gt;</operator><name>keyframe</name></name> <operator>=</operator> <call><name>obs_avc_keyframe</name><argument_list>(<argument><expr><name><name>packet</name><operator>-&gt;</operator><name>data</name></name></expr></argument>, <argument><expr><name><name>packet</name><operator>-&gt;</operator><name>size</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><operator>*</operator><name>received_packet</name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<expr_stmt><expr><operator>*</operator><name>received_packet</name> <operator>=</operator> <name>false</name></expr>;</expr_stmt>
+</block_content>}</block></else></if_stmt>
+
+<expr_stmt><expr><call><name>av_packet_unref</name><argument_list>(<argument><expr><operator>&amp;</operator><name>av_pkt</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>true</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><name>void</name></type> <name>nvenc_defaults</name><parameter_list>(<parameter><decl><type><name>obs_data_t</name> <modifier>*</modifier></type><name>settings</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<expr_stmt><expr><call><name>obs_data_set_default_int</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"bitrate"</literal></expr></argument>, <argument><expr><literal type="number">2500</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>obs_data_set_default_int</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"max_bitrate"</literal></expr></argument>, <argument><expr><literal type="number">5000</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>obs_data_set_default_int</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"keyint_sec"</literal></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>obs_data_set_default_int</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"cqp"</literal></expr></argument>, <argument><expr><literal type="number">20</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>obs_data_set_default_string</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"rate_control"</literal></expr></argument>, <argument><expr><literal type="string">"CBR"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>obs_data_set_default_string</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"preset"</literal></expr></argument>, <argument><expr><literal type="string">"hq"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>obs_data_set_default_string</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"profile"</literal></expr></argument>, <argument><expr><literal type="string">"high"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>obs_data_set_default_bool</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"psycho_aq"</literal></expr></argument>, <argument><expr><name>true</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>obs_data_set_default_int</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"gpu"</literal></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>obs_data_set_default_int</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"bf"</literal></expr></argument>, <argument><expr><literal type="number">2</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>bool</name></type> <name>rate_control_modified</name><parameter_list>(<parameter><decl><type><name>obs_properties_t</name> <modifier>*</modifier></type><name>ppts</name></decl></parameter>, <parameter><decl><type><name>obs_property_t</name> <modifier>*</modifier></type><name>p</name></decl></parameter>,
+<parameter><decl><type><name>obs_data_t</name> <modifier>*</modifier></type><name>settings</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>rc</name> <init>= <expr><call><name>obs_data_get_string</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"rate_control"</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>bool</name></type> <name>cqp</name> <init>= <expr><call><name>astrcmpi</name><argument_list>(<argument><expr><name>rc</name></expr></argument>, <argument><expr><literal type="string">"CQP"</literal></expr></argument>)</argument_list></call> <operator>==</operator> <literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>bool</name></type> <name>vbr</name> <init>= <expr><call><name>astrcmpi</name><argument_list>(<argument><expr><name>rc</name></expr></argument>, <argument><expr><literal type="string">"VBR"</literal></expr></argument>)</argument_list></call> <operator>==</operator> <literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>bool</name></type> <name>lossless</name> <init>= <expr><call><name>astrcmpi</name><argument_list>(<argument><expr><name>rc</name></expr></argument>, <argument><expr><literal type="string">"lossless"</literal></expr></argument>)</argument_list></call> <operator>==</operator> <literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>size_t</name></type> <name>count</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>p</name> <operator>=</operator> <call><name>obs_properties_get</name><argument_list>(<argument><expr><name>ppts</name></expr></argument>, <argument><expr><literal type="string">"bitrate"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>obs_property_set_visible</name><argument_list>(<argument><expr><name>p</name></expr></argument>, <argument><expr><operator>!</operator><name>cqp</name> <operator>&amp;&amp;</operator> <operator>!</operator><name>lossless</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>p</name> <operator>=</operator> <call><name>obs_properties_get</name><argument_list>(<argument><expr><name>ppts</name></expr></argument>, <argument><expr><literal type="string">"max_bitrate"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>obs_property_set_visible</name><argument_list>(<argument><expr><name>p</name></expr></argument>, <argument><expr><name>vbr</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>p</name> <operator>=</operator> <call><name>obs_properties_get</name><argument_list>(<argument><expr><name>ppts</name></expr></argument>, <argument><expr><literal type="string">"cqp"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>obs_property_set_visible</name><argument_list>(<argument><expr><name>p</name></expr></argument>, <argument><expr><name>cqp</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>p</name> <operator>=</operator> <call><name>obs_properties_get</name><argument_list>(<argument><expr><name>ppts</name></expr></argument>, <argument><expr><literal type="string">"preset"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>count</name> <operator>=</operator> <call><name>obs_property_list_item_count</name><argument_list>(<argument><expr><name>p</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<for>for <control>(<init><decl><type><name>size_t</name></type> <name>i</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>count</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<decl_stmt><decl><type><name>bool</name></type> <name>compatible</name> <init>= <expr><operator>(</operator><name>i</name> <operator>==</operator> <literal type="number">0</literal> <operator>||</operator> <name>i</name> <operator>==</operator> <literal type="number">3</literal><operator>)</operator></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><call><name>obs_property_list_item_disable</name><argument_list>(<argument><expr><name>p</name></expr></argument>, <argument><expr><name>i</name></expr></argument>, <argument><expr><name>lossless</name> <operator>&amp;&amp;</operator> <operator>!</operator><name>compatible</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></for>
+
+<return>return <expr><name>true</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><name>obs_properties_t</name> <modifier>*</modifier></type><name>nvenc_properties_internal</name><parameter_list>(<parameter><decl><type><name>bool</name></type> <name>ffmpeg</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>obs_properties_t</name> <modifier>*</modifier></type><name>props</name> <init>= <expr><call><name>obs_properties_create</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>obs_property_t</name> <modifier>*</modifier></type><name>p</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>p</name> <operator>=</operator> <call><name>obs_properties_add_list</name><argument_list>(<argument><expr><name>props</name></expr></argument>, <argument><expr><literal type="string">"rate_control"</literal></expr></argument>,
+<argument><expr><call><name>obs_module_text</name><argument_list>(<argument><expr><literal type="string">"RateControl"</literal></expr></argument>)</argument_list></call></expr></argument>,
+<argument><expr><name>OBS_COMBO_TYPE_LIST</name></expr></argument>,
+<argument><expr><name>OBS_COMBO_FORMAT_STRING</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>obs_property_list_add_string</name><argument_list>(<argument><expr><name>p</name></expr></argument>, <argument><expr><literal type="string">"CBR"</literal></expr></argument>, <argument><expr><literal type="string">"CBR"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>obs_property_list_add_string</name><argument_list>(<argument><expr><name>p</name></expr></argument>, <argument><expr><literal type="string">"CQP"</literal></expr></argument>, <argument><expr><literal type="string">"CQP"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>obs_property_list_add_string</name><argument_list>(<argument><expr><name>p</name></expr></argument>, <argument><expr><literal type="string">"VBR"</literal></expr></argument>, <argument><expr><literal type="string">"VBR"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>obs_property_list_add_string</name><argument_list>(<argument><expr><name>p</name></expr></argument>, <argument><expr><call><name>obs_module_text</name><argument_list>(<argument><expr><literal type="string">"Lossless"</literal></expr></argument>)</argument_list></call></expr></argument>,
+<argument><expr><literal type="string">"lossless"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_property_set_modified_callback</name><argument_list>(<argument><expr><name>p</name></expr></argument>, <argument><expr><name>rate_control_modified</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>p</name> <operator>=</operator> <call><name>obs_properties_add_int</name><argument_list>(<argument><expr><name>props</name></expr></argument>, <argument><expr><literal type="string">"bitrate"</literal></expr></argument>, <argument><expr><call><name>obs_module_text</name><argument_list>(<argument><expr><literal type="string">"Bitrate"</literal></expr></argument>)</argument_list></call></expr></argument>,
+<argument><expr><literal type="number">50</literal></expr></argument>, <argument><expr><literal type="number">300000</literal></expr></argument>, <argument><expr><literal type="number">50</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>obs_property_int_set_suffix</name><argument_list>(<argument><expr><name>p</name></expr></argument>, <argument><expr><literal type="string">" Kbps"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>p</name> <operator>=</operator> <call><name>obs_properties_add_int</name><argument_list>(<argument><expr><name>props</name></expr></argument>, <argument><expr><literal type="string">"max_bitrate"</literal></expr></argument>,
+<argument><expr><call><name>obs_module_text</name><argument_list>(<argument><expr><literal type="string">"MaxBitrate"</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><literal type="number">50</literal></expr></argument>, <argument><expr><literal type="number">300000</literal></expr></argument>,
+<argument><expr><literal type="number">50</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>obs_property_int_set_suffix</name><argument_list>(<argument><expr><name>p</name></expr></argument>, <argument><expr><literal type="string">" Kbps"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_properties_add_int</name><argument_list>(<argument><expr><name>props</name></expr></argument>, <argument><expr><literal type="string">"cqp"</literal></expr></argument>, <argument><expr><call><name>obs_module_text</name><argument_list>(<argument><expr><literal type="string">"NVENC.CQLevel"</literal></expr></argument>)</argument_list></call></expr></argument>,
+<argument><expr><literal type="number">1</literal></expr></argument>, <argument><expr><literal type="number">30</literal></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_properties_add_int</name><argument_list>(<argument><expr><name>props</name></expr></argument>, <argument><expr><literal type="string">"keyint_sec"</literal></expr></argument>,
+<argument><expr><call><name>obs_module_text</name><argument_list>(<argument><expr><literal type="string">"KeyframeIntervalSec"</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><literal type="number">10</literal></expr></argument>,
+<argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>p</name> <operator>=</operator> <call><name>obs_properties_add_list</name><argument_list>(<argument><expr><name>props</name></expr></argument>, <argument><expr><literal type="string">"preset"</literal></expr></argument>, <argument><expr><call><name>obs_module_text</name><argument_list>(<argument><expr><literal type="string">"Preset"</literal></expr></argument>)</argument_list></call></expr></argument>,
+<argument><expr><name>OBS_COMBO_TYPE_LIST</name></expr></argument>,
+<argument><expr><name>OBS_COMBO_FORMAT_STRING</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>add_preset</name><parameter_list>(<parameter><type><name>val</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>obs_property_list_add_string(p, obs_module_text("NVENC.Preset." val), val)</cpp:value></cpp:define>
+
+
+<expr_stmt><expr><call><name>add_preset</name><argument_list>(<argument><expr><literal type="string">"mq"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>add_preset</name><argument_list>(<argument><expr><literal type="string">"hq"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>add_preset</name><argument_list>(<argument><expr><literal type="string">"default"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>add_preset</name><argument_list>(<argument><expr><literal type="string">"hp"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>add_preset</name><argument_list>(<argument><expr><literal type="string">"ll"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>add_preset</name><argument_list>(<argument><expr><literal type="string">"llhq"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>add_preset</name><argument_list>(<argument><expr><literal type="string">"llhp"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<cpp:undef>#<cpp:directive>undef</cpp:directive> <name>add_preset</name></cpp:undef>
+
+<expr_stmt><expr><name>p</name> <operator>=</operator> <call><name>obs_properties_add_list</name><argument_list>(<argument><expr><name>props</name></expr></argument>, <argument><expr><literal type="string">"profile"</literal></expr></argument>,
+<argument><expr><call><name>obs_module_text</name><argument_list>(<argument><expr><literal type="string">"Profile"</literal></expr></argument>)</argument_list></call></expr></argument>,
+<argument><expr><name>OBS_COMBO_TYPE_LIST</name></expr></argument>,
+<argument><expr><name>OBS_COMBO_FORMAT_STRING</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>add_profile</name><parameter_list>(<parameter><type><name>val</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>obs_property_list_add_string(p, val, val)</cpp:value></cpp:define>
+<expr_stmt><expr><call><name>add_profile</name><argument_list>(<argument><expr><literal type="string">"high"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>add_profile</name><argument_list>(<argument><expr><literal type="string">"main"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>add_profile</name><argument_list>(<argument><expr><literal type="string">"baseline"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<cpp:undef>#<cpp:directive>undef</cpp:directive> <name>add_profile</name></cpp:undef>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>ffmpeg</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name>p</name> <operator>=</operator> <call><name>obs_properties_add_bool</name><argument_list>(<argument><expr><name>props</name></expr></argument>, <argument><expr><literal type="string">"lookahead"</literal></expr></argument>,
+<argument><expr><call><name>obs_module_text</name><argument_list>(<argument><expr><literal type="string">"NVENC.LookAhead"</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>obs_property_set_long_description</name><argument_list>(
+<argument><expr><name>p</name></expr></argument>, <argument><expr><call><name>obs_module_text</name><argument_list>(<argument><expr><literal type="string">"NVENC.LookAhead.ToolTip"</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>p</name> <operator>=</operator> <call><name>obs_properties_add_bool</name><argument_list>(
+<argument><expr><name>props</name></expr></argument>, <argument><expr><literal type="string">"psycho_aq"</literal></expr></argument>,
+<argument><expr><call><name>obs_module_text</name><argument_list>(<argument><expr><literal type="string">"NVENC.PsychoVisualTuning"</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>obs_property_set_long_description</name><argument_list>(
+<argument><expr><name>p</name></expr></argument>, <argument><expr><call><name>obs_module_text</name><argument_list>(<argument><expr><literal type="string">"NVENC.PsychoVisualTuning.ToolTip"</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>obs_properties_add_int</name><argument_list>(<argument><expr><name>props</name></expr></argument>, <argument><expr><literal type="string">"gpu"</literal></expr></argument>, <argument><expr><call><name>obs_module_text</name><argument_list>(<argument><expr><literal type="string">"GPU"</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><literal type="number">8</literal></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_properties_add_int</name><argument_list>(<argument><expr><name>props</name></expr></argument>, <argument><expr><literal type="string">"bf"</literal></expr></argument>, <argument><expr><call><name>obs_module_text</name><argument_list>(<argument><expr><literal type="string">"BFrames"</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><literal type="number">4</literal></expr></argument>,
+<argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>props</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><name>obs_properties_t</name> <modifier>*</modifier></type><name>nvenc_properties</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>unused</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<expr_stmt><expr><call><name>UNUSED_PARAMETER</name><argument_list>(<argument><expr><name>unused</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><call><name>nvenc_properties_internal</name><argument_list>(<argument><expr><name>false</name></expr></argument>)</argument_list></call></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><name>obs_properties_t</name> <modifier>*</modifier></type><name>nvenc_properties_ffmpeg</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>unused</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<expr_stmt><expr><call><name>UNUSED_PARAMETER</name><argument_list>(<argument><expr><name>unused</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><call><name>nvenc_properties_internal</name><argument_list>(<argument><expr><name>true</name></expr></argument>)</argument_list></call></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>bool</name></type> <name>nvenc_extra_data</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>, <parameter><decl><type><name>uint8_t</name> <modifier>*</modifier><modifier>*</modifier></type><name>extra_data</name></decl></parameter>, <parameter><decl><type><name>size_t</name> <modifier>*</modifier></type><name>size</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>nvenc_encoder</name></name> <modifier>*</modifier></type><name>enc</name> <init>= <expr><name>data</name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><operator>*</operator><name>extra_data</name> <operator>=</operator> <name><name>enc</name><operator>-&gt;</operator><name>header</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><operator>*</operator><name>size</name> <operator>=</operator> <name><name>enc</name><operator>-&gt;</operator><name>header_size</name></name></expr>;</expr_stmt>
+<return>return <expr><name>true</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>bool</name></type> <name>nvenc_sei_data</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>, <parameter><decl><type><name>uint8_t</name> <modifier>*</modifier><modifier>*</modifier></type><name>extra_data</name></decl></parameter>, <parameter><decl><type><name>size_t</name> <modifier>*</modifier></type><name>size</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>nvenc_encoder</name></name> <modifier>*</modifier></type><name>enc</name> <init>= <expr><name>data</name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><operator>*</operator><name>extra_data</name> <operator>=</operator> <name><name>enc</name><operator>-&gt;</operator><name>sei</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><operator>*</operator><name>size</name> <operator>=</operator> <name><name>enc</name><operator>-&gt;</operator><name>sei_size</name></name></expr>;</expr_stmt>
+<return>return <expr><name>true</name></expr>;</return>
+</block_content>}</block></function>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>obs_encoder_info</name></name></type> <name>nvenc_encoder_info</name> <init>= <expr><block>{
+<expr><operator>.</operator><name>id</name> <operator>=</operator> <literal type="string">"ffmpeg_nvenc"</literal></expr>,
+<expr><operator>.</operator><name>type</name> <operator>=</operator> <name>OBS_ENCODER_VIDEO</name></expr>,
+<expr><operator>.</operator><name>codec</name> <operator>=</operator> <literal type="string">"h264"</literal></expr>,
+<expr><operator>.</operator><name>get_name</name> <operator>=</operator> <name>nvenc_getname</name></expr>,
+<expr><operator>.</operator><name>create</name> <operator>=</operator> <name>nvenc_create</name></expr>,
+<expr><operator>.</operator><name>destroy</name> <operator>=</operator> <name>nvenc_destroy</name></expr>,
+<expr><operator>.</operator><name>encode</name> <operator>=</operator> <name>nvenc_encode</name></expr>,
+<expr><operator>.</operator><name>update</name> <operator>=</operator> <name>nvenc_reconfigure</name></expr>,
+<expr><operator>.</operator><name>get_defaults</name> <operator>=</operator> <name>nvenc_defaults</name></expr>,
+<expr><operator>.</operator><name>get_properties</name> <operator>=</operator> <name>nvenc_properties_ffmpeg</name></expr>,
+<expr><operator>.</operator><name>get_extra_data</name> <operator>=</operator> <name>nvenc_extra_data</name></expr>,
+<expr><operator>.</operator><name>get_sei_data</name> <operator>=</operator> <name>nvenc_sei_data</name></expr>,
+<expr><operator>.</operator><name>get_video_info</name> <operator>=</operator> <name>nvenc_video_info</name></expr>,
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><call><name>defined</name><argument_list>(<argument><expr><name>_WIN32</name></expr></argument>)</argument_list></call></expr></cpp:if>
+<expr><operator>.</operator><name>caps</name> <operator>=</operator> <name>OBS_ENCODER_CAP_DYN_BITRATE</name> <operator>|</operator> <name>OBS_ENCODER_CAP_INTERNAL</name></expr>,
+<cpp:else>#<cpp:directive>else</cpp:directive></cpp:else>
+<expr><operator>.</operator><name>caps</name> <operator>=</operator> <name>OBS_ENCODER_CAP_DYN_BITRATE</name></expr>,
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+}</block></expr></init></decl>;</decl_stmt>
+</unit>

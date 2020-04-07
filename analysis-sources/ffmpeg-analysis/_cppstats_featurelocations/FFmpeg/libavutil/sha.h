@@ -1,0 +1,95 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#if !defined(AVUTIL_SHA_H)
+#define AVUTIL_SHA_H
+
+#include <stddef.h>
+#include <stdint.h>
+
+#include "attributes.h"
+#include "version.h"
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+extern const int av_sha_size;
+
+struct AVSHA;
+
+
+
+
+struct AVSHA *av_sha_alloc(void);
+
+
+
+
+
+
+
+
+int av_sha_init(struct AVSHA* context, int bits);
+
+
+
+
+
+
+
+
+#if FF_API_CRYPTO_SIZE_T
+void av_sha_update(struct AVSHA *ctx, const uint8_t *data, unsigned int len);
+#else
+void av_sha_update(struct AVSHA *ctx, const uint8_t *data, size_t len);
+#endif
+
+
+
+
+
+
+
+void av_sha_final(struct AVSHA* context, uint8_t *digest);
+
+
+
+
+
+#endif 

@@ -1,0 +1,31 @@
+#pragma once
+#if defined(__cplusplus)
+extern "C" {
+#endif
+#include <xcb/shm.h>
+#include <xcb/xproto.h>
+#include <obs.h>
+typedef struct {
+xcb_connection_t *xcb;
+xcb_shm_seg_t seg;
+int shmid;
+uint8_t *data;
+} xcb_shm_t;
+bool xinerama_is_active(xcb_connection_t *xcb);
+int xinerama_screen_count(xcb_connection_t *xcb);
+int xinerama_screen_geo(xcb_connection_t *xcb, int_fast32_t screen,
+int_fast32_t *x, int_fast32_t *y, int_fast32_t *w,
+int_fast32_t *h);
+bool randr_is_active(xcb_connection_t *xcb);
+int randr_screen_count(xcb_connection_t *xcb);
+int randr_screen_geo(xcb_connection_t *xcb, int_fast32_t screen,
+int_fast32_t *x, int_fast32_t *y, int_fast32_t *w,
+int_fast32_t *h, xcb_screen_t **rscreen, char **name);
+int x11_screen_geo(xcb_connection_t *xcb, int_fast32_t screen, int_fast32_t *w,
+int_fast32_t *h);
+xcb_shm_t *xshm_xcb_attach(xcb_connection_t *xcb, const int w, const int h);
+void xshm_xcb_detach(xcb_shm_t *shm);
+xcb_screen_t *xcb_get_screen(xcb_connection_t *xcb, int screen);
+#if defined(__cplusplus)
+}
+#endif

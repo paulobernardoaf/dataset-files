@@ -1,0 +1,74 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#include "avformat.h"
+#include "rtpdec_formats.h"
+#include "libavutil/avstring.h"
+
+static int ilbc_parse_fmtp(AVFormatContext *s,
+AVStream *stream, PayloadContext *data,
+const char *attr, const char *value)
+{
+if (!strcmp(attr, "mode")) {
+int mode = atoi(value);
+switch (mode) {
+case 20:
+stream->codecpar->block_align = 38;
+break;
+case 30:
+stream->codecpar->block_align = 50;
+break;
+default:
+av_log(s, AV_LOG_ERROR, "Unsupported iLBC mode %d\n", mode);
+return AVERROR(EINVAL);
+}
+}
+return 0;
+}
+
+static int ilbc_parse_sdp_line(AVFormatContext *s, int st_index,
+PayloadContext *data, const char *line)
+{
+const char *p;
+AVStream *st;
+
+if (st_index < 0)
+return 0;
+st = s->streams[st_index];
+
+if (av_strstart(line, "fmtp:", &p)) {
+int ret = ff_parse_fmtp(s, st, data, p, ilbc_parse_fmtp);
+if (ret < 0)
+return ret;
+if (!st->codecpar->block_align) {
+av_log(s, AV_LOG_ERROR, "No iLBC mode set\n");
+return AVERROR(EINVAL);
+}
+}
+return 0;
+}
+
+const RTPDynamicProtocolHandler ff_ilbc_dynamic_handler = {
+.enc_name = "iLBC",
+.codec_type = AVMEDIA_TYPE_AUDIO,
+.codec_id = AV_CODEC_ID_ILBC,
+.parse_sdp_a_line = ilbc_parse_sdp_line,
+};

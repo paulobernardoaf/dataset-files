@@ -1,0 +1,478 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#include "allegro5/allegro.h"
+#include "allegro5/internal/aintern.h"
+#include "allegro5/internal/aintern_driver.h"
+#include "allegro5/internal/aintern_events.h"
+#include "allegro5/internal/aintern_keyboard.h"
+#include "allegro5/platform/aintwin.h"
+
+
+#if !defined(MAPVK_VSC_TO_VK_EX)
+#define MAPVK_VSC_TO_VK_EX 3
+#endif
+
+static bool installed = false;
+static ALLEGRO_KEYBOARD the_keyboard;
+static ALLEGRO_KEYBOARD_STATE the_state;
+static int modifiers = 0;
+
+
+
+
+static const unsigned char hw_to_mycode[256] =
+{
+0, ALLEGRO_KEY_UNKNOWN+0, ALLEGRO_KEY_UNKNOWN+1, ALLEGRO_KEY_UNKNOWN+2,
+ALLEGRO_KEY_UNKNOWN+3, ALLEGRO_KEY_UNKNOWN+4, ALLEGRO_KEY_UNKNOWN+5, 0,
+ALLEGRO_KEY_BACKSPACE, ALLEGRO_KEY_TAB, 0, 0,
+ALLEGRO_KEY_PAD_5, ALLEGRO_KEY_ENTER, 0, 0,
+0, ALLEGRO_KEY_LCTRL, ALLEGRO_KEY_ALT, ALLEGRO_KEY_PAUSE,
+ALLEGRO_KEY_CAPSLOCK, ALLEGRO_KEY_KANA, 0, ALLEGRO_KEY_UNKNOWN+6,
+ALLEGRO_KEY_UNKNOWN+7, ALLEGRO_KEY_KANJI, 0, ALLEGRO_KEY_ESCAPE,
+ALLEGRO_KEY_CONVERT, ALLEGRO_KEY_NOCONVERT, ALLEGRO_KEY_UNKNOWN+8, ALLEGRO_KEY_UNKNOWN+9,
+ALLEGRO_KEY_SPACE, ALLEGRO_KEY_PAD_9, ALLEGRO_KEY_PAD_3, ALLEGRO_KEY_PAD_1,
+ALLEGRO_KEY_PAD_7, ALLEGRO_KEY_PAD_4, ALLEGRO_KEY_PAD_8, ALLEGRO_KEY_PAD_6,
+ALLEGRO_KEY_PAD_2, ALLEGRO_KEY_UNKNOWN+10, ALLEGRO_KEY_UNKNOWN+11, ALLEGRO_KEY_UNKNOWN+12,
+ALLEGRO_KEY_PRINTSCREEN, ALLEGRO_KEY_PAD_0, ALLEGRO_KEY_PAD_DELETE, ALLEGRO_KEY_UNKNOWN+13,
+ALLEGRO_KEY_0, ALLEGRO_KEY_1, ALLEGRO_KEY_2, ALLEGRO_KEY_3,
+ALLEGRO_KEY_4, ALLEGRO_KEY_5, ALLEGRO_KEY_6, ALLEGRO_KEY_7,
+ALLEGRO_KEY_8, ALLEGRO_KEY_9, 0, 0,
+0, 0, 0, 0,
+0, ALLEGRO_KEY_A, ALLEGRO_KEY_B, ALLEGRO_KEY_C,
+ALLEGRO_KEY_D, ALLEGRO_KEY_E, ALLEGRO_KEY_F, ALLEGRO_KEY_G,
+ALLEGRO_KEY_H, ALLEGRO_KEY_I, ALLEGRO_KEY_J, ALLEGRO_KEY_K,
+ALLEGRO_KEY_L, ALLEGRO_KEY_M, ALLEGRO_KEY_N, ALLEGRO_KEY_O,
+ALLEGRO_KEY_P, ALLEGRO_KEY_Q, ALLEGRO_KEY_R, ALLEGRO_KEY_S,
+ALLEGRO_KEY_T, ALLEGRO_KEY_U, ALLEGRO_KEY_V, ALLEGRO_KEY_W,
+ALLEGRO_KEY_X, ALLEGRO_KEY_Y, ALLEGRO_KEY_Z, ALLEGRO_KEY_LWIN,
+ALLEGRO_KEY_RWIN, ALLEGRO_KEY_MENU, 0, 0,
+ALLEGRO_KEY_PAD_0, ALLEGRO_KEY_PAD_1, ALLEGRO_KEY_PAD_2, ALLEGRO_KEY_PAD_3,
+ALLEGRO_KEY_PAD_4, ALLEGRO_KEY_PAD_5, ALLEGRO_KEY_PAD_6, ALLEGRO_KEY_PAD_7,
+ALLEGRO_KEY_PAD_8, ALLEGRO_KEY_PAD_9, ALLEGRO_KEY_PAD_ASTERISK, ALLEGRO_KEY_PAD_PLUS,
+ALLEGRO_KEY_UNKNOWN+15, ALLEGRO_KEY_PAD_MINUS, ALLEGRO_KEY_PAD_DELETE, ALLEGRO_KEY_PAD_SLASH,
+ALLEGRO_KEY_F1, ALLEGRO_KEY_F2, ALLEGRO_KEY_F3, ALLEGRO_KEY_F4,
+ALLEGRO_KEY_F5, ALLEGRO_KEY_F6, ALLEGRO_KEY_F7, ALLEGRO_KEY_F8,
+ALLEGRO_KEY_F9, ALLEGRO_KEY_F10, ALLEGRO_KEY_F11, ALLEGRO_KEY_F12,
+ALLEGRO_KEY_UNKNOWN+17, ALLEGRO_KEY_UNKNOWN+18, ALLEGRO_KEY_UNKNOWN+19, ALLEGRO_KEY_UNKNOWN+20,
+ALLEGRO_KEY_UNKNOWN+21, ALLEGRO_KEY_UNKNOWN+22, ALLEGRO_KEY_UNKNOWN+23, ALLEGRO_KEY_UNKNOWN+24,
+ALLEGRO_KEY_UNKNOWN+25, ALLEGRO_KEY_UNKNOWN+26, ALLEGRO_KEY_UNKNOWN+27, ALLEGRO_KEY_UNKNOWN+28,
+0, 0, 0, 0,
+0, 0, 0, 0,
+ALLEGRO_KEY_NUMLOCK, ALLEGRO_KEY_SCROLLLOCK, 0, 0,
+0, 0, 0, 0,
+0, 0, 0, 0,
+0, 0, 0, 0,
+ALLEGRO_KEY_LSHIFT, ALLEGRO_KEY_RSHIFT, ALLEGRO_KEY_LCTRL, ALLEGRO_KEY_RCTRL,
+ALLEGRO_KEY_ALT, ALLEGRO_KEY_ALTGR, 0, 0,
+0, 0, 0, 0,
+0, 0, 0, 0,
+0, 0, 0, 0,
+0, 0, 0, 0,
+0, 0, ALLEGRO_KEY_SEMICOLON, ALLEGRO_KEY_EQUALS,
+ALLEGRO_KEY_COMMA, ALLEGRO_KEY_MINUS, ALLEGRO_KEY_FULLSTOP, ALLEGRO_KEY_SLASH,
+ALLEGRO_KEY_TILDE, 0, 0, 0,
+0, 0, 0, 0,
+0, 0, 0, 0,
+0, 0, 0, 0,
+0, 0, 0, 0,
+0, 0, 0, 0,
+0, 0, 0, ALLEGRO_KEY_OPENBRACE,
+ALLEGRO_KEY_BACKSLASH, ALLEGRO_KEY_CLOSEBRACE, ALLEGRO_KEY_QUOTE, 0,
+0, 0, ALLEGRO_KEY_BACKSLASH2, 0,
+0, ALLEGRO_KEY_UNKNOWN+29, 0, 0,
+0, 0, 0, 0,
+0, 0, 0, 0,
+0, 0, 0, 0,
+0, 0, ALLEGRO_KEY_UNKNOWN+30, ALLEGRO_KEY_UNKNOWN+31,
+ALLEGRO_KEY_UNKNOWN+32, ALLEGRO_KEY_UNKNOWN+33, ALLEGRO_KEY_UNKNOWN+34, ALLEGRO_KEY_UNKNOWN+35,
+ALLEGRO_KEY_UNKNOWN+36, ALLEGRO_KEY_UNKNOWN+37, ALLEGRO_KEY_UNKNOWN+38, 0
+};
+
+
+
+static bool init_keyboard(void);
+static void exit_keyboard(void);
+static void get_keyboard_state(ALLEGRO_KEYBOARD_STATE *ret_state);
+static void clear_keyboard_state(void);
+static ALLEGRO_KEYBOARD *get_keyboard(void);
+
+
+
+#define KEYBOARD_WINAPI AL_ID('W','A','P','I')
+
+static ALLEGRO_KEYBOARD_DRIVER keyboard_winapi =
+{
+KEYBOARD_WINAPI,
+0,
+0,
+"WinAPI keyboard",
+init_keyboard,
+exit_keyboard,
+get_keyboard,
+NULL, 
+NULL, 
+get_keyboard_state,
+clear_keyboard_state,
+};
+
+
+
+
+_AL_DRIVER_INFO _al_keyboard_driver_list[] =
+{
+{ KEYBOARD_WINAPI, &keyboard_winapi, true },
+{ 0, NULL, 0 }
+};
+
+
+
+
+
+static bool init_keyboard(void)
+{
+memset(&the_keyboard, 0, sizeof the_keyboard);
+memset(&the_state, 0, sizeof the_state);
+modifiers = 0;
+
+
+_al_event_source_init(&the_keyboard.es);
+
+installed = true;
+return true;
+}
+
+
+
+
+
+
+static void exit_keyboard(void)
+{
+_al_event_source_free(&the_keyboard.es);
+
+
+
+
+memset(&the_keyboard, 0, sizeof the_keyboard);
+
+installed = false;
+}
+
+
+
+
+
+
+void _al_win_fix_modifiers(void)
+{
+modifiers = 0;
+}
+
+
+
+
+
+
+static ALLEGRO_KEYBOARD *get_keyboard(void)
+{
+return &the_keyboard;
+}
+
+
+
+
+
+
+static void get_keyboard_state(ALLEGRO_KEYBOARD_STATE *ret_state)
+{
+unsigned int i;
+ALLEGRO_DISPLAY *disp = NULL;
+ALLEGRO_SYSTEM *sys;
+
+sys = al_get_system_driver();
+for (i = 0; i < sys->displays._size; i++) {
+ALLEGRO_DISPLAY_WIN **d = (void*)_al_vector_ref(&sys->displays, i);
+if ((*d)->window == GetForegroundWindow()) {
+disp = (void*)*d;
+break;
+}
+}
+the_state.display = disp;
+*ret_state = the_state;
+}
+
+
+
+
+
+
+static void clear_keyboard_state(void)
+{
+memset(&the_state, 0, sizeof(the_state));
+}
+
+
+
+
+
+
+
+static int extkey_to_keycode(int vcode)
+{
+switch (vcode) {
+
+case VK_CANCEL: return ALLEGRO_KEY_PAUSE;
+case VK_RETURN: return ALLEGRO_KEY_PAD_ENTER;
+case VK_CONTROL: return ALLEGRO_KEY_RCTRL;
+case VK_MENU: return ALLEGRO_KEY_ALTGR;
+case VK_PRIOR: return ALLEGRO_KEY_PGUP;
+case VK_NEXT: return ALLEGRO_KEY_PGDN;
+case VK_END: return ALLEGRO_KEY_END;
+case VK_HOME: return ALLEGRO_KEY_HOME;
+case VK_LEFT: return ALLEGRO_KEY_LEFT;
+case VK_UP: return ALLEGRO_KEY_UP;
+case VK_RIGHT: return ALLEGRO_KEY_RIGHT;
+case VK_DOWN: return ALLEGRO_KEY_DOWN;
+case VK_SNAPSHOT: return ALLEGRO_KEY_PRINTSCREEN;
+case VK_INSERT: return ALLEGRO_KEY_INSERT;
+case VK_DELETE: return ALLEGRO_KEY_DELETE;
+case VK_LWIN: return ALLEGRO_KEY_LWIN;
+case VK_RWIN: return ALLEGRO_KEY_RWIN;
+case VK_APPS: return ALLEGRO_KEY_MENU;
+case VK_DIVIDE: return ALLEGRO_KEY_PAD_SLASH;
+case VK_NUMLOCK: return ALLEGRO_KEY_NUMLOCK;
+default: return 0;
+}
+}
+
+static void update_modifiers(int code, bool pressed)
+{
+#define ON_OFF2(code) { if (!pressed) modifiers &= ~code; else modifiers |= code; break; }
+
+
+
+
+
+
+
+
+switch (code) {
+case ALLEGRO_KEY_LSHIFT:
+ON_OFF2(ALLEGRO_KEYMOD_SHIFT);
+case ALLEGRO_KEY_RSHIFT:
+ON_OFF2(ALLEGRO_KEYMOD_SHIFT);
+case ALLEGRO_KEY_RCTRL:
+ON_OFF2(ALLEGRO_KEYMOD_CTRL);
+case ALLEGRO_KEY_LCTRL:
+ON_OFF2(ALLEGRO_KEYMOD_CTRL);
+case ALLEGRO_KEY_ALT:
+ON_OFF2(ALLEGRO_KEYMOD_ALT);
+case ALLEGRO_KEY_ALTGR:
+ON_OFF2(ALLEGRO_KEYMOD_ALTGR);
+case ALLEGRO_KEY_LWIN:
+ON_OFF2(ALLEGRO_KEYMOD_LWIN);
+case ALLEGRO_KEY_RWIN:
+ON_OFF2(ALLEGRO_KEYMOD_RWIN);
+case ALLEGRO_KEY_MENU:
+ON_OFF2(ALLEGRO_KEYMOD_MENU);
+}
+
+#undef ON_OFF2
+}
+
+
+
+
+
+
+static void update_toggle_modifiers(void)
+{
+#define ON_OFF(code, on) { if (on) modifiers |= code; else modifiers &= ~code; }
+
+
+
+
+
+
+
+
+
+
+ON_OFF(ALLEGRO_KEYMOD_NUMLOCK, GetKeyState(VK_NUMLOCK) & 1);
+ON_OFF(ALLEGRO_KEYMOD_CAPSLOCK, GetKeyState(VK_CAPITAL) & 1);
+ON_OFF(ALLEGRO_KEYMOD_SCROLLLOCK, GetKeyState(VK_SCROLL) & 1);
+
+#undef ON_OFF
+}
+
+
+
+
+
+
+void _al_win_kbd_handle_key_press(int scode, int vcode, bool extended,
+bool repeated, ALLEGRO_DISPLAY_WIN *win_disp)
+{
+ALLEGRO_DISPLAY *display = (ALLEGRO_DISPLAY *)win_disp;
+ALLEGRO_EVENT event;
+int my_code;
+bool actual_repeat;
+int char_count;
+int event_count;
+int i;
+bool ks_state;
+BYTE ks[256];
+WCHAR buf[8] = { 0 };
+
+if (!installed)
+return;
+
+
+my_code = 0;
+if (extended)
+my_code = extkey_to_keycode(vcode);
+
+
+
+if (my_code == 0) {
+if (vcode == VK_SHIFT) 
+vcode = MapVirtualKey(scode, MAPVK_VSC_TO_VK_EX);
+my_code = hw_to_mycode[vcode];
+}
+update_modifiers(my_code, true);
+
+actual_repeat = repeated && _AL_KEYBOARD_STATE_KEY_DOWN(the_state, my_code);
+_AL_KEYBOARD_STATE_SET_KEY_DOWN(the_state, my_code);
+
+if (!_al_event_source_needs_to_generate_event(&the_keyboard.es))
+return;
+
+event.keyboard.type = ALLEGRO_EVENT_KEY_DOWN;
+event.keyboard.timestamp = al_get_time();
+event.keyboard.display = display;
+event.keyboard.keycode = my_code;
+event.keyboard.unichar = 0;
+event.keyboard.modifiers = 0;
+event.keyboard.repeat = false;
+
+_al_event_source_lock(&the_keyboard.es);
+
+if (my_code > 0 && !actual_repeat) {
+_al_event_source_emit_event(&the_keyboard.es, &event);
+}
+
+
+if (my_code < ALLEGRO_KEY_MODIFIERS) {
+ks_state = GetKeyboardState(ks);
+if(ks_state && ks[VK_CONTROL] && (modifiers & ALLEGRO_KEYMOD_CTRL)) {
+ks[VK_CONTROL] = 0;
+}
+char_count = ToUnicode(vcode, scode, ks_state ? ks : NULL, buf, 8, 0);
+
+if (char_count == 0 && vcode == VK_DELETE) {
+char_count = 1;
+buf[0] = 127;
+}
+if (char_count != -1) { 
+event_count = char_count ? char_count : 1;
+event.keyboard.type = ALLEGRO_EVENT_KEY_CHAR;
+update_toggle_modifiers();
+event.keyboard.modifiers = modifiers;
+event.keyboard.repeat = actual_repeat;
+for (i = 0; i < event_count; i++) {
+event.keyboard.unichar = buf[i];
+_al_event_source_emit_event(&the_keyboard.es, &event);
+}
+}
+}
+_al_event_source_unlock(&the_keyboard.es);
+
+
+if (my_code && !repeated) {
+ALLEGRO_SYSTEM_WIN *system = (void *)al_get_system_driver();
+if (system->toggle_mouse_grab_keycode && my_code == system->toggle_mouse_grab_keycode &&
+(modifiers & system->toggle_mouse_grab_modifiers) == system->toggle_mouse_grab_modifiers)
+{
+if (system->mouse_grab_display == display) {
+al_ungrab_mouse();
+}
+else {
+al_grab_mouse(display);
+}
+}
+}
+}
+
+
+
+
+
+
+void _al_win_kbd_handle_key_release(int scode, int vcode, bool extended, ALLEGRO_DISPLAY_WIN *win_disp)
+{
+ALLEGRO_EVENT event;
+int my_code;
+
+if (!installed)
+return;
+
+my_code = 0;
+if (extended)
+my_code = extkey_to_keycode(vcode);
+
+if (my_code == 0) {
+if (vcode == VK_SHIFT)
+vcode = MapVirtualKey(scode, MAPVK_VSC_TO_VK_EX);
+my_code = hw_to_mycode[vcode];
+}
+update_modifiers(my_code, false);
+
+_AL_KEYBOARD_STATE_CLEAR_KEY_DOWN(the_state, my_code);
+
+
+
+
+if (my_code == ALLEGRO_KEY_LSHIFT && _AL_KEYBOARD_STATE_KEY_DOWN(the_state, ALLEGRO_KEY_RSHIFT))
+_al_win_kbd_handle_key_release(scode, VK_RSHIFT, extended, win_disp);
+else if (my_code == ALLEGRO_KEY_RSHIFT && _AL_KEYBOARD_STATE_KEY_DOWN(the_state, ALLEGRO_KEY_LSHIFT))
+_al_win_kbd_handle_key_release(scode, VK_LSHIFT, extended, win_disp);
+
+if (!_al_event_source_needs_to_generate_event(&the_keyboard.es))
+return;
+
+event.keyboard.type = ALLEGRO_EVENT_KEY_UP;
+event.keyboard.timestamp = al_get_time();
+event.keyboard.display = (void*)win_disp;
+event.keyboard.keycode = my_code;
+event.keyboard.unichar = 0;
+event.keyboard.modifiers = 0;
+
+_al_event_source_lock(&the_keyboard.es);
+_al_event_source_emit_event(&the_keyboard.es, &event);
+_al_event_source_unlock(&the_keyboard.es);
+}
+
+
+
+
+
+
+
+
+

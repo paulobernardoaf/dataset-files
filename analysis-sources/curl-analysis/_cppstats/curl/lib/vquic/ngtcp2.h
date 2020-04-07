@@ -1,0 +1,38 @@
+#include "curl_setup.h"
+#if defined(USE_NGTCP2)
+#include <ngtcp2/ngtcp2.h>
+#include <nghttp3/nghttp3.h>
+#if defined(USE_OPENSSL)
+#include <openssl/ssl.h>
+#elif defined(USE_GNUTLS)
+#include <gnutls/gnutls.h>
+#endif
+struct quic_handshake {
+char *buf; 
+size_t alloclen; 
+size_t len; 
+size_t nread; 
+};
+struct quicsocket {
+struct connectdata *conn; 
+ngtcp2_conn *qconn;
+ngtcp2_cid dcid;
+ngtcp2_cid scid;
+uint32_t version;
+ngtcp2_settings settings;
+#if defined(USE_OPENSSL)
+SSL_CTX *sslctx;
+SSL *ssl;
+#elif defined(USE_GNUTLS)
+gnutls_certificate_credentials_t cred;
+gnutls_session_t ssl;
+#endif
+struct quic_handshake crypto_data[3];
+uint8_t tls_alert;
+struct sockaddr_storage local_addr;
+socklen_t local_addrlen;
+nghttp3_conn *h3conn;
+nghttp3_conn_settings h3settings;
+};
+#include "urldata.h"
+#endif

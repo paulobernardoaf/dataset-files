@@ -1,0 +1,74 @@
+#include <stdint.h>
+#include <sndio.h>
+#include "libavutil/internal.h"
+#include "libavutil/opt.h"
+#include "libavutil/time.h"
+#include "libavformat/avformat.h"
+#include "libavformat/internal.h"
+#include "libavdevice/sndio.h"
+static av_cold int audio_read_header(AVFormatContext *s1)
+{
+SndioData *s = s1->priv_data;
+AVStream *st;
+int ret;
+st = avformat_new_stream(s1, NULL);
+if (!st)
+return AVERROR(ENOMEM);
+ret = ff_sndio_open(s1, 0, s1->url);
+if (ret < 0)
+return ret;
+st->codecpar->codec_type = AVMEDIA_TYPE_AUDIO;
+st->codecpar->codec_id = s->codec_id;
+st->codecpar->sample_rate = s->sample_rate;
+st->codecpar->channels = s->channels;
+avpriv_set_pts_info(st, 64, 1, 1000000); 
+return 0;
+}
+static int audio_read_packet(AVFormatContext *s1, AVPacket *pkt)
+{
+SndioData *s = s1->priv_data;
+int64_t bdelay, cur_time;
+int ret;
+if ((ret = av_new_packet(pkt, s->buffer_size)) < 0)
+return ret;
+ret = sio_read(s->hdl, pkt->data, pkt->size);
+if (ret == 0 || sio_eof(s->hdl)) {
+av_packet_unref(pkt);
+return AVERROR_EOF;
+}
+pkt->size = ret;
+s->softpos += ret;
+cur_time = av_gettime();
+bdelay = ret + s->hwpos - s->softpos;
+pkt->pts = cur_time - ((bdelay * 1000000) /
+(s->bps * s->channels * s->sample_rate));
+return 0;
+}
+static av_cold int audio_read_close(AVFormatContext *s1)
+{
+SndioData *s = s1->priv_data;
+ff_sndio_close(s);
+return 0;
+}
+static const AVOption options[] = {
+{ "sample_rate", "", offsetof(SndioData, sample_rate), AV_OPT_TYPE_INT, {.i64 = 48000}, 1, INT_MAX, AV_OPT_FLAG_DECODING_PARAM },
+{ "channels", "", offsetof(SndioData, channels), AV_OPT_TYPE_INT, {.i64 = 2}, 1, INT_MAX, AV_OPT_FLAG_DECODING_PARAM },
+{ NULL },
+};
+static const AVClass sndio_demuxer_class = {
+.class_name = "sndio indev",
+.item_name = av_default_item_name,
+.option = options,
+.version = LIBAVUTIL_VERSION_INT,
+.category = AV_CLASS_CATEGORY_DEVICE_AUDIO_INPUT,
+};
+AVInputFormat ff_sndio_demuxer = {
+.name = "sndio",
+.long_name = NULL_IF_CONFIG_SMALL("sndio audio capture"),
+.priv_data_size = sizeof(SndioData),
+.read_header = audio_read_header,
+.read_packet = audio_read_packet,
+.read_close = audio_read_close,
+.flags = AVFMT_NOFILE,
+.priv_class = &sndio_demuxer_class,
+};

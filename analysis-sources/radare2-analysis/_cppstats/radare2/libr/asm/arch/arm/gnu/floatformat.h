@@ -1,0 +1,56 @@
+#if !defined (FLOATFORMAT_H)
+#define FLOATFORMAT_H 1
+#include "ansidecl.h"
+enum floatformat_byteorders {
+floatformat_little,
+floatformat_big,
+floatformat_littlebyte_bigword,
+floatformat_vax
+};
+enum floatformat_intbit { floatformat_intbit_yes, floatformat_intbit_no };
+struct floatformat
+{
+enum floatformat_byteorders byteorder;
+unsigned int totalsize; 
+unsigned int sign_start;
+unsigned int exp_start;
+unsigned int exp_len;
+int exp_bias;
+unsigned int exp_nan;
+unsigned int man_start;
+unsigned int man_len;
+enum floatformat_intbit intbit;
+const char *name;
+int (*is_valid) (const struct floatformat *fmt, const void *from);
+const struct floatformat *split_half;
+};
+extern const struct floatformat floatformat_ieee_half_big;
+extern const struct floatformat floatformat_ieee_half_little;
+extern const struct floatformat floatformat_ieee_single_big;
+extern const struct floatformat floatformat_ieee_single_little;
+extern const struct floatformat floatformat_ieee_double_big;
+extern const struct floatformat floatformat_ieee_double_little;
+extern const struct floatformat floatformat_ieee_double_littlebyte_bigword;
+extern const struct floatformat floatformat_vax_f;
+extern const struct floatformat floatformat_vax_d;
+extern const struct floatformat floatformat_vax_g;
+extern const struct floatformat floatformat_i387_ext;
+extern const struct floatformat floatformat_m68881_ext;
+extern const struct floatformat floatformat_i960_ext;
+extern const struct floatformat floatformat_m88110_ext;
+extern const struct floatformat floatformat_m88110_harris_ext;
+extern const struct floatformat floatformat_arm_ext_big;
+extern const struct floatformat floatformat_arm_ext_littlebyte_bigword;
+extern const struct floatformat floatformat_ia64_spill_big;
+extern const struct floatformat floatformat_ia64_spill_little;
+extern const struct floatformat floatformat_ia64_quad_big;
+extern const struct floatformat floatformat_ia64_quad_little;
+extern const struct floatformat floatformat_ibm_long_double_big;
+extern const struct floatformat floatformat_ibm_long_double_little;
+extern void
+floatformat_to_double (const struct floatformat *, const void *, double *);
+extern void
+floatformat_from_double (const struct floatformat *, const double *, void *);
+extern int
+floatformat_is_valid (const struct floatformat *fmt, const void *from);
+#endif 

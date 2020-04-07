@@ -1,0 +1,546 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#include <stdio.h>
+#include <string.h>
+#ifndef WIN32
+#  include <sys/time.h>
+#endif
+#include <stdlib.h>
+#include <errno.h>
+
+#include <curl/curl.h>
+
+enum fcurl_type_e {
+  CFTYPE_NONE = 0,
+  CFTYPE_FILE = 1,
+  CFTYPE_CURL = 2
+};
+
+struct fcurl_data
+{
+  enum fcurl_type_e type;     
+  union {
+    CURL *curl;
+    FILE *file;
+  } handle;                   
+
+  char *buffer;               
+  size_t buffer_len;          
+  size_t buffer_pos;          
+  int still_running;          
+};
+
+typedef struct fcurl_data URL_FILE;
+
+
+URL_FILE *url_fopen(const char *url, const char *operation);
+int url_fclose(URL_FILE *file);
+int url_feof(URL_FILE *file);
+size_t url_fread(void *ptr, size_t size, size_t nmemb, URL_FILE *file);
+char *url_fgets(char *ptr, size_t size, URL_FILE *file);
+void url_rewind(URL_FILE *file);
+
+
+static CURLM *multi_handle;
+
+
+static size_t write_callback(char *buffer,
+                             size_t size,
+                             size_t nitems,
+                             void *userp)
+{
+  char *newbuff;
+  size_t rembuff;
+
+  URL_FILE *url = (URL_FILE *)userp;
+  size *= nitems;
+
+  rembuff = url->buffer_len - url->buffer_pos; 
+
+  if(size > rembuff) {
+    
+    newbuff = realloc(url->buffer, url->buffer_len + (size - rembuff));
+    if(newbuff == NULL) {
+      fprintf(stderr, "callback buffer grow failed\n");
+      size = rembuff;
+    }
+    else {
+      
+      url->buffer_len += size - rembuff;
+      url->buffer = newbuff;
+    }
+  }
+
+  memcpy(&url->buffer[url->buffer_pos], buffer, size);
+  url->buffer_pos += size;
+
+  return size;
+}
+
+
+static int fill_buffer(URL_FILE *file, size_t want)
+{
+  fd_set fdread;
+  fd_set fdwrite;
+  fd_set fdexcep;
+  struct timeval timeout;
+  int rc;
+  CURLMcode mc; 
+
+  
+
+
+  if((!file->still_running) || (file->buffer_pos > want))
+    return 0;
+
+  
+  do {
+    int maxfd = -1;
+    long curl_timeo = -1;
+
+    FD_ZERO(&fdread);
+    FD_ZERO(&fdwrite);
+    FD_ZERO(&fdexcep);
+
+    
+    timeout.tv_sec = 60; 
+    timeout.tv_usec = 0;
+
+    curl_multi_timeout(multi_handle, &curl_timeo);
+    if(curl_timeo >= 0) {
+      timeout.tv_sec = curl_timeo / 1000;
+      if(timeout.tv_sec > 1)
+        timeout.tv_sec = 1;
+      else
+        timeout.tv_usec = (curl_timeo % 1000) * 1000;
+    }
+
+    
+    mc = curl_multi_fdset(multi_handle, &fdread, &fdwrite, &fdexcep, &maxfd);
+
+    if(mc != CURLM_OK) {
+      fprintf(stderr, "curl_multi_fdset() failed, code %d.\n", mc);
+      break;
+    }
+
+    
+
+
+
+
+
+    if(maxfd == -1) {
+#ifdef _WIN32
+      Sleep(100);
+      rc = 0;
+#else
+      
+      struct timeval wait = { 0, 100 * 1000 }; 
+      rc = select(0, NULL, NULL, NULL, &wait);
+#endif
+    }
+    else {
+      
+
+      rc = select(maxfd + 1, &fdread, &fdwrite, &fdexcep, &timeout);
+    }
+
+    switch(rc) {
+    case -1:
+      
+      break;
+
+    case 0:
+    default:
+      
+      curl_multi_perform(multi_handle, &file->still_running);
+      break;
+    }
+  } while(file->still_running && (file->buffer_pos < want));
+  return 1;
+}
+
+
+static int use_buffer(URL_FILE *file, size_t want)
+{
+  
+  if(file->buffer_pos <= want) {
+    
+    free(file->buffer);
+    file->buffer = NULL;
+    file->buffer_pos = 0;
+    file->buffer_len = 0;
+  }
+  else {
+    
+    memmove(file->buffer,
+            &file->buffer[want],
+            (file->buffer_pos - want));
+
+    file->buffer_pos -= want;
+  }
+  return 0;
+}
+
+URL_FILE *url_fopen(const char *url, const char *operation)
+{
+  
+
+
+  URL_FILE *file;
+  (void)operation;
+
+  file = calloc(1, sizeof(URL_FILE));
+  if(!file)
+    return NULL;
+
+  file->handle.file = fopen(url, operation);
+  if(file->handle.file)
+    file->type = CFTYPE_FILE; 
+
+  else {
+    file->type = CFTYPE_CURL; 
+    file->handle.curl = curl_easy_init();
+
+    curl_easy_setopt(file->handle.curl, CURLOPT_URL, url);
+    curl_easy_setopt(file->handle.curl, CURLOPT_WRITEDATA, file);
+    curl_easy_setopt(file->handle.curl, CURLOPT_VERBOSE, 0L);
+    curl_easy_setopt(file->handle.curl, CURLOPT_WRITEFUNCTION, write_callback);
+
+    if(!multi_handle)
+      multi_handle = curl_multi_init();
+
+    curl_multi_add_handle(multi_handle, file->handle.curl);
+
+    
+    curl_multi_perform(multi_handle, &file->still_running);
+
+    if((file->buffer_pos == 0) && (!file->still_running)) {
+      
+
+      
+      curl_multi_remove_handle(multi_handle, file->handle.curl);
+
+      
+      curl_easy_cleanup(file->handle.curl);
+
+      free(file);
+
+      file = NULL;
+    }
+  }
+  return file;
+}
+
+int url_fclose(URL_FILE *file)
+{
+  int ret = 0;
+
+  switch(file->type) {
+  case CFTYPE_FILE:
+    ret = fclose(file->handle.file); 
+    break;
+
+  case CFTYPE_CURL:
+    
+    curl_multi_remove_handle(multi_handle, file->handle.curl);
+
+    
+    curl_easy_cleanup(file->handle.curl);
+    break;
+
+  default: 
+    ret = EOF;
+    errno = EBADF;
+    break;
+  }
+
+  free(file->buffer);
+  free(file);
+
+  return ret;
+}
+
+int url_feof(URL_FILE *file)
+{
+  int ret = 0;
+
+  switch(file->type) {
+  case CFTYPE_FILE:
+    ret = feof(file->handle.file);
+    break;
+
+  case CFTYPE_CURL:
+    if((file->buffer_pos == 0) && (!file->still_running))
+      ret = 1;
+    break;
+
+  default: 
+    ret = -1;
+    errno = EBADF;
+    break;
+  }
+  return ret;
+}
+
+size_t url_fread(void *ptr, size_t size, size_t nmemb, URL_FILE *file)
+{
+  size_t want;
+
+  switch(file->type) {
+  case CFTYPE_FILE:
+    want = fread(ptr, size, nmemb, file->handle.file);
+    break;
+
+  case CFTYPE_CURL:
+    want = nmemb * size;
+
+    fill_buffer(file, want);
+
+    
+
+    if(!file->buffer_pos)
+      return 0;
+
+    
+    if(file->buffer_pos < want)
+      want = file->buffer_pos;
+
+    
+    memcpy(ptr, file->buffer, want);
+
+    use_buffer(file, want);
+
+    want = want / size;     
+    break;
+
+  default: 
+    want = 0;
+    errno = EBADF;
+    break;
+
+  }
+  return want;
+}
+
+char *url_fgets(char *ptr, size_t size, URL_FILE *file)
+{
+  size_t want = size - 1;
+  size_t loop;
+
+  switch(file->type) {
+  case CFTYPE_FILE:
+    ptr = fgets(ptr, (int)size, file->handle.file);
+    break;
+
+  case CFTYPE_CURL:
+    fill_buffer(file, want);
+
+    
+
+    if(!file->buffer_pos)
+      return NULL;
+
+    
+    if(file->buffer_pos < want)
+      want = file->buffer_pos;
+
+    
+    
+    for(loop = 0; loop < want; loop++) {
+      if(file->buffer[loop] == '\n') {
+        want = loop + 1;
+        break;
+      }
+    }
+
+    
+    memcpy(ptr, file->buffer, want);
+    ptr[want] = 0;
+
+    use_buffer(file, want);
+
+    break;
+
+  default: 
+    ptr = NULL;
+    errno = EBADF;
+    break;
+  }
+
+  return ptr;
+}
+
+void url_rewind(URL_FILE *file)
+{
+  switch(file->type) {
+  case CFTYPE_FILE:
+    rewind(file->handle.file); 
+    break;
+
+  case CFTYPE_CURL:
+    
+    curl_multi_remove_handle(multi_handle, file->handle.curl);
+
+    
+    curl_multi_add_handle(multi_handle, file->handle.curl);
+
+    
+    free(file->buffer);
+    file->buffer = NULL;
+    file->buffer_pos = 0;
+    file->buffer_len = 0;
+
+    break;
+
+  default: 
+    break;
+  }
+}
+
+#define FGETSFILE "fgets.test"
+#define FREADFILE "fread.test"
+#define REWINDFILE "rewind.test"
+
+
+
+
+int main(int argc, char *argv[])
+{
+  URL_FILE *handle;
+  FILE *outf;
+
+  size_t nread;
+  char buffer[256];
+  const char *url;
+
+  if(argc < 2)
+    url = "http://192.168.7.3/testfile";
+  else
+    url = argv[1];
+
+  
+  outf = fopen(FGETSFILE, "wb+");
+  if(!outf) {
+    perror("couldn't open fgets output file\n");
+    return 1;
+  }
+
+  handle = url_fopen(url, "r");
+  if(!handle) {
+    printf("couldn't url_fopen() %s\n", url);
+    fclose(outf);
+    return 2;
+  }
+
+  while(!url_feof(handle)) {
+    url_fgets(buffer, sizeof(buffer), handle);
+    fwrite(buffer, 1, strlen(buffer), outf);
+  }
+
+  url_fclose(handle);
+
+  fclose(outf);
+
+
+  
+  outf = fopen(FREADFILE, "wb+");
+  if(!outf) {
+    perror("couldn't open fread output file\n");
+    return 1;
+  }
+
+  handle = url_fopen("testfile", "r");
+  if(!handle) {
+    printf("couldn't url_fopen() testfile\n");
+    fclose(outf);
+    return 2;
+  }
+
+  do {
+    nread = url_fread(buffer, 1, sizeof(buffer), handle);
+    fwrite(buffer, 1, nread, outf);
+  } while(nread);
+
+  url_fclose(handle);
+
+  fclose(outf);
+
+
+  
+  outf = fopen(REWINDFILE, "wb+");
+  if(!outf) {
+    perror("couldn't open fread output file\n");
+    return 1;
+  }
+
+  handle = url_fopen("testfile", "r");
+  if(!handle) {
+    printf("couldn't url_fopen() testfile\n");
+    fclose(outf);
+    return 2;
+  }
+
+  nread = url_fread(buffer, 1, sizeof(buffer), handle);
+  fwrite(buffer, 1, nread, outf);
+  url_rewind(handle);
+
+  buffer[0]='\n';
+  fwrite(buffer, 1, 1, outf);
+
+  nread = url_fread(buffer, 1, sizeof(buffer), handle);
+  fwrite(buffer, 1, nread, outf);
+
+  url_fclose(handle);
+
+  fclose(outf);
+
+  return 0;
+}

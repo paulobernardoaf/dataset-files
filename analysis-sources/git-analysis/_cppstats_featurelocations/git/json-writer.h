@@ -1,0 +1,107 @@
+#if !defined(JSON_WRITER_H)
+#define JSON_WRITER_H
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#include "strbuf.h"
+
+struct json_writer
+{
+
+
+
+struct strbuf json;
+
+
+
+
+
+
+
+
+struct strbuf open_stack;
+
+unsigned int need_comma:1;
+unsigned int pretty:1;
+};
+
+#define JSON_WRITER_INIT { STRBUF_INIT, STRBUF_INIT, 0, 0 }
+
+void jw_init(struct json_writer *jw);
+void jw_release(struct json_writer *jw);
+
+void jw_object_begin(struct json_writer *jw, int pretty);
+void jw_array_begin(struct json_writer *jw, int pretty);
+
+void jw_object_string(struct json_writer *jw, const char *key,
+const char *value);
+void jw_object_intmax(struct json_writer *jw, const char *key, intmax_t value);
+void jw_object_double(struct json_writer *jw, const char *key, int precision,
+double value);
+void jw_object_true(struct json_writer *jw, const char *key);
+void jw_object_false(struct json_writer *jw, const char *key);
+void jw_object_bool(struct json_writer *jw, const char *key, int value);
+void jw_object_null(struct json_writer *jw, const char *key);
+void jw_object_sub_jw(struct json_writer *jw, const char *key,
+const struct json_writer *value);
+
+void jw_object_inline_begin_object(struct json_writer *jw, const char *key);
+void jw_object_inline_begin_array(struct json_writer *jw, const char *key);
+
+void jw_array_string(struct json_writer *jw, const char *value);
+void jw_array_intmax(struct json_writer *jw, intmax_t value);
+void jw_array_double(struct json_writer *jw, int precision, double value);
+void jw_array_true(struct json_writer *jw);
+void jw_array_false(struct json_writer *jw);
+void jw_array_bool(struct json_writer *jw, int value);
+void jw_array_null(struct json_writer *jw);
+void jw_array_sub_jw(struct json_writer *jw, const struct json_writer *value);
+void jw_array_argc_argv(struct json_writer *jw, int argc, const char **argv);
+void jw_array_argv(struct json_writer *jw, const char **argv);
+
+void jw_array_inline_begin_object(struct json_writer *jw);
+void jw_array_inline_begin_array(struct json_writer *jw);
+
+int jw_is_terminated(const struct json_writer *jw);
+void jw_end(struct json_writer *jw);
+
+#endif 

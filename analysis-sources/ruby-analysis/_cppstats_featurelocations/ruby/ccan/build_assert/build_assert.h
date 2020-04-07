@@ -1,0 +1,40 @@
+
+#if !defined(CCAN_BUILD_ASSERT_H)
+#define CCAN_BUILD_ASSERT_H
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#define BUILD_ASSERT(cond) do { (void) sizeof(char [1 - 2*!(cond)]); } while(0)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#define BUILD_ASSERT_OR_ZERO(cond) (sizeof(char [1 - 2*!(cond)]) - 1)
+
+
+#endif 

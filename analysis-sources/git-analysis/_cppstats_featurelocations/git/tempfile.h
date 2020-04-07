@@ -1,0 +1,265 @@
+#if !defined(TEMPFILE_H)
+#define TEMPFILE_H
+
+#include "list.h"
+#include "strbuf.h"
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+struct tempfile {
+volatile struct volatile_list_head list;
+volatile sig_atomic_t active;
+volatile int fd;
+FILE *volatile fp;
+volatile pid_t owner;
+struct strbuf filename;
+};
+
+
+
+
+
+
+struct tempfile *create_tempfile(const char *path);
+
+
+
+
+
+
+
+struct tempfile *register_tempfile(const char *path);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+struct tempfile *mks_tempfile_sm(const char *filename_template,
+int suffixlen, int mode);
+
+
+static inline struct tempfile *mks_tempfile_s(const char *filename_template,
+int suffixlen)
+{
+return mks_tempfile_sm(filename_template, suffixlen, 0600);
+}
+
+
+static inline struct tempfile *mks_tempfile_m(const char *filename_template, int mode)
+{
+return mks_tempfile_sm(filename_template, 0, mode);
+}
+
+
+static inline struct tempfile *mks_tempfile(const char *filename_template)
+{
+return mks_tempfile_sm(filename_template, 0, 0600);
+}
+
+
+struct tempfile *mks_tempfile_tsm(const char *filename_template,
+int suffixlen, int mode);
+
+
+static inline struct tempfile *mks_tempfile_ts(const char *filename_template,
+int suffixlen)
+{
+return mks_tempfile_tsm(filename_template, suffixlen, 0600);
+}
+
+
+static inline struct tempfile *mks_tempfile_tm(const char *filename_template, int mode)
+{
+return mks_tempfile_tsm(filename_template, 0, mode);
+}
+
+
+static inline struct tempfile *mks_tempfile_t(const char *filename_template)
+{
+return mks_tempfile_tsm(filename_template, 0, 0600);
+}
+
+
+struct tempfile *xmks_tempfile_m(const char *filename_template, int mode);
+
+
+static inline struct tempfile *xmks_tempfile(const char *filename_template)
+{
+return xmks_tempfile_m(filename_template, 0600);
+}
+
+
+
+
+
+
+
+FILE *fdopen_tempfile(struct tempfile *tempfile, const char *mode);
+
+static inline int is_tempfile_active(struct tempfile *tempfile)
+{
+return tempfile && tempfile->active;
+}
+
+
+
+
+
+const char *get_tempfile_path(struct tempfile *tempfile);
+
+int get_tempfile_fd(struct tempfile *tempfile);
+FILE *get_tempfile_fp(struct tempfile *tempfile);
+
+
+
+
+
+
+
+
+
+int close_tempfile_gently(struct tempfile *tempfile);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+int reopen_tempfile(struct tempfile *tempfile);
+
+
+
+
+
+
+
+void delete_tempfile(struct tempfile **tempfile_p);
+
+
+
+
+
+
+
+
+
+
+int rename_tempfile(struct tempfile **tempfile_p, const char *path);
+
+#endif 

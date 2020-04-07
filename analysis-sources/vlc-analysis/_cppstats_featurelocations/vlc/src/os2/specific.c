@@ -1,0 +1,303 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#if defined(HAVE_CONFIG_H)
+#include "config.h"
+#endif
+
+#include <vlc_common.h>
+#include "../libvlc.h"
+#include <vlc_playlist.h>
+#include <vlc_interface.h>
+#include <vlc_url.h>
+
+#include <fcntl.h>
+#include <io.h>
+
+#define VLC_IPC_PIPE "\\PIPE\\VLC\\IPC\\"VERSION
+
+#define IPC_CMD_GO 0x00
+#define IPC_CMD_ENQUEUE 0x01
+#define IPC_CMD_QUIT 0xFF
+
+extern int _fmode_bin;
+
+static HPIPE hpipeIPC = NULLHANDLE;
+static int tidIPCFirst = -1;
+static int tidIPCHelper = -1;
+
+static void add_to_playlist(vlc_playlist_t *playlist, const char *uri,
+bool play_now, int options_count,
+const char *const *options)
+{
+input_item_t *media = input_item_New(uri, NULL);
+if (!media)
+return;
+input_item_AddOptions(media, options_count, options,
+VLC_INPUT_OPTION_TRUSTED);
+
+vlc_playlist_Lock(playlist);
+vlc_playlist_AppendOne(playlist, media);
+if (play_now)
+vlc_playlist_Start(playlist);
+vlc_playlist_Unlock(playlist);
+input_item_Release(media);
+}
+
+static void IPCHelperThread( void *arg )
+{
+libvlc_int_t *libvlc = arg;
+
+ULONG ulCmd;
+int i_argc;
+char **ppsz_argv;
+size_t i_len;
+ULONG cbActual;
+int i_options;
+
+
+vlc_playlist_t *p_playlist;
+
+do
+{
+DosConnectNPipe( hpipeIPC );
+
+
+DosRead( hpipeIPC, &ulCmd, sizeof( ulCmd ), &cbActual );
+if( ulCmd == IPC_CMD_QUIT )
+continue;
+
+
+DosRead( hpipeIPC, &i_argc, sizeof( i_argc ), &cbActual );
+
+ppsz_argv = vlc_alloc( i_argc, sizeof( *ppsz_argv ));
+
+for( int i_opt = 0; i_opt < i_argc; i_opt++ )
+{
+
+DosRead( hpipeIPC, &i_len, sizeof( i_len ), &cbActual );
+
+ppsz_argv[ i_opt ] = malloc( i_len );
+
+
+DosRead( hpipeIPC, ppsz_argv[ i_opt ], i_len, &cbActual );
+}
+
+p_playlist = libvlc_priv(libvlc)->main_playlist;
+
+for( int i_opt = 0; i_opt < i_argc;)
+{
+i_options = 0;
+
+
+while( i_opt + i_options + 1 < i_argc &&
+*ppsz_argv[ i_opt + i_options + 1 ] == ':' )
+i_options++;
+
+
+if( p_playlist )
+{
+add_to_playlist( p_playlist, ppsz_argv[ i_opt ],
+i_opt == 0 && ulCmd != IPC_CMD_ENQUEUE,
+i_options,
+( char const ** )
+( i_options ? &ppsz_argv[ i_opt + 1 ] :
+NULL ));
+}
+
+for( ; i_options >= 0; i_options-- )
+free( ppsz_argv[ i_opt++ ]);
+}
+
+free( ppsz_argv );
+} while( !DosDisConnectNPipe( hpipeIPC ) && ulCmd != IPC_CMD_QUIT );
+
+DosClose( hpipeIPC );
+hpipeIPC = NULLHANDLE;
+
+tidIPCFirst = -1;
+tidIPCHelper = -1;
+}
+
+void system_Init( void )
+{
+
+_fmode_bin = 1;
+setmode( fileno( stdin ), O_BINARY ); 
+}
+
+void system_Configure( libvlc_int_t *p_this, int i_argc, const char *const ppsz_argv[] )
+{
+if( var_InheritBool( p_this, "high-priority" ) )
+{
+if( !DosSetPriority( PRTYS_PROCESS, PRTYC_REGULAR, PRTYD_MAXIMUM, 0 ) )
+{
+msg_Dbg( p_this, "raised process priority" );
+}
+else
+{
+msg_Dbg( p_this, "could not raise process priority" );
+}
+}
+
+if( var_InheritBool( p_this, "one-instance" )
+|| ( var_InheritBool( p_this, "one-instance-when-started-from-file" )
+&& var_InheritBool( p_this, "started-from-file" ) ) )
+{
+HPIPE hpipe;
+ULONG ulAction;
+ULONG rc;
+
+msg_Info( p_this, "one instance mode ENABLED");
+
+
+for(;;)
+{
+rc = DosOpen( VLC_IPC_PIPE, &hpipe, &ulAction, 0, 0,
+OPEN_ACTION_OPEN_IF_EXISTS,
+OPEN_ACCESS_READWRITE | OPEN_SHARE_DENYREADWRITE |
+OPEN_FLAGS_FAIL_ON_ERROR,
+NULL );
+
+if( rc == ERROR_PIPE_BUSY )
+DosWaitNPipe( VLC_IPC_PIPE, -1 );
+else
+break;
+}
+
+if( rc )
+{
+rc = DosCreateNPipe( VLC_IPC_PIPE, &hpipeIPC,
+NP_ACCESS_DUPLEX,
+NP_WAIT | NP_TYPE_MESSAGE |
+NP_READMODE_MESSAGE | 0x01,
+32768, 32768, 0 );
+if( rc )
+{
+
+
+msg_Err( p_this, "one instance mode DISABLED "
+"(a named pipe couldn't be created)" );
+return;
+}
+
+
+
+
+tidIPCFirst = _gettid();
+
+
+tidIPCHelper = _beginthread( IPCHelperThread, NULL, 1024 * 1024,
+p_this );
+if( tidIPCHelper == -1 )
+{
+msg_Err( p_this, "one instance mode DISABLED "
+"(IPC helper thread couldn't be created)");
+
+tidIPCFirst = -1;
+}
+}
+else
+{
+
+ULONG ulCmd = var_InheritBool( p_this, "playlist-enqueue") ?
+IPC_CMD_ENQUEUE : IPC_CMD_GO;
+ULONG cbActual;
+
+
+DosWrite( hpipe, &ulCmd, sizeof( ulCmd ), &cbActual );
+
+
+
+
+
+DosWrite( hpipe, &i_argc, sizeof( i_argc ), &cbActual );
+
+for( int i_opt = 0; i_opt < i_argc; i_opt++ )
+{
+
+char *mrl;
+if( strstr( ppsz_argv[ i_opt ], "://" ))
+mrl = strdup( ppsz_argv[ i_opt ] );
+else
+mrl = vlc_path2uri( ppsz_argv[ i_opt ], NULL );
+
+if( !mrl )
+mrl = ( char * )ppsz_argv[ i_opt ];
+
+size_t i_len = strlen( mrl ) + 1;
+
+
+DosWrite( hpipe, &i_len, sizeof( i_len ), &cbActual );
+
+
+DosWrite( hpipe, mrl, i_len, &cbActual );
+
+if( mrl != ppsz_argv[ i_opt ])
+free( mrl );
+}
+
+
+DosClose( hpipe );
+
+
+system_End();
+exit( 0 );
+}
+}
+}
+
+
+
+
+void system_End(void)
+{
+if( tidIPCFirst == _gettid())
+{
+HPIPE hpipe;
+ULONG ulAction;
+ULONG cbActual;
+ULONG rc;
+
+do
+{
+rc = DosOpen( VLC_IPC_PIPE, &hpipe, &ulAction, 0, 0,
+OPEN_ACTION_OPEN_IF_EXISTS,
+OPEN_ACCESS_READWRITE | OPEN_SHARE_DENYREADWRITE |
+OPEN_FLAGS_FAIL_ON_ERROR,
+NULL );
+
+if( rc == ERROR_PIPE_BUSY )
+DosWaitNPipe( VLC_IPC_PIPE, -1 );
+else if( rc )
+DosSleep( 1 );
+} while( rc );
+
+
+ULONG ulCmd = IPC_CMD_QUIT;
+DosWrite( hpipe, &ulCmd, sizeof( ulCmd ), &cbActual );
+
+DosClose( hpipe );
+
+TID tid = tidIPCHelper;
+DosWaitThread( &tid, DCWW_WAIT );
+}
+}
+

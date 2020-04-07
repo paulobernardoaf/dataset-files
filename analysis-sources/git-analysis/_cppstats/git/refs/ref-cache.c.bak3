@@ -1,0 +1,551 @@
+#include "../cache.h"
+#include "../refs.h"
+#include "refs-internal.h"
+#include "ref-cache.h"
+#include "../iterator.h"
+
+void add_entry_to_dir(struct ref_dir *dir, struct ref_entry *entry)
+{
+ALLOC_GROW(dir->entries, dir->nr + 1, dir->alloc);
+dir->entries[dir->nr++] = entry;
+
+if (dir->nr == 1 ||
+(dir->nr == dir->sorted + 1 &&
+strcmp(dir->entries[dir->nr - 2]->name,
+dir->entries[dir->nr - 1]->name) < 0))
+dir->sorted = dir->nr;
+}
+
+struct ref_dir *get_ref_dir(struct ref_entry *entry)
+{
+struct ref_dir *dir;
+assert(entry->flag & REF_DIR);
+dir = &entry->u.subdir;
+if (entry->flag & REF_INCOMPLETE) {
+if (!dir->cache->fill_ref_dir)
+BUG("incomplete ref_store without fill_ref_dir function");
+
+dir->cache->fill_ref_dir(dir->cache->ref_store, dir, entry->name);
+entry->flag &= ~REF_INCOMPLETE;
+}
+return dir;
+}
+
+struct ref_entry *create_ref_entry(const char *refname,
+const struct object_id *oid, int flag)
+{
+struct ref_entry *ref;
+
+FLEX_ALLOC_STR(ref, name, refname);
+oidcpy(&ref->u.value.oid, oid);
+ref->flag = flag;
+return ref;
+}
+
+struct ref_cache *create_ref_cache(struct ref_store *refs,
+fill_ref_dir_fn *fill_ref_dir)
+{
+struct ref_cache *ret = xcalloc(1, sizeof(*ret));
+
+ret->ref_store = refs;
+ret->fill_ref_dir = fill_ref_dir;
+ret->root = create_dir_entry(ret, "", 0, 1);
+return ret;
+}
+
+static void clear_ref_dir(struct ref_dir *dir);
+
+static void free_ref_entry(struct ref_entry *entry)
+{
+if (entry->flag & REF_DIR) {
+
+
+
+
+clear_ref_dir(&entry->u.subdir);
+}
+free(entry);
+}
+
+void free_ref_cache(struct ref_cache *cache)
+{
+free_ref_entry(cache->root);
+free(cache);
+}
+
+
+
+
+static void clear_ref_dir(struct ref_dir *dir)
+{
+int i;
+for (i = 0; i < dir->nr; i++)
+free_ref_entry(dir->entries[i]);
+FREE_AND_NULL(dir->entries);
+dir->sorted = dir->nr = dir->alloc = 0;
+}
+
+struct ref_entry *create_dir_entry(struct ref_cache *cache,
+const char *dirname, size_t len,
+int incomplete)
+{
+struct ref_entry *direntry;
+
+FLEX_ALLOC_MEM(direntry, name, dirname, len);
+direntry->u.subdir.cache = cache;
+direntry->flag = REF_DIR | (incomplete ? REF_INCOMPLETE : 0);
+return direntry;
+}
+
+static int ref_entry_cmp(const void *a, const void *b)
+{
+struct ref_entry *one = *(struct ref_entry **)a;
+struct ref_entry *two = *(struct ref_entry **)b;
+return strcmp(one->name, two->name);
+}
+
+static void sort_ref_dir(struct ref_dir *dir);
+
+struct string_slice {
+size_t len;
+const char *str;
+};
+
+static int ref_entry_cmp_sslice(const void *key_, const void *ent_)
+{
+const struct string_slice *key = key_;
+const struct ref_entry *ent = *(const struct ref_entry * const *)ent_;
+int cmp = strncmp(key->str, ent->name, key->len);
+if (cmp)
+return cmp;
+return '\0' - (unsigned char)ent->name[key->len];
+}
+
+int search_ref_dir(struct ref_dir *dir, const char *refname, size_t len)
+{
+struct ref_entry **r;
+struct string_slice key;
+
+if (refname == NULL || !dir->nr)
+return -1;
+
+sort_ref_dir(dir);
+key.len = len;
+key.str = refname;
+r = bsearch(&key, dir->entries, dir->nr, sizeof(*dir->entries),
+ref_entry_cmp_sslice);
+
+if (r == NULL)
+return -1;
+
+return r - dir->entries;
+}
+
+
+
+
+
+
+
+
+static struct ref_dir *search_for_subdir(struct ref_dir *dir,
+const char *subdirname, size_t len,
+int mkdir)
+{
+int entry_index = search_ref_dir(dir, subdirname, len);
+struct ref_entry *entry;
+if (entry_index == -1) {
+if (!mkdir)
+return NULL;
+
+
+
+
+
+
+entry = create_dir_entry(dir->cache, subdirname, len, 0);
+add_entry_to_dir(dir, entry);
+} else {
+entry = dir->entries[entry_index];
+}
+return get_ref_dir(entry);
+}
+
+
+
+
+
+
+
+
+
+
+static struct ref_dir *find_containing_dir(struct ref_dir *dir,
+const char *refname, int mkdir)
+{
+const char *slash;
+for (slash = strchr(refname, '/'); slash; slash = strchr(slash + 1, '/')) {
+size_t dirnamelen = slash - refname + 1;
+struct ref_dir *subdir;
+subdir = search_for_subdir(dir, refname, dirnamelen, mkdir);
+if (!subdir) {
+dir = NULL;
+break;
+}
+dir = subdir;
+}
+
+return dir;
+}
+
+struct ref_entry *find_ref_entry(struct ref_dir *dir, const char *refname)
+{
+int entry_index;
+struct ref_entry *entry;
+dir = find_containing_dir(dir, refname, 0);
+if (!dir)
+return NULL;
+entry_index = search_ref_dir(dir, refname, strlen(refname));
+if (entry_index == -1)
+return NULL;
+entry = dir->entries[entry_index];
+return (entry->flag & REF_DIR) ? NULL : entry;
+}
+
+int remove_entry_from_dir(struct ref_dir *dir, const char *refname)
+{
+int refname_len = strlen(refname);
+int entry_index;
+struct ref_entry *entry;
+int is_dir = refname[refname_len - 1] == '/';
+if (is_dir) {
+
+
+
+
+
+
+char *dirname = xmemdupz(refname, refname_len - 1);
+dir = find_containing_dir(dir, dirname, 0);
+free(dirname);
+} else {
+dir = find_containing_dir(dir, refname, 0);
+}
+if (!dir)
+return -1;
+entry_index = search_ref_dir(dir, refname, refname_len);
+if (entry_index == -1)
+return -1;
+entry = dir->entries[entry_index];
+
+MOVE_ARRAY(&dir->entries[entry_index],
+&dir->entries[entry_index + 1], dir->nr - entry_index - 1);
+dir->nr--;
+if (dir->sorted > entry_index)
+dir->sorted--;
+free_ref_entry(entry);
+return dir->nr;
+}
+
+int add_ref_entry(struct ref_dir *dir, struct ref_entry *ref)
+{
+dir = find_containing_dir(dir, ref->name, 1);
+if (!dir)
+return -1;
+add_entry_to_dir(dir, ref);
+return 0;
+}
+
+
+
+
+
+
+static int is_dup_ref(const struct ref_entry *ref1, const struct ref_entry *ref2)
+{
+if (strcmp(ref1->name, ref2->name))
+return 0;
+
+
+
+if ((ref1->flag & REF_DIR) || (ref2->flag & REF_DIR))
+
+die("Reference directory conflict: %s", ref1->name);
+
+if (!oideq(&ref1->u.value.oid, &ref2->u.value.oid))
+die("Duplicated ref, and SHA1s don't match: %s", ref1->name);
+
+warning("Duplicated ref: %s", ref1->name);
+return 1;
+}
+
+
+
+
+
+static void sort_ref_dir(struct ref_dir *dir)
+{
+int i, j;
+struct ref_entry *last = NULL;
+
+
+
+
+
+if (dir->sorted == dir->nr)
+return;
+
+QSORT(dir->entries, dir->nr, ref_entry_cmp);
+
+
+for (i = 0, j = 0; j < dir->nr; j++) {
+struct ref_entry *entry = dir->entries[j];
+if (last && is_dup_ref(last, entry))
+free_ref_entry(entry);
+else
+last = dir->entries[i++] = entry;
+}
+dir->sorted = dir->nr = i;
+}
+
+enum prefix_state {
+
+PREFIX_CONTAINS_DIR,
+
+
+PREFIX_WITHIN_DIR,
+
+
+PREFIX_EXCLUDES_DIR
+};
+
+
+
+
+
+static enum prefix_state overlaps_prefix(const char *dirname,
+const char *prefix)
+{
+while (*prefix && *dirname == *prefix) {
+dirname++;
+prefix++;
+}
+if (!*prefix)
+return PREFIX_CONTAINS_DIR;
+else if (!*dirname)
+return PREFIX_WITHIN_DIR;
+else
+return PREFIX_EXCLUDES_DIR;
+}
+
+
+
+
+
+
+static void prime_ref_dir(struct ref_dir *dir, const char *prefix)
+{
+
+
+
+
+
+
+int i;
+for (i = 0; i < dir->nr; i++) {
+struct ref_entry *entry = dir->entries[i];
+if (!(entry->flag & REF_DIR)) {
+
+} else if (!prefix) {
+
+prime_ref_dir(get_ref_dir(entry), NULL);
+} else {
+switch (overlaps_prefix(entry->name, prefix)) {
+case PREFIX_CONTAINS_DIR:
+
+
+
+
+
+prime_ref_dir(get_ref_dir(entry), NULL);
+break;
+case PREFIX_WITHIN_DIR:
+prime_ref_dir(get_ref_dir(entry), prefix);
+break;
+case PREFIX_EXCLUDES_DIR:
+
+break;
+}
+}
+}
+}
+
+
+
+
+
+struct cache_ref_iterator_level {
+
+
+
+
+struct ref_dir *dir;
+
+enum prefix_state prefix_state;
+
+
+
+
+
+
+
+int index;
+};
+
+
+
+
+
+struct cache_ref_iterator {
+struct ref_iterator base;
+
+
+
+
+
+
+size_t levels_nr;
+
+
+size_t levels_alloc;
+
+
+
+
+
+
+const char *prefix;
+
+
+
+
+
+
+
+
+
+struct cache_ref_iterator_level *levels;
+};
+
+static int cache_ref_iterator_advance(struct ref_iterator *ref_iterator)
+{
+struct cache_ref_iterator *iter =
+(struct cache_ref_iterator *)ref_iterator;
+
+while (1) {
+struct cache_ref_iterator_level *level =
+&iter->levels[iter->levels_nr - 1];
+struct ref_dir *dir = level->dir;
+struct ref_entry *entry;
+enum prefix_state entry_prefix_state;
+
+if (level->index == -1)
+sort_ref_dir(dir);
+
+if (++level->index == level->dir->nr) {
+
+if (--iter->levels_nr == 0)
+return ref_iterator_abort(ref_iterator);
+
+continue;
+}
+
+entry = dir->entries[level->index];
+
+if (level->prefix_state == PREFIX_WITHIN_DIR) {
+entry_prefix_state = overlaps_prefix(entry->name, iter->prefix);
+if (entry_prefix_state == PREFIX_EXCLUDES_DIR)
+continue;
+} else {
+entry_prefix_state = level->prefix_state;
+}
+
+if (entry->flag & REF_DIR) {
+
+ALLOC_GROW(iter->levels, iter->levels_nr + 1,
+iter->levels_alloc);
+
+level = &iter->levels[iter->levels_nr++];
+level->dir = get_ref_dir(entry);
+level->prefix_state = entry_prefix_state;
+level->index = -1;
+} else {
+iter->base.refname = entry->name;
+iter->base.oid = &entry->u.value.oid;
+iter->base.flags = entry->flag;
+return ITER_OK;
+}
+}
+}
+
+static int cache_ref_iterator_peel(struct ref_iterator *ref_iterator,
+struct object_id *peeled)
+{
+return peel_object(ref_iterator->oid, peeled);
+}
+
+static int cache_ref_iterator_abort(struct ref_iterator *ref_iterator)
+{
+struct cache_ref_iterator *iter =
+(struct cache_ref_iterator *)ref_iterator;
+
+free((char *)iter->prefix);
+free(iter->levels);
+base_ref_iterator_free(ref_iterator);
+return ITER_DONE;
+}
+
+static struct ref_iterator_vtable cache_ref_iterator_vtable = {
+cache_ref_iterator_advance,
+cache_ref_iterator_peel,
+cache_ref_iterator_abort
+};
+
+struct ref_iterator *cache_ref_iterator_begin(struct ref_cache *cache,
+const char *prefix,
+int prime_dir)
+{
+struct ref_dir *dir;
+struct cache_ref_iterator *iter;
+struct ref_iterator *ref_iterator;
+struct cache_ref_iterator_level *level;
+
+dir = get_ref_dir(cache->root);
+if (prefix && *prefix)
+dir = find_containing_dir(dir, prefix, 0);
+if (!dir)
+
+return empty_ref_iterator_begin();
+
+if (prime_dir)
+prime_ref_dir(dir, prefix);
+
+iter = xcalloc(1, sizeof(*iter));
+ref_iterator = &iter->base;
+base_ref_iterator_init(ref_iterator, &cache_ref_iterator_vtable, 1);
+ALLOC_GROW(iter->levels, 10, iter->levels_alloc);
+
+iter->levels_nr = 1;
+level = &iter->levels[0];
+level->index = -1;
+level->dir = dir;
+
+if (prefix && *prefix) {
+iter->prefix = xstrdup(prefix);
+level->prefix_state = PREFIX_WITHIN_DIR;
+} else {
+level->prefix_state = PREFIX_CONTAINS_DIR;
+}
+
+return ref_iterator;
+}

@@ -1,0 +1,5 @@
+#import <Cocoa/Cocoa.h>
+@interface VLCHUDTableCornerView : NSView
+@property (strong) NSColor *tableHeaderCellBorderColor;
+@property (strong) NSGradient *tableHeaderCellNormalFill;
+@end

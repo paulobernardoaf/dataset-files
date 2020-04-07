@@ -1,0 +1,504 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" revision="1.0.0" language="C" filename="D:\Pesquisa\Projects\ruby-analysis\_cppstats_featurelocations\ruby\mjit_compile.c">
+
+
+
+
+
+
+
+
+
+
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"ruby/config.h"</cpp:file></cpp:include>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><name>USE_MJIT</name></expr></cpp:if>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"internal.h"</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"internal/compile.h"</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"internal/hash.h"</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"internal/variable.h"</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"mjit.h"</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"vm_core.h"</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"vm_callinfo.h"</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"vm_exec.h"</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"vm_insnhelper.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"builtin.h"</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"insns.inc"</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"insns_info.inc"</cpp:file></cpp:include>
+
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>NOT_COMPILED_STACK_SIZE</name></cpp:macro> <cpp:value>-1</cpp:value></cpp:define>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>ALREADY_COMPILED_P</name><parameter_list>(<parameter><type><name>status</name></type></parameter>, <parameter><type><name>pos</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>(status-&gt;stack_size_for_pos[pos] != NOT_COMPILED_STACK_SIZE)</cpp:value></cpp:define>
+
+
+<struct>struct <name>inlined_call_context</name> <block>{
+<decl_stmt><decl><type><name>int</name></type> <name>orig_argc</name></decl>;</decl_stmt> 
+<decl_stmt><decl><type><name>VALUE</name></type> <name>me</name></decl>;</decl_stmt> 
+<decl_stmt><decl><type><name>int</name></type> <name>param_size</name></decl>;</decl_stmt> 
+<decl_stmt><decl><type><name>int</name></type> <name>local_size</name></decl>;</decl_stmt> 
+}</block>;</struct>
+
+
+
+
+<struct>struct <name>compile_status</name> <block>{
+<decl_stmt><decl><type><name>bool</name></type> <name>success</name></decl>;</decl_stmt> 
+<decl_stmt><decl><type><name>int</name> <modifier>*</modifier></type><name>stack_size_for_pos</name></decl>;</decl_stmt> 
+
+
+<decl_stmt><decl><type><name>bool</name></type> <name>local_stack_p</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name><name>union</name> <name>iseq_inline_storage_entry</name></name> <modifier>*</modifier></type><name>is_entries</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>cc_entries_index</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name><name>struct</name> <name>rb_iseq_constant_body</name></name> <modifier>*</modifier></type><name>compiled_iseq</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>rb_mjit_compile_info</name></name> <modifier>*</modifier></type><name>compile_info</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name><name>struct</name> <name>rb_iseq_constant_body</name></name> <modifier>*</modifier><modifier>*</modifier></type><name>inlined_iseqs</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name><name>struct</name> <name>inlined_call_context</name></name></type> <name>inline_context</name></decl>;</decl_stmt>
+}</block>;</struct>
+
+
+
+
+<struct>struct <name>compile_branch</name> <block>{
+<decl_stmt><decl><type><name>unsigned</name> <name>int</name></type> <name>stack_size</name></decl>;</decl_stmt> 
+<decl_stmt><decl><type><name>bool</name></type> <name>finish_p</name></decl>;</decl_stmt> 
+}</block>;</struct>
+
+<struct>struct <name>case_dispatch_var</name> <block>{
+<decl_stmt><decl><type><name>FILE</name> <modifier>*</modifier></type><name>f</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>unsigned</name> <name>int</name></type> <name>base_pos</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>VALUE</name></type> <name>last_value</name></decl>;</decl_stmt>
+}</block>;</struct>
+
+<function><type><specifier>static</specifier> <name>size_t</name></type>
+<name>call_data_index</name><parameter_list>(<parameter><decl><type><name>CALL_DATA</name></type> <name>cd</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name><name>struct</name> <name>rb_iseq_constant_body</name></name> <modifier>*</modifier></type><name>body</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<return>return <expr><name>cd</name> <operator>-</operator> <name><name>body</name><operator>-&gt;</operator><name>call_data</name></name></expr>;</return>
+</block_content>}</block></function>
+
+<function_decl><type><specifier>const</specifier> <name><name>struct</name> <name>rb_callcache</name></name> <modifier>*</modifier><modifier>*</modifier></type> <name>mjit_iseq_cc_entries</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name><name>struct</name> <name>rb_iseq_constant_body</name></name> <modifier>*</modifier><specifier>const</specifier></type> <name>body</name></decl></parameter>)</parameter_list>;</function_decl>
+
+
+
+
+<function><type><specifier>static</specifier> <specifier>const</specifier> <name><name>struct</name> <name>rb_callcache</name></name> <modifier>*</modifier><modifier>*</modifier></type>
+<name>captured_cc_entries</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name><name>struct</name> <name>compile_status</name></name> <modifier>*</modifier></type><name>status</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<expr_stmt><expr><call><name>VM_ASSERT</name><argument_list>(<argument><expr><name><name>status</name><operator>-&gt;</operator><name>cc_entries_index</name></name> <operator>!=</operator> <operator>-</operator><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><call><name>mjit_iseq_cc_entries</name><argument_list>(<argument><expr><name><name>status</name><operator>-&gt;</operator><name>compiled_iseq</name></name></expr></argument>)</argument_list></call> <operator>+</operator> <name><name>status</name><operator>-&gt;</operator><name>cc_entries_index</name></name></expr>;</return>
+</block_content>}</block></function>
+
+
+<function><type><specifier>static</specifier> <name>bool</name></type>
+<name>has_valid_method_type</name><parameter_list>(<parameter><decl><type><name>CALL_CACHE</name></type> <name>cc</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<return>return <expr><call><name>vm_cc_cme</name><argument_list>(<argument><expr><name>cc</name></expr></argument>)</argument_list></call> <operator>!=</operator> <name>NULL</name></expr>;</return>
+</block_content>}</block></function>
+
+
+
+<function><type><specifier>static</specifier> <name>bool</name></type>
+<name>fastpath_applied_iseq_p</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name>CALL_INFO</name></type> <name>ci</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>CALL_CACHE</name></type> <name>cc</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>rb_iseq_t</name> <modifier>*</modifier></type><name>iseq</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><specifier>extern</specifier> <name>bool</name></type> <name>rb_simple_iseq_p</name><argument_list>(<argument><expr><specifier>const</specifier> <name>rb_iseq_t</name> <operator>*</operator><name>iseq</name></expr></argument>)</argument_list></decl>;</decl_stmt>
+<return>return <expr><name>iseq</name> <operator>!=</operator> <name>NULL</name>
+<operator>&amp;&amp;</operator> <operator>!</operator><operator>(</operator><call><name>vm_ci_flag</name><argument_list>(<argument><expr><name>ci</name></expr></argument>)</argument_list></call> <operator>&amp;</operator> <name>VM_CALL_KW_SPLAT</name><operator>)</operator> <operator>&amp;&amp;</operator> <call><name>rb_simple_iseq_p</name><argument_list>(<argument><expr><name>iseq</name></expr></argument>)</argument_list></call> 
+<operator>&amp;&amp;</operator> <call><name>vm_ci_argc</name><argument_list>(<argument><expr><name>ci</name></expr></argument>)</argument_list></call> <operator>==</operator> <operator>(</operator><name>unsigned</name> <name>int</name><operator>)</operator><name><name>iseq</name><operator>-&gt;</operator><name>body</name><operator>-&gt;</operator><name>param</name><operator>.</operator><name>lead_num</name></name> 
+<operator>&amp;&amp;</operator> <call><name>vm_call_iseq_optimizable_p</name><argument_list>(<argument><expr><name>ci</name></expr></argument>, <argument><expr><name>cc</name></expr></argument>)</argument_list></call></expr>;</return> 
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type>
+<name>compile_case_dispatch_each</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>key</name></decl></parameter>, <parameter><decl><type><name>VALUE</name></type> <name>value</name></decl></parameter>, <parameter><decl><type><name>VALUE</name></type> <name>arg</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>case_dispatch_var</name></name> <modifier>*</modifier></type><name>var</name> <init>= <expr><operator>(</operator>struct <name>case_dispatch_var</name> <operator>*</operator><operator>)</operator><name>arg</name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>unsigned</name> <name>int</name></type> <name>offset</name></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>var</name><operator>-&gt;</operator><name>last_value</name></name> <operator>!=</operator> <name>value</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name>offset</name> <operator>=</operator> <call><name>FIX2INT</name><argument_list>(<argument><expr><name>value</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>var</name><operator>-&gt;</operator><name>last_value</name></name> <operator>=</operator> <name>value</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name><name>var</name><operator>-&gt;</operator><name>f</name></name></expr></argument>, <argument><expr><literal type="string">" case %d:\n"</literal></expr></argument>, <argument><expr><name>offset</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name><name>var</name><operator>-&gt;</operator><name>f</name></name></expr></argument>, <argument><expr><literal type="string">" goto label_%d;\n"</literal></expr></argument>, <argument><expr><name><name>var</name><operator>-&gt;</operator><name>base_pos</name></name> <operator>+</operator> <name>offset</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name><name>var</name><operator>-&gt;</operator><name>f</name></name></expr></argument>, <argument><expr><literal type="string">" break;\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+<return>return <expr><name>ST_CONTINUE</name></expr>;</return>
+</block_content>}</block></function>
+
+
+<function><type><specifier>static</specifier> <name>void</name></type>
+<name>comment_id</name><parameter_list>(<parameter><decl><type><name>FILE</name> <modifier>*</modifier></type><name>f</name></decl></parameter>, <parameter><decl><type><name>ID</name></type> <name>id</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><call><name>defined</name><argument_list>(<argument><expr><name>MJIT_COMMENT_ID</name></expr></argument>)</argument_list></call></expr></cpp:if>
+<decl_stmt><decl><type><name>VALUE</name></type> <name>name</name> <init>= <expr><call><name>rb_id2str</name><argument_list>(<argument><expr><name>id</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>p</name></decl>, <decl><type ref="prev"><modifier>*</modifier></type><name>e</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>char</name></type> <name>c</name></decl>, <decl><type ref="prev"/><name>prev</name> <init>= <expr><literal type="char">'\0'</literal></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>name</name></expr>)</condition><block type="pseudo"><block_content> <return>return;</return></block_content></block></if></if_stmt>
+<expr_stmt><expr><name>p</name> <operator>=</operator> <call><name>RSTRING_PTR</name><argument_list>(<argument><expr><name>name</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>e</name> <operator>=</operator> <call><name>RSTRING_END</name><argument_list>(<argument><expr><name>name</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>fputs</name><argument_list>(<argument><expr><literal type="string">"/* :\""</literal></expr></argument>, <argument><expr><name>f</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<for>for <control>(<init>;</init> <condition><expr><name>p</name> <operator>&lt;</operator> <name>e</name></expr>;</condition> <incr><expr><operator>++</operator><name>p</name></expr></incr>)</control> <block>{<block_content>
+<switch>switch <condition>(<expr><name>c</name> <operator>=</operator> <operator>*</operator><name>p</name></expr>)</condition> <block>{<block_content>
+<case>case <expr><literal type="char">'*'</literal></expr>:</case> <case>case <expr><literal type="char">'/'</literal></expr>:</case> <if_stmt><if>if <condition>(<expr><name>prev</name> <operator>!=</operator> <operator>(</operator><name>c</name> <operator>^</operator> <operator>(</operator><literal type="char">'/'</literal> <operator>^</operator> <literal type="char">'*'</literal><operator>)</operator><operator>)</operator></expr>)</condition><block type="pseudo"><block_content> <break>break;</break></block_content></block></if></if_stmt>
+<case>case <expr><literal type="char">'\\'</literal></expr>:</case> <case>case <expr><literal type="char">'"'</literal></expr>:</case> <expr_stmt><expr><call><name>fputc</name><argument_list>(<argument><expr><literal type="char">'\\'</literal></expr></argument>, <argument><expr><name>f</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></switch>
+<expr_stmt><expr><call><name>fputc</name><argument_list>(<argument><expr><name>c</name></expr></argument>, <argument><expr><name>f</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>prev</name> <operator>=</operator> <name>c</name></expr>;</expr_stmt>
+</block_content>}</block></for>
+<expr_stmt><expr><call><name>fputs</name><argument_list>(<argument><expr><literal type="string">"\" */"</literal></expr></argument>, <argument><expr><name>f</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+</block_content>}</block></function>
+
+<function_decl><type><specifier>static</specifier> <name>void</name></type> <name>compile_insns</name><parameter_list>(<parameter><decl><type><name>FILE</name> <modifier>*</modifier></type><name>f</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name><name>struct</name> <name>rb_iseq_constant_body</name></name> <modifier>*</modifier></type><name>body</name></decl></parameter>, <parameter><decl><type><name>unsigned</name> <name>int</name></type> <name>stack_size</name></decl></parameter>,
+<parameter><decl><type><name>unsigned</name> <name>int</name></type> <name>pos</name></decl></parameter>, <parameter><decl><type><name><name>struct</name> <name>compile_status</name></name> <modifier>*</modifier></type><name>status</name></decl></parameter>)</parameter_list>;</function_decl>
+
+
+
+
+
+
+
+<function><type><specifier>static</specifier> <name>unsigned</name> <name>int</name></type>
+<name>compile_insn</name><parameter_list>(<parameter><decl><type><name>FILE</name> <modifier>*</modifier></type><name>f</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name><name>struct</name> <name>rb_iseq_constant_body</name></name> <modifier>*</modifier></type><name>body</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>int</name></type> <name>insn</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>VALUE</name> <modifier>*</modifier></type><name>operands</name></decl></parameter>,
+<parameter><decl><type><specifier>const</specifier> <name>unsigned</name> <name>int</name></type> <name>pos</name></decl></parameter>, <parameter><decl><type><name><name>struct</name> <name>compile_status</name></name> <modifier>*</modifier></type><name>status</name></decl></parameter>, <parameter><decl><type><name><name>struct</name> <name>compile_branch</name></name> <modifier>*</modifier></type><name>b</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>unsigned</name> <name>int</name></type> <name>next_pos</name> <init>= <expr><name>pos</name> <operator>+</operator> <call><name>insn_len</name><argument_list>(<argument><expr><name>insn</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"mjit_compile.inc"</cpp:file></cpp:include>
+
+
+
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>b</name><operator>-&gt;</operator><name>finish_p</name></name> <operator>&amp;&amp;</operator> <name>next_pos</name> <operator>&lt;</operator> <name><name>body</name><operator>-&gt;</operator><name>iseq_size</name></name> <operator>&amp;&amp;</operator> <call><name>ALREADY_COMPILED_P</name><argument_list>(<argument><expr><name>status</name></expr></argument>, <argument><expr><name>next_pos</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><literal type="string">"goto label_%d;\n"</literal></expr></argument>, <argument><expr><name>next_pos</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+
+<if_stmt><if>if <condition>(<expr><operator>(</operator><name>unsigned</name> <name>int</name><operator>)</operator><name><name>status</name><operator>-&gt;</operator><name>stack_size_for_pos</name><index>[<expr><name>next_pos</name></expr>]</index></name> <operator>!=</operator> <name><name>b</name><operator>-&gt;</operator><name>stack_size</name></name></expr>)</condition> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name><name>mjit_opts</name><operator>.</operator><name>warnings</name></name> <operator>||</operator> <name><name>mjit_opts</name><operator>.</operator><name>verbose</name></name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>stderr</name></expr></argument>, <argument><expr><literal type="string">"MJIT warning: JIT stack assumption is not the same between branches (%d != %u)\n"</literal></expr></argument>,
+<argument><expr><name><name>status</name><operator>-&gt;</operator><name>stack_size_for_pos</name><index>[<expr><name>next_pos</name></expr>]</index></name></expr></argument>, <argument><expr><name><name>b</name><operator>-&gt;</operator><name>stack_size</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+<expr_stmt><expr><name><name>status</name><operator>-&gt;</operator><name>success</name></name> <operator>=</operator> <name>false</name></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block></if></if_stmt>
+
+<return>return <expr><name>next_pos</name></expr>;</return>
+</block_content>}</block></function>
+
+
+
+<function><type><specifier>static</specifier> <name>void</name></type>
+<name>compile_insns</name><parameter_list>(<parameter><decl><type><name>FILE</name> <modifier>*</modifier></type><name>f</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name><name>struct</name> <name>rb_iseq_constant_body</name></name> <modifier>*</modifier></type><name>body</name></decl></parameter>, <parameter><decl><type><name>unsigned</name> <name>int</name></type> <name>stack_size</name></decl></parameter>,
+<parameter><decl><type><name>unsigned</name> <name>int</name></type> <name>pos</name></decl></parameter>, <parameter><decl><type><name><name>struct</name> <name>compile_status</name></name> <modifier>*</modifier></type><name>status</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>int</name></type> <name>insn</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name><name>struct</name> <name>compile_branch</name></name></type> <name>branch</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>branch</name><operator>.</operator><name>stack_size</name></name> <operator>=</operator> <name>stack_size</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>branch</name><operator>.</operator><name>finish_p</name></name> <operator>=</operator> <name>false</name></expr>;</expr_stmt>
+
+<while>while <condition>(<expr><name>pos</name> <operator>&lt;</operator> <name><name>body</name><operator>-&gt;</operator><name>iseq_size</name></name> <operator>&amp;&amp;</operator> <operator>!</operator><call><name>ALREADY_COMPILED_P</name><argument_list>(<argument><expr><name>status</name></expr></argument>, <argument><expr><name>pos</name></expr></argument>)</argument_list></call> <operator>&amp;&amp;</operator> <operator>!</operator><name><name>branch</name><operator>.</operator><name>finish_p</name></name></expr>)</condition> <block>{<block_content>
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><name>OPT_DIRECT_THREADED_CODE</name> <operator>||</operator> <name>OPT_CALL_THREADED_CODE</name></expr></cpp:if>
+<expr_stmt><expr><name>insn</name> <operator>=</operator> <call><name>rb_vm_insn_addr2insn</name><argument_list>(<argument><expr><operator>(</operator><name>void</name> <operator>*</operator><operator>)</operator><name><name>body</name><operator>-&gt;</operator><name>iseq_encoded</name><index>[<expr><name>pos</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<cpp:else>#<cpp:directive>else</cpp:directive></cpp:else>
+<expr_stmt><expr><name>insn</name> <operator>=</operator> <operator>(</operator><name>int</name><operator>)</operator><name><name>body</name><operator>-&gt;</operator><name>iseq_encoded</name><index>[<expr><name>pos</name></expr>]</index></name></expr>;</expr_stmt>
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+<expr_stmt><expr><name><name>status</name><operator>-&gt;</operator><name>stack_size_for_pos</name><index>[<expr><name>pos</name></expr>]</index></name> <operator>=</operator> <operator>(</operator><name>int</name><operator>)</operator><name><name>branch</name><operator>.</operator><name>stack_size</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><literal type="string">"\nlabel_%d: /* %s */\n"</literal></expr></argument>, <argument><expr><name>pos</name></expr></argument>, <argument><expr><call><name>insn_name</name><argument_list>(<argument><expr><name>insn</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>pos</name> <operator>=</operator> <call><name>compile_insn</name><argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><name>body</name></expr></argument>, <argument><expr><name>insn</name></expr></argument>, <argument><expr><name><name>body</name><operator>-&gt;</operator><name>iseq_encoded</name></name> <operator>+</operator> <operator>(</operator><name>pos</name><operator>+</operator><literal type="number">1</literal><operator>)</operator></expr></argument>, <argument><expr><name>pos</name></expr></argument>, <argument><expr><name>status</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>branch</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>status</name><operator>-&gt;</operator><name>success</name></name> <operator>&amp;&amp;</operator> <name><name>branch</name><operator>.</operator><name>stack_size</name></name> <operator>&gt;</operator> <name><name>body</name><operator>-&gt;</operator><name>stack_max</name></name></expr>)</condition> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name><name>mjit_opts</name><operator>.</operator><name>warnings</name></name> <operator>||</operator> <name><name>mjit_opts</name><operator>.</operator><name>verbose</name></name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>stderr</name></expr></argument>, <argument><expr><literal type="string">"MJIT warning: JIT stack size (%d) exceeded its max size (%d)\n"</literal></expr></argument>, <argument><expr><name><name>branch</name><operator>.</operator><name>stack_size</name></name></expr></argument>, <argument><expr><name><name>body</name><operator>-&gt;</operator><name>stack_max</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+<expr_stmt><expr><name><name>status</name><operator>-&gt;</operator><name>success</name></name> <operator>=</operator> <name>false</name></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>status</name><operator>-&gt;</operator><name>success</name></name></expr>)</condition><block type="pseudo"><block_content>
+<break>break;</break></block_content></block></if></if_stmt>
+</block_content>}</block></while>
+</block_content>}</block></function>
+
+
+<function><type><specifier>static</specifier> <name>void</name></type>
+<name>compile_inlined_cancel_handler</name><parameter_list>(<parameter><decl><type><name>FILE</name> <modifier>*</modifier></type><name>f</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name><name>struct</name> <name>rb_iseq_constant_body</name></name> <modifier>*</modifier></type><name>body</name></decl></parameter>, <parameter><decl><type><name><name>struct</name> <name>inlined_call_context</name></name> <modifier>*</modifier></type><name>inline_context</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><literal type="string">"\ncancel:\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><literal type="string">" RB_DEBUG_COUNTER_INC(mjit_cancel);\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><literal type="string">" rb_mjit_iseq_compile_info(original_iseq-&gt;body)-&gt;disable_inlining = true;\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><literal type="string">" rb_mjit_recompile_iseq(original_iseq);\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+
+<expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><literal type="string">" const VALUE current_pc = reg_cfp-&gt;pc;\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><literal type="string">" const VALUE current_sp = reg_cfp-&gt;sp;\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><literal type="string">" reg_cfp-&gt;pc = orig_pc;\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><literal type="string">" reg_cfp-&gt;sp = orig_sp;\n\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+
+<expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><literal type="string">" struct rb_calling_info calling;\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><literal type="string">" calling.block_handler = VM_BLOCK_HANDLER_NONE;\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt> 
+<expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><literal type="string">" calling.argc = %d;\n"</literal></expr></argument>, <argument><expr><name><name>inline_context</name><operator>-&gt;</operator><name>orig_argc</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><literal type="string">" calling.recv = reg_cfp-&gt;self;\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><literal type="string">" reg_cfp-&gt;self = orig_self;\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><literal type="string">" vm_call_iseq_setup_normal(ec, reg_cfp, &amp;calling, (const rb_callable_method_entry_t *)0x%"</literal><name>PRIxVALUE</name><literal type="string">", 0, %d, %d);\n\n"</literal></expr></argument>,
+<argument><expr><name><name>inline_context</name><operator>-&gt;</operator><name>me</name></name></expr></argument>, <argument><expr><name><name>inline_context</name><operator>-&gt;</operator><name>param_size</name></name></expr></argument>, <argument><expr><name><name>inline_context</name><operator>-&gt;</operator><name>local_size</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt> 
+
+
+<expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><literal type="string">" reg_cfp = ec-&gt;cfp;\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt> 
+<expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><literal type="string">" reg_cfp-&gt;pc = current_pc;\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><literal type="string">" reg_cfp-&gt;sp = current_sp;\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<for>for <control>(<init><decl><type><name>unsigned</name> <name>int</name></type> <name>i</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name><name>body</name><operator>-&gt;</operator><name>stack_max</name></name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content> 
+<expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><literal type="string">" *(vm_base_ptr(reg_cfp) + %d) = stack[%d];\n"</literal></expr></argument>, <argument><expr><name>i</name></expr></argument>, <argument><expr><name>i</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></for>
+
+
+<expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><literal type="string">" return vm_exec(ec, ec-&gt;cfp);\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+
+<function><type><specifier>static</specifier> <name>void</name></type>
+<name>compile_cancel_handler</name><parameter_list>(<parameter><decl><type><name>FILE</name> <modifier>*</modifier></type><name>f</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name><name>struct</name> <name>rb_iseq_constant_body</name></name> <modifier>*</modifier></type><name>body</name></decl></parameter>, <parameter><decl><type><name><name>struct</name> <name>compile_status</name></name> <modifier>*</modifier></type><name>status</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name><name>status</name><operator>-&gt;</operator><name>inlined_iseqs</name></name> <operator>==</operator> <name>NULL</name></expr>)</condition> <block>{<block_content> 
+<expr_stmt><expr><call><name>compile_inlined_cancel_handler</name><argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><name>body</name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>status</name><operator>-&gt;</operator><name>inline_context</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return;</return>
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><literal type="string">"\nsend_cancel:\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><literal type="string">" RB_DEBUG_COUNTER_INC(mjit_cancel_send_inline);\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><literal type="string">" rb_mjit_iseq_compile_info(original_iseq-&gt;body)-&gt;disable_send_cache = true;\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><literal type="string">" rb_mjit_recompile_iseq(original_iseq);\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><literal type="string">" goto cancel;\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><literal type="string">"\nivar_cancel:\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><literal type="string">" RB_DEBUG_COUNTER_INC(mjit_cancel_ivar_inline);\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><literal type="string">" rb_mjit_iseq_compile_info(original_iseq-&gt;body)-&gt;disable_ivar_cache = true;\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><literal type="string">" rb_mjit_recompile_iseq(original_iseq);\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><literal type="string">" goto cancel;\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><literal type="string">"\nexivar_cancel:\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><literal type="string">" RB_DEBUG_COUNTER_INC(mjit_cancel_exivar_inline);\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><literal type="string">" rb_mjit_iseq_compile_info(original_iseq-&gt;body)-&gt;disable_exivar_cache = true;\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><literal type="string">" rb_mjit_recompile_iseq(original_iseq);\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><literal type="string">" goto cancel;\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><literal type="string">"\ncancel:\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><literal type="string">" RB_DEBUG_COUNTER_INC(mjit_cancel);\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>status</name><operator>-&gt;</operator><name>local_stack_p</name></name></expr>)</condition> <block>{<block_content>
+<for>for <control>(<init><decl><type><name>unsigned</name> <name>int</name></type> <name>i</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name><name>body</name><operator>-&gt;</operator><name>stack_max</name></name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><literal type="string">" *(vm_base_ptr(reg_cfp) + %d) = stack[%d];\n"</literal></expr></argument>, <argument><expr><name>i</name></expr></argument>, <argument><expr><name>i</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></for>
+</block_content>}</block></if></if_stmt>
+<expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><literal type="string">" return Qundef;\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function_decl><type><specifier>extern</specifier> <name>int</name></type>
+<name>mjit_capture_cc_entries</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name><name>struct</name> <name>rb_iseq_constant_body</name></name> <modifier>*</modifier></type><name>compiled_iseq</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name><name>struct</name> <name>rb_iseq_constant_body</name></name> <modifier>*</modifier></type><name>captured_iseq</name></decl></parameter>)</parameter_list>;</function_decl>
+
+<function_decl><type><specifier>extern</specifier> <name>bool</name></type> <name>mjit_copy_cache_from_main_thread</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name>rb_iseq_t</name> <modifier>*</modifier></type><name>iseq</name></decl></parameter>,
+<parameter><decl><type><name><name>union</name> <name>iseq_inline_storage_entry</name></name> <modifier>*</modifier></type><name>is_entries</name></decl></parameter>)</parameter_list>;</function_decl>
+
+<function><type><specifier>static</specifier> <name>bool</name></type>
+<name>mjit_compile_body</name><parameter_list>(<parameter><decl><type><name>FILE</name> <modifier>*</modifier></type><name>f</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>rb_iseq_t</name> <modifier>*</modifier></type><name>iseq</name></decl></parameter>, <parameter><decl><type><name><name>struct</name> <name>compile_status</name></name> <modifier>*</modifier></type><name>status</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><specifier>const</specifier> <name><name>struct</name> <name>rb_iseq_constant_body</name></name> <modifier>*</modifier></type><name>body</name> <init>= <expr><name><name>iseq</name><operator>-&gt;</operator><name>body</name></name></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><name><name>status</name><operator>-&gt;</operator><name>success</name></name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>status</name><operator>-&gt;</operator><name>local_stack_p</name></name> <operator>=</operator> <operator>!</operator><name><name>body</name><operator>-&gt;</operator><name>catch_except_p</name></name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>status</name><operator>-&gt;</operator><name>local_stack_p</name></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><literal type="string">" VALUE stack[%d];\n"</literal></expr></argument>, <argument><expr><name><name>body</name><operator>-&gt;</operator><name>stack_max</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if>
+<else>else <block>{<block_content>
+<expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><literal type="string">" VALUE *stack = reg_cfp-&gt;sp;\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></else></if_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>status</name><operator>-&gt;</operator><name>inlined_iseqs</name></name> <operator>!=</operator> <name>NULL</name></expr>)</condition><block type="pseudo"><block_content> 
+<expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><literal type="string">" static const rb_iseq_t *original_iseq = (const rb_iseq_t *)0x%"</literal><name>PRIxVALUE</name><literal type="string">";\n"</literal></expr></argument>, <argument><expr><operator>(</operator><name>VALUE</name><operator>)</operator><name>iseq</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+<expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><literal type="string">" static const VALUE *const original_body_iseq = (VALUE *)0x%"</literal><name>PRIxVALUE</name><literal type="string">";\n"</literal></expr></argument>,
+<argument><expr><operator>(</operator><name>VALUE</name><operator>)</operator><name><name>body</name><operator>-&gt;</operator><name>iseq_encoded</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+
+
+<if_stmt><if>if <condition>(<expr><name><name>body</name><operator>-&gt;</operator><name>param</name><operator>.</operator><name>flags</name><operator>.</operator><name>has_opt</name></name></expr>)</condition> <block>{<block_content>
+<decl_stmt><decl><type><name>int</name></type> <name>i</name></decl>;</decl_stmt>
+<expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><literal type="string">"\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><literal type="string">" switch (reg_cfp-&gt;pc - reg_cfp-&gt;iseq-&gt;body-&gt;iseq_encoded) {\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;=</operator> <name><name>body</name><operator>-&gt;</operator><name>param</name><operator>.</operator><name>opt_num</name></name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<decl_stmt><decl><type><name>VALUE</name></type> <name>pc_offset</name> <init>= <expr><name><name>body</name><operator>-&gt;</operator><name>param</name><operator>.</operator><name>opt_table</name><index>[<expr><name>i</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><literal type="string">" case %"</literal><name>PRIdVALUE</name><literal type="string">":\n"</literal></expr></argument>, <argument><expr><name>pc_offset</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><literal type="string">" goto label_%"</literal><name>PRIdVALUE</name><literal type="string">";\n"</literal></expr></argument>, <argument><expr><name>pc_offset</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></for>
+<expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><literal type="string">" }\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>compile_insns</name><argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><name>body</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><name>status</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>compile_cancel_handler</name><argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><name>body</name></expr></argument>, <argument><expr><name>status</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name><name>status</name><operator>-&gt;</operator><name>success</name></name></expr>;</return>
+</block_content>}</block></function>
+
+
+<function><type><specifier>static</specifier> <name>bool</name></type>
+<name>inlinable_iseq_p</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name><name>struct</name> <name>rb_iseq_constant_body</name></name> <modifier>*</modifier></type><name>body</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+
+
+
+
+
+
+
+
+<if_stmt><if>if <condition>(<expr><name><name>body</name><operator>-&gt;</operator><name>catch_except_p</name></name></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><name>false</name></expr>;</return></block_content></block></if></if_stmt>
+
+<decl_stmt><decl><type><name>unsigned</name> <name>int</name></type> <name>pos</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+<while>while <condition>(<expr><name>pos</name> <operator>&lt;</operator> <name><name>body</name><operator>-&gt;</operator><name>iseq_size</name></name></expr>)</condition> <block>{<block_content>
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><name>OPT_DIRECT_THREADED_CODE</name> <operator>||</operator> <name>OPT_CALL_THREADED_CODE</name></expr></cpp:if>
+<decl_stmt><decl><type><name>int</name></type> <name>insn</name> <init>= <expr><call><name>rb_vm_insn_addr2insn</name><argument_list>(<argument><expr><operator>(</operator><name>void</name> <operator>*</operator><operator>)</operator><name><name>body</name><operator>-&gt;</operator><name>iseq_encoded</name><index>[<expr><name>pos</name></expr>]</index></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<cpp:else>#<cpp:directive>else</cpp:directive></cpp:else>
+<decl_stmt><decl><type><name>int</name></type> <name>insn</name> <init>= <expr><operator>(</operator><name>int</name><operator>)</operator><name><name>body</name><operator>-&gt;</operator><name>iseq_encoded</name><index>[<expr><name>pos</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+
+
+
+
+<if_stmt><if>if <condition>(<expr><name>insn</name> <operator>!=</operator> <call><name>BIN</name><argument_list>(<argument><expr><name>leave</name></expr></argument>)</argument_list></call> <operator>&amp;&amp;</operator> <call><name>insn_may_depend_on_sp_or_pc</name><argument_list>(<argument><expr><name>insn</name></expr></argument>, <argument><expr><name><name>body</name><operator>-&gt;</operator><name>iseq_encoded</name></name> <operator>+</operator> <operator>(</operator><name>pos</name> <operator>+</operator> <literal type="number">1</literal><operator>)</operator></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><name>false</name></expr>;</return></block_content></block></if></if_stmt>
+
+<switch>switch <condition>(<expr><name>insn</name></expr>)</condition> <block>{<block_content>
+<case>case <expr><call><name>BIN</name><argument_list>(<argument><expr><name>getlocal</name></expr></argument>)</argument_list></call></expr>:</case>
+<case>case <expr><call><name>BIN</name><argument_list>(<argument><expr><name>getlocal_WC_0</name></expr></argument>)</argument_list></call></expr>:</case>
+<case>case <expr><call><name>BIN</name><argument_list>(<argument><expr><name>getlocal_WC_1</name></expr></argument>)</argument_list></call></expr>:</case>
+<case>case <expr><call><name>BIN</name><argument_list>(<argument><expr><name>setlocal</name></expr></argument>)</argument_list></call></expr>:</case>
+<case>case <expr><call><name>BIN</name><argument_list>(<argument><expr><name>setlocal_WC_0</name></expr></argument>)</argument_list></call></expr>:</case>
+<case>case <expr><call><name>BIN</name><argument_list>(<argument><expr><name>setlocal_WC_1</name></expr></argument>)</argument_list></call></expr>:</case>
+<case>case <expr><call><name>BIN</name><argument_list>(<argument><expr><name>getblockparam</name></expr></argument>)</argument_list></call></expr>:</case>
+<case>case <expr><call><name>BIN</name><argument_list>(<argument><expr><name>getblockparamproxy</name></expr></argument>)</argument_list></call></expr>:</case>
+<case>case <expr><call><name>BIN</name><argument_list>(<argument><expr><name>setblockparam</name></expr></argument>)</argument_list></call></expr>:</case>
+<return>return <expr><name>false</name></expr>;</return>
+</block_content>}</block></switch>
+<expr_stmt><expr><name>pos</name> <operator>+=</operator> <call><name>insn_len</name><argument_list>(<argument><expr><name>insn</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></while>
+<return>return <expr><name>true</name></expr>;</return>
+</block_content>}</block></function>
+
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>INIT_COMPILE_STATUS</name><parameter_list>(<parameter><type><name>status</name></type></parameter>, <parameter><type><name>body</name></type></parameter>, <parameter><type><name>compile_root_p</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>do { status = (struct compile_status){ .stack_size_for_pos = (int *)alloca(sizeof(int) * body-&gt;iseq_size), .inlined_iseqs = compile_root_p ? alloca(sizeof(const struct rb_iseq_constant_body *) * body-&gt;iseq_size) : NULL, .is_entries = (body-&gt;is_size &gt; 0) ? alloca(sizeof(union iseq_inline_storage_entry) * body-&gt;is_size) : NULL, .cc_entries_index = (body-&gt;ci_size &gt; 0) ? mjit_capture_cc_entries(status.compiled_iseq, body) : -1, .compiled_iseq = status.compiled_iseq, .compile_info = compile_root_p ? rb_mjit_iseq_compile_info(body) : alloca(sizeof(struct rb_mjit_compile_info)) }; memset(status.stack_size_for_pos, NOT_COMPILED_STACK_SIZE, sizeof(int) * body-&gt;iseq_size); if (compile_root_p) memset((void *)status.inlined_iseqs, 0, sizeof(const struct rb_iseq_constant_body *) * body-&gt;iseq_size); else memset(status.compile_info, 0, sizeof(struct rb_mjit_compile_info)); } while (0)</cpp:value></cpp:define>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<function><type><specifier>static</specifier> <name>bool</name></type>
+<name>precompile_inlinable_iseqs</name><parameter_list>(<parameter><decl><type><name>FILE</name> <modifier>*</modifier></type><name>f</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>rb_iseq_t</name> <modifier>*</modifier></type><name>iseq</name></decl></parameter>, <parameter><decl><type><name><name>struct</name> <name>compile_status</name></name> <modifier>*</modifier></type><name>status</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><specifier>const</specifier> <name><name>struct</name> <name>rb_iseq_constant_body</name></name> <modifier>*</modifier></type><name>body</name> <init>= <expr><name><name>iseq</name><operator>-&gt;</operator><name>body</name></name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>unsigned</name> <name>int</name></type> <name>pos</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+<while>while <condition>(<expr><name>pos</name> <operator>&lt;</operator> <name><name>body</name><operator>-&gt;</operator><name>iseq_size</name></name></expr>)</condition> <block>{<block_content>
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><name>OPT_DIRECT_THREADED_CODE</name> <operator>||</operator> <name>OPT_CALL_THREADED_CODE</name></expr></cpp:if>
+<decl_stmt><decl><type><name>int</name></type> <name>insn</name> <init>= <expr><call><name>rb_vm_insn_addr2insn</name><argument_list>(<argument><expr><operator>(</operator><name>void</name> <operator>*</operator><operator>)</operator><name><name>body</name><operator>-&gt;</operator><name>iseq_encoded</name><index>[<expr><name>pos</name></expr>]</index></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<cpp:else>#<cpp:directive>else</cpp:directive></cpp:else>
+<decl_stmt><decl><type><name>int</name></type> <name>insn</name> <init>= <expr><operator>(</operator><name>int</name><operator>)</operator><name><name>body</name><operator>-&gt;</operator><name>iseq_encoded</name><index>[<expr><name>pos</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+<if_stmt><if>if <condition>(<expr><name>insn</name> <operator>==</operator> <call><name>BIN</name><argument_list>(<argument><expr><name>opt_send_without_block</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content> 
+<decl_stmt><decl><type><name>CALL_DATA</name></type> <name>cd</name> <init>= <expr><operator>(</operator><name>CALL_DATA</name><operator>)</operator><name><name>body</name><operator>-&gt;</operator><name>iseq_encoded</name><index>[<expr><name>pos</name> <operator>+</operator> <literal type="number">1</literal></expr>]</index></name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><specifier>const</specifier> <name><name>struct</name> <name>rb_callinfo</name></name> <modifier>*</modifier></type><name>ci</name> <init>= <expr><name><name>cd</name><operator>-&gt;</operator><name>ci</name></name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><specifier>const</specifier> <name><name>struct</name> <name>rb_callcache</name></name> <modifier>*</modifier></type><name>cc</name> <init>= <expr><call><name>captured_cc_entries</name><argument_list>(<argument><expr><name>status</name></expr></argument>)</argument_list></call><index>[<expr><call><name>call_data_index</name><argument_list>(<argument><expr><name>cd</name></expr></argument>, <argument><expr><name>body</name></expr></argument>)</argument_list></call></expr>]</index></expr></init></decl>;</decl_stmt> 
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>rb_iseq_t</name> <modifier>*</modifier></type><name>child_iseq</name></decl>;</decl_stmt>
+<if_stmt><if>if <condition>(<expr><call><name>has_valid_method_type</name><argument_list>(<argument><expr><name>cc</name></expr></argument>)</argument_list></call> <operator>&amp;&amp;</operator>
+<operator>!</operator><operator>(</operator><call><name>vm_ci_flag</name><argument_list>(<argument><expr><name>ci</name></expr></argument>)</argument_list></call> <operator>&amp;</operator> <name>VM_CALL_TAILCALL</name><operator>)</operator> <operator>&amp;&amp;</operator> 
+<call><name>vm_cc_cme</name><argument_list>(<argument><expr><name>cc</name></expr></argument>)</argument_list></call><operator>-&gt;</operator><name><name>def</name><operator>-&gt;</operator><name>type</name></name> <operator>==</operator> <name>VM_METHOD_TYPE_ISEQ</name> <operator>&amp;&amp;</operator>
+<call><name>fastpath_applied_iseq_p</name><argument_list>(<argument><expr><name>ci</name></expr></argument>, <argument><expr><name>cc</name></expr></argument>, <argument><expr><name>child_iseq</name> <operator>=</operator> <call><name>def_iseq_ptr</name><argument_list>(<argument><expr><call><name>vm_cc_cme</name><argument_list>(<argument><expr><name>cc</name></expr></argument>)</argument_list></call><operator>-&gt;</operator><name>def</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call> <operator>&amp;&amp;</operator>
+
+<call><name>inlinable_iseq_p</name><argument_list>(<argument><expr><name><name>child_iseq</name><operator>-&gt;</operator><name>body</name></name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name><name>status</name><operator>-&gt;</operator><name>inlined_iseqs</name><index>[<expr><name>pos</name></expr>]</index></name> <operator>=</operator> <name><name>child_iseq</name><operator>-&gt;</operator><name>body</name></name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>mjit_opts</name><operator>.</operator><name>verbose</name></name> <operator>&gt;=</operator> <literal type="number">1</literal></expr>)</condition><block type="pseudo"><block_content> 
+<expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>stderr</name></expr></argument>, <argument><expr><literal type="string">"JIT inline: %s@%s:%d =&gt; %s@%s:%d\n"</literal></expr></argument>,
+<argument><expr><call><name>RSTRING_PTR</name><argument_list>(<argument><expr><name><name>iseq</name><operator>-&gt;</operator><name>body</name><operator>-&gt;</operator><name>location</name><operator>.</operator><name>label</name></name></expr></argument>)</argument_list></call></expr></argument>,
+<argument><expr><call><name>RSTRING_PTR</name><argument_list>(<argument><expr><call><name>rb_iseq_path</name><argument_list>(<argument><expr><name>iseq</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>FIX2INT</name><argument_list>(<argument><expr><name><name>iseq</name><operator>-&gt;</operator><name>body</name><operator>-&gt;</operator><name>location</name><operator>.</operator><name>first_lineno</name></name></expr></argument>)</argument_list></call></expr></argument>,
+<argument><expr><call><name>RSTRING_PTR</name><argument_list>(<argument><expr><name><name>child_iseq</name><operator>-&gt;</operator><name>body</name><operator>-&gt;</operator><name>location</name><operator>.</operator><name>label</name></name></expr></argument>)</argument_list></call></expr></argument>,
+<argument><expr><call><name>RSTRING_PTR</name><argument_list>(<argument><expr><call><name>rb_iseq_path</name><argument_list>(<argument><expr><name>child_iseq</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>FIX2INT</name><argument_list>(<argument><expr><name><name>child_iseq</name><operator>-&gt;</operator><name>body</name><operator>-&gt;</operator><name>location</name><operator>.</operator><name>first_lineno</name></name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>compile_status</name></name></type> <name>child_status</name> <init>= <expr><block>{ <expr><operator>.</operator><name>compiled_iseq</name> <operator>=</operator> <name><name>status</name><operator>-&gt;</operator><name>compiled_iseq</name></name></expr> }</block></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><call><name>INIT_COMPILE_STATUS</name><argument_list>(<argument><expr><name>child_status</name></expr></argument>, <argument><expr><name><name>child_iseq</name><operator>-&gt;</operator><name>body</name></name></expr></argument>, <argument><expr><name>false</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>child_status</name><operator>.</operator><name>inline_context</name></name> <operator>=</operator> <operator>(</operator>struct <name>inlined_call_context</name><operator>)</operator><block>{
+<expr><operator>.</operator><name>orig_argc</name> <operator>=</operator> <call><name>vm_ci_argc</name><argument_list>(<argument><expr><name>ci</name></expr></argument>)</argument_list></call></expr>,
+<expr><operator>.</operator><name>me</name> <operator>=</operator> <operator>(</operator><name>VALUE</name><operator>)</operator><call><name>vm_cc_cme</name><argument_list>(<argument><expr><name>cc</name></expr></argument>)</argument_list></call></expr>,
+<expr><operator>.</operator><name>param_size</name> <operator>=</operator> <name><name>child_iseq</name><operator>-&gt;</operator><name>body</name><operator>-&gt;</operator><name>param</name><operator>.</operator><name>size</name></name></expr>,
+<expr><operator>.</operator><name>local_size</name> <operator>=</operator> <name><name>child_iseq</name><operator>-&gt;</operator><name>body</name><operator>-&gt;</operator><name>local_table_size</name></name></expr>
+}</block></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><operator>(</operator><name><name>child_iseq</name><operator>-&gt;</operator><name>body</name><operator>-&gt;</operator><name>ci_size</name></name> <operator>&gt;</operator> <literal type="number">0</literal> <operator>&amp;&amp;</operator> <name><name>child_status</name><operator>.</operator><name>cc_entries_index</name></name> <operator>==</operator> <operator>-</operator><literal type="number">1</literal><operator>)</operator>
+<operator>||</operator> <operator>(</operator><name><name>child_status</name><operator>.</operator><name>is_entries</name></name> <operator>!=</operator> <name>NULL</name> <operator>&amp;&amp;</operator> <operator>!</operator><call><name>mjit_copy_cache_from_main_thread</name><argument_list>(<argument><expr><name>child_iseq</name></expr></argument>, <argument><expr><name><name>child_status</name><operator>.</operator><name>is_entries</name></name></expr></argument>)</argument_list></call><operator>)</operator></expr>)</condition> <block>{<block_content>
+<return>return <expr><name>false</name></expr>;</return>
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><literal type="string">"ALWAYS_INLINE(static VALUE _mjit_inlined_%d(rb_execution_context_t *ec, rb_control_frame_t *reg_cfp, const VALUE orig_self, const rb_iseq_t *original_iseq));\n"</literal></expr></argument>, <argument><expr><name>pos</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><literal type="string">"static inline VALUE\n_mjit_inlined_%d(rb_execution_context_t *ec, rb_control_frame_t *reg_cfp, const VALUE orig_self, const rb_iseq_t *original_iseq)\n{\n"</literal></expr></argument>, <argument><expr><name>pos</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><literal type="string">" const VALUE *orig_pc = reg_cfp-&gt;pc;\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><literal type="string">" const VALUE *orig_sp = reg_cfp-&gt;sp;\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<decl_stmt><decl><type><name>bool</name></type> <name>success</name> <init>= <expr><call><name>mjit_compile_body</name><argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><name>child_iseq</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>child_status</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><literal type="string">"\n} /* end of _mjit_inlined_%d */\n\n"</literal></expr></argument>, <argument><expr><name>pos</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>success</name></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><name>false</name></expr>;</return></block_content></block></if></if_stmt>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block></if></if_stmt>
+<expr_stmt><expr><name>pos</name> <operator>+=</operator> <call><name>insn_len</name><argument_list>(<argument><expr><name>insn</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></while>
+<return>return <expr><name>true</name></expr>;</return>
+</block_content>}</block></function>
+
+
+<function><type><name>bool</name></type>
+<name>mjit_compile</name><parameter_list>(<parameter><decl><type><name>FILE</name> <modifier>*</modifier></type><name>f</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>rb_iseq_t</name> <modifier>*</modifier></type><name>iseq</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>funcname</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>mjit_opts</name><operator>.</operator><name>debug</name></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><literal type="string">"#undef OPT_CHECKED_RUN\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><literal type="string">"#define OPT_CHECKED_RUN 0\n\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>compile_status</name></name></type> <name>status</name> <init>= <expr><block>{ <expr><operator>.</operator><name>compiled_iseq</name> <operator>=</operator> <name><name>iseq</name><operator>-&gt;</operator><name>body</name></name></expr> }</block></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><call><name>INIT_COMPILE_STATUS</name><argument_list>(<argument><expr><name>status</name></expr></argument>, <argument><expr><name><name>iseq</name><operator>-&gt;</operator><name>body</name></name></expr></argument>, <argument><expr><name>true</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><operator>(</operator><name><name>iseq</name><operator>-&gt;</operator><name>body</name><operator>-&gt;</operator><name>ci_size</name></name> <operator>&gt;</operator> <literal type="number">0</literal> <operator>&amp;&amp;</operator> <name><name>status</name><operator>.</operator><name>cc_entries_index</name></name> <operator>==</operator> <operator>-</operator><literal type="number">1</literal><operator>)</operator>
+<operator>||</operator> <operator>(</operator><name><name>status</name><operator>.</operator><name>is_entries</name></name> <operator>!=</operator> <name>NULL</name> <operator>&amp;&amp;</operator> <operator>!</operator><call><name>mjit_copy_cache_from_main_thread</name><argument_list>(<argument><expr><name>iseq</name></expr></argument>, <argument><expr><name><name>status</name><operator>.</operator><name>is_entries</name></name></expr></argument>)</argument_list></call><operator>)</operator></expr>)</condition> <block>{<block_content>
+<return>return <expr><name>false</name></expr>;</return>
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>status</name><operator>.</operator><name>compile_info</name><operator>-&gt;</operator><name>disable_send_cache</name></name> <operator>&amp;&amp;</operator> <operator>!</operator><name><name>status</name><operator>.</operator><name>compile_info</name><operator>-&gt;</operator><name>disable_inlining</name></name></expr>)</condition> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>precompile_inlinable_iseqs</name><argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><name>iseq</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>status</name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><name>false</name></expr>;</return></block_content></block></if></if_stmt>
+</block_content>}</block></if></if_stmt>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><call><name>defined</name><argument_list>(<argument><expr><name>_WIN32</name></expr></argument>)</argument_list></call></expr></cpp:if>
+<expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><literal type="string">"__declspec(dllexport)\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+<expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><literal type="string">"VALUE\n%s(rb_execution_context_t *ec, rb_control_frame_t *reg_cfp)\n{\n"</literal></expr></argument>, <argument><expr><name>funcname</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<decl_stmt><decl><type><name>bool</name></type> <name>success</name> <init>= <expr><call><name>mjit_compile_body</name><argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><name>iseq</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>status</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><literal type="string">"\n} // end of %s\n"</literal></expr></argument>, <argument><expr><name>funcname</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>success</name></expr>;</return>
+</block_content>}</block></function>
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif> 
+</unit>

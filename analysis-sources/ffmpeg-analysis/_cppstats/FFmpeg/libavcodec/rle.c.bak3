@@ -1,0 +1,82 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#include "libavutil/common.h"
+
+#include "avcodec.h"
+#include "rle.h"
+
+int ff_rle_count_pixels(const uint8_t *start, int len, int bpp, int same)
+{
+const uint8_t *pos;
+int count = 1;
+
+for (pos = start + bpp; count < FFMIN(127, len); pos += bpp, count++) {
+if (same != !memcmp(pos - bpp, pos, bpp)) {
+if (!same) {
+
+
+
+if (bpp == 1 && count + 1 < FFMIN(127, len) && *pos != *(pos + 1))
+continue;
+
+
+
+count--;
+}
+break;
+}
+}
+
+return count;
+}
+
+int ff_rle_encode(uint8_t *outbuf, int out_size, const uint8_t *ptr, int bpp,
+int w, int add_rep, int xor_rep, int add_raw, int xor_raw)
+{
+int count, x;
+uint8_t *out = outbuf;
+
+for (x = 0; x < w; x += count) {
+
+if ((count = ff_rle_count_pixels(ptr, w - x, bpp, 1)) > 1) {
+if (out + bpp + 1 > outbuf + out_size)
+return -1;
+
+*out++ = (count ^ xor_rep) + add_rep;
+memcpy(out, ptr, bpp);
+out += bpp;
+} else {
+
+count = ff_rle_count_pixels(ptr, w - x, bpp, 0);
+if (out + bpp * count >= outbuf + out_size)
+return -1;
+
+*out++ = (count ^ xor_raw) + add_raw;
+memcpy(out, ptr, bpp * count);
+out += bpp * count;
+}
+
+ptr += count * bpp;
+}
+
+return out - outbuf;
+}

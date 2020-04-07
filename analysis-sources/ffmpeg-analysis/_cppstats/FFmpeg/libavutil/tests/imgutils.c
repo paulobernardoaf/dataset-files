@@ -1,0 +1,14 @@
+#include "libavutil/imgutils.c"
+#undef printf
+int main(void)
+{
+int64_t x, y;
+for (y = -1; y<UINT_MAX; y+= y/2 + 1) {
+for (x = -1; x<UINT_MAX; x+= x/2 + 1) {
+int ret = av_image_check_size(x, y, 0, NULL);
+printf("%d", ret >= 0);
+}
+printf("\n");
+}
+return 0;
+}

@@ -1,0 +1,12 @@
+struct commit;
+struct repository;
+struct fetch_negotiator {
+void (*known_common)(struct fetch_negotiator *, struct commit *);
+void (*add_tip)(struct fetch_negotiator *, struct commit *);
+const struct object_id *(*next)(struct fetch_negotiator *);
+int (*ack)(struct fetch_negotiator *, struct commit *);
+void (*release)(struct fetch_negotiator *);
+void *data;
+};
+void fetch_negotiator_init(struct repository *r,
+struct fetch_negotiator *negotiator);

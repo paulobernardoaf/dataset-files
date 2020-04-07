@@ -1,0 +1,55 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#if !defined(VLC_VLC_H)
+#define VLC_VLC_H 1
+
+
+
+
+
+
+#if defined(__cplusplus)
+extern "C" {
+#endif
+
+#include <vlc/libvlc.h>
+#include <vlc/libvlc_renderer_discoverer.h>
+#include <vlc/libvlc_picture.h>
+#include <vlc/libvlc_media.h>
+#include <vlc/libvlc_media_player.h>
+#include <vlc/libvlc_media_list.h>
+#include <vlc/libvlc_media_list_player.h>
+#include <vlc/libvlc_media_discoverer.h>
+#include <vlc/libvlc_events.h>
+#include <vlc/libvlc_dialog.h>
+#include <vlc/deprecated.h>
+
+#if defined(__cplusplus)
+}
+#endif
+
+#endif 

@@ -1,0 +1,897 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" revision="1.0.0" language="C" filename="D:\Pesquisa\Projects\radare2-analysis\_cppstats\radare2\libr\anal\p\anal_wasm.c"><cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;string.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;r_types.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;r_lib.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;r_asm.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;r_anal.h&gt;</cpp:file></cpp:include>
+
+<cpp:undef>#<cpp:directive>undef</cpp:directive> <name>R_IPI</name></cpp:undef>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>R_IPI</name></cpp:macro> <cpp:value>static</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>WASM_NO_ASM</name></cpp:macro></cpp:define> 
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"../../bin/format/wasm/wasm.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"../../asm/arch/wasm/wasm.c"</cpp:file></cpp:include>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>WASM_STACK_SIZE</name></cpp:macro> <cpp:value>256</cpp:value></cpp:define>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>ut64</name></type> <name>scope_hint</name> <init>= <expr><name>UT64_MAX</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>ut64</name></type> <name>addr_old</name> <init>= <expr><name>UT64_MAX</name></expr></init></decl>;</decl_stmt>
+
+<function><type><specifier>static</specifier> <name>ut64</name></type> <name>get_cf_offset</name><parameter_list>(<parameter><decl><type><name>RAnal</name> <modifier>*</modifier></type><name>anal</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>ut8</name> <modifier>*</modifier></type><name>data</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>len</name></decl></parameter>)</parameter_list> <block>{<block_content>
+
+<decl_stmt><decl><type><name>ut32</name></type> <name>fcn_id</name></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>read_u32_leb128</name> <argument_list>(<argument><expr><operator>&amp;</operator><name><name>data</name><index>[<expr><literal type="number">1</literal></expr>]</index></name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>data</name><index>[<expr><name>len</name> <operator>-</operator> <literal type="number">1</literal></expr>]</index></name></expr></argument>, <argument><expr><operator>&amp;</operator><name>fcn_id</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<return>return <expr><name>UT64_MAX</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>r_cons_push</name> <argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<decl_stmt><decl><type><name>char</name> <modifier>*</modifier></type><name>s</name> <init>= <expr><call><name><name>anal</name><operator>-&gt;</operator><name>coreb</name><operator>.</operator><name>cmdstrf</name></name> <argument_list>(<argument><expr><name><name>anal</name><operator>-&gt;</operator><name>coreb</name><operator>.</operator><name>core</name></name></expr></argument>, <argument><expr><literal type="string">"is~FUNC[2:%u]"</literal></expr></argument>, <argument><expr><name>fcn_id</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>r_cons_pop</name> <argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>s</name></expr>)</condition> <block>{<block_content>
+
+<decl_stmt><decl><type><name>ut64</name></type> <name>n</name> <init>= <expr><call><name>r_num_get</name> <argument_list>(<argument><expr><name>NULL</name></expr></argument>, <argument><expr><name>s</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>free</name> <argument_list>(<argument><expr><name>s</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>n</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<return>return <expr><name>UT64_MAX</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>bool</name></type> <name>advance_till_scope_end</name><parameter_list>(<parameter><decl><type><name>RAnal</name><modifier>*</modifier></type> <name>anal</name></decl></parameter>, <parameter><decl><type><name>RAnalOp</name> <modifier>*</modifier></type><name>op</name></decl></parameter>, <parameter><decl><type><name>ut64</name></type> <name>address</name></decl></parameter>, <parameter><decl><type><name>ut32</name></type> <name>expected_type</name></decl></parameter>, <parameter><decl><type><name>ut32</name></type> <name>depth</name></decl></parameter>, <parameter><decl><type><name>bool</name></type> <name>use_else</name></decl></parameter>)</parameter_list> <block>{<block_content>
+
+<decl_stmt><decl><type><name>ut8</name></type> <name><name>buffer</name><index>[<expr><literal type="number">16</literal></expr>]</index></name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>ut8</name> <modifier>*</modifier></type><name>ptr</name> <init>= <expr><name>buffer</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>ut8</name> <modifier>*</modifier></type><name>end</name> <init>= <expr><name>ptr</name> <operator>+</operator> <sizeof>sizeof <argument_list>(<argument><expr><name>buffer</name></expr></argument>)</argument_list></sizeof></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>WasmOp</name></type> <name>wop</name> <init>= <expr><block>{<expr><block>{<expr><literal type="number">0</literal></expr>}</block></expr>}</block></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>size</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+
+<while>while <condition>(<expr><call><name><name>anal</name><operator>-&gt;</operator><name>iob</name><operator>.</operator><name>read_at</name></name> <argument_list>(<argument><expr><name><name>anal</name><operator>-&gt;</operator><name>iob</name><operator>.</operator><name>io</name></name></expr></argument>, <argument><expr><name>address</name></expr></argument>, <argument><expr><name>buffer</name></expr></argument>, <argument><expr><sizeof>sizeof <argument_list>(<argument><expr><name>buffer</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>size</name> <operator>=</operator> <call><name>wasm_dis</name> <argument_list>(<argument><expr><operator>&amp;</operator><name>wop</name></expr></argument>, <argument><expr><name>ptr</name></expr></argument>, <argument><expr><name>end</name> <operator>-</operator> <name>ptr</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>wop</name><operator>.</operator><name>txt</name></name> <operator>||</operator> <operator>(</operator><name><name>wop</name><operator>.</operator><name>type</name></name> <operator>==</operator> <name>WASM_TYPE_OP_CORE</name> <operator>&amp;&amp;</operator> <name><name>wop</name><operator>.</operator><name>op</name><operator>.</operator><name>core</name></name> <operator>==</operator> <name>WASM_OP_TRAP</name><operator>)</operator></expr>)</condition> <block>{<block_content>
+
+<break>break;</break>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>wop</name><operator>.</operator><name>type</name></name> <operator>==</operator> <name>WASM_TYPE_OP_CORE</name></expr>)</condition> <block>{<block_content>
+
+<decl_stmt><decl><type><name>WasmOpCodes</name></type> <name>wopop</name> <init>= <expr><name><name>wop</name><operator>.</operator><name>op</name><operator>.</operator><name>core</name></name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>wopop</name> <operator>==</operator> <name>WASM_OP_LOOP</name> <operator>||</operator> <name>wopop</name> <operator>==</operator> <name>WASM_OP_BLOCK</name> <operator>||</operator> <name>wopop</name> <operator>==</operator> <name>WASM_OP_IF</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>depth</name><operator>++</operator></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>use_else</name> <operator>&amp;&amp;</operator> <name>wopop</name> <operator>==</operator> <name>WASM_OP_ELSE</name> <operator>&amp;&amp;</operator> <operator>!</operator><name>depth</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>expected_type</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>jump</name></name> <operator>=</operator> <name>address</name> <operator>+</operator> <literal type="number">1</literal></expr>;</expr_stmt> 
+
+<return>return <expr><name>true</name></expr>;</return>
+
+</block_content>}</block></if> <if type="elseif">else if <condition>(<expr><name>wopop</name> <operator>==</operator> <name>WASM_OP_END</name> <operator>&amp;&amp;</operator> <name>depth</name> <operator>&gt;</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>depth</name><operator>--</operator></expr>;</expr_stmt>
+
+</block_content>}</block></if> <if type="elseif">else if <condition>(<expr><name>wopop</name> <operator>==</operator> <name>WASM_OP_END</name> <operator>&amp;&amp;</operator> <operator>!</operator><name>depth</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>expected_type</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>jump</name></name> <operator>=</operator> <name>address</name></expr>;</expr_stmt>
+
+<return>return <expr><name>true</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name>address</name> <operator>+=</operator> <name>size</name></expr>;</expr_stmt>
+
+</block_content>}</block></while>
+
+<return>return <expr><name>false</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>wasm_op</name><parameter_list>(<parameter><decl><type><name>RAnal</name> <modifier>*</modifier></type><name>anal</name></decl></parameter>, <parameter><decl><type><name>RAnalOp</name> <modifier>*</modifier></type><name>op</name></decl></parameter>, <parameter><decl><type><name>ut64</name></type> <name>addr</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>ut8</name> <modifier>*</modifier></type><name>data</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>len</name></decl></parameter>, <parameter><decl><type><name>RAnalOpMask</name></type> <name>mask</name></decl></parameter>)</parameter_list> <block>{<block_content>
+
+<decl_stmt><decl><type><name>WasmOp</name></type> <name>wop</name> <init>= <expr><block>{<expr><block>{<expr><literal type="number">0</literal></expr>}</block></expr>}</block></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>RAnalHint</name> <modifier>*</modifier></type><name>hint</name> <init>= <expr><name>NULL</name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>memset</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="char">'\0'</literal></expr></argument>, <argument><expr><sizeof>sizeof <argument_list>(<argument><expr><name>RAnalOp</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>ret</name> <init>= <expr><call><name>wasm_dis</name> <argument_list>(<argument><expr><operator>&amp;</operator><name>wop</name></expr></argument>, <argument><expr><name>data</name></expr></argument>, <argument><expr><name>len</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>jump</name></name> <operator>=</operator> <name>UT64_MAX</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>fail</name></name> <operator>=</operator> <name>UT64_MAX</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>ptr</name></name> <operator>=</operator> <name><name>op</name><operator>-&gt;</operator><name>val</name></name> <operator>=</operator> <name>UT64_MAX</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>size</name></name> <operator>=</operator> <name>ret</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>addr</name></name> <operator>=</operator> <name>addr</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>sign</name></name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_UNK</name></expr>;</expr_stmt>
+
+<switch>switch <condition>(<expr><name><name>wop</name><operator>.</operator><name>type</name></name></expr>)</condition> <block>{<block_content>
+
+<case>case <expr><name>WASM_TYPE_OP_CORE</name></expr>:</case>
+
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>id</name></name> <operator>=</operator> <name><name>wop</name><operator>.</operator><name>op</name><operator>.</operator><name>core</name></name></expr>;</expr_stmt>
+
+<break>break;</break>
+
+<case>case <expr><name>WASM_TYPE_OP_ATOMIC</name></expr>:</case>
+
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>id</name></name> <operator>=</operator> <operator>(</operator><literal type="number">0xfe</literal> <operator>&lt;&lt;</operator> <literal type="number">8</literal><operator>)</operator> <operator>|</operator> <name><name>wop</name><operator>.</operator><name>op</name><operator>.</operator><name>atomic</name></name></expr>;</expr_stmt>
+
+<break>break;</break>
+
+</block_content>}</block></switch>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>wop</name><operator>.</operator><name>txt</name></name> <operator>||</operator> <operator>!</operator><call><name>strncmp</name> <argument_list>(<argument><expr><name><name>wop</name><operator>.</operator><name>txt</name></name></expr></argument>, <argument><expr><literal type="string">"invalid"</literal></expr></argument>, <argument><expr><literal type="number">7</literal></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_ILL</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>free</name> <argument_list>(<argument><expr><name><name>wop</name><operator>.</operator><name>txt</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><operator>-</operator><literal type="number">1</literal></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>addr_old</name> <operator>==</operator> <name>addr</name> <operator>&amp;&amp;</operator> <operator>(</operator><name><name>wop</name><operator>.</operator><name>type</name></name> <operator>!=</operator> <name>WASM_TYPE_OP_CORE</name> <operator>||</operator> <name><name>wop</name><operator>.</operator><name>op</name><operator>.</operator><name>core</name></name> <operator>!=</operator> <name>WASM_OP_END</name><operator>)</operator></expr>)</condition> <block>{<block_content>
+
+<goto>goto <name>anal_end</name>;</goto>
+
+</block_content>}</block></if></if_stmt>
+
+<switch>switch <condition>(<expr><name><name>wop</name><operator>.</operator><name>type</name></name></expr>)</condition> <block>{<block_content>
+
+<case>case <expr><name>WASM_TYPE_OP_CORE</name></expr>:</case>
+
+<switch>switch <condition>(<expr><name><name>wop</name><operator>.</operator><name>op</name><operator>.</operator><name>core</name></name></expr>)</condition> <block>{<block_content>
+
+<case>case <expr><name>WASM_OP_LOOP</name></expr>:</case>
+
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_NOP</name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><operator>(</operator><name>hint</name> <operator>=</operator> <call><name>r_anal_hint_get</name> <argument_list>(<argument><expr><name>anal</name></expr></argument>, <argument><expr><name>addr</name></expr></argument>)</argument_list></call><operator>)</operator></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>scope_hint</name><operator>--</operator></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>r_anal_hint_set_opcode</name> <argument_list>(<argument><expr><name>anal</name></expr></argument>, <argument><expr><name>scope_hint</name></expr></argument>, <argument><expr><literal type="string">"loop"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>r_anal_hint_set_jump</name> <argument_list>(<argument><expr><name>anal</name></expr></argument>, <argument><expr><name>scope_hint</name></expr></argument>, <argument><expr><name>addr</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<break>break;</break>
+
+<case>case <expr><name>WASM_OP_BLOCK</name></expr>:</case>
+
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_NOP</name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><operator>(</operator><name>hint</name> <operator>=</operator> <call><name>r_anal_hint_get</name> <argument_list>(<argument><expr><name>anal</name></expr></argument>, <argument><expr><name>addr</name></expr></argument>)</argument_list></call><operator>)</operator></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>scope_hint</name><operator>--</operator></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>r_anal_hint_set_opcode</name> <argument_list>(<argument><expr><name>anal</name></expr></argument>, <argument><expr><name>scope_hint</name></expr></argument>, <argument><expr><literal type="string">"block"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>r_anal_hint_set_jump</name> <argument_list>(<argument><expr><name>anal</name></expr></argument>, <argument><expr><name>scope_hint</name></expr></argument>, <argument><expr><name>addr</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<break>break;</break>
+
+<case>case <expr><name>WASM_OP_IF</name></expr>:</case>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><operator>(</operator><name>hint</name> <operator>=</operator> <call><name>r_anal_hint_get</name> <argument_list>(<argument><expr><name>anal</name></expr></argument>, <argument><expr><name>addr</name></expr></argument>)</argument_list></call><operator>)</operator></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>scope_hint</name><operator>--</operator></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>r_anal_hint_set_opcode</name> <argument_list>(<argument><expr><name>anal</name></expr></argument>, <argument><expr><name>scope_hint</name></expr></argument>, <argument><expr><literal type="string">"if"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>r_anal_hint_set_jump</name> <argument_list>(<argument><expr><name>anal</name></expr></argument>, <argument><expr><name>scope_hint</name></expr></argument>, <argument><expr><name>addr</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>advance_till_scope_end</name> <argument_list>(<argument><expr><name>anal</name></expr></argument>, <argument><expr><name>op</name></expr></argument>, <argument><expr><name>addr</name> <operator>+</operator> <name><name>op</name><operator>-&gt;</operator><name>size</name></name></expr></argument>, <argument><expr><name>R_ANAL_OP_TYPE_CJMP</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><name>true</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>fail</name></name> <operator>=</operator> <name>addr</name> <operator>+</operator> <name><name>op</name><operator>-&gt;</operator><name>size</name></name></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_CJMP</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>jump</name></name> <operator>=</operator> <name><name>hint</name><operator>-&gt;</operator><name>jump</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>fail</name></name> <operator>=</operator> <name>addr</name> <operator>+</operator> <name><name>op</name><operator>-&gt;</operator><name>size</name></name></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+<break>break;</break>
+
+<case>case <expr><name>WASM_OP_ELSE</name></expr>:</case>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><operator>(</operator><name>hint</name> <operator>=</operator> <call><name>r_anal_hint_get</name> <argument_list>(<argument><expr><name>anal</name></expr></argument>, <argument><expr><name>addr</name></expr></argument>)</argument_list></call><operator>)</operator></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>advance_till_scope_end</name> <argument_list>(<argument><expr><name>anal</name></expr></argument>, <argument><expr><name>op</name></expr></argument>, <argument><expr><name>addr</name> <operator>+</operator> <name><name>op</name><operator>-&gt;</operator><name>size</name></name></expr></argument>, <argument><expr><name>R_ANAL_OP_TYPE_JMP</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><name>true</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_JMP</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>jump</name></name> <operator>=</operator> <name><name>hint</name><operator>-&gt;</operator><name>jump</name></name></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+<break>break;</break>
+
+<case>case <expr><name>WASM_OP_BR</name></expr>:</case>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>RAnalHint</name> <modifier>*</modifier></type><name>hint2</name> <init>= <expr><name>NULL</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>ut32</name></type> <name>val</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>read_u32_leb128</name> <argument_list>(<argument><expr><name>data</name> <operator>+</operator> <literal type="number">1</literal></expr></argument>, <argument><expr><name>data</name> <operator>+</operator> <name>len</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>val</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>(</operator><name>hint2</name> <operator>=</operator> <call><name>r_anal_hint_get</name> <argument_list>(<argument><expr><name>anal</name></expr></argument>, <argument><expr><name>addr</name></expr></argument>)</argument_list></call><operator>)</operator> <operator>&amp;&amp;</operator> <name><name>hint2</name><operator>-&gt;</operator><name>jump</name></name> <operator>!=</operator> <name>UT64_MAX</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_JMP</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>jump</name></name> <operator>=</operator> <name><name>hint2</name><operator>-&gt;</operator><name>jump</name></name></expr>;</expr_stmt>
+
+</block_content>}</block></if> <if type="elseif">else if <condition>(<expr><operator>(</operator><name>hint</name> <operator>=</operator> <call><name>r_anal_hint_get</name> <argument_list>(<argument><expr><name>anal</name></expr></argument>, <argument><expr><name>scope_hint</name></expr></argument>)</argument_list></call><operator>)</operator></expr>)</condition> <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><name><name>hint</name><operator>-&gt;</operator><name>opcode</name></name> <operator>&amp;&amp;</operator> <operator>!</operator><call><name>strncmp</name> <argument_list>(<argument><expr><literal type="string">"loop"</literal></expr></argument>, <argument><expr><name><name>hint</name><operator>-&gt;</operator><name>opcode</name></name></expr></argument>, <argument><expr><literal type="number">4</literal></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_JMP</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>jump</name></name> <operator>=</operator> <name><name>hint</name><operator>-&gt;</operator><name>jump</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>r_anal_hint_set_jump</name> <argument_list>(<argument><expr><name>anal</name></expr></argument>, <argument><expr><name>addr</name></expr></argument>, <argument><expr><name><name>op</name><operator>-&gt;</operator><name>jump</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><call><name>advance_till_scope_end</name> <argument_list>(<argument><expr><name>anal</name></expr></argument>, <argument><expr><name>op</name></expr></argument>, <argument><expr><name>addr</name> <operator>+</operator> <name><name>op</name><operator>-&gt;</operator><name>size</name></name></expr></argument>, <argument><expr><name>R_ANAL_OP_TYPE_JMP</name></expr></argument>, <argument><expr><name>val</name></expr></argument>, <argument><expr><name>false</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>r_anal_hint_set_jump</name> <argument_list>(<argument><expr><name>anal</name></expr></argument>, <argument><expr><name>addr</name></expr></argument>, <argument><expr><name><name>op</name><operator>-&gt;</operator><name>jump</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><call><name>advance_till_scope_end</name> <argument_list>(<argument><expr><name>anal</name></expr></argument>, <argument><expr><name>op</name></expr></argument>, <argument><expr><name>addr</name> <operator>+</operator> <name><name>op</name><operator>-&gt;</operator><name>size</name></name></expr></argument>, <argument><expr><name>R_ANAL_OP_TYPE_JMP</name></expr></argument>, <argument><expr><name>val</name></expr></argument>, <argument><expr><name>false</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>eprintf</name> <argument_list>(<argument><expr><literal type="string">"[wasm] cannot find jump type for br (using block type)\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>r_anal_hint_set_jump</name> <argument_list>(<argument><expr><name>anal</name></expr></argument>, <argument><expr><name>addr</name></expr></argument>, <argument><expr><name><name>op</name><operator>-&gt;</operator><name>jump</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<expr_stmt><expr><call><name>eprintf</name> <argument_list>(<argument><expr><literal type="string">"[wasm] cannot find jump for br\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+<expr_stmt><expr><call><name>r_anal_hint_free</name> <argument_list>(<argument><expr><name>hint2</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block>
+
+<break>break;</break>
+
+<case>case <expr><name>WASM_OP_BRIF</name></expr>:</case>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>RAnalHint</name> <modifier>*</modifier></type><name>hint2</name> <init>= <expr><name>NULL</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>ut32</name></type> <name>val</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>read_u32_leb128</name> <argument_list>(<argument><expr><name>data</name> <operator>+</operator> <literal type="number">1</literal></expr></argument>, <argument><expr><name>data</name> <operator>+</operator> <name>len</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>val</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>(</operator><name>hint2</name> <operator>=</operator> <call><name>r_anal_hint_get</name> <argument_list>(<argument><expr><name>anal</name></expr></argument>, <argument><expr><name>addr</name></expr></argument>)</argument_list></call><operator>)</operator> <operator>&amp;&amp;</operator> <name><name>hint2</name><operator>-&gt;</operator><name>jump</name></name> <operator>!=</operator> <name>UT64_MAX</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_CJMP</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>jump</name></name> <operator>=</operator> <name><name>hint2</name><operator>-&gt;</operator><name>jump</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>fail</name></name> <operator>=</operator> <name>addr</name> <operator>+</operator> <name><name>op</name><operator>-&gt;</operator><name>size</name></name></expr>;</expr_stmt>
+
+</block_content>}</block></if> <if type="elseif">else if <condition>(<expr><operator>(</operator><name>hint</name> <operator>=</operator> <call><name>r_anal_hint_get</name> <argument_list>(<argument><expr><name>anal</name></expr></argument>, <argument><expr><name>scope_hint</name></expr></argument>)</argument_list></call><operator>)</operator></expr>)</condition> <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><name><name>hint</name><operator>-&gt;</operator><name>opcode</name></name> <operator>&amp;&amp;</operator> <operator>!</operator><call><name>strncmp</name> <argument_list>(<argument><expr><literal type="string">"loop"</literal></expr></argument>, <argument><expr><name><name>hint</name><operator>-&gt;</operator><name>opcode</name></name></expr></argument>, <argument><expr><literal type="number">4</literal></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>fail</name></name> <operator>=</operator> <name>addr</name> <operator>+</operator> <name><name>op</name><operator>-&gt;</operator><name>size</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>jump</name></name> <operator>=</operator> <name><name>hint</name><operator>-&gt;</operator><name>jump</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>r_anal_hint_set_jump</name> <argument_list>(<argument><expr><name>anal</name></expr></argument>, <argument><expr><name>addr</name></expr></argument>, <argument><expr><name><name>op</name><operator>-&gt;</operator><name>jump</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><call><name>advance_till_scope_end</name> <argument_list>(<argument><expr><name>anal</name></expr></argument>, <argument><expr><name>op</name></expr></argument>, <argument><expr><name>addr</name> <operator>+</operator> <name><name>op</name><operator>-&gt;</operator><name>size</name></name></expr></argument>, <argument><expr><name>R_ANAL_OP_TYPE_CJMP</name></expr></argument>, <argument><expr><name>val</name></expr></argument>, <argument><expr><name>false</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>fail</name></name> <operator>=</operator> <name>addr</name> <operator>+</operator> <name><name>op</name><operator>-&gt;</operator><name>size</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>r_anal_hint_set_jump</name> <argument_list>(<argument><expr><name>anal</name></expr></argument>, <argument><expr><name>addr</name></expr></argument>, <argument><expr><name><name>op</name><operator>-&gt;</operator><name>jump</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><call><name>advance_till_scope_end</name> <argument_list>(<argument><expr><name>anal</name></expr></argument>, <argument><expr><name>op</name></expr></argument>, <argument><expr><name>addr</name> <operator>+</operator> <name><name>op</name><operator>-&gt;</operator><name>size</name></name></expr></argument>, <argument><expr><name>R_ANAL_OP_TYPE_CJMP</name></expr></argument>, <argument><expr><name>val</name></expr></argument>, <argument><expr><name>false</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>eprintf</name> <argument_list>(<argument><expr><literal type="string">"[wasm] cannot find jump type for br_if (using block type)\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>fail</name></name> <operator>=</operator> <name>addr</name> <operator>+</operator> <name><name>op</name><operator>-&gt;</operator><name>size</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>r_anal_hint_set_jump</name> <argument_list>(<argument><expr><name>anal</name></expr></argument>, <argument><expr><name>addr</name></expr></argument>, <argument><expr><name><name>op</name><operator>-&gt;</operator><name>jump</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<expr_stmt><expr><call><name>eprintf</name> <argument_list>(<argument><expr><literal type="string">"[wasm] cannot find jump for br_if\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+<expr_stmt><expr><call><name>r_anal_hint_free</name> <argument_list>(<argument><expr><name>hint2</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block>
+
+<break>break;</break>
+
+<case>case <expr><name>WASM_OP_END</name></expr>:</case>
+
+<block>{<block_content>
+
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_NOP</name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>scope_hint</name> <operator>&lt;</operator> <name>UT64_MAX</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>hint</name> <operator>=</operator> <call><name>r_anal_hint_get</name> <argument_list>(<argument><expr><name>anal</name></expr></argument>, <argument><expr><name>scope_hint</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>hint</name> <operator>&amp;&amp;</operator> <operator>!</operator><call><name>strncmp</name> <argument_list>(<argument><expr><literal type="string">"loop"</literal></expr></argument>, <argument><expr><name><name>hint</name><operator>-&gt;</operator><name>opcode</name></name></expr></argument>, <argument><expr><literal type="number">4</literal></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>r_anal_hint_set_jump</name> <argument_list>(<argument><expr><name>anal</name></expr></argument>, <argument><expr><name>addr</name></expr></argument>, <argument><expr><name><name>op</name><operator>-&gt;</operator><name>jump</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>r_anal_hint_set_jump</name> <argument_list>(<argument><expr><name>anal</name></expr></argument>, <argument><expr><name><name>op</name><operator>-&gt;</operator><name>jump</name></name></expr></argument>, <argument><expr><name>addr</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if> <if type="elseif">else if <condition>(<expr><name>hint</name> <operator>&amp;&amp;</operator> <operator>!</operator><call><name>strncmp</name> <argument_list>(<argument><expr><literal type="string">"block"</literal></expr></argument>, <argument><expr><name><name>hint</name><operator>-&gt;</operator><name>opcode</name></name></expr></argument>, <argument><expr><literal type="number">5</literal></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>r_anal_hint_set_jump</name> <argument_list>(<argument><expr><name>anal</name></expr></argument>, <argument><expr><name><name>hint</name><operator>-&gt;</operator><name>jump</name></name></expr></argument>, <argument><expr><name>addr</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>r_anal_hint_set_jump</name> <argument_list>(<argument><expr><name>anal</name></expr></argument>, <argument><expr><name>addr</name></expr></argument>, <argument><expr><name>UT64_MAX</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>hint</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>r_anal_hint_set_opcode</name> <argument_list>(<argument><expr><name>anal</name></expr></argument>, <argument><expr><name>scope_hint</name></expr></argument>, <argument><expr><literal type="string">"invalid"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>r_anal_hint_set_jump</name> <argument_list>(<argument><expr><name>anal</name></expr></argument>, <argument><expr><name>scope_hint</name></expr></argument>, <argument><expr><name>UT64_MAX</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>r_anal_hint_del</name> <argument_list>(<argument><expr><name>anal</name></expr></argument>, <argument><expr><name>scope_hint</name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>scope_hint</name><operator>++</operator></expr>;</expr_stmt>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>eob</name></name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_RET</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>scope_hint</name> <operator>=</operator> <name>UT64_MAX</name></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><operator>(</operator><name>hint</name> <operator>=</operator> <call><name>r_anal_hint_get</name> <argument_list>(<argument><expr><name>anal</name></expr></argument>, <argument><expr><name>addr</name></expr></argument>)</argument_list></call><operator>)</operator></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>eob</name></name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_RET</name></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+</block_content>}</block>
+
+<break>break;</break>
+
+<case>case <expr><name>WASM_OP_I32REMS</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_I32REMU</name></expr>:</case>
+
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_MOD</name></expr>;</expr_stmt>
+
+<break>break;</break>
+
+<case>case <expr><name>WASM_OP_GETLOCAL</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_I32LOAD</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_I64LOAD</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_F32LOAD</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_F64LOAD</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_I32LOAD8S</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_I32LOAD8U</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_I32LOAD16S</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_I32LOAD16U</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_I64LOAD8S</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_I64LOAD8U</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_I64LOAD16S</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_I64LOAD16U</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_I64LOAD32S</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_I64LOAD32U</name></expr>:</case>
+
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_LOAD</name></expr>;</expr_stmt>
+
+<break>break;</break>
+
+<case>case <expr><name>WASM_OP_SETLOCAL</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_TEELOCAL</name></expr>:</case>
+
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_STORE</name></expr>;</expr_stmt>
+
+<break>break;</break>
+
+<case>case <expr><name>WASM_OP_I32EQZ</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_I32EQ</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_I32NE</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_I32LTS</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_I32LTU</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_I32GTS</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_I32GTU</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_I32LES</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_I32LEU</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_I32GES</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_I32GEU</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_I64EQZ</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_I64EQ</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_I64NE</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_I64LTS</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_I64LTU</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_I64GTS</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_I64GTU</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_I64LES</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_I64LEU</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_I64GES</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_I64GEU</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_F32EQ</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_F32NE</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_F32LT</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_F32GT</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_F32LE</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_F32GE</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_F64EQ</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_F64NE</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_F64LT</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_F64GT</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_F64LE</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_F64GE</name></expr>:</case>
+
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_CMP</name></expr>;</expr_stmt>
+
+<break>break;</break>
+
+<case>case <expr><name>WASM_OP_I64OR</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_I32OR</name></expr>:</case>
+
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_OR</name></expr>;</expr_stmt>
+
+<break>break;</break>
+
+<case>case <expr><name>WASM_OP_I64XOR</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_I32XOR</name></expr>:</case>
+
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_XOR</name></expr>;</expr_stmt>
+
+<break>break;</break>
+
+<case>case <expr><name>WASM_OP_I32CONST</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_I64CONST</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_F32CONST</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_F64CONST</name></expr>:</case>
+
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_MOV</name></expr>;</expr_stmt>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>ut8</name></type> <name>arg</name> <init>= <expr><name><name>data</name><index>[<expr><literal type="number">1</literal></expr>]</index></name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>r_strbuf_setf</name> <argument_list>(<argument><expr><operator>&amp;</operator><name><name>op</name><operator>-&gt;</operator><name>esil</name></name></expr></argument>, <argument><expr><literal type="string">"4,sp,-=,%d,sp,=[4]"</literal></expr></argument>, <argument><expr><name>arg</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block>
+
+<break>break;</break>
+
+<case>case <expr><name>WASM_OP_I64ADD</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_I32ADD</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_F32ADD</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_F64ADD</name></expr>:</case>
+
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_ADD</name></expr>;</expr_stmt>
+
+<break>break;</break>
+
+<case>case <expr><name>WASM_OP_I64SUB</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_I32SUB</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_F32SUB</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_F64SUB</name></expr>:</case>
+
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_SUB</name></expr>;</expr_stmt>
+
+<break>break;</break>
+
+<case>case <expr><name>WASM_OP_NOP</name></expr>:</case>
+
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_NOP</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>r_strbuf_setf</name> <argument_list>(<argument><expr><operator>&amp;</operator><name><name>op</name><operator>-&gt;</operator><name>esil</name></name></expr></argument>, <argument><expr><literal type="string">""</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<break>break;</break>
+
+<case>case <expr><name>WASM_OP_CALL</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_CALLINDIRECT</name></expr>:</case>
+
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_CALL</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>jump</name></name> <operator>=</operator> <call><name>get_cf_offset</name> <argument_list>(<argument><expr><name>anal</name></expr></argument>, <argument><expr><name>data</name></expr></argument>, <argument><expr><name>len</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>fail</name></name> <operator>=</operator> <name>addr</name> <operator>+</operator> <name><name>op</name><operator>-&gt;</operator><name>size</name></name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>op</name><operator>-&gt;</operator><name>jump</name></name> <operator>!=</operator> <name>UT64_MAX</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>ptr</name></name> <operator>=</operator> <name><name>op</name><operator>-&gt;</operator><name>jump</name></name></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>r_strbuf_setf</name> <argument_list>(<argument><expr><operator>&amp;</operator><name><name>op</name><operator>-&gt;</operator><name>esil</name></name></expr></argument>, <argument><expr><literal type="string">"4,sp,-=,0x%"</literal><name>PFMT64x</name><literal type="string">",sp,=[4],0x%"</literal><name>PFMT64x</name><literal type="string">",pc,="</literal></expr></argument>, <argument><expr><name><name>op</name><operator>-&gt;</operator><name>fail</name></name></expr></argument>, <argument><expr><name><name>op</name><operator>-&gt;</operator><name>jump</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<break>break;</break>
+
+<case>case <expr><name>WASM_OP_RETURN</name></expr>:</case>
+
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_CRET</name></expr>;</expr_stmt>
+
+<default>default:</default>
+
+<break>break;</break>
+
+</block_content>}</block></switch>
+
+<break>break;</break>
+
+<case>case <expr><name>WASM_TYPE_OP_ATOMIC</name></expr>:</case>
+
+<switch>switch <condition>(<expr><name><name>wop</name><operator>.</operator><name>op</name><operator>.</operator><name>atomic</name></name></expr>)</condition> <block>{<block_content>
+
+<case>case <expr><name>WASM_OP_I32ATOMICLOAD</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_I64ATOMICLOAD</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_I32ATOMICLOAD8U</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_I32ATOMICLOAD16U</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_I64ATOMICLOAD8U</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_I64ATOMICLOAD16U</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_I64ATOMICLOAD32U</name></expr>:</case>
+
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_LOAD</name></expr>;</expr_stmt>
+
+<break>break;</break>
+
+<case>case <expr><name>WASM_OP_I32ATOMICSTORE</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_I64ATOMICSTORE</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_I32ATOMICSTORE8</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_I32ATOMICSTORE16</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_I64ATOMICSTORE8</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_I64ATOMICSTORE16</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_I64ATOMICSTORE32</name></expr>:</case>
+
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_STORE</name></expr>;</expr_stmt>
+
+<break>break;</break>
+
+<case>case <expr><name>WASM_OP_I32ATOMICRMWADD</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_I64ATOMICRMWADD</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_I32ATOMICRMW8UADD</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_I32ATOMICRMW16UADD</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_I64ATOMICRMW8UADD</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_I64ATOMICRMW16UADD</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_I64ATOMICRMW32UADD</name></expr>:</case>
+
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_ADD</name></expr>;</expr_stmt>
+
+<break>break;</break>
+
+<case>case <expr><name>WASM_OP_I32ATOMICRMW8USUB</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_I32ATOMICRMW16USUB</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_I32ATOMICRMWSUB</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_I64ATOMICRMW8USUB</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_I64ATOMICRMW16USUB</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_I64ATOMICRMW32USUB</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_I64ATOMICRMWSUB</name></expr>:</case>
+
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_SUB</name></expr>;</expr_stmt>
+
+<break>break;</break>
+
+<case>case <expr><name>WASM_OP_I32ATOMICRMWAND</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_I64ATOMICRMWAND</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_I32ATOMICRMW8UAND</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_I32ATOMICRMW16UAND</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_I64ATOMICRMW8UAND</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_I64ATOMICRMW16UAND</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_I64ATOMICRMW32UAND</name></expr>:</case>
+
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_AND</name></expr>;</expr_stmt>
+
+<break>break;</break>
+
+<case>case <expr><name>WASM_OP_I32ATOMICRMWOR</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_I64ATOMICRMWOR</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_I32ATOMICRMW8UOR</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_I32ATOMICRMW16UOR</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_I64ATOMICRMW8UOR</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_I64ATOMICRMW16UOR</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_I64ATOMICRMW32UOR</name></expr>:</case>
+
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_OR</name></expr>;</expr_stmt>
+
+<break>break;</break>
+
+<case>case <expr><name>WASM_OP_I32ATOMICRMWXOR</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_I64ATOMICRMWXOR</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_I32ATOMICRMW8UXOR</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_I32ATOMICRMW16UXOR</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_I64ATOMICRMW8UXOR</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_I64ATOMICRMW16UXOR</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_I64ATOMICRMW32UXOR</name></expr>:</case>
+
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_XOR</name></expr>;</expr_stmt>
+
+<break>break;</break>
+
+<case>case <expr><name>WASM_OP_I32ATOMICRMWXCHG</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_I64ATOMICRMWXCHG</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_I32ATOMICRMW8UXCHG</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_I32ATOMICRMW16UXCHG</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_I64ATOMICRMW8UXCHG</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_I64ATOMICRMW16UXCHG</name></expr>:</case>
+
+<case>case <expr><name>WASM_OP_I64ATOMICRMW32UXCHG</name></expr>:</case>
+
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_XCHG</name></expr>;</expr_stmt>
+
+<break>break;</break>
+
+<default>default:</default>
+
+<break>break;</break>
+
+</block_content>}</block></switch>
+
+<default>default:</default>
+
+<break>break;</break>
+
+</block_content>}</block></switch>
+
+<label><name>anal_end</name>:</label>
+
+<expr_stmt><expr><name>addr_old</name> <operator>=</operator> <name>addr</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>free</name> <argument_list>(<argument><expr><name><name>wop</name><operator>.</operator><name>txt</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>r_anal_hint_free</name> <argument_list>(<argument><expr><name>hint</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name><name>op</name><operator>-&gt;</operator><name>size</name></name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>archinfo</name><parameter_list>(<parameter><decl><type><name>RAnal</name> <modifier>*</modifier></type><name>a</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>q</name></decl></parameter>)</parameter_list> <block>{<block_content>
+
+<return>return <expr><literal type="number">1</literal></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>char</name> <modifier>*</modifier></type><name>get_reg_profile</name><parameter_list>(<parameter><decl><type><name>RAnal</name> <modifier>*</modifier></type><name>anal</name></decl></parameter>)</parameter_list> <block>{<block_content>
+
+<return>return <expr><call><name>strdup</name> <argument_list>(
+
+<argument><expr><literal type="string">"=PC pc\n"</literal>
+
+<literal type="string">"=BP bp\n"</literal>
+
+<literal type="string">"=SP sp\n"</literal>
+
+<literal type="string">"gpr sp .32 0 0\n"</literal> 
+
+<literal type="string">"gpr pc .32 4 0\n"</literal> 
+
+<literal type="string">"gpr bp .32 8 0\n"</literal></expr></argument> 
+
+)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<decl_stmt><decl><type><name>RAnalPlugin</name></type> <name>r_anal_plugin_wasm</name> <init>= <expr><block>{
+
+<expr><operator>.</operator><name>name</name> <operator>=</operator> <literal type="string">"wasm"</literal></expr>,
+
+<expr><operator>.</operator><name>desc</name> <operator>=</operator> <literal type="string">"WebAssembly analysis plugin"</literal></expr>,
+
+<expr><operator>.</operator><name>license</name> <operator>=</operator> <literal type="string">"LGPL3"</literal></expr>,
+
+<expr><operator>.</operator><name>arch</name> <operator>=</operator> <literal type="string">"wasm"</literal></expr>,
+
+<expr><operator>.</operator><name>bits</name> <operator>=</operator> <literal type="number">64</literal></expr>,
+
+<expr><operator>.</operator><name>archinfo</name> <operator>=</operator> <name>archinfo</name></expr>,
+
+<expr><operator>.</operator><name>get_reg_profile</name> <operator>=</operator> <name>get_reg_profile</name></expr>,
+
+<expr><operator>.</operator><name>op</name> <operator>=</operator> <operator>&amp;</operator><name>wasm_op</name></expr>,
+
+<expr><operator>.</operator><name>esil</name> <operator>=</operator> <name>true</name></expr>
+
+}</block></expr></init></decl>;</decl_stmt>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><operator>!</operator><call><name>defined</name><argument_list>(<argument><expr><name>R2_PLUGIN_INCORE</name></expr></argument>)</argument_list></call></expr></cpp:if>
+<decl_stmt><decl><type><name>R_API</name> <name>RLibStruct</name></type> <name>radare_plugin</name> <init>= <expr><block>{
+
+<expr><operator>.</operator><name>type</name> <operator>=</operator> <name>R_LIB_TYPE_ANAL</name></expr>,
+
+<expr><operator>.</operator><name>data</name> <operator>=</operator> <operator>&amp;</operator><name>r_anal_plugin_wasm</name></expr>,
+
+<expr><operator>.</operator><name>version</name> <operator>=</operator> <name>R2_VERSION</name></expr>
+
+}</block></expr></init></decl>;</decl_stmt>
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+</unit>

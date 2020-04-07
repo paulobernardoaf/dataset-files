@@ -1,0 +1,15 @@
+#include "pthread.h"
+#include "implement.h"
+int
+pthread_condattr_init (pthread_condattr_t * attr)
+{
+pthread_condattr_t attr_result;
+int result = 0;
+attr_result = (pthread_condattr_t) calloc (1, sizeof (*attr_result));
+if (attr_result == NULL)
+{
+result = ENOMEM;
+}
+*attr = attr_result;
+return result;
+} 

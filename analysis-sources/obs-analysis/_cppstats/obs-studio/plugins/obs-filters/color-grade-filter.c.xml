@@ -1,0 +1,702 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" revision="1.0.0" language="C" filename="D:\Pesquisa\Projects\obs-analysis\_cppstats\obs-studio\plugins\obs-filters\color-grade-filter.c"><cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;obs-module.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;graphics/half.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;graphics/image-file.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;util/dstr.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;util/platform.h&gt;</cpp:file></cpp:include>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>SETTING_IMAGE_PATH</name></cpp:macro> <cpp:value>"image_path"</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>SETTING_CLUT_AMOUNT</name></cpp:macro> <cpp:value>"clut_amount"</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>TEXT_IMAGE_PATH</name></cpp:macro> <cpp:value>obs_module_text("Path")</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>TEXT_AMOUNT</name></cpp:macro> <cpp:value>obs_module_text("Amount")</cpp:value></cpp:define>
+
+<decl_stmt><decl><type><specifier>static</specifier> <specifier>const</specifier> <name>uint32_t</name></type> <name>LUT_WIDTH</name> <init>= <expr><literal type="number">64</literal></expr></init></decl>;</decl_stmt>
+
+<struct>struct <name>lut_filter_data</name> <block>{
+
+<decl_stmt><decl><type><name>obs_source_t</name> <modifier>*</modifier></type><name>context</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>gs_effect_t</name> <modifier>*</modifier></type><name>effect</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>gs_texture_t</name> <modifier>*</modifier></type><name>target</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>gs_image_file_t</name></type> <name>image</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>uint32_t</name></type> <name>cube_width</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>void</name> <modifier>*</modifier></type><name>cube_data</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>char</name> <modifier>*</modifier></type><name>file</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>float</name></type> <name>clut_amount</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>float</name></type> <name>clut_scale</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>float</name></type> <name>clut_offset</name></decl>;</decl_stmt>
+
+}</block>;</struct>
+
+<function><type><specifier>static</specifier> <specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>color_grade_filter_get_name</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>unused</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>UNUSED_PARAMETER</name><argument_list>(<argument><expr><name>unused</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><call><name>obs_module_text</name><argument_list>(<argument><expr><literal type="string">"ColorGradeFilter"</literal></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>gs_texture_t</name> <modifier>*</modifier></type><name>make_clut_texture_png</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name><name>enum</name> <name>gs_color_format</name></name></type> <name>format</name></decl></parameter>,
+
+<parameter><decl><type><specifier>const</specifier> <name>uint32_t</name></type> <name>image_width</name></decl></parameter>,
+
+<parameter><decl><type><specifier>const</specifier> <name>uint32_t</name></type> <name>image_height</name></decl></parameter>,
+
+<parameter><decl><type><specifier>const</specifier> <name>uint8_t</name> <modifier>*</modifier></type><name>data</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><name>image_width</name> <operator>%</operator> <name>LUT_WIDTH</name> <operator>!=</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>NULL</name></expr>;</return></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>image_height</name> <operator>%</operator> <name>LUT_WIDTH</name> <operator>!=</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>NULL</name></expr>;</return></block_content></block></if></if_stmt>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>uint32_t</name></type> <name>pixel_count</name> <init>= <expr><name>LUT_WIDTH</name> <operator>*</operator> <name>LUT_WIDTH</name> <operator>*</operator> <name>LUT_WIDTH</name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>(</operator><name>image_width</name> <operator>*</operator> <name>image_height</name><operator>)</operator> <operator>!=</operator> <name>pixel_count</name></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>NULL</name></expr>;</return></block_content></block></if></if_stmt>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>uint32_t</name></type> <name>bpp</name> <init>= <expr><call><name>gs_get_format_bpp</name><argument_list>(<argument><expr><name>format</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>bpp</name> <operator>%</operator> <literal type="number">8</literal> <operator>!=</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>NULL</name></expr>;</return></block_content></block></if></if_stmt>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>uint32_t</name></type> <name>pixel_size</name> <init>= <expr><name>bpp</name> <operator>/</operator> <literal type="number">8</literal></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>uint32_t</name></type> <name>buffer_size</name> <init>= <expr><name>pixel_size</name> <operator>*</operator> <name>pixel_count</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>uint8_t</name> <modifier>*</modifier><specifier>const</specifier></type> <name>buffer</name> <init>= <expr><call><name>bmalloc</name><argument_list>(<argument><expr><name>buffer_size</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>uint32_t</name></type> <name>macro_width</name> <init>= <expr><name>image_width</name> <operator>/</operator> <name>LUT_WIDTH</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>uint32_t</name></type> <name>macro_height</name> <init>= <expr><name>image_height</name> <operator>/</operator> <name>LUT_WIDTH</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>uint8_t</name> <modifier>*</modifier></type><name>cursor</name> <init>= <expr><name>buffer</name></expr></init></decl>;</decl_stmt>
+
+<for>for <control>(<init><decl><type><name>uint32_t</name></type> <name>z</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>z</name> <operator>&lt;</operator> <name>LUT_WIDTH</name></expr>;</condition> <incr><expr><operator>++</operator><name>z</name></expr></incr>)</control> <block>{<block_content>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>int</name></type> <name>z_x</name> <init>= <expr><operator>(</operator><name>z</name> <operator>%</operator> <name>macro_width</name><operator>)</operator> <operator>*</operator> <name>LUT_WIDTH</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>int</name></type> <name>z_y</name> <init>= <expr><operator>(</operator><name>z</name> <operator>/</operator> <name>macro_height</name><operator>)</operator> <operator>*</operator> <name>LUT_WIDTH</name></expr></init></decl>;</decl_stmt>
+
+<for>for <control>(<init><decl><type><name>uint32_t</name></type> <name>y</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>y</name> <operator>&lt;</operator> <name>LUT_WIDTH</name></expr>;</condition> <incr><expr><operator>++</operator><name>y</name></expr></incr>)</control> <block>{<block_content>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>uint32_t</name></type> <name>row_index</name> <init>= <expr><name>image_width</name> <operator>*</operator> <operator>(</operator><name>z_y</name> <operator>+</operator> <name>y</name><operator>)</operator></expr></init></decl>;</decl_stmt>
+
+<for>for <control>(<init><decl><type><name>uint32_t</name></type> <name>x</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>x</name> <operator>&lt;</operator> <name>LUT_WIDTH</name></expr>;</condition> <incr><expr><operator>++</operator><name>x</name></expr></incr>)</control> <block>{<block_content>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>uint32_t</name></type> <name>index</name> <init>= <expr><name>row_index</name> <operator>+</operator> <name>z_x</name> <operator>+</operator> <name>x</name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>memcpy</name><argument_list>(<argument><expr><name>cursor</name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>data</name><index>[<expr><name>pixel_size</name> <operator>*</operator> <name>index</name></expr>]</index></name></expr></argument>,
+
+<argument><expr><name>pixel_size</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>cursor</name> <operator>+=</operator> <name>pixel_size</name></expr>;</expr_stmt>
+
+</block_content>}</block></for>
+
+</block_content>}</block></for>
+
+</block_content>}</block></for>
+
+<decl_stmt><decl><type><name>gs_texture_t</name> <modifier>*</modifier><specifier>const</specifier></type> <name>texture</name> <init>=
+
+<expr><call><name>gs_voltexture_create</name><argument_list>(<argument><expr><name>LUT_WIDTH</name></expr></argument>, <argument><expr><name>LUT_WIDTH</name></expr></argument>, <argument><expr><name>LUT_WIDTH</name></expr></argument>, <argument><expr><name>format</name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>,
+
+<argument><expr><operator>(</operator><specifier>const</specifier> <name>uint8_t</name> <operator>*</operator><operator>*</operator><operator>)</operator><operator>&amp;</operator><name>buffer</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>bfree</name><argument_list>(<argument><expr><name>buffer</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>texture</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>bool</name></type> <name>get_cube_entry</name><parameter_list>(<parameter><decl><type><name>FILE</name> <modifier>*</modifier><specifier>const</specifier></type> <name>file</name></decl></parameter>, <parameter><decl><type><name>float</name> <modifier>*</modifier><specifier>const</specifier></type> <name>red</name></decl></parameter>,
+
+<parameter><decl><type><name>float</name> <modifier>*</modifier><specifier>const</specifier></type> <name>green</name></decl></parameter>, <parameter><decl><type><name>float</name> <modifier>*</modifier><specifier>const</specifier></type> <name>blue</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>bool</name></type> <name>data_found</name> <init>= <expr><name>false</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>char</name></type> <name><name>line</name><index>[<expr><literal type="number">256</literal></expr>]</index></name></decl>;</decl_stmt>
+
+<while>while <condition>(<expr><call><name>fgets</name><argument_list>(<argument><expr><name>line</name></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr><name>line</name></expr></argument>)</argument_list></sizeof></expr></argument>, <argument><expr><name>file</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><call><name>sscanf</name><argument_list>(<argument><expr><name>line</name></expr></argument>, <argument><expr><literal type="string">"%f %f %f"</literal></expr></argument>, <argument><expr><name>red</name></expr></argument>, <argument><expr><name>green</name></expr></argument>, <argument><expr><name>blue</name></expr></argument>)</argument_list></call> <operator>==</operator> <literal type="number">3</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>data_found</name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+
+<break>break;</break>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></while>
+
+<return>return <expr><name>data_found</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name> <modifier>*</modifier></type><name>load_1d_lut</name><parameter_list>(<parameter><decl><type><name>FILE</name> <modifier>*</modifier><specifier>const</specifier></type> <name>file</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>uint32_t</name></type> <name>width</name></decl></parameter>, <parameter><decl><type><name>float</name></type> <name>red</name></decl></parameter>,
+
+<parameter><decl><type><name>float</name></type> <name>green</name></decl></parameter>, <parameter><decl><type><name>float</name></type> <name>blue</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>uint32_t</name></type> <name>data_size</name> <init>=
+
+<expr><literal type="number">4</literal> <operator>*</operator> <name>width</name> <operator>*</operator> <name>width</name> <operator>*</operator> <name>width</name> <operator>*</operator> <sizeof>sizeof<argument_list>(<argument><expr>struct <name>half</name></expr></argument>)</argument_list></sizeof></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>half</name></name> <modifier>*</modifier></type><name>values</name> <init>= <expr><call><name>bmalloc</name><argument_list>(<argument><expr><name>data_size</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>bool</name></type> <name>data_found</name> <init>= <expr><name>true</name></expr></init></decl>;</decl_stmt>
+
+<for>for <control>(<init><decl><type><name>uint32_t</name></type> <name>index</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>index</name> <operator>&lt;</operator> <name>width</name></expr>;</condition> <incr><expr><operator>++</operator><name>index</name></expr></incr>)</control> <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>data_found</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>bfree</name><argument_list>(<argument><expr><name>values</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>values</name> <operator>=</operator> <name>NULL</name></expr>;</expr_stmt>
+
+<break>break;</break>
+
+</block_content>}</block></if></if_stmt>
+
+<for>for <control>(<init><decl><type><name>uint32_t</name></type> <name>z</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>z</name> <operator>&lt;</operator> <name>width</name></expr>;</condition> <incr><expr><operator>++</operator><name>z</name></expr></incr>)</control> <block>{<block_content>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>uint32_t</name></type> <name>z_offset</name> <init>= <expr><name>z</name> <operator>*</operator> <name>width</name> <operator>*</operator> <name>width</name></expr></init></decl>;</decl_stmt>
+
+<for>for <control>(<init><decl><type><name>uint32_t</name></type> <name>y</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>y</name> <operator>&lt;</operator> <name>width</name></expr>;</condition> <incr><expr><operator>++</operator><name>y</name></expr></incr>)</control> <block>{<block_content>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>uint32_t</name></type> <name>y_offset</name> <init>= <expr><name>y</name> <operator>*</operator> <name>width</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>uint32_t</name></type> <name>offset</name> <init>=
+
+<expr><literal type="number">4</literal> <operator>*</operator> <operator>(</operator><name>index</name> <operator>+</operator> <name>y_offset</name> <operator>+</operator> <name>z_offset</name><operator>)</operator></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>values</name><index>[<expr><name>offset</name></expr>]</index></name> <operator>=</operator> <call><name>half_from_float</name><argument_list>(<argument><expr><name>red</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>values</name><index>[<expr><name>offset</name> <operator>+</operator> <literal type="number">3</literal></expr>]</index></name> <operator>=</operator>
+
+<call><name>half_from_bits</name><argument_list>(<argument><expr><literal type="number">0x3C00</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt> 
+
+</block_content>}</block></for>
+
+</block_content>}</block></for>
+
+<for>for <control>(<init><decl><type><name>uint32_t</name></type> <name>z</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>z</name> <operator>&lt;</operator> <name>width</name></expr>;</condition> <incr><expr><operator>++</operator><name>z</name></expr></incr>)</control> <block>{<block_content>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>uint32_t</name></type> <name>z_offset</name> <init>= <expr><name>z</name> <operator>*</operator> <name>width</name> <operator>*</operator> <name>width</name></expr></init></decl>;</decl_stmt>
+
+<for>for <control>(<init><decl><type><name>uint32_t</name></type> <name>x</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>x</name> <operator>&lt;</operator> <name>width</name></expr>;</condition> <incr><expr><operator>++</operator><name>x</name></expr></incr>)</control> <block>{<block_content>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>uint32_t</name></type> <name>offset</name> <init>=
+
+<expr><literal type="number">4</literal> <operator>*</operator> <operator>(</operator><name>x</name> <operator>+</operator> <operator>(</operator><name>index</name> <operator>*</operator> <name>width</name><operator>)</operator> <operator>+</operator> <name>z_offset</name><operator>)</operator> <operator>+</operator>
+
+<literal type="number">1</literal></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>values</name><index>[<expr><name>offset</name></expr>]</index></name> <operator>=</operator> <call><name>half_from_float</name><argument_list>(<argument><expr><name>green</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></for>
+
+</block_content>}</block></for>
+
+<for>for <control>(<init><decl><type><name>uint32_t</name></type> <name>y</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>y</name> <operator>&lt;</operator> <name>width</name></expr>;</condition> <incr><expr><operator>++</operator><name>y</name></expr></incr>)</control> <block>{<block_content>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>uint32_t</name></type> <name>y_offset</name> <init>= <expr><name>y</name> <operator>*</operator> <name>width</name></expr></init></decl>;</decl_stmt>
+
+<for>for <control>(<init><decl><type><name>uint32_t</name></type> <name>x</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>x</name> <operator>&lt;</operator> <name>width</name></expr>;</condition> <incr><expr><operator>++</operator><name>x</name></expr></incr>)</control> <block>{<block_content>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>uint32_t</name></type> <name>offset</name> <init>=
+
+<expr><literal type="number">4</literal> <operator>*</operator> <operator>(</operator><name>x</name> <operator>+</operator> <name>y_offset</name> <operator>+</operator>
+
+<operator>(</operator><name>index</name> <operator>*</operator> <name>width</name> <operator>*</operator> <name>width</name><operator>)</operator><operator>)</operator> <operator>+</operator>
+
+<literal type="number">2</literal></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>values</name><index>[<expr><name>offset</name></expr>]</index></name> <operator>=</operator> <call><name>half_from_float</name><argument_list>(<argument><expr><name>blue</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></for>
+
+</block_content>}</block></for>
+
+<expr_stmt><expr><name>data_found</name> <operator>=</operator> <call><name>get_cube_entry</name><argument_list>(<argument><expr><name>file</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>red</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>green</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>blue</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></for>
+
+<return>return <expr><name>values</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name> <modifier>*</modifier></type><name>load_3d_lut</name><parameter_list>(<parameter><decl><type><name>FILE</name> <modifier>*</modifier><specifier>const</specifier></type> <name>file</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>uint32_t</name></type> <name>width</name></decl></parameter>, <parameter><decl><type><name>float</name></type> <name>red</name></decl></parameter>,
+
+<parameter><decl><type><name>float</name></type> <name>green</name></decl></parameter>, <parameter><decl><type><name>float</name></type> <name>blue</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>uint32_t</name></type> <name>data_size</name> <init>=
+
+<expr><literal type="number">4</literal> <operator>*</operator> <name>width</name> <operator>*</operator> <name>width</name> <operator>*</operator> <name>width</name> <operator>*</operator> <sizeof>sizeof<argument_list>(<argument><expr>struct <name>half</name></expr></argument>)</argument_list></sizeof></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>half</name></name> <modifier>*</modifier></type><name>values</name> <init>= <expr><call><name>bmalloc</name><argument_list>(<argument><expr><name>data_size</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>size_t</name></type> <name>offset</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>bool</name></type> <name>data_found</name> <init>= <expr><name>true</name></expr></init></decl>;</decl_stmt>
+
+<for>for <control>(<init><decl><type><name>uint32_t</name></type> <name>z</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>z</name> <operator>&lt;</operator> <name>width</name></expr>;</condition> <incr><expr><operator>++</operator><name>z</name></expr></incr>)</control> <block>{<block_content>
+
+<for>for <control>(<init><decl><type><name>uint32_t</name></type> <name>y</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>y</name> <operator>&lt;</operator> <name>width</name></expr>;</condition> <incr><expr><operator>++</operator><name>y</name></expr></incr>)</control> <block>{<block_content>
+
+<for>for <control>(<init><decl><type><name>uint32_t</name></type> <name>x</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>x</name> <operator>&lt;</operator> <name>width</name></expr>;</condition> <incr><expr><operator>++</operator><name>x</name></expr></incr>)</control> <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>data_found</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>bfree</name><argument_list>(<argument><expr><name>values</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>values</name> <operator>=</operator> <name>NULL</name></expr>;</expr_stmt>
+
+<break>break;</break>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>values</name><index>[<expr><name>offset</name><operator>++</operator></expr>]</index></name> <operator>=</operator> <call><name>half_from_float</name><argument_list>(<argument><expr><name>red</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>values</name><index>[<expr><name>offset</name><operator>++</operator></expr>]</index></name> <operator>=</operator> <call><name>half_from_float</name><argument_list>(<argument><expr><name>green</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>values</name><index>[<expr><name>offset</name><operator>++</operator></expr>]</index></name> <operator>=</operator> <call><name>half_from_float</name><argument_list>(<argument><expr><name>blue</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>values</name><index>[<expr><name>offset</name><operator>++</operator></expr>]</index></name> <operator>=</operator>
+
+<call><name>half_from_bits</name><argument_list>(<argument><expr><literal type="number">0x3c00</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt> 
+
+<expr_stmt><expr><name>data_found</name> <operator>=</operator> <call><name>get_cube_entry</name><argument_list>(<argument><expr><name>file</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>red</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>green</name></expr></argument>,
+
+<argument><expr><operator>&amp;</operator><name>blue</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></for>
+
+</block_content>}</block></for>
+
+</block_content>}</block></for>
+
+<return>return <expr><name>values</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name> <modifier>*</modifier></type><name>load_cube_file</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier><specifier>const</specifier></type> <name>path</name></decl></parameter>, <parameter><decl><type><name>uint32_t</name> <modifier>*</modifier><specifier>const</specifier></type> <name>width</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name> <init>= <expr><name>NULL</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>FILE</name> <modifier>*</modifier><specifier>const</specifier></type> <name>file</name> <init>= <expr><call><name>os_fopen</name><argument_list>(<argument><expr><name>path</name></expr></argument>, <argument><expr><literal type="string">"rb"</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>file</name></expr>)</condition> <block>{<block_content>
+
+<decl_stmt><decl><type><name>float</name></type> <name><name>min_value</name><index>[]</index></name> <init>= <expr><block>{<expr><literal type="number">0.0f</literal></expr>, <expr><literal type="number">0.0f</literal></expr>, <expr><literal type="number">0.0f</literal></expr>}</block></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>float</name></type> <name><name>max_value</name><index>[]</index></name> <init>= <expr><block>{<expr><literal type="number">1.0f</literal></expr>, <expr><literal type="number">1.0f</literal></expr>, <expr><literal type="number">1.0f</literal></expr>}</block></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>float</name></type> <name>red</name></decl>, <decl><type ref="prev"/><name>green</name></decl>, <decl><type ref="prev"/><name>blue</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>unsigned</name></type> <name>width_1d</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>unsigned</name></type> <name>width_3d</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>bool</name></type> <name>data_found</name> <init>= <expr><name>false</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>char</name></type> <name><name>line</name><index>[<expr><literal type="number">256</literal></expr>]</index></name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>unsigned</name></type> <name>u</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>float</name></type> <name><name>f</name><index>[<expr><literal type="number">3</literal></expr>]</index></name></decl>;</decl_stmt>
+
+<while>while <condition>(<expr><call><name>fgets</name><argument_list>(<argument><expr><name>line</name></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr><name>line</name></expr></argument>)</argument_list></sizeof></expr></argument>, <argument><expr><name>file</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><call><name>sscanf</name><argument_list>(<argument><expr><name>line</name></expr></argument>, <argument><expr><literal type="string">"%f %f %f"</literal></expr></argument>, <argument><expr><operator>&amp;</operator><name>red</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>green</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>blue</name></expr></argument>)</argument_list></call> <operator>==</operator>
+
+<literal type="number">3</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>data_found</name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+
+<break>break;</break>
+
+</block_content>}</block></if> <if type="elseif">else if <condition>(<expr><call><name>sscanf</name><argument_list>(<argument><expr><name>line</name></expr></argument>, <argument><expr><literal type="string">"DOMAIN_MIN %f %f %f"</literal></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>f</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>,
+
+<argument><expr><operator>&amp;</operator><name><name>f</name><index>[<expr><literal type="number">1</literal></expr>]</index></name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>f</name><index>[<expr><literal type="number">2</literal></expr>]</index></name></expr></argument>)</argument_list></call> <operator>==</operator> <literal type="number">3</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name><name>min_value</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>=</operator> <name><name>f</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>min_value</name><index>[<expr><literal type="number">1</literal></expr>]</index></name> <operator>=</operator> <name><name>f</name><index>[<expr><literal type="number">1</literal></expr>]</index></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>min_value</name><index>[<expr><literal type="number">2</literal></expr>]</index></name> <operator>=</operator> <name><name>f</name><index>[<expr><literal type="number">2</literal></expr>]</index></name></expr>;</expr_stmt>
+
+</block_content>}</block></if> <if type="elseif">else if <condition>(<expr><call><name>sscanf</name><argument_list>(<argument><expr><name>line</name></expr></argument>, <argument><expr><literal type="string">"DOMAIN_MAX %f %f %f"</literal></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>f</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>,
+
+<argument><expr><operator>&amp;</operator><name><name>f</name><index>[<expr><literal type="number">1</literal></expr>]</index></name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>f</name><index>[<expr><literal type="number">2</literal></expr>]</index></name></expr></argument>)</argument_list></call> <operator>==</operator> <literal type="number">3</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name><name>max_value</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>=</operator> <name><name>f</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>max_value</name><index>[<expr><literal type="number">1</literal></expr>]</index></name> <operator>=</operator> <name><name>f</name><index>[<expr><literal type="number">1</literal></expr>]</index></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>max_value</name><index>[<expr><literal type="number">2</literal></expr>]</index></name> <operator>=</operator> <name><name>f</name><index>[<expr><literal type="number">2</literal></expr>]</index></name></expr>;</expr_stmt>
+
+</block_content>}</block></if> <if type="elseif">else if <condition>(<expr><call><name>sscanf</name><argument_list>(<argument><expr><name>line</name></expr></argument>, <argument><expr><literal type="string">"LUT_1D_SIZE %u"</literal></expr></argument>, <argument><expr><operator>&amp;</operator><name>u</name></expr></argument>)</argument_list></call> <operator>==</operator> <literal type="number">1</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>width_1d</name> <operator>=</operator> <name>u</name></expr>;</expr_stmt>
+
+</block_content>}</block></if> <if type="elseif">else if <condition>(<expr><call><name>sscanf</name><argument_list>(<argument><expr><name>line</name></expr></argument>, <argument><expr><literal type="string">"LUT_3D_SIZE %u"</literal></expr></argument>, <argument><expr><operator>&amp;</operator><name>u</name></expr></argument>)</argument_list></call> <operator>==</operator> <literal type="number">1</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>width_3d</name> <operator>=</operator> <name>u</name></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></while>
+
+<if_stmt><if>if <condition>(<expr><name>data_found</name></expr>)</condition> <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><name>width_1d</name> <operator>&gt;</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>data</name> <operator>=</operator> <call><name>load_1d_lut</name><argument_list>(<argument><expr><name>file</name></expr></argument>, <argument><expr><name>width_1d</name></expr></argument>, <argument><expr><name>red</name></expr></argument>, <argument><expr><name>green</name></expr></argument>,
+
+<argument><expr><name>blue</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>data</name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><operator>*</operator><name>width</name> <operator>=</operator> <name>width_1d</name></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+</block_content>}</block></if> <if type="elseif">else if <condition>(<expr><name>width_3d</name> <operator>&gt;</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>data</name> <operator>=</operator> <call><name>load_3d_lut</name><argument_list>(<argument><expr><name>file</name></expr></argument>, <argument><expr><name>width_3d</name></expr></argument>, <argument><expr><name>red</name></expr></argument>, <argument><expr><name>green</name></expr></argument>,
+
+<argument><expr><name>blue</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>data</name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><operator>*</operator><name>width</name> <operator>=</operator> <name>width_3d</name></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>fclose</name><argument_list>(<argument><expr><name>file</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<return>return <expr><name>data</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>color_grade_filter_update</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>, <parameter><decl><type><name>obs_data_t</name> <modifier>*</modifier></type><name>settings</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>lut_filter_data</name></name> <modifier>*</modifier></type><name>filter</name> <init>= <expr><name>data</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>path</name> <init>= <expr><call><name>obs_data_get_string</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><name>SETTING_IMAGE_PATH</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>path</name> <operator>&amp;&amp;</operator> <operator>(</operator><operator>*</operator><name>path</name> <operator>==</operator> <literal type="char">'\0'</literal><operator>)</operator></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name>path</name> <operator>=</operator> <name>NULL</name></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>double</name></type> <name>clut_amount</name> <init>=
+
+<expr><call><name>obs_data_get_double</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><name>SETTING_CLUT_AMOUNT</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>bfree</name><argument_list>(<argument><expr><name><name>filter</name><operator>-&gt;</operator><name>file</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>path</name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name><name>filter</name><operator>-&gt;</operator><name>file</name></name> <operator>=</operator> <call><name>bstrdup</name><argument_list>(<argument><expr><name>path</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if>
+
+<else>else<block type="pseudo"><block_content>
+
+<expr_stmt><expr><name><name>filter</name><operator>-&gt;</operator><name>file</name></name> <operator>=</operator> <name>NULL</name></expr>;</expr_stmt></block_content></block></else></if_stmt>
+
+<expr_stmt><expr><call><name>bfree</name><argument_list>(<argument><expr><name><name>filter</name><operator>-&gt;</operator><name>cube_data</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>filter</name><operator>-&gt;</operator><name>cube_data</name></name> <operator>=</operator> <name>NULL</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_enter_graphics</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>gs_image_file_free</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>filter</name><operator>-&gt;</operator><name>image</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>gs_voltexture_destroy</name><argument_list>(<argument><expr><name><name>filter</name><operator>-&gt;</operator><name>target</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>filter</name><operator>-&gt;</operator><name>target</name></name> <operator>=</operator> <name>NULL</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_leave_graphics</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>path</name></expr>)</condition> <block>{<block_content>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier><specifier>const</specifier></type> <name>ext</name> <init>= <expr><call><name>os_get_path_extension</name><argument_list>(<argument><expr><name>path</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>ext</name> <operator>&amp;&amp;</operator> <call><name>astrcmpi</name><argument_list>(<argument><expr><name>ext</name></expr></argument>, <argument><expr><literal type="string">".cube"</literal></expr></argument>)</argument_list></call> <operator>==</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name><name>filter</name><operator>-&gt;</operator><name>cube_data</name></name> <operator>=</operator>
+
+<call><name>load_cube_file</name><argument_list>(<argument><expr><name>path</name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>filter</name><operator>-&gt;</operator><name>cube_width</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<expr_stmt><expr><call><name>gs_image_file_init</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>filter</name><operator>-&gt;</operator><name>image</name></name></expr></argument>, <argument><expr><name>path</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>obs_enter_graphics</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>path</name></expr>)</condition> <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><name><name>filter</name><operator>-&gt;</operator><name>image</name><operator>.</operator><name>loaded</name></name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name><name>filter</name><operator>-&gt;</operator><name>target</name></name> <operator>=</operator> <call><name>make_clut_texture_png</name><argument_list>(
+
+<argument><expr><name><name>filter</name><operator>-&gt;</operator><name>image</name><operator>.</operator><name>format</name></name></expr></argument>, <argument><expr><name><name>filter</name><operator>-&gt;</operator><name>image</name><operator>.</operator><name>cx</name></name></expr></argument>,
+
+<argument><expr><name><name>filter</name><operator>-&gt;</operator><name>image</name><operator>.</operator><name>cy</name></name></expr></argument>, <argument><expr><name><name>filter</name><operator>-&gt;</operator><name>image</name><operator>.</operator><name>texture_data</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>filter</name><operator>-&gt;</operator><name>clut_scale</name></name> <operator>=</operator>
+
+<operator>(</operator><name>float</name><operator>)</operator><operator>(</operator><name>LUT_WIDTH</name> <operator>-</operator> <literal type="number">1</literal><operator>)</operator> <operator>/</operator> <operator>(</operator><name>float</name><operator>)</operator><name>LUT_WIDTH</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>filter</name><operator>-&gt;</operator><name>clut_offset</name></name> <operator>=</operator> <literal type="number">0.5f</literal> <operator>/</operator> <operator>(</operator><name>float</name><operator>)</operator><name>LUT_WIDTH</name></expr>;</expr_stmt>
+
+</block_content>}</block></if> <if type="elseif">else if <condition>(<expr><name><name>filter</name><operator>-&gt;</operator><name>cube_data</name></name></expr>)</condition> <block>{<block_content>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>uint32_t</name></type> <name>width</name> <init>= <expr><name><name>filter</name><operator>-&gt;</operator><name>cube_width</name></name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>filter</name><operator>-&gt;</operator><name>target</name></name> <operator>=</operator> <call><name>gs_voltexture_create</name><argument_list>(
+
+<argument><expr><name>width</name></expr></argument>, <argument><expr><name>width</name></expr></argument>, <argument><expr><name>width</name></expr></argument>, <argument><expr><name>GS_RGBA16F</name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>,
+
+<argument><expr><operator>(</operator><name>uint8_t</name> <operator>*</operator><operator>*</operator><operator>)</operator><operator>&amp;</operator><name><name>filter</name><operator>-&gt;</operator><name>cube_data</name></name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>filter</name><operator>-&gt;</operator><name>clut_scale</name></name> <operator>=</operator> <operator>(</operator><name>float</name><operator>)</operator><operator>(</operator><name>width</name> <operator>-</operator> <literal type="number">1</literal><operator>)</operator> <operator>/</operator> <operator>(</operator><name>float</name><operator>)</operator><name>width</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>filter</name><operator>-&gt;</operator><name>clut_offset</name></name> <operator>=</operator> <literal type="number">0.5f</literal> <operator>/</operator> <operator>(</operator><name>float</name><operator>)</operator><name>width</name></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>filter</name><operator>-&gt;</operator><name>clut_amount</name></name> <operator>=</operator> <operator>(</operator><name>float</name><operator>)</operator><name>clut_amount</name></expr>;</expr_stmt>
+
+<decl_stmt><decl><type><name>char</name> <modifier>*</modifier></type><name>effect_path</name> <init>= <expr><call><name>obs_module_file</name><argument_list>(<argument><expr><literal type="string">"color_grade_filter.effect"</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>gs_effect_destroy</name><argument_list>(<argument><expr><name><name>filter</name><operator>-&gt;</operator><name>effect</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>filter</name><operator>-&gt;</operator><name>effect</name></name> <operator>=</operator> <call><name>gs_effect_create_from_file</name><argument_list>(<argument><expr><name>effect_path</name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>bfree</name><argument_list>(<argument><expr><name>effect_path</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_leave_graphics</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>color_grade_filter_defaults</name><parameter_list>(<parameter><decl><type><name>obs_data_t</name> <modifier>*</modifier></type><name>settings</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>obs_data_set_default_double</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><name>SETTING_CLUT_AMOUNT</name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>obs_properties_t</name> <modifier>*</modifier></type><name>color_grade_filter_properties</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>lut_filter_data</name></name> <modifier>*</modifier></type><name>s</name> <init>= <expr><name>data</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>dstr</name></name></type> <name>path</name> <init>= <expr><block>{<expr><literal type="number">0</literal></expr>}</block></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>slash</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>obs_properties_t</name> <modifier>*</modifier></type><name>props</name> <init>= <expr><call><name>obs_properties_create</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>dstr</name></name></type> <name>filter_str</name> <init>= <expr><block>{<expr><literal type="number">0</literal></expr>}</block></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>dstr_cat</name><argument_list>(<argument><expr><operator>&amp;</operator><name>filter_str</name></expr></argument>, <argument><expr><literal type="string">"(*.cube *.png)"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>s</name> <operator>&amp;&amp;</operator> <name><name>s</name><operator>-&gt;</operator><name>file</name></name> <operator>&amp;&amp;</operator> <operator>*</operator><name><name>s</name><operator>-&gt;</operator><name>file</name></name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>dstr_copy</name><argument_list>(<argument><expr><operator>&amp;</operator><name>path</name></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>file</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<decl_stmt><decl><type><name>char</name> <modifier>*</modifier></type><name>lut_dir</name> <init>= <expr><call><name>obs_module_file</name><argument_list>(<argument><expr><literal type="string">"LUTs"</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>dstr_copy</name><argument_list>(<argument><expr><operator>&amp;</operator><name>path</name></expr></argument>, <argument><expr><name>lut_dir</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>dstr_cat_ch</name><argument_list>(<argument><expr><operator>&amp;</operator><name>path</name></expr></argument>, <argument><expr><literal type="char">'/'</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>bfree</name><argument_list>(<argument><expr><name>lut_dir</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+<expr_stmt><expr><call><name>dstr_replace</name><argument_list>(<argument><expr><operator>&amp;</operator><name>path</name></expr></argument>, <argument><expr><literal type="string">"\\"</literal></expr></argument>, <argument><expr><literal type="string">"/"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>slash</name> <operator>=</operator> <call><name>strrchr</name><argument_list>(<argument><expr><name><name>path</name><operator>.</operator><name>array</name></name></expr></argument>, <argument><expr><literal type="char">'/'</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>slash</name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>dstr_resize</name><argument_list>(<argument><expr><operator>&amp;</operator><name>path</name></expr></argument>, <argument><expr><name>slash</name> <operator>-</operator> <name><name>path</name><operator>.</operator><name>array</name></name> <operator>+</operator> <literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>obs_properties_add_path</name><argument_list>(<argument><expr><name>props</name></expr></argument>, <argument><expr><name>SETTING_IMAGE_PATH</name></expr></argument>, <argument><expr><name>TEXT_IMAGE_PATH</name></expr></argument>,
+
+<argument><expr><name>OBS_PATH_FILE</name></expr></argument>, <argument><expr><name><name>filter_str</name><operator>.</operator><name>array</name></name></expr></argument>, <argument><expr><name><name>path</name><operator>.</operator><name>array</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_properties_add_float_slider</name><argument_list>(<argument><expr><name>props</name></expr></argument>, <argument><expr><name>SETTING_CLUT_AMOUNT</name></expr></argument>, <argument><expr><name>TEXT_AMOUNT</name></expr></argument>,
+
+<argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>, <argument><expr><literal type="number">0.01</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>dstr_free</name><argument_list>(<argument><expr><operator>&amp;</operator><name>filter_str</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>dstr_free</name><argument_list>(<argument><expr><operator>&amp;</operator><name>path</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>UNUSED_PARAMETER</name><argument_list>(<argument><expr><name>data</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>props</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name> <modifier>*</modifier></type><name>color_grade_filter_create</name><parameter_list>(<parameter><decl><type><name>obs_data_t</name> <modifier>*</modifier></type><name>settings</name></decl></parameter>,
+
+<parameter><decl><type><name>obs_source_t</name> <modifier>*</modifier></type><name>context</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>lut_filter_data</name></name> <modifier>*</modifier></type><name>filter</name> <init>=
+
+<expr><call><name>bzalloc</name><argument_list>(<argument><expr><sizeof>sizeof<argument_list>(<argument><expr>struct <name>lut_filter_data</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>filter</name><operator>-&gt;</operator><name>context</name></name> <operator>=</operator> <name>context</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_source_update</name><argument_list>(<argument><expr><name>context</name></expr></argument>, <argument><expr><name>settings</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>filter</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>color_grade_filter_destroy</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>lut_filter_data</name></name> <modifier>*</modifier></type><name>filter</name> <init>= <expr><name>data</name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>obs_enter_graphics</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>gs_effect_destroy</name><argument_list>(<argument><expr><name><name>filter</name><operator>-&gt;</operator><name>effect</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>gs_voltexture_destroy</name><argument_list>(<argument><expr><name><name>filter</name><operator>-&gt;</operator><name>target</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>gs_image_file_free</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>filter</name><operator>-&gt;</operator><name>image</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_leave_graphics</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>bfree</name><argument_list>(<argument><expr><name><name>filter</name><operator>-&gt;</operator><name>cube_data</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>bfree</name><argument_list>(<argument><expr><name><name>filter</name><operator>-&gt;</operator><name>file</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>bfree</name><argument_list>(<argument><expr><name>filter</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>color_grade_filter_render</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>, <parameter><decl><type><name>gs_effect_t</name> <modifier>*</modifier></type><name>effect</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>lut_filter_data</name></name> <modifier>*</modifier></type><name>filter</name> <init>= <expr><name>data</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>obs_source_t</name> <modifier>*</modifier></type><name>target</name> <init>= <expr><call><name>obs_filter_get_target</name><argument_list>(<argument><expr><name><name>filter</name><operator>-&gt;</operator><name>context</name></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>gs_eparam_t</name> <modifier>*</modifier></type><name>param</name></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>target</name> <operator>||</operator> <operator>!</operator><name><name>filter</name><operator>-&gt;</operator><name>target</name></name> <operator>||</operator> <operator>!</operator><name><name>filter</name><operator>-&gt;</operator><name>effect</name></name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>obs_source_skip_video_filter</name><argument_list>(<argument><expr><name><name>filter</name><operator>-&gt;</operator><name>context</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>obs_source_process_filter_begin</name><argument_list>(<argument><expr><name><name>filter</name><operator>-&gt;</operator><name>context</name></name></expr></argument>, <argument><expr><name>GS_RGBA</name></expr></argument>,
+
+<argument><expr><name>OBS_ALLOW_DIRECT_RENDERING</name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>param</name> <operator>=</operator> <call><name>gs_effect_get_param_by_name</name><argument_list>(<argument><expr><name><name>filter</name><operator>-&gt;</operator><name>effect</name></name></expr></argument>, <argument><expr><literal type="string">"clut"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>gs_effect_set_texture</name><argument_list>(<argument><expr><name>param</name></expr></argument>, <argument><expr><name><name>filter</name><operator>-&gt;</operator><name>target</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>param</name> <operator>=</operator> <call><name>gs_effect_get_param_by_name</name><argument_list>(<argument><expr><name><name>filter</name><operator>-&gt;</operator><name>effect</name></name></expr></argument>, <argument><expr><literal type="string">"clut_amount"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>gs_effect_set_float</name><argument_list>(<argument><expr><name>param</name></expr></argument>, <argument><expr><name><name>filter</name><operator>-&gt;</operator><name>clut_amount</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>param</name> <operator>=</operator> <call><name>gs_effect_get_param_by_name</name><argument_list>(<argument><expr><name><name>filter</name><operator>-&gt;</operator><name>effect</name></name></expr></argument>, <argument><expr><literal type="string">"clut_scale"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>gs_effect_set_float</name><argument_list>(<argument><expr><name>param</name></expr></argument>, <argument><expr><name><name>filter</name><operator>-&gt;</operator><name>clut_scale</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>param</name> <operator>=</operator> <call><name>gs_effect_get_param_by_name</name><argument_list>(<argument><expr><name><name>filter</name><operator>-&gt;</operator><name>effect</name></name></expr></argument>, <argument><expr><literal type="string">"clut_offset"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>gs_effect_set_float</name><argument_list>(<argument><expr><name>param</name></expr></argument>, <argument><expr><name><name>filter</name><operator>-&gt;</operator><name>clut_offset</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_source_process_filter_end</name><argument_list>(<argument><expr><name><name>filter</name><operator>-&gt;</operator><name>context</name></name></expr></argument>, <argument><expr><name><name>filter</name><operator>-&gt;</operator><name>effect</name></name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>UNUSED_PARAMETER</name><argument_list>(<argument><expr><name>effect</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>obs_source_info</name></name></type> <name>color_grade_filter</name> <init>= <expr><block>{
+
+<expr><operator>.</operator><name>id</name> <operator>=</operator> <literal type="string">"clut_filter"</literal></expr>,
+
+<expr><operator>.</operator><name>type</name> <operator>=</operator> <name>OBS_SOURCE_TYPE_FILTER</name></expr>,
+
+<expr><operator>.</operator><name>output_flags</name> <operator>=</operator> <name>OBS_SOURCE_VIDEO</name></expr>,
+
+<expr><operator>.</operator><name>get_name</name> <operator>=</operator> <name>color_grade_filter_get_name</name></expr>,
+
+<expr><operator>.</operator><name>create</name> <operator>=</operator> <name>color_grade_filter_create</name></expr>,
+
+<expr><operator>.</operator><name>destroy</name> <operator>=</operator> <name>color_grade_filter_destroy</name></expr>,
+
+<expr><operator>.</operator><name>update</name> <operator>=</operator> <name>color_grade_filter_update</name></expr>,
+
+<expr><operator>.</operator><name>get_defaults</name> <operator>=</operator> <name>color_grade_filter_defaults</name></expr>,
+
+<expr><operator>.</operator><name>get_properties</name> <operator>=</operator> <name>color_grade_filter_properties</name></expr>,
+
+<expr><operator>.</operator><name>video_render</name> <operator>=</operator> <name>color_grade_filter_render</name></expr>,
+
+}</block></expr></init></decl>;</decl_stmt>
+
+</unit>

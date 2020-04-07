@@ -1,0 +1,64 @@
+
+
+
+
+
+
+
+
+
+
+
+#include "raylib.h"
+
+int main(void)
+{
+
+
+const int screenWidth = 800;
+const int screenHeight = 450;
+
+InitWindow(screenWidth, screenHeight, "raylib [audio] example - sound loading and playing");
+
+InitAudioDevice(); 
+
+Sound fxWav = LoadSound("resources/sound.wav"); 
+Sound fxOgg = LoadSound("resources/tanatana.ogg"); 
+
+SetTargetFPS(60); 
+
+
+
+while (!WindowShouldClose()) 
+{
+
+
+if (IsKeyPressed(KEY_SPACE)) PlaySound(fxWav); 
+if (IsKeyPressed(KEY_ENTER)) PlaySound(fxOgg); 
+
+
+
+
+BeginDrawing();
+
+ClearBackground(RAYWHITE);
+
+DrawText("Press SPACE to PLAY the WAV sound!", 200, 180, 20, LIGHTGRAY);
+DrawText("Press ENTER to PLAY the OGG sound!", 200, 220, 20, LIGHTGRAY);
+
+EndDrawing();
+
+}
+
+
+
+UnloadSound(fxWav); 
+UnloadSound(fxOgg); 
+
+CloseAudioDevice(); 
+
+CloseWindow(); 
+
+
+return 0;
+}

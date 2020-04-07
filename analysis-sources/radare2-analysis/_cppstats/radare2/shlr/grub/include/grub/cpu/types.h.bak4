@@ -1,0 +1,35 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#if !defined(GRUB_TYPES_CPU_HEADER)
+#define GRUB_TYPES_CPU_HEADER 1
+
+
+#define GRUB_TARGET_SIZEOF_VOID_P 4
+
+
+#define GRUB_TARGET_SIZEOF_LONG 4
+
+
+#undef GRUB_TARGET_WORDS_BIGENDIAN
+
+#define GRUB_TARGET_I386 1
+
+#define GRUB_TARGET_MIN_ALIGN 1
+
+#endif 

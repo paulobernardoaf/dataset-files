@@ -1,0 +1,588 @@
+
+
+
+
+
+
+
+
+
+
+#include "ruby/ruby.h"
+#include "ruby/util.h"
+#include <syslog.h>
+
+
+static VALUE mSyslog;
+
+
+
+
+static VALUE mSyslogConstants;
+
+static VALUE mSyslogOption;
+
+static VALUE mSyslogFacility;
+
+static VALUE mSyslogLevel;
+
+static VALUE mSyslogMacros;
+
+static const char *syslog_ident = NULL;
+static int syslog_options = -1, syslog_facility = -1, syslog_mask = -1;
+static int syslog_opened = 0;
+
+
+static void syslog_write(int pri, int argc, VALUE *argv)
+{
+VALUE str;
+
+if (argc < 1) {
+rb_raise(rb_eArgError, "no log message supplied");
+}
+
+if (!syslog_opened) {
+rb_raise(rb_eRuntimeError, "must open syslog before write");
+}
+
+str = rb_f_sprintf(argc, argv);
+
+syslog(pri, "%s", RSTRING_PTR(str));
+}
+
+
+
+
+static VALUE mSyslog_close(VALUE self)
+{
+if (!syslog_opened) {
+rb_raise(rb_eRuntimeError, "syslog not opened");
+}
+
+closelog();
+
+xfree((void *)syslog_ident);
+syslog_ident = NULL;
+syslog_options = syslog_facility = syslog_mask = -1;
+syslog_opened = 0;
+
+return Qnil;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+static VALUE mSyslog_open(int argc, VALUE *argv, VALUE self)
+{
+VALUE ident, opt, fac;
+const char *ident_ptr;
+
+if (syslog_opened) {
+rb_raise(rb_eRuntimeError, "syslog already open");
+}
+
+rb_scan_args(argc, argv, "03", &ident, &opt, &fac);
+
+if (NIL_P(ident)) {
+ident = rb_gv_get("$0");
+}
+ident_ptr = StringValueCStr(ident);
+syslog_ident = strdup(ident_ptr);
+
+if (NIL_P(opt)) {
+syslog_options = LOG_PID | LOG_CONS;
+} else {
+syslog_options = NUM2INT(opt);
+}
+
+if (NIL_P(fac)) {
+syslog_facility = LOG_USER;
+} else {
+syslog_facility = NUM2INT(fac);
+}
+
+openlog(syslog_ident, syslog_options, syslog_facility);
+
+syslog_opened = 1;
+
+setlogmask(syslog_mask = setlogmask(0));
+
+
+if (rb_block_given_p()) {
+rb_ensure(rb_yield, self, mSyslog_close, self);
+}
+
+return self;
+}
+
+
+
+
+
+
+
+
+
+
+static VALUE mSyslog_reopen(int argc, VALUE *argv, VALUE self)
+{
+mSyslog_close(self);
+
+return mSyslog_open(argc, argv, self);
+}
+
+
+
+
+
+
+static VALUE mSyslog_isopen(VALUE self)
+{
+return syslog_opened ? Qtrue : Qfalse;
+}
+
+
+
+static VALUE mSyslog_ident(VALUE self)
+{
+return syslog_opened ? rb_str_new2(syslog_ident) : Qnil;
+}
+
+
+
+static VALUE mSyslog_options(VALUE self)
+{
+return syslog_opened ? INT2NUM(syslog_options) : Qnil;
+}
+
+
+
+static VALUE mSyslog_facility(VALUE self)
+{
+return syslog_opened ? INT2NUM(syslog_facility) : Qnil;
+}
+
+
+
+
+static VALUE mSyslog_get_mask(VALUE self)
+{
+return syslog_opened ? INT2NUM(syslog_mask) : Qnil;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+static VALUE mSyslog_set_mask(VALUE self, VALUE mask)
+{
+if (!syslog_opened) {
+rb_raise(rb_eRuntimeError, "must open syslog before setting log mask");
+}
+
+setlogmask(syslog_mask = NUM2INT(mask));
+
+return mask;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+static VALUE mSyslog_log(int argc, VALUE *argv, VALUE self)
+{
+VALUE pri;
+
+rb_check_arity(argc, 2, UNLIMITED_ARGUMENTS);
+
+argc--;
+pri = *argv++;
+
+if (!FIXNUM_P(pri)) {
+rb_raise(rb_eTypeError, "type mismatch: %"PRIsVALUE" given", rb_obj_class(pri));
+}
+
+syslog_write(FIX2INT(pri), argc, argv);
+
+return self;
+}
+
+
+
+static VALUE mSyslog_inspect(VALUE self)
+{
+Check_Type(self, T_MODULE);
+
+if (!syslog_opened)
+return rb_sprintf("<#%"PRIsVALUE": opened=false>", self);
+
+return rb_sprintf("<#%"PRIsVALUE": opened=true, ident=\"%s\", options=%d, facility=%d, mask=%d>",
+self,
+syslog_ident,
+syslog_options,
+syslog_facility,
+syslog_mask);
+}
+
+
+
+static VALUE mSyslog_instance(VALUE self)
+{
+return self;
+}
+
+#define define_syslog_shortcut_method(pri, name) static VALUE mSyslog_##name(int argc, VALUE *argv, VALUE self) { syslog_write((pri), argc, argv); return self; }
+
+
+
+
+
+
+
+#if defined(LOG_EMERG)
+define_syslog_shortcut_method(LOG_EMERG, emerg)
+#endif
+#if defined(LOG_ALERT)
+define_syslog_shortcut_method(LOG_ALERT, alert)
+#endif
+#if defined(LOG_CRIT)
+define_syslog_shortcut_method(LOG_CRIT, crit)
+#endif
+#if defined(LOG_ERR)
+define_syslog_shortcut_method(LOG_ERR, err)
+#endif
+#if defined(LOG_WARNING)
+define_syslog_shortcut_method(LOG_WARNING, warning)
+#endif
+#if defined(LOG_NOTICE)
+define_syslog_shortcut_method(LOG_NOTICE, notice)
+#endif
+#if defined(LOG_INFO)
+define_syslog_shortcut_method(LOG_INFO, info)
+#endif
+#if defined(LOG_DEBUG)
+define_syslog_shortcut_method(LOG_DEBUG, debug)
+#endif
+
+
+
+
+
+
+static VALUE mSyslogMacros_LOG_MASK(VALUE mod, VALUE pri)
+{
+return INT2FIX(LOG_MASK(NUM2INT(pri)));
+}
+
+
+
+
+
+
+
+static VALUE mSyslogMacros_LOG_UPTO(VALUE mod, VALUE pri)
+{
+return INT2FIX(LOG_UPTO(NUM2INT(pri)));
+}
+
+static VALUE mSyslogMacros_included(VALUE mod, VALUE target)
+{
+rb_extend_object(target, mSyslogMacros);
+return mod;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+void Init_syslog(void)
+{
+#undef rb_intern
+mSyslog = rb_define_module("Syslog");
+
+mSyslogConstants = rb_define_module_under(mSyslog, "Constants");
+
+mSyslogOption = rb_define_module_under(mSyslog, "Option");
+mSyslogFacility = rb_define_module_under(mSyslog, "Facility");
+mSyslogLevel = rb_define_module_under(mSyslog, "Level");
+mSyslogMacros = rb_define_module_under(mSyslog, "Macros");
+
+rb_define_module_function(mSyslog, "open", mSyslog_open, -1);
+rb_define_module_function(mSyslog, "reopen", mSyslog_reopen, -1);
+rb_define_module_function(mSyslog, "open!", mSyslog_reopen, -1);
+rb_define_module_function(mSyslog, "opened?", mSyslog_isopen, 0);
+
+rb_define_module_function(mSyslog, "ident", mSyslog_ident, 0);
+rb_define_module_function(mSyslog, "options", mSyslog_options, 0);
+rb_define_module_function(mSyslog, "facility", mSyslog_facility, 0);
+
+rb_define_module_function(mSyslog, "log", mSyslog_log, -1);
+rb_define_module_function(mSyslog, "close", mSyslog_close, 0);
+rb_define_module_function(mSyslog, "mask", mSyslog_get_mask, 0);
+rb_define_module_function(mSyslog, "mask=", mSyslog_set_mask, 1);
+
+rb_define_singleton_method(mSyslog, "inspect", mSyslog_inspect, 0);
+rb_define_module_function(mSyslog, "instance", mSyslog_instance, 0);
+
+
+
+#define rb_define_syslog_option(c) rb_define_const(mSyslogOption, #c, INT2NUM(c))
+
+
+#if defined(LOG_PID)
+rb_define_syslog_option(LOG_PID);
+#endif
+#if defined(LOG_CONS)
+rb_define_syslog_option(LOG_CONS);
+#endif
+#if defined(LOG_ODELAY)
+rb_define_syslog_option(LOG_ODELAY); 
+#endif
+#if defined(LOG_NDELAY)
+rb_define_syslog_option(LOG_NDELAY);
+#endif
+#if defined(LOG_NOWAIT)
+rb_define_syslog_option(LOG_NOWAIT); 
+#endif
+#if defined(LOG_PERROR)
+rb_define_syslog_option(LOG_PERROR);
+#endif
+
+
+
+#define rb_define_syslog_facility(c) rb_define_const(mSyslogFacility, #c, INT2NUM(c))
+
+
+#if defined(LOG_AUTH)
+rb_define_syslog_facility(LOG_AUTH);
+#endif
+#if defined(LOG_AUTHPRIV)
+rb_define_syslog_facility(LOG_AUTHPRIV);
+#endif
+#if defined(LOG_CONSOLE)
+rb_define_syslog_facility(LOG_CONSOLE);
+#endif
+#if defined(LOG_CRON)
+rb_define_syslog_facility(LOG_CRON);
+#endif
+#if defined(LOG_DAEMON)
+rb_define_syslog_facility(LOG_DAEMON);
+#endif
+#if defined(LOG_FTP)
+rb_define_syslog_facility(LOG_FTP);
+#endif
+#if defined(LOG_KERN)
+rb_define_syslog_facility(LOG_KERN);
+#endif
+#if defined(LOG_LPR)
+rb_define_syslog_facility(LOG_LPR);
+#endif
+#if defined(LOG_MAIL)
+rb_define_syslog_facility(LOG_MAIL);
+#endif
+#if defined(LOG_NEWS)
+rb_define_syslog_facility(LOG_NEWS);
+#endif
+#if defined(LOG_NTP)
+rb_define_syslog_facility(LOG_NTP);
+#endif
+#if defined(LOG_SECURITY)
+rb_define_syslog_facility(LOG_SECURITY);
+#endif
+#if defined(LOG_SYSLOG)
+rb_define_syslog_facility(LOG_SYSLOG);
+#endif
+#if defined(LOG_USER)
+rb_define_syslog_facility(LOG_USER);
+#endif
+#if defined(LOG_UUCP)
+rb_define_syslog_facility(LOG_UUCP);
+#endif
+#if defined(LOG_LOCAL0)
+rb_define_syslog_facility(LOG_LOCAL0);
+#endif
+#if defined(LOG_LOCAL1)
+rb_define_syslog_facility(LOG_LOCAL1);
+#endif
+#if defined(LOG_LOCAL2)
+rb_define_syslog_facility(LOG_LOCAL2);
+#endif
+#if defined(LOG_LOCAL3)
+rb_define_syslog_facility(LOG_LOCAL3);
+#endif
+#if defined(LOG_LOCAL4)
+rb_define_syslog_facility(LOG_LOCAL4);
+#endif
+#if defined(LOG_LOCAL5)
+rb_define_syslog_facility(LOG_LOCAL5);
+#endif
+#if defined(LOG_LOCAL6)
+rb_define_syslog_facility(LOG_LOCAL6);
+#endif
+#if defined(LOG_LOCAL7)
+rb_define_syslog_facility(LOG_LOCAL7);
+#endif
+
+
+
+#define rb_define_syslog_level(c, m) rb_define_const(mSyslogLevel, #c, INT2NUM(c)); rb_define_module_function(mSyslog, #m, mSyslog_##m, -1)
+
+
+
+#if defined(LOG_EMERG)
+rb_define_syslog_level(LOG_EMERG, emerg);
+#endif
+#if defined(LOG_ALERT)
+rb_define_syslog_level(LOG_ALERT, alert);
+#endif
+#if defined(LOG_CRIT)
+rb_define_syslog_level(LOG_CRIT, crit);
+#endif
+#if defined(LOG_ERR)
+rb_define_syslog_level(LOG_ERR, err);
+#endif
+#if defined(LOG_WARNING)
+rb_define_syslog_level(LOG_WARNING, warning);
+#endif
+#if defined(LOG_NOTICE)
+rb_define_syslog_level(LOG_NOTICE, notice);
+#endif
+#if defined(LOG_INFO)
+rb_define_syslog_level(LOG_INFO, info);
+#endif
+#if defined(LOG_DEBUG)
+rb_define_syslog_level(LOG_DEBUG, debug);
+#endif
+
+
+
+rb_define_method(mSyslogMacros, "LOG_MASK", mSyslogMacros_LOG_MASK, 1);
+rb_define_method(mSyslogMacros, "LOG_UPTO", mSyslogMacros_LOG_UPTO, 1);
+rb_define_singleton_method(mSyslogMacros, "included", mSyslogMacros_included, 1);
+
+rb_include_module(mSyslogConstants, mSyslogOption);
+rb_include_module(mSyslogConstants, mSyslogFacility);
+rb_include_module(mSyslogConstants, mSyslogLevel);
+rb_funcall(mSyslogConstants, rb_intern("include"), 1, mSyslogMacros);
+
+rb_define_singleton_method(mSyslogConstants, "included", mSyslogMacros_included, 1);
+rb_funcall(mSyslog, rb_intern("include"), 1, mSyslogConstants);
+}

@@ -1,0 +1,2 @@
+#include "libavutil/pixelutils.h"
+void ff_pixelutils_sad_init_x86(av_pixelutils_sad_fn *sad, int aligned);

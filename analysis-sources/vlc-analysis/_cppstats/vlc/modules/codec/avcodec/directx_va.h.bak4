@@ -1,0 +1,85 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#if !defined(AVCODEC_DIRECTX_VA_H)
+#define AVCODEC_DIRECTX_VA_H
+
+#if !defined(_WIN32_WINNT) || _WIN32_WINNT < 0x0600 
+
+#undef _WIN32_WINNT
+#define _WIN32_WINNT 0x0600 
+#endif
+
+#include <vlc_common.h>
+
+#include <libavcodec/avcodec.h>
+#include "va.h"
+
+#include <unknwn.h>
+#include <stdatomic.h>
+
+#include "va_surface.h"
+
+typedef struct input_list_t {
+void (*pf_release)(struct input_list_t *);
+GUID *list;
+unsigned count;
+} input_list_t;
+
+typedef struct {
+const char *name;
+const GUID *guid;
+int bit_depth;
+struct {
+uint8_t log2_chroma_w;
+uint8_t log2_chroma_h;
+};
+enum AVCodecID codec;
+const int *p_profiles; 
+int workaround;
+} directx_va_mode_t;
+
+#define MAX_SURFACE_COUNT (64)
+typedef struct
+{
+
+
+
+int (*pf_get_input_list)(vlc_va_t *, input_list_t *);
+
+
+
+
+int (*pf_setup_output)(vlc_va_t *, const directx_va_mode_t *, const video_format_t *fmt);
+
+} directx_sys_t;
+
+const directx_va_mode_t * directx_va_Setup(vlc_va_t *, const directx_sys_t *, const AVCodecContext *, const AVPixFmtDescriptor *,
+const es_format_t *, int flag_xbox,
+video_format_t *fmt_out, unsigned *surface_count);
+bool directx_va_canUseDecoder(vlc_va_t *, UINT VendorId, UINT DeviceId, const GUID *pCodec, UINT driverBuild);
+
+#endif 

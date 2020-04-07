@@ -1,0 +1,67 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#if defined(HAVE_CONFIG_H)
+#include "config.h"
+#endif
+
+#include <stdio.h>
+#include <stdlib.h>
+
+#include <vlc_common.h>
+#include <vlc_strings.h>
+
+const char vlc_module_name[] = "test_sort";
+
+static void test_smaller(const char *small, const char *big,
+int (*cmp)(const char *, const char *))
+{
+int ret = cmp(small, big);
+if (ret >= 0) {
+fprintf(stderr, "Failure: \"%s\" %s \"%s\"\n",
+small, ret ? ">" : "==", big);
+exit(1);
+}
+}
+
+static void test_equal(const char *s, int (*cmp)(const char *, const char *))
+{
+int ret = cmp(s, s);
+if (ret != 0) {
+fprintf(stderr, "Failure: \"%s\" %s \"%s\"\n",
+s, (ret < 0) ? "<" : ">", s);
+exit(1);
+}
+}
+
+
+int main (void)
+{
+test_smaller("", "a", vlc_filenamecmp);
+test_smaller("a", "b", vlc_filenamecmp);
+test_smaller("foo1.ogg", "foo2.ogg", vlc_filenamecmp);
+test_smaller("foo2.ogg", "foo10.ogg", vlc_filenamecmp);
+test_smaller("foo1.ogg", "foo10.ogg", vlc_filenamecmp);
+test_smaller("foo01.ogg", "foo1.ogg", vlc_filenamecmp);
+test_equal("", vlc_filenamecmp);
+test_equal("a", vlc_filenamecmp);
+test_equal("123", vlc_filenamecmp);
+return 0;
+}

@@ -1,0 +1,44 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#include "pthread.h"
+#include "implement.h"
+
+
+#include "pthread_key_create.c"
+#include "pthread_key_delete.c"
+#include "pthread_setspecific.c"
+#include "pthread_getspecific.c"

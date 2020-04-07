@@ -1,0 +1,1809 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" revision="1.0.0" language="C" filename="D:\Pesquisa\Projects\vlc-analysis\_cppstats\vlc\modules\audio_output\directsound.c"><cpp:if>#<cpp:directive>if</cpp:directive> <expr><call><name>defined</name><argument_list>(<argument><expr><name>HAVE_CONFIG_H</name></expr></argument>)</argument_list></call></expr></cpp:if>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"config.h"</cpp:file></cpp:include>
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;assert.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;math.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;vlc_common.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;vlc_plugin.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;vlc_aout.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;vlc_charset.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"audio_output/windows_audio_common.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"audio_output/mmdevice.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;mmdeviceapi.h&gt;</cpp:file></cpp:include>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>DS_BUF_SIZE</name></cpp:macro> <cpp:value>(6*1024*1024)</cpp:value></cpp:define>
+
+<function_decl><type><specifier>static</specifier> <name>int</name></type> <name>Open</name><parameter_list>( <parameter><decl><type><name>vlc_object_t</name> <modifier>*</modifier></type></decl></parameter> )</parameter_list>;</function_decl>
+
+<function_decl><type><specifier>static</specifier> <name>void</name></type> <name>Close</name><parameter_list>( <parameter><decl><type><name>vlc_object_t</name> <modifier>*</modifier></type></decl></parameter> )</parameter_list>;</function_decl>
+
+<function_decl><type><specifier>static</specifier> <name>HRESULT</name></type> <name>StreamStart</name><parameter_list>( <parameter><decl><type><name>aout_stream_t</name> <modifier>*</modifier></type></decl></parameter>, <parameter><decl><type><name>audio_sample_format_t</name> <modifier>*</modifier></type></decl></parameter>,
+
+<parameter><decl><type><specifier>const</specifier> <name>GUID</name> <modifier>*</modifier></type></decl></parameter> )</parameter_list>;</function_decl>
+
+<function_decl><type><specifier>static</specifier> <name>void</name> <modifier>*</modifier></type> <name>PlayedDataEraser</name><parameter_list>( <parameter><decl><type><name>void</name> <modifier>*</modifier></type></decl></parameter> )</parameter_list>;</function_decl>
+
+<decl_stmt><decl><type><specifier>static</specifier> <specifier>const</specifier> <name>char</name> <modifier>*</modifier><specifier>const</specifier></type> <name><name>speaker_list</name><index>[]</index></name> <init>= <expr><block>{ <expr><literal type="string">"Windows default"</literal></expr>, <expr><literal type="string">"Mono"</literal></expr>, <expr><literal type="string">"Stereo"</literal></expr>,
+
+<expr><literal type="string">"Quad"</literal></expr>, <expr><literal type="string">"5.1"</literal></expr>, <expr><literal type="string">"7.1"</literal></expr> }</block></expr></init></decl>;</decl_stmt>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>DEVICE_TEXT</name></cpp:macro> <cpp:value>N_("Output device")</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>DEVICE_LONGTEXT</name></cpp:macro> <cpp:value>N_("Select your audio output device")</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>SPEAKER_TEXT</name></cpp:macro> <cpp:value>N_("Speaker configuration")</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>SPEAKER_LONGTEXT</name></cpp:macro> <cpp:value>N_("Select speaker configuration you want to use. " "This option doesn't upmix! So NO e.g. Stereo -&gt; 5.1 conversion." )</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>VOLUME_TEXT</name></cpp:macro> <cpp:value>N_("Audio volume")</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>VOLUME_LONGTEXT</name></cpp:macro> <cpp:value>N_("Audio volume in hundredths of decibels (dB).")</cpp:value></cpp:define>
+
+<macro><name>vlc_module_begin</name> <argument_list>()</argument_list></macro>
+
+<macro><name>set_description</name><argument_list>( <argument>N_(<literal type="string">"DirectX audio output"</literal>)</argument> )</argument_list></macro>
+
+<macro><name>set_shortname</name><argument_list>( <argument><literal type="string">"DirectX"</literal></argument> )</argument_list></macro>
+
+<macro><name>set_capability</name><argument_list>( <argument><literal type="string">"audio output"</literal></argument>, <argument><literal type="number">100</literal></argument> )</argument_list></macro>
+
+<macro><name>set_category</name><argument_list>( <argument>CAT_AUDIO</argument> )</argument_list></macro>
+
+<macro><name>set_subcategory</name><argument_list>( <argument>SUBCAT_AUDIO_AOUT</argument> )</argument_list></macro>
+
+<macro><name>add_shortcut</name><argument_list>( <argument><literal type="string">"directx"</literal></argument>, <argument><literal type="string">"aout_directx"</literal></argument>, <argument><literal type="string">"directsound"</literal></argument>, <argument><literal type="string">"dsound"</literal></argument> )</argument_list></macro>
+
+<macro><name>add_string</name><argument_list>( <argument><literal type="string">"directx-audio-device"</literal></argument>, <argument>NULL</argument>,
+
+<argument>DEVICE_TEXT</argument>, <argument>DEVICE_LONGTEXT</argument>, <argument>false</argument> )</argument_list></macro>
+
+<macro><name>add_obsolete_string</name><argument_list>( <argument><literal type="string">"directx-audio-device-name"</literal></argument>)</argument_list></macro>
+
+<macro><name>add_bool</name><argument_list>( <argument><literal type="string">"directx-audio-float32"</literal></argument>, <argument>true</argument>, <argument>FLOAT_TEXT</argument>,
+
+<argument>FLOAT_LONGTEXT</argument>, <argument>true</argument> )</argument_list></macro>
+
+<macro><name>add_string</name><argument_list>( <argument><literal type="string">"directx-audio-speaker"</literal></argument>, <argument><literal type="string">"Windows default"</literal></argument>,
+
+<argument>SPEAKER_TEXT</argument>, <argument>SPEAKER_LONGTEXT</argument>, <argument>true</argument> )</argument_list></macro>
+
+<macro><name>change_string_list</name><argument_list>( <argument>speaker_list</argument>, <argument>speaker_list</argument> )</argument_list></macro>
+
+<macro><name>add_float</name><argument_list>( <argument><literal type="string">"directx-volume"</literal></argument>, <argument><literal type="number">1.0f</literal></argument>,
+
+<argument>VOLUME_TEXT</argument>, <argument>VOLUME_LONGTEXT</argument>, <argument>true</argument> )</argument_list></macro>
+
+<macro><name>change_float_range</name><argument_list>( <argument><literal type="number">0.f</literal></argument>, <argument><literal type="number">2.f</literal></argument> )</argument_list></macro>
+
+<macro><name>set_callbacks</name><argument_list>( <argument>Open</argument>, <argument>Close</argument> )</argument_list></macro>
+
+<macro><name>add_submodule</name><argument_list>()</argument_list></macro>
+
+<macro><name>set_capability</name><argument_list>( <argument><literal type="string">"aout stream"</literal></argument>, <argument><literal type="number">30</literal></argument> )</argument_list></macro>
+
+<macro><name>set_callback</name><argument_list>( <argument>StreamStart</argument> )</argument_list></macro>
+
+<macro><name>vlc_module_end</name> <argument_list>()</argument_list></macro>
+
+<typedef>typedef <type><struct>struct <name>aout_stream_sys</name>
+
+<block>{
+
+<decl_stmt><decl><type><name>LPDIRECTSOUND</name></type> <name>p_dsobject</name></decl>;</decl_stmt> 
+
+<decl_stmt><decl><type><name>LPDIRECTSOUNDBUFFER</name></type> <name>p_dsbuffer</name></decl>;</decl_stmt> 
+
+<decl_stmt><decl><type><name>LPDIRECTSOUNDNOTIFY</name></type> <name>p_notify</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>i_bytes_per_sample</name></decl>;</decl_stmt> 
+
+<decl_stmt><decl><type><name>int</name></type> <name>i_rate</name></decl>;</decl_stmt> 
+
+<decl_stmt><decl><type><name>uint8_t</name></type> <name>chans_to_reorder</name></decl>;</decl_stmt> 
+
+<decl_stmt><decl><type><name>uint8_t</name></type> <name><name>chan_table</name><index>[<expr><name>AOUT_CHAN_MAX</name></expr>]</index></name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>uint32_t</name></type> <name>i_channel_mask</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>vlc_fourcc_t</name></type> <name>format</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>size_t</name></type> <name>i_write</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>size_t</name></type> <name>i_last_read</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int64_t</name></type> <name>i_data</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>bool</name></type> <name>b_playing</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>vlc_mutex_t</name></type> <name>lock</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>vlc_cond_t</name></type> <name>cond</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>vlc_thread_t</name></type> <name>eraser_thread</name></decl>;</decl_stmt>
+
+}</block></struct></type> <name>aout_stream_sys_t</name>;</typedef>
+
+<typedef>typedef <type><struct>struct
+
+<block>{
+
+<decl_stmt><decl><type><name>aout_stream_sys_t</name></type> <name>s</name></decl>;</decl_stmt>
+
+<struct>struct
+
+<block>{
+
+<decl_stmt><decl><type><name>float</name></type> <name>volume</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>LONG</name></type> <name>mb</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>bool</name></type> <name>mute</name></decl>;</decl_stmt>
+
+}</block> <decl><name>volume</name></decl>;</struct>
+
+}</block></struct></type> <name>aout_sys_t</name>;</typedef>
+
+<function_decl><type><specifier>static</specifier> <name>HRESULT</name></type> <name>Flush</name><parameter_list>( <parameter><decl><type><name>aout_stream_sys_t</name> <modifier>*</modifier></type><name>sys</name></decl></parameter> )</parameter_list>;</function_decl>
+
+<function><type><specifier>static</specifier> <name>HRESULT</name></type> <name>TimeGet</name><parameter_list>( <parameter><decl><type><name>aout_stream_sys_t</name> <modifier>*</modifier></type><name>sys</name></decl></parameter>, <parameter><decl><type><name>vlc_tick_t</name> <modifier>*</modifier></type><name>delay</name></decl></parameter> )</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>DWORD</name></type> <name>read</name></decl>, <decl><type ref="prev"/><name>status</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>HRESULT</name></type> <name>hr</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>ssize_t</name></type> <name>size</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>hr</name> <operator>=</operator> <call><name>IDirectSoundBuffer_GetStatus</name><argument_list>( <argument><expr><name><name>sys</name><operator>-&gt;</operator><name>p_dsbuffer</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name>status</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if<condition>( <expr><name>hr</name> <operator>!=</operator> <name>DS_OK</name></expr> )</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>hr</name></expr>;</return></block_content></block></if></if_stmt>
+
+<if_stmt><if>if<condition>( <expr><operator>!</operator><operator>(</operator><name>status</name> <operator>&amp;</operator> <name>DSBSTATUS_PLAYING</name><operator>)</operator></expr> )</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>DSERR_INVALIDCALL</name></expr> ;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>hr</name> <operator>=</operator> <call><name>IDirectSoundBuffer_GetCurrentPosition</name><argument_list>( <argument><expr><name><name>sys</name><operator>-&gt;</operator><name>p_dsbuffer</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name>read</name></expr></argument>, <argument><expr><name>NULL</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if<condition>( <expr><name>hr</name> <operator>!=</operator> <name>DS_OK</name></expr> )</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>hr</name></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>size</name> <operator>=</operator> <operator>(</operator><name>ssize_t</name><operator>)</operator><name>read</name> <operator>-</operator> <name><name>sys</name><operator>-&gt;</operator><name>i_last_read</name></name></expr>;</expr_stmt>
+
+<if_stmt><if>if<condition>( <expr><name>size</name> <operator>==</operator> <literal type="number">0</literal></expr> )</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>DSERR_GENERIC</name></expr> ;</return></block_content></block></if>
+
+<if type="elseif">else if<condition>( <expr><name>size</name> <operator>&lt;</operator> <literal type="number">0</literal></expr> )</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name>size</name> <operator>+=</operator> <name>DS_BUF_SIZE</name></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name><name>sys</name><operator>-&gt;</operator><name>i_data</name></name> <operator>-=</operator> <name>size</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>sys</name><operator>-&gt;</operator><name>i_last_read</name></name> <operator>=</operator> <name>read</name></expr>;</expr_stmt>
+
+<if_stmt><if>if<condition>( <expr><name><name>sys</name><operator>-&gt;</operator><name>i_data</name></name> <operator>&lt;</operator> <literal type="number">0</literal></expr> )</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>Flush</name><argument_list>(<argument><expr><name>sys</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><operator>*</operator><name>delay</name> <operator>=</operator> <call><name>vlc_tick_from_samples</name><argument_list>( <argument><expr><name><name>sys</name><operator>-&gt;</operator><name>i_data</name></name> <operator>/</operator> <name><name>sys</name><operator>-&gt;</operator><name>i_bytes_per_sample</name></name></expr></argument>, <argument><expr><name><name>sys</name><operator>-&gt;</operator><name>i_rate</name></name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>DS_OK</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>HRESULT</name></type> <name>StreamTimeGet</name><parameter_list>( <parameter><decl><type><name>aout_stream_t</name> <modifier>*</modifier></type><name>s</name></decl></parameter>, <parameter><decl><type><name>vlc_tick_t</name> <modifier>*</modifier></type><name>delay</name></decl></parameter> )</parameter_list>
+
+<block>{<block_content>
+
+<return>return <expr><call><name>TimeGet</name><argument_list>( <argument><expr><name><name>s</name><operator>-&gt;</operator><name>sys</name></name></expr></argument>, <argument><expr><name>delay</name></expr></argument> )</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>OutputTimeGet</name><parameter_list>( <parameter><decl><type><name>audio_output_t</name> <modifier>*</modifier></type><name>aout</name></decl></parameter>, <parameter><decl><type><name>vlc_tick_t</name> <modifier>*</modifier></type><name>delay</name></decl></parameter> )</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>aout_sys_t</name> <modifier>*</modifier></type><name>sys</name> <init>= <expr><name><name>aout</name><operator>-&gt;</operator><name>sys</name></name></expr></init></decl>;</decl_stmt>
+
+<return>return <expr><ternary><condition><expr><operator>(</operator><call><name>TimeGet</name><argument_list>( <argument><expr><operator>&amp;</operator><name><name>sys</name><operator>-&gt;</operator><name>s</name></name></expr></argument>, <argument><expr><name>delay</name></expr></argument> )</argument_list></call> <operator>==</operator> <name>DS_OK</name><operator>)</operator></expr> ?</condition><then> <expr><literal type="number">0</literal></expr> </then><else>: <expr><operator>-</operator><literal type="number">1</literal></expr></else></ternary></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>HRESULT</name></type> <name>FillBuffer</name><parameter_list>( <parameter><decl><type><name>vlc_object_t</name> <modifier>*</modifier></type><name>obj</name></decl></parameter>, <parameter><decl><type><name>aout_stream_sys_t</name> <modifier>*</modifier></type><name>p_sys</name></decl></parameter>,
+
+<parameter><decl><type><name>block_t</name> <modifier>*</modifier></type><name>p_buffer</name></decl></parameter> )</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>size_t</name></type> <name>towrite</name> <init>= <expr><ternary><condition><expr><operator>(</operator><name>p_buffer</name> <operator>!=</operator> <name>NULL</name><operator>)</operator></expr> ?</condition><then> <expr><name><name>p_buffer</name><operator>-&gt;</operator><name>i_buffer</name></name></expr> </then><else>: <expr><name>DS_BUF_SIZE</name></expr></else></ternary></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>void</name> <modifier>*</modifier></type><name>p_write_position</name></decl>, <decl><type ref="prev"><modifier>*</modifier></type><name>p_wrap_around</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>unsigned</name> <name>long</name></type> <name>l_bytes1</name></decl>, <decl><type ref="prev"/><name>l_bytes2</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>HRESULT</name></type> <name>dsresult</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>vlc_mutex_lock</name><argument_list>( <argument><expr><operator>&amp;</operator><name><name>p_sys</name><operator>-&gt;</operator><name>lock</name></name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>dsresult</name> <operator>=</operator> <call><name>IDirectSoundBuffer_Lock</name><argument_list>(
+
+<argument><expr><name><name>p_sys</name><operator>-&gt;</operator><name>p_dsbuffer</name></name></expr></argument>, 
+
+<argument><expr><name><name>p_sys</name><operator>-&gt;</operator><name>i_write</name></name></expr></argument>, 
+
+<argument><expr><name>towrite</name></expr></argument>, 
+
+<argument><expr><operator>&amp;</operator><name>p_write_position</name></expr></argument>, 
+
+<argument><expr><operator>&amp;</operator><name>l_bytes1</name></expr></argument>, 
+
+<argument><expr><operator>&amp;</operator><name>p_wrap_around</name></expr></argument>, 
+
+<argument><expr><operator>&amp;</operator><name>l_bytes2</name></expr></argument>, 
+
+<argument><expr><literal type="number">0</literal></expr></argument> )</argument_list></call></expr>;</expr_stmt> 
+
+<if_stmt><if>if<condition>( <expr><name>dsresult</name> <operator>==</operator> <name>DSERR_BUFFERLOST</name></expr> )</condition>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>IDirectSoundBuffer_Restore</name><argument_list>( <argument><expr><name><name>p_sys</name><operator>-&gt;</operator><name>p_dsbuffer</name></name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>dsresult</name> <operator>=</operator> <call><name>IDirectSoundBuffer_Lock</name><argument_list>(
+
+<argument><expr><name><name>p_sys</name><operator>-&gt;</operator><name>p_dsbuffer</name></name></expr></argument>,
+
+<argument><expr><name><name>p_sys</name><operator>-&gt;</operator><name>i_write</name></name></expr></argument>,
+
+<argument><expr><name>towrite</name></expr></argument>,
+
+<argument><expr><operator>&amp;</operator><name>p_write_position</name></expr></argument>,
+
+<argument><expr><operator>&amp;</operator><name>l_bytes1</name></expr></argument>,
+
+<argument><expr><operator>&amp;</operator><name>p_wrap_around</name></expr></argument>,
+
+<argument><expr><operator>&amp;</operator><name>l_bytes2</name></expr></argument>,
+
+<argument><expr><literal type="number">0</literal></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if<condition>( <expr><name>dsresult</name> <operator>!=</operator> <name>DS_OK</name></expr> )</condition>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>msg_Warn</name><argument_list>( <argument><expr><name>obj</name></expr></argument>, <argument><expr><literal type="string">"cannot lock buffer"</literal></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if<condition>( <expr><name>p_buffer</name> <operator>!=</operator> <name>NULL</name></expr> )</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>block_Release</name><argument_list>( <argument><expr><name>p_buffer</name></expr></argument> )</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>vlc_mutex_unlock</name><argument_list>( <argument><expr><operator>&amp;</operator><name><name>p_sys</name><operator>-&gt;</operator><name>lock</name></name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>dsresult</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if<condition>( <expr><name>p_buffer</name> <operator>==</operator> <name>NULL</name></expr> )</condition>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>memset</name><argument_list>( <argument><expr><name>p_write_position</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><name>l_bytes1</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>memset</name><argument_list>( <argument><expr><name>p_wrap_around</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><name>l_bytes2</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if>
+
+<else>else
+
+<block>{<block_content>
+
+<if_stmt><if>if<condition>( <expr><name><name>p_sys</name><operator>-&gt;</operator><name>chans_to_reorder</name></name></expr> )</condition><block type="pseudo"><block_content> 
+
+<expr_stmt><expr><call><name>aout_ChannelReorder</name><argument_list>( <argument><expr><name><name>p_buffer</name><operator>-&gt;</operator><name>p_buffer</name></name></expr></argument>, <argument><expr><name><name>p_buffer</name><operator>-&gt;</operator><name>i_buffer</name></name></expr></argument>,
+
+<argument><expr><name><name>p_sys</name><operator>-&gt;</operator><name>chans_to_reorder</name></name></expr></argument>, <argument><expr><name><name>p_sys</name><operator>-&gt;</operator><name>chan_table</name></name></expr></argument>,
+
+<argument><expr><name><name>p_sys</name><operator>-&gt;</operator><name>format</name></name></expr></argument> )</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>memcpy</name><argument_list>( <argument><expr><name>p_write_position</name></expr></argument>, <argument><expr><name><name>p_buffer</name><operator>-&gt;</operator><name>p_buffer</name></name></expr></argument>, <argument><expr><name>l_bytes1</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if<condition>( <expr><name>p_wrap_around</name> <operator>&amp;&amp;</operator> <name>l_bytes2</name></expr> )</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>memcpy</name><argument_list>( <argument><expr><name>p_wrap_around</name></expr></argument>, <argument><expr><name><name>p_buffer</name><operator>-&gt;</operator><name>p_buffer</name></name> <operator>+</operator> <name>l_bytes1</name></expr></argument>, <argument><expr><name>l_bytes2</name></expr></argument> )</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<if_stmt><if>if<condition>( <expr><call><name>unlikely</name><argument_list>( <argument><expr><operator>(</operator> <name>l_bytes1</name> <operator>+</operator> <name>l_bytes2</name> <operator>)</operator> <operator>&lt;</operator> <name><name>p_buffer</name><operator>-&gt;</operator><name>i_buffer</name></name></expr></argument> )</argument_list></call></expr> )</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>msg_Err</name><argument_list>( <argument><expr><name>obj</name></expr></argument>, <argument><expr><literal type="string">"Buffer overrun"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>block_Release</name><argument_list>( <argument><expr><name>p_buffer</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+<expr_stmt><expr><call><name>IDirectSoundBuffer_Unlock</name><argument_list>( <argument><expr><name><name>p_sys</name><operator>-&gt;</operator><name>p_dsbuffer</name></name></expr></argument>, <argument><expr><name>p_write_position</name></expr></argument>, <argument><expr><name>l_bytes1</name></expr></argument>,
+
+<argument><expr><name>p_wrap_around</name></expr></argument>, <argument><expr><name>l_bytes2</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>p_sys</name><operator>-&gt;</operator><name>i_write</name></name> <operator>+=</operator> <name>towrite</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>p_sys</name><operator>-&gt;</operator><name>i_write</name></name> <operator>%=</operator> <name>DS_BUF_SIZE</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>p_sys</name><operator>-&gt;</operator><name>i_data</name></name> <operator>+=</operator> <name>towrite</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>vlc_mutex_unlock</name><argument_list>( <argument><expr><operator>&amp;</operator><name><name>p_sys</name><operator>-&gt;</operator><name>lock</name></name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>DS_OK</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>HRESULT</name></type> <name>Play</name><parameter_list>( <parameter><decl><type><name>vlc_object_t</name> <modifier>*</modifier></type><name>obj</name></decl></parameter>, <parameter><decl><type><name>aout_stream_sys_t</name> <modifier>*</modifier></type><name>sys</name></decl></parameter>,
+
+<parameter><decl><type><name>block_t</name> <modifier>*</modifier></type><name>p_buffer</name></decl></parameter> )</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>HRESULT</name></type> <name>dsresult</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>dsresult</name> <operator>=</operator> <call><name>FillBuffer</name><argument_list>( <argument><expr><name>obj</name></expr></argument>, <argument><expr><name>sys</name></expr></argument>, <argument><expr><name>p_buffer</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if<condition>( <expr><name>dsresult</name> <operator>!=</operator> <name>DS_OK</name></expr> )</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>dsresult</name></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>dsresult</name> <operator>=</operator> <call><name>IDirectSoundBuffer_Play</name><argument_list>( <argument><expr><name><name>sys</name><operator>-&gt;</operator><name>p_dsbuffer</name></name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>,
+
+<argument><expr><name>DSBPLAY_LOOPING</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if<condition>( <expr><name>dsresult</name> <operator>==</operator> <name>DSERR_BUFFERLOST</name></expr> )</condition>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>IDirectSoundBuffer_Restore</name><argument_list>( <argument><expr><name><name>sys</name><operator>-&gt;</operator><name>p_dsbuffer</name></name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>dsresult</name> <operator>=</operator> <call><name>IDirectSoundBuffer_Play</name><argument_list>( <argument><expr><name><name>sys</name><operator>-&gt;</operator><name>p_dsbuffer</name></name></expr></argument>,
+
+<argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><name>DSBPLAY_LOOPING</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if<condition>( <expr><name>dsresult</name> <operator>!=</operator> <name>DS_OK</name></expr> )</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>msg_Err</name><argument_list>( <argument><expr><name>obj</name></expr></argument>, <argument><expr><literal type="string">"cannot start playing buffer: (hr=0x%lX)"</literal></expr></argument>, <argument><expr><name>dsresult</name></expr></argument> )</argument_list></call></expr>;</expr_stmt></block_content></block></if>
+
+<else>else
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>vlc_mutex_lock</name><argument_list>( <argument><expr><operator>&amp;</operator><name><name>sys</name><operator>-&gt;</operator><name>lock</name></name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>sys</name><operator>-&gt;</operator><name>b_playing</name></name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>vlc_cond_signal</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>sys</name><operator>-&gt;</operator><name>cond</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>vlc_mutex_unlock</name><argument_list>( <argument><expr><operator>&amp;</operator><name><name>sys</name><operator>-&gt;</operator><name>lock</name></name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+<return>return <expr><name>dsresult</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>HRESULT</name></type> <name>StreamPlay</name><parameter_list>( <parameter><decl><type><name>aout_stream_t</name> <modifier>*</modifier></type><name>s</name></decl></parameter>, <parameter><decl><type><name>block_t</name> <modifier>*</modifier></type><name>block</name></decl></parameter>, <parameter><decl><type><name>vlc_tick_t</name></type> <name>date</name></decl></parameter> )</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><operator>(</operator><name>void</name><operator>)</operator> <name>date</name></expr>;</expr_stmt>
+
+<return>return <expr><call><name>Play</name><argument_list>( <argument><expr><call><name>VLC_OBJECT</name><argument_list>(<argument><expr><name>s</name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>sys</name></name></expr></argument>, <argument><expr><name>block</name></expr></argument> )</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>OutputPlay</name><parameter_list>( <parameter><decl><type><name>audio_output_t</name> <modifier>*</modifier></type><name>aout</name></decl></parameter>, <parameter><decl><type><name>block_t</name> <modifier>*</modifier></type><name>block</name></decl></parameter>, <parameter><decl><type><name>vlc_tick_t</name></type> <name>date</name></decl></parameter> )</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>aout_sys_t</name> <modifier>*</modifier></type><name>sys</name> <init>= <expr><name><name>aout</name><operator>-&gt;</operator><name>sys</name></name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>Play</name><argument_list>( <argument><expr><call><name>VLC_OBJECT</name><argument_list>(<argument><expr><name>aout</name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>sys</name><operator>-&gt;</operator><name>s</name></name></expr></argument>, <argument><expr><name>block</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><operator>(</operator><name>void</name><operator>)</operator> <name>date</name></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>HRESULT</name></type> <name>Pause</name><parameter_list>( <parameter><decl><type><name>aout_stream_sys_t</name> <modifier>*</modifier></type><name>sys</name></decl></parameter>, <parameter><decl><type><name>bool</name></type> <name>pause</name></decl></parameter> )</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>HRESULT</name></type> <name>hr</name></decl>;</decl_stmt>
+
+<if_stmt><if>if<condition>( <expr><name>pause</name></expr> )</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name>hr</name> <operator>=</operator> <call><name>IDirectSoundBuffer_Stop</name><argument_list>( <argument><expr><name><name>sys</name><operator>-&gt;</operator><name>p_dsbuffer</name></name></expr></argument> )</argument_list></call></expr>;</expr_stmt></block_content></block></if>
+
+<else>else<block type="pseudo"><block_content>
+
+<expr_stmt><expr><name>hr</name> <operator>=</operator> <call><name>IDirectSoundBuffer_Play</name><argument_list>( <argument><expr><name><name>sys</name><operator>-&gt;</operator><name>p_dsbuffer</name></name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><name>DSBPLAY_LOOPING</name></expr></argument> )</argument_list></call></expr>;</expr_stmt></block_content></block></else></if_stmt>
+
+<if_stmt><if>if<condition>( <expr><name>hr</name> <operator>==</operator> <name>DS_OK</name></expr> )</condition>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>vlc_mutex_lock</name><argument_list>( <argument><expr><operator>&amp;</operator><name><name>sys</name><operator>-&gt;</operator><name>lock</name></name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>sys</name><operator>-&gt;</operator><name>b_playing</name></name> <operator>=</operator> <operator>!</operator><name>pause</name></expr>;</expr_stmt>
+
+<if_stmt><if>if<condition>( <expr><name><name>sys</name><operator>-&gt;</operator><name>b_playing</name></name></expr> )</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>vlc_cond_signal</name><argument_list>( <argument><expr><operator>&amp;</operator><name><name>sys</name><operator>-&gt;</operator><name>cond</name></name></expr></argument> )</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>vlc_mutex_unlock</name><argument_list>( <argument><expr><operator>&amp;</operator><name><name>sys</name><operator>-&gt;</operator><name>lock</name></name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<return>return <expr><name>hr</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>HRESULT</name></type> <name>StreamPause</name><parameter_list>( <parameter><decl><type><name>aout_stream_t</name> <modifier>*</modifier></type><name>s</name></decl></parameter>, <parameter><decl><type><name>bool</name></type> <name>pause</name></decl></parameter> )</parameter_list>
+
+<block>{<block_content>
+
+<return>return <expr><call><name>Pause</name><argument_list>( <argument><expr><name><name>s</name><operator>-&gt;</operator><name>sys</name></name></expr></argument>, <argument><expr><name>pause</name></expr></argument> )</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>OutputPause</name><parameter_list>( <parameter><decl><type><name>audio_output_t</name> <modifier>*</modifier></type><name>aout</name></decl></parameter>, <parameter><decl><type><name>bool</name></type> <name>pause</name></decl></parameter>, <parameter><decl><type><name>vlc_tick_t</name></type> <name>date</name></decl></parameter> )</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>aout_sys_t</name> <modifier>*</modifier></type><name>sys</name> <init>= <expr><name><name>aout</name><operator>-&gt;</operator><name>sys</name></name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>Pause</name><argument_list>( <argument><expr><operator>&amp;</operator><name><name>sys</name><operator>-&gt;</operator><name>s</name></name></expr></argument>, <argument><expr><name>pause</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><operator>(</operator><name>void</name><operator>)</operator> <name>date</name></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>HRESULT</name></type> <name>Flush</name><parameter_list>( <parameter><decl><type><name>aout_stream_sys_t</name> <modifier>*</modifier></type><name>sys</name></decl></parameter> )</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>HRESULT</name></type> <name>ret</name> <init>= <expr><call><name>IDirectSoundBuffer_Stop</name><argument_list>( <argument><expr><name><name>sys</name><operator>-&gt;</operator><name>p_dsbuffer</name></name></expr></argument> )</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if<condition>( <expr><name>ret</name> <operator>==</operator> <name>DS_OK</name></expr> )</condition>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>vlc_mutex_lock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>sys</name><operator>-&gt;</operator><name>lock</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>sys</name><operator>-&gt;</operator><name>i_data</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>sys</name><operator>-&gt;</operator><name>i_last_read</name></name> <operator>=</operator> <name><name>sys</name><operator>-&gt;</operator><name>i_write</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>IDirectSoundBuffer_SetCurrentPosition</name><argument_list>( <argument><expr><name><name>sys</name><operator>-&gt;</operator><name>p_dsbuffer</name></name></expr></argument>, <argument><expr><name><name>sys</name><operator>-&gt;</operator><name>i_write</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>sys</name><operator>-&gt;</operator><name>b_playing</name></name> <operator>=</operator> <name>false</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>vlc_mutex_unlock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>sys</name><operator>-&gt;</operator><name>lock</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<return>return <expr><name>ret</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>HRESULT</name></type> <name>StreamFlush</name><parameter_list>( <parameter><decl><type><name>aout_stream_t</name> <modifier>*</modifier></type><name>s</name></decl></parameter> )</parameter_list>
+
+<block>{<block_content>
+
+<return>return <expr><call><name>Flush</name><argument_list>( <argument><expr><name><name>s</name><operator>-&gt;</operator><name>sys</name></name></expr></argument> )</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>OutputFlush</name><parameter_list>( <parameter><decl><type><name>audio_output_t</name> <modifier>*</modifier></type><name>aout</name></decl></parameter> )</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>aout_sys_t</name> <modifier>*</modifier></type><name>sys</name> <init>= <expr><name><name>aout</name><operator>-&gt;</operator><name>sys</name></name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>Flush</name><argument_list>( <argument><expr><operator>&amp;</operator><name><name>sys</name><operator>-&gt;</operator><name>s</name></name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>HRESULT</name></type> <name>CreateDSBuffer</name><parameter_list>( <parameter><decl><type><name>vlc_object_t</name> <modifier>*</modifier></type><name>obj</name></decl></parameter>, <parameter><decl><type><name>aout_stream_sys_t</name> <modifier>*</modifier></type><name>sys</name></decl></parameter>,
+
+<parameter><decl><type><name>int</name></type> <name>i_format</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>i_channels</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>i_nb_channels</name></decl></parameter>,
+
+<parameter><decl><type><name>int</name></type> <name>i_rate</name></decl></parameter>, <parameter><decl><type><name>bool</name></type> <name>b_probe</name></decl></parameter> )</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>WAVEFORMATEXTENSIBLE</name></type> <name>waveformat</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>DSBUFFERDESC</name></type> <name>dsbdesc</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>HRESULT</name></type> <name>hr</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>waveformat</name><operator>.</operator><name>dwChannelMask</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<for>for<control>( <init><decl><type><name>unsigned</name></type> <name>i</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name><name>pi_vlc_chan_order_wg4</name><index>[<expr><name>i</name></expr>]</index></name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr> )</control><block type="pseudo"><block_content>
+
+<if_stmt><if>if<condition>( <expr><name>i_channels</name> <operator>&amp;</operator> <name><name>pi_vlc_chan_order_wg4</name><index>[<expr><name>i</name></expr>]</index></name></expr> )</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name><name>waveformat</name><operator>.</operator><name>dwChannelMask</name></name> <operator>|=</operator> <name><name>pi_channels_in</name><index>[<expr><name>i</name></expr>]</index></name></expr>;</expr_stmt></block_content></block></if></if_stmt></block_content></block></for>
+
+<switch>switch<condition>( <expr><name>i_format</name></expr> )</condition>
+
+<block>{<block_content>
+
+<case>case <expr><name>VLC_CODEC_SPDIFL</name></expr>:</case>
+
+<expr_stmt><expr><name>i_nb_channels</name> <operator>=</operator> <literal type="number">2</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>waveformat</name><operator>.</operator><name>dwChannelMask</name></name> <operator>=</operator> <name>SPEAKER_FRONT_LEFT</name> <operator>|</operator> <name>SPEAKER_FRONT_RIGHT</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>waveformat</name><operator>.</operator><name>Format</name><operator>.</operator><name>wBitsPerSample</name></name> <operator>=</operator> <literal type="number">16</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>waveformat</name><operator>.</operator><name>Samples</name><operator>.</operator><name>wValidBitsPerSample</name></name> <operator>=</operator>
+
+<name><name>waveformat</name><operator>.</operator><name>Format</name><operator>.</operator><name>wBitsPerSample</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>waveformat</name><operator>.</operator><name>Format</name><operator>.</operator><name>wFormatTag</name></name> <operator>=</operator> <name>WAVE_FORMAT_DOLBY_AC3_SPDIF</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>waveformat</name><operator>.</operator><name>SubFormat</name></name> <operator>=</operator> <name>_KSDATAFORMAT_SUBTYPE_DOLBY_AC3_SPDIF</name></expr>;</expr_stmt>
+
+<break>break;</break>
+
+<case>case <expr><name>VLC_CODEC_FL32</name></expr>:</case>
+
+<expr_stmt><expr><name><name>waveformat</name><operator>.</operator><name>Format</name><operator>.</operator><name>wBitsPerSample</name></name> <operator>=</operator> <sizeof>sizeof<argument_list>(<argument><expr><name>float</name></expr></argument>)</argument_list></sizeof> <operator>*</operator> <literal type="number">8</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>waveformat</name><operator>.</operator><name>Samples</name><operator>.</operator><name>wValidBitsPerSample</name></name> <operator>=</operator>
+
+<name><name>waveformat</name><operator>.</operator><name>Format</name><operator>.</operator><name>wBitsPerSample</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>waveformat</name><operator>.</operator><name>Format</name><operator>.</operator><name>wFormatTag</name></name> <operator>=</operator> <name>WAVE_FORMAT_IEEE_FLOAT</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>waveformat</name><operator>.</operator><name>SubFormat</name></name> <operator>=</operator> <name>_KSDATAFORMAT_SUBTYPE_IEEE_FLOAT</name></expr>;</expr_stmt>
+
+<break>break;</break>
+
+<case>case <expr><name>VLC_CODEC_S16N</name></expr>:</case>
+
+<expr_stmt><expr><name><name>waveformat</name><operator>.</operator><name>Format</name><operator>.</operator><name>wBitsPerSample</name></name> <operator>=</operator> <literal type="number">16</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>waveformat</name><operator>.</operator><name>Samples</name><operator>.</operator><name>wValidBitsPerSample</name></name> <operator>=</operator>
+
+<name><name>waveformat</name><operator>.</operator><name>Format</name><operator>.</operator><name>wBitsPerSample</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>waveformat</name><operator>.</operator><name>Format</name><operator>.</operator><name>wFormatTag</name></name> <operator>=</operator> <name>WAVE_FORMAT_PCM</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>waveformat</name><operator>.</operator><name>SubFormat</name></name> <operator>=</operator> <name>_KSDATAFORMAT_SUBTYPE_PCM</name></expr>;</expr_stmt>
+
+<break>break;</break>
+
+</block_content>}</block></switch>
+
+<expr_stmt><expr><name><name>waveformat</name><operator>.</operator><name>Format</name><operator>.</operator><name>nChannels</name></name> <operator>=</operator> <name>i_nb_channels</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>waveformat</name><operator>.</operator><name>Format</name><operator>.</operator><name>nSamplesPerSec</name></name> <operator>=</operator> <name>i_rate</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>waveformat</name><operator>.</operator><name>Format</name><operator>.</operator><name>nBlockAlign</name></name> <operator>=</operator>
+
+<name><name>waveformat</name><operator>.</operator><name>Format</name><operator>.</operator><name>wBitsPerSample</name></name> <operator>/</operator> <literal type="number">8</literal> <operator>*</operator> <name>i_nb_channels</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>waveformat</name><operator>.</operator><name>Format</name><operator>.</operator><name>nAvgBytesPerSec</name></name> <operator>=</operator>
+
+<name><name>waveformat</name><operator>.</operator><name>Format</name><operator>.</operator><name>nSamplesPerSec</name></name> <operator>*</operator> <name><name>waveformat</name><operator>.</operator><name>Format</name><operator>.</operator><name>nBlockAlign</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>sys</name><operator>-&gt;</operator><name>i_bytes_per_sample</name></name> <operator>=</operator> <name><name>waveformat</name><operator>.</operator><name>Format</name><operator>.</operator><name>nBlockAlign</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>sys</name><operator>-&gt;</operator><name>format</name></name> <operator>=</operator> <name>i_format</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>memset</name><argument_list>(<argument><expr><operator>&amp;</operator><name>dsbdesc</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr><name>DSBUFFERDESC</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>dsbdesc</name><operator>.</operator><name>dwSize</name></name> <operator>=</operator> <sizeof>sizeof<argument_list>(<argument><expr><name>DSBUFFERDESC</name></expr></argument>)</argument_list></sizeof></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>dsbdesc</name><operator>.</operator><name>dwFlags</name></name> <operator>=</operator> <name>DSBCAPS_GETCURRENTPOSITION2</name> 
+
+<operator>|</operator> <name>DSBCAPS_GLOBALFOCUS</name> 
+
+<operator>|</operator> <name>DSBCAPS_CTRLVOLUME</name> 
+
+<operator>|</operator> <name>DSBCAPS_CTRLPOSITIONNOTIFY</name></expr>;</expr_stmt> 
+
+<if_stmt><if>if<condition>( <expr><name>i_nb_channels</name> <operator>&lt;=</operator> <literal type="number">2</literal></expr> )</condition>
+
+<block>{<block_content>
+
+<expr_stmt><expr><name><name>waveformat</name><operator>.</operator><name>Format</name><operator>.</operator><name>cbSize</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+</block_content>}</block></if>
+
+<else>else
+
+<block>{<block_content>
+
+<expr_stmt><expr><name><name>waveformat</name><operator>.</operator><name>Format</name><operator>.</operator><name>wFormatTag</name></name> <operator>=</operator> <name>WAVE_FORMAT_EXTENSIBLE</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>waveformat</name><operator>.</operator><name>Format</name><operator>.</operator><name>cbSize</name></name> <operator>=</operator>
+
+<sizeof>sizeof<argument_list>(<argument><expr><name>WAVEFORMATEXTENSIBLE</name></expr></argument>)</argument_list></sizeof> <operator>-</operator> <sizeof>sizeof<argument_list>(<argument><expr><name>WAVEFORMATEX</name></expr></argument>)</argument_list></sizeof></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>dsbdesc</name><operator>.</operator><name>dwFlags</name></name> <operator>|=</operator> <name>DSBCAPS_LOCHARDWARE</name></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+<expr_stmt><expr><name><name>dsbdesc</name><operator>.</operator><name>dwBufferBytes</name></name> <operator>=</operator> <name>DS_BUF_SIZE</name></expr>;</expr_stmt> 
+
+<expr_stmt><expr><name><name>dsbdesc</name><operator>.</operator><name>lpwfxFormat</name></name> <operator>=</operator> <operator>(</operator><name>WAVEFORMATEX</name> <operator>*</operator><operator>)</operator><operator>&amp;</operator><name>waveformat</name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>( <expr><name>i_format</name> <operator>==</operator> <name>VLC_CODEC_SPDIFL</name></expr> )</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name><name>dsbdesc</name><operator>.</operator><name>dwFlags</name></name> <operator>&amp;=</operator> <operator>~</operator><name>DSBCAPS_CTRLVOLUME</name></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>hr</name> <operator>=</operator> <call><name>IDirectSound_CreateSoundBuffer</name><argument_list>( <argument><expr><name><name>sys</name><operator>-&gt;</operator><name>p_dsobject</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name>dsbdesc</name></expr></argument>,
+
+<argument><expr><operator>&amp;</operator><name><name>sys</name><operator>-&gt;</operator><name>p_dsbuffer</name></name></expr></argument>, <argument><expr><name>NULL</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if<condition>( <expr><call><name>FAILED</name><argument_list>(<argument><expr><name>hr</name></expr></argument>)</argument_list></call></expr> )</condition>
+
+<block>{<block_content>
+
+<if_stmt><if>if<condition>( <expr><operator>!</operator><operator>(</operator><name><name>dsbdesc</name><operator>.</operator><name>dwFlags</name></name> <operator>&amp;</operator> <name>DSBCAPS_LOCHARDWARE</name><operator>)</operator></expr> )</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>hr</name></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name><name>dsbdesc</name><operator>.</operator><name>dwFlags</name></name> <operator>&amp;=</operator> <operator>~</operator><name>DSBCAPS_LOCHARDWARE</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>hr</name> <operator>=</operator> <call><name>IDirectSound_CreateSoundBuffer</name><argument_list>( <argument><expr><name><name>sys</name><operator>-&gt;</operator><name>p_dsobject</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name>dsbdesc</name></expr></argument>,
+
+<argument><expr><operator>&amp;</operator><name><name>sys</name><operator>-&gt;</operator><name>p_dsbuffer</name></name></expr></argument>, <argument><expr><name>NULL</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if<condition>( <expr><call><name>FAILED</name><argument_list>(<argument><expr><name>hr</name></expr></argument>)</argument_list></call></expr> )</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>hr</name></expr>;</return></block_content></block></if></if_stmt>
+
+<if_stmt><if>if<condition>( <expr><operator>!</operator><name>b_probe</name></expr> )</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>msg_Dbg</name><argument_list>( <argument><expr><name>obj</name></expr></argument>, <argument><expr><literal type="string">"couldn't use hardware sound buffer"</literal></expr></argument> )</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if<condition>( <expr><name>b_probe</name></expr> )</condition>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>IDirectSoundBuffer_Release</name><argument_list>( <argument><expr><name><name>sys</name><operator>-&gt;</operator><name>p_dsbuffer</name></name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>sys</name><operator>-&gt;</operator><name>p_dsbuffer</name></name> <operator>=</operator> <name>NULL</name></expr>;</expr_stmt>
+
+<return>return <expr><name>DS_OK</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>sys</name><operator>-&gt;</operator><name>i_rate</name></name> <operator>=</operator> <name>i_rate</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>sys</name><operator>-&gt;</operator><name>i_channel_mask</name></name> <operator>=</operator> <name><name>waveformat</name><operator>.</operator><name>dwChannelMask</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>sys</name><operator>-&gt;</operator><name>chans_to_reorder</name></name> <operator>=</operator>
+
+<call><name>aout_CheckChannelReorder</name><argument_list>( <argument><expr><name>pi_channels_in</name></expr></argument>, <argument><expr><name>pi_channels_out</name></expr></argument>,
+
+<argument><expr><name><name>waveformat</name><operator>.</operator><name>dwChannelMask</name></name></expr></argument>, <argument><expr><name><name>sys</name><operator>-&gt;</operator><name>chan_table</name></name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if<condition>( <expr><name><name>sys</name><operator>-&gt;</operator><name>chans_to_reorder</name></name></expr> )</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>msg_Dbg</name><argument_list>( <argument><expr><name>obj</name></expr></argument>, <argument><expr><literal type="string">"channel reordering needed"</literal></expr></argument> )</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>hr</name> <operator>=</operator> <call><name>IDirectSoundBuffer_QueryInterface</name><argument_list>( <argument><expr><name><name>sys</name><operator>-&gt;</operator><name>p_dsbuffer</name></name></expr></argument>,
+
+<argument><expr><operator>&amp;</operator><name>IID_IDirectSoundNotify</name></expr></argument>,
+
+<argument><expr><operator>(</operator><name>void</name> <operator>*</operator><operator>*</operator><operator>)</operator> <operator>&amp;</operator><name><name>sys</name><operator>-&gt;</operator><name>p_notify</name></name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if<condition>( <expr><name>hr</name> <operator>!=</operator> <name>DS_OK</name></expr> )</condition>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>msg_Err</name><argument_list>( <argument><expr><name>obj</name></expr></argument>, <argument><expr><literal type="string">"Couldn't query IDirectSoundNotify"</literal></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>sys</name><operator>-&gt;</operator><name>p_notify</name></name> <operator>=</operator> <name>NULL</name></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>FillBuffer</name><argument_list>( <argument><expr><name>obj</name></expr></argument>, <argument><expr><name>sys</name></expr></argument>, <argument><expr><name>NULL</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>DS_OK</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>HRESULT</name></type> <name>CreateDSBufferPCM</name><parameter_list>( <parameter><decl><type><name>vlc_object_t</name> <modifier>*</modifier></type><name>obj</name></decl></parameter>, <parameter><decl><type><name>aout_stream_sys_t</name> <modifier>*</modifier></type><name>sys</name></decl></parameter>,
+
+<parameter><decl><type><name>vlc_fourcc_t</name> <modifier>*</modifier></type><name>i_format</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>i_channels</name></decl></parameter>,
+
+<parameter><decl><type><name>int</name></type> <name>i_rate</name></decl></parameter>, <parameter><decl><type><name>bool</name></type> <name>b_probe</name></decl></parameter> )</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>HRESULT</name></type> <name>hr</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>unsigned</name></type> <name>i_nb_channels</name> <init>= <expr><call><name>vlc_popcount</name><argument_list>( <argument><expr><name>i_channels</name></expr></argument> )</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if<condition>( <expr><call><name>var_GetBool</name><argument_list>( <argument><expr><name>obj</name></expr></argument>, <argument><expr><literal type="string">"directx-audio-float32"</literal></expr></argument> )</argument_list></call></expr> )</condition>
+
+<block>{<block_content>
+
+<expr_stmt><expr><name>hr</name> <operator>=</operator> <call><name>CreateDSBuffer</name><argument_list>( <argument><expr><name>obj</name></expr></argument>, <argument><expr><name>sys</name></expr></argument>, <argument><expr><name>VLC_CODEC_FL32</name></expr></argument>, <argument><expr><name>i_channels</name></expr></argument>,
+
+<argument><expr><name>i_nb_channels</name></expr></argument>, <argument><expr><name>i_rate</name></expr></argument>, <argument><expr><name>b_probe</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if<condition>( <expr><name>hr</name> <operator>==</operator> <name>DS_OK</name></expr> )</condition>
+
+<block>{<block_content>
+
+<expr_stmt><expr><operator>*</operator><name>i_format</name> <operator>=</operator> <name>VLC_CODEC_FL32</name></expr>;</expr_stmt>
+
+<return>return <expr><name>DS_OK</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name>hr</name> <operator>=</operator> <call><name>CreateDSBuffer</name><argument_list>( <argument><expr><name>obj</name></expr></argument>, <argument><expr><name>sys</name></expr></argument>, <argument><expr><name>VLC_CODEC_S16N</name></expr></argument>, <argument><expr><name>i_channels</name></expr></argument>, <argument><expr><name>i_nb_channels</name></expr></argument>,
+
+<argument><expr><name>i_rate</name></expr></argument>, <argument><expr><name>b_probe</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if<condition>( <expr><name>hr</name> <operator>==</operator> <name>DS_OK</name></expr> )</condition>
+
+<block>{<block_content>
+
+<expr_stmt><expr><operator>*</operator><name>i_format</name> <operator>=</operator> <name>VLC_CODEC_S16N</name></expr>;</expr_stmt>
+
+<return>return <expr><name>DS_OK</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<return>return <expr><name>hr</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>HRESULT</name></type> <name>Stop</name><parameter_list>( <parameter><decl><type><name>aout_stream_sys_t</name> <modifier>*</modifier></type><name>p_sys</name></decl></parameter> )</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>vlc_mutex_lock</name><argument_list>( <argument><expr><operator>&amp;</operator><name><name>p_sys</name><operator>-&gt;</operator><name>lock</name></name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>p_sys</name><operator>-&gt;</operator><name>b_playing</name></name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>vlc_cond_signal</name><argument_list>( <argument><expr><operator>&amp;</operator><name><name>p_sys</name><operator>-&gt;</operator><name>cond</name></name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>vlc_mutex_unlock</name><argument_list>( <argument><expr><operator>&amp;</operator><name><name>p_sys</name><operator>-&gt;</operator><name>lock</name></name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>vlc_cancel</name><argument_list>( <argument><expr><name><name>p_sys</name><operator>-&gt;</operator><name>eraser_thread</name></name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>vlc_join</name><argument_list>( <argument><expr><name><name>p_sys</name><operator>-&gt;</operator><name>eraser_thread</name></name></expr></argument>, <argument><expr><name>NULL</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if<condition>( <expr><name><name>p_sys</name><operator>-&gt;</operator><name>p_notify</name></name> <operator>!=</operator> <name>NULL</name></expr> )</condition>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>IDirectSoundNotify_Release</name><argument_list>(<argument><expr><name><name>p_sys</name><operator>-&gt;</operator><name>p_notify</name></name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>p_sys</name><operator>-&gt;</operator><name>p_notify</name></name> <operator>=</operator> <name>NULL</name></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if<condition>( <expr><name><name>p_sys</name><operator>-&gt;</operator><name>p_dsbuffer</name></name> <operator>!=</operator> <name>NULL</name></expr> )</condition>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>IDirectSoundBuffer_Stop</name><argument_list>( <argument><expr><name><name>p_sys</name><operator>-&gt;</operator><name>p_dsbuffer</name></name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>IDirectSoundBuffer_Release</name><argument_list>( <argument><expr><name><name>p_sys</name><operator>-&gt;</operator><name>p_dsbuffer</name></name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>p_sys</name><operator>-&gt;</operator><name>p_dsbuffer</name></name> <operator>=</operator> <name>NULL</name></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if<condition>( <expr><name><name>p_sys</name><operator>-&gt;</operator><name>p_dsobject</name></name> <operator>!=</operator> <name>NULL</name></expr> )</condition>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>IDirectSound_Release</name><argument_list>( <argument><expr><name><name>p_sys</name><operator>-&gt;</operator><name>p_dsobject</name></name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>p_sys</name><operator>-&gt;</operator><name>p_dsobject</name></name> <operator>=</operator> <name>NULL</name></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<return>return <expr><name>DS_OK</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>StreamStop</name><parameter_list>( <parameter><decl><type><name>aout_stream_t</name> <modifier>*</modifier></type><name>s</name></decl></parameter> )</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>Stop</name><argument_list>( <argument><expr><name><name>s</name><operator>-&gt;</operator><name>sys</name></name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>free</name><argument_list>( <argument><expr><name><name>s</name><operator>-&gt;</operator><name>sys</name></name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>OutputStop</name><parameter_list>( <parameter><decl><type><name>audio_output_t</name> <modifier>*</modifier></type><name>aout</name></decl></parameter> )</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>msg_Dbg</name><argument_list>( <argument><expr><name>aout</name></expr></argument>, <argument><expr><literal type="string">"closing audio device"</literal></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+<decl_stmt><decl><type><name>aout_sys_t</name> <modifier>*</modifier></type><name>sys</name> <init>= <expr><name><name>aout</name><operator>-&gt;</operator><name>sys</name></name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>Stop</name><argument_list>( <argument><expr><operator>&amp;</operator><name><name>sys</name><operator>-&gt;</operator><name>s</name></name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>HRESULT</name></type> <name>Start</name><parameter_list>( <parameter><decl><type><name>vlc_object_t</name> <modifier>*</modifier></type><name>obj</name></decl></parameter>, <parameter><decl><type><name>aout_stream_sys_t</name> <modifier>*</modifier></type><name>sys</name></decl></parameter>,
+
+<parameter><decl><type><name>audio_sample_format_t</name> <modifier>*</modifier><specifier>restrict</specifier></type> <name>pfmt</name></decl></parameter> )</parameter_list>
+
+<block>{<block_content>
+
+<if_stmt><if>if<condition>( <expr><call><name>aout_FormatNbChannels</name><argument_list>( <argument><expr><name>pfmt</name></expr></argument> )</argument_list></call> <operator>==</operator> <literal type="number">0</literal></expr> )</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>E_FAIL</name></expr>;</return></block_content></block></if></if_stmt>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><operator>!</operator><name>VLC_WINSTORE_APP</name></expr></cpp:if>
+
+<if_stmt><if>if<condition>( <expr><call><name>IDirectSound_SetCooperativeLevel</name><argument_list>( <argument><expr><name><name>sys</name><operator>-&gt;</operator><name>p_dsobject</name></name></expr></argument>, <argument><expr><call><name>GetDesktopWindow</name><argument_list>()</argument_list></call></expr></argument>,
+
+<argument><expr><name>DSSCL_EXCLUSIVE</name></expr></argument>)</argument_list></call></expr> )</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>msg_Warn</name><argument_list>( <argument><expr><name>obj</name></expr></argument>, <argument><expr><literal type="string">"cannot set direct sound cooperative level"</literal></expr></argument> )</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+<if_stmt><if>if<condition>( <expr><call><name>AOUT_FMT_HDMI</name><argument_list>( <argument><expr><name>pfmt</name></expr></argument> )</argument_list></call></expr> )</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>E_FAIL</name></expr>;</return></block_content></block></if></if_stmt>
+
+<decl_stmt><decl><type><name>audio_sample_format_t</name></type> <name>fmt</name> <init>= <expr><operator>*</operator><name>pfmt</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier><specifier>const</specifier> <modifier>*</modifier></type><name>ppsz_compare</name> <init>= <expr><name>speaker_list</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>char</name> <modifier>*</modifier></type><name>psz_speaker</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>i</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>HRESULT</name></type> <name>hr</name> <init>= <expr><name>DSERR_UNSUPPORTED</name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>var_Create</name><argument_list>( <argument><expr><name>obj</name></expr></argument>, <argument><expr><literal type="string">"directx-audio-float32"</literal></expr></argument>,
+
+<argument><expr><name>VLC_VAR_BOOL</name> <operator>|</operator> <name>VLC_VAR_DOINHERIT</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>psz_speaker</name> <operator>=</operator> <call><name>var_CreateGetString</name><argument_list>( <argument><expr><name>obj</name></expr></argument>, <argument><expr><literal type="string">"directx-audio-speaker"</literal></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+<while>while <condition>( <expr><operator>*</operator><name>ppsz_compare</name> <operator>!=</operator> <name>NULL</name></expr> )</condition>
+
+<block>{<block_content>
+
+<if_stmt><if>if <condition>( <expr><operator>!</operator><call><name>strncmp</name><argument_list>( <argument><expr><operator>*</operator><name>ppsz_compare</name></expr></argument>, <argument><expr><name>psz_speaker</name></expr></argument>, <argument><expr><call><name>strlen</name><argument_list>(<argument><expr><operator>*</operator><name>ppsz_compare</name></expr></argument>)</argument_list></call></expr></argument> )</argument_list></call></expr> )</condition>
+
+<block>{<block_content>
+
+<break>break;</break>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name>ppsz_compare</name><operator>++</operator></expr>;</expr_stmt> <expr_stmt><expr><name>i</name><operator>++</operator></expr>;</expr_stmt>
+
+</block_content>}</block></while>
+
+<if_stmt><if>if <condition>( <expr><operator>*</operator><name>ppsz_compare</name> <operator>==</operator> <name>NULL</name></expr> )</condition>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>msg_Err</name><argument_list>( <argument><expr><name>obj</name></expr></argument>, <argument><expr><literal type="string">"(%s) isn't valid speaker setup option"</literal></expr></argument>, <argument><expr><name>psz_speaker</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>msg_Err</name><argument_list>( <argument><expr><name>obj</name></expr></argument>, <argument><expr><literal type="string">"Defaulting to Windows default speaker config"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>free</name><argument_list>( <argument><expr><name>psz_speaker</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>vlc_mutex_init</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>sys</name><operator>-&gt;</operator><name>lock</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>vlc_cond_init</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>sys</name><operator>-&gt;</operator><name>cond</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if<condition>( <expr><call><name>AOUT_FMT_SPDIF</name><argument_list>( <argument><expr><operator>&amp;</operator><name>fmt</name></expr></argument> )</argument_list></call></expr> )</condition>
+
+<block>{<block_content>
+
+<if_stmt><if>if<condition>( <expr><call><name>var_InheritBool</name><argument_list>( <argument><expr><name>obj</name></expr></argument>, <argument><expr><literal type="string">"spdif"</literal></expr></argument> )</argument_list></call></expr> )</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name>hr</name> <operator>=</operator> <call><name>CreateDSBuffer</name><argument_list>( <argument><expr><name>obj</name></expr></argument>, <argument><expr><name>sys</name></expr></argument>, <argument><expr><name>VLC_CODEC_SPDIFL</name></expr></argument>,
+
+<argument><expr><name><name>fmt</name><operator>.</operator><name>i_physical_channels</name></name></expr></argument>,
+
+<argument><expr><call><name>aout_FormatNbChannels</name><argument_list>(<argument><expr><operator>&amp;</operator><name>fmt</name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name><name>fmt</name><operator>.</operator><name>i_rate</name></name></expr></argument>, <argument><expr><name>false</name></expr></argument> )</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<if_stmt><if>if<condition>( <expr><name>hr</name> <operator>==</operator> <name>DS_OK</name></expr> )</condition>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>msg_Dbg</name><argument_list>( <argument><expr><name>obj</name></expr></argument>, <argument><expr><literal type="string">"using A/52 pass-through over S/PDIF"</literal></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>fmt</name><operator>.</operator><name>i_format</name></name> <operator>=</operator> <name>VLC_CODEC_SPDIFL</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>fmt</name><operator>.</operator><name>i_bytes_per_frame</name></name> <operator>=</operator> <name>AOUT_SPDIF_SIZE</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>fmt</name><operator>.</operator><name>i_frame_length</name></name> <operator>=</operator> <name>A52_FRAME_NB</name></expr>;</expr_stmt>
+
+</block_content>}</block></if>
+
+<else>else<block type="pseudo"><block_content>
+
+<return>return <expr><name>E_FAIL</name></expr>;</return></block_content></block></else></if_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if<condition>( <expr><name>hr</name> <operator>!=</operator> <name>DS_OK</name></expr> )</condition>
+
+<block>{<block_content>
+
+<if_stmt><if>if<condition>( <expr><name>i</name> <operator>==</operator> <literal type="number">0</literal></expr> )</condition>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>DWORD</name></type> <name>ui_speaker_config</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>i_channels</name> <init>= <expr><literal type="number">2</literal></expr></init></decl>;</decl_stmt> 
+
+<decl_stmt><decl><type><name>int</name></type> <name>i_orig_channels</name> <init>= <expr><call><name>aout_FormatNbChannels</name><argument_list>( <argument><expr><operator>&amp;</operator><name>fmt</name></expr></argument> )</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>hr</name> <operator>=</operator> <call><name>IDirectSound_GetSpeakerConfig</name><argument_list>( <argument><expr><name><name>sys</name><operator>-&gt;</operator><name>p_dsobject</name></name></expr></argument>,
+
+<argument><expr><operator>&amp;</operator><name>ui_speaker_config</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if<condition>( <expr><call><name>FAILED</name><argument_list>(<argument><expr><name>hr</name></expr></argument>)</argument_list></call></expr> )</condition>
+
+<block>{<block_content>
+
+<expr_stmt><expr><name>ui_speaker_config</name> <operator>=</operator> <name>DSSPEAKER_STEREO</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>msg_Dbg</name><argument_list>( <argument><expr><name>obj</name></expr></argument>, <argument><expr><literal type="string">"GetSpeakerConfig failed"</literal></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>name</name> <init>= <expr><literal type="string">"Unknown"</literal></expr></init></decl>;</decl_stmt>
+
+<switch>switch<condition>( <expr><call><name>DSSPEAKER_CONFIG</name><argument_list>(<argument><expr><name>ui_speaker_config</name></expr></argument>)</argument_list></call></expr> )</condition>
+
+<block>{<block_content>
+
+<case>case <expr><name>DSSPEAKER_7POINT1</name></expr>:</case>
+
+<case>case <expr><name>DSSPEAKER_7POINT1_SURROUND</name></expr>:</case>
+
+<expr_stmt><expr><name>name</name> <operator>=</operator> <literal type="string">"7.1"</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>i_channels</name> <operator>=</operator> <literal type="number">8</literal></expr>;</expr_stmt>
+
+<break>break;</break>
+
+<case>case <expr><name>DSSPEAKER_5POINT1</name></expr>:</case>
+
+<case>case <expr><name>DSSPEAKER_5POINT1_SURROUND</name></expr>:</case>
+
+<expr_stmt><expr><name>name</name> <operator>=</operator> <literal type="string">"5.1"</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>i_channels</name> <operator>=</operator> <literal type="number">6</literal></expr>;</expr_stmt>
+
+<break>break;</break>
+
+<case>case <expr><name>DSSPEAKER_QUAD</name></expr>:</case>
+
+<expr_stmt><expr><name>name</name> <operator>=</operator> <literal type="string">"Quad"</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>i_channels</name> <operator>=</operator> <literal type="number">4</literal></expr>;</expr_stmt>
+
+<break>break;</break>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><literal type="number">0</literal></expr></cpp:if> 
+
+case DSSPEAKER_MONO:
+
+name = "Mono";
+
+i_channels = 1;
+
+break;
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+<case>case <expr><name>DSSPEAKER_SURROUND</name></expr>:</case>
+
+<expr_stmt><expr><name>name</name> <operator>=</operator> <literal type="string">"Surround"</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>i_channels</name> <operator>=</operator> <literal type="number">4</literal></expr>;</expr_stmt>
+
+<break>break;</break>
+
+<case>case <expr><name>DSSPEAKER_STEREO</name></expr>:</case>
+
+<expr_stmt><expr><name>name</name> <operator>=</operator> <literal type="string">"Stereo"</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>i_channels</name> <operator>=</operator> <literal type="number">2</literal></expr>;</expr_stmt>
+
+<break>break;</break>
+
+</block_content>}</block></switch>
+
+<if_stmt><if>if<condition>( <expr><name>i_channels</name> <operator>&gt;=</operator> <name>i_orig_channels</name></expr> )</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name>i_channels</name> <operator>=</operator> <name>i_orig_channels</name></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>msg_Dbg</name><argument_list>( <argument><expr><name>obj</name></expr></argument>, <argument><expr><literal type="string">"%s speaker config: %s and stream has "</literal>
+
+<literal type="string">"%d channels, using %d channels"</literal></expr></argument>, <argument><expr><literal type="string">"Windows"</literal></expr></argument>, <argument><expr><name>name</name></expr></argument>,
+
+<argument><expr><name>i_orig_channels</name></expr></argument>, <argument><expr><name>i_channels</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+<switch>switch<condition>( <expr><name>i_channels</name></expr> )</condition>
+
+<block>{<block_content>
+
+<case>case <expr><literal type="number">8</literal></expr>:</case>
+
+<expr_stmt><expr><name><name>fmt</name><operator>.</operator><name>i_physical_channels</name></name> <operator>=</operator> <name>AOUT_CHANS_7_1</name></expr>;</expr_stmt>
+
+<break>break;</break>
+
+<case>case <expr><literal type="number">7</literal></expr>:</case>
+
+<case>case <expr><literal type="number">6</literal></expr>:</case>
+
+<expr_stmt><expr><name><name>fmt</name><operator>.</operator><name>i_physical_channels</name></name> <operator>=</operator> <name>AOUT_CHANS_5_1</name></expr>;</expr_stmt>
+
+<break>break;</break>
+
+<case>case <expr><literal type="number">5</literal></expr>:</case>
+
+<case>case <expr><literal type="number">4</literal></expr>:</case>
+
+<expr_stmt><expr><name><name>fmt</name><operator>.</operator><name>i_physical_channels</name></name> <operator>=</operator> <name>AOUT_CHANS_4_0</name></expr>;</expr_stmt>
+
+<break>break;</break>
+
+<default>default:</default>
+
+<expr_stmt><expr><name><name>fmt</name><operator>.</operator><name>i_physical_channels</name></name> <operator>=</operator> <name>AOUT_CHANS_2_0</name></expr>;</expr_stmt>
+
+<break>break;</break>
+
+</block_content>}</block></switch>
+
+</block_content>}</block></if>
+
+<else>else
+
+<block>{<block_content> 
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>name</name> <init>= <expr><literal type="string">"Non-existant"</literal></expr></init></decl>;</decl_stmt>
+
+<switch>switch<condition>( <expr><name>i</name></expr> )</condition>
+
+<block>{<block_content>
+
+<case>case <expr><literal type="number">1</literal></expr>:</case> 
+
+<expr_stmt><expr><name>name</name> <operator>=</operator> <literal type="string">"Mono"</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>fmt</name><operator>.</operator><name>i_physical_channels</name></name> <operator>=</operator> <name>AOUT_CHAN_CENTER</name></expr>;</expr_stmt>
+
+<break>break;</break>
+
+<case>case <expr><literal type="number">2</literal></expr>:</case> 
+
+<expr_stmt><expr><name>name</name> <operator>=</operator> <literal type="string">"Stereo"</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>fmt</name><operator>.</operator><name>i_physical_channels</name></name> <operator>=</operator> <name>AOUT_CHANS_2_0</name></expr>;</expr_stmt>
+
+<break>break;</break>
+
+<case>case <expr><literal type="number">3</literal></expr>:</case> 
+
+<expr_stmt><expr><name>name</name> <operator>=</operator> <literal type="string">"Quad"</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>fmt</name><operator>.</operator><name>i_physical_channels</name></name> <operator>=</operator> <name>AOUT_CHANS_4_0</name></expr>;</expr_stmt>
+
+<break>break;</break>
+
+<case>case <expr><literal type="number">4</literal></expr>:</case> 
+
+<expr_stmt><expr><name>name</name> <operator>=</operator> <literal type="string">"5.1"</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>fmt</name><operator>.</operator><name>i_physical_channels</name></name> <operator>=</operator> <name>AOUT_CHANS_5_1</name></expr>;</expr_stmt>
+
+<break>break;</break>
+
+<case>case <expr><literal type="number">5</literal></expr>:</case> 
+
+<expr_stmt><expr><name>name</name> <operator>=</operator> <literal type="string">"7.1"</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>fmt</name><operator>.</operator><name>i_physical_channels</name></name> <operator>=</operator> <name>AOUT_CHANS_7_1</name></expr>;</expr_stmt>
+
+<break>break;</break>
+
+</block_content>}</block></switch>
+
+<expr_stmt><expr><call><name>msg_Dbg</name><argument_list>( <argument><expr><name>obj</name></expr></argument>, <argument><expr><literal type="string">"%s speaker config: %s"</literal></expr></argument>, <argument><expr><literal type="string">"VLC"</literal></expr></argument>, <argument><expr><name>name</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+<expr_stmt><expr><call><name>aout_FormatPrepare</name><argument_list>( <argument><expr><operator>&amp;</operator><name>fmt</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>hr</name> <operator>=</operator> <call><name>CreateDSBufferPCM</name><argument_list>( <argument><expr><name>obj</name></expr></argument>, <argument><expr><name>sys</name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>fmt</name><operator>.</operator><name>i_format</name></name></expr></argument>,
+
+<argument><expr><name><name>fmt</name><operator>.</operator><name>i_physical_channels</name></name></expr></argument>, <argument><expr><name><name>fmt</name><operator>.</operator><name>i_rate</name></name></expr></argument>, <argument><expr><name>false</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if<condition>( <expr><name>hr</name> <operator>!=</operator> <name>DS_OK</name></expr> )</condition>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>msg_Err</name><argument_list>( <argument><expr><name>obj</name></expr></argument>, <argument><expr><literal type="string">"cannot open directx audio device"</literal></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+<goto>goto <name>error</name>;</goto>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>ret</name> <init>= <expr><call><name>vlc_clone</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>sys</name><operator>-&gt;</operator><name>eraser_thread</name></name></expr></argument>, <argument><expr><name>PlayedDataEraser</name></expr></argument>, <argument><expr><operator>(</operator><name>void</name><operator>*</operator><operator>)</operator> <name>obj</name></expr></argument>,
+
+<argument><expr><name>VLC_THREAD_PRIORITY_LOW</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if<condition>( <expr><call><name>unlikely</name><argument_list>( <argument><expr><name>ret</name></expr></argument> )</argument_list></call></expr> )</condition>
+
+<block>{<block_content>
+
+<if_stmt><if>if<condition>( <expr><name>ret</name> <operator>!=</operator> <name>ENOMEM</name></expr> )</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>msg_Err</name><argument_list>( <argument><expr><name>obj</name></expr></argument>, <argument><expr><literal type="string">"Couldn't start eraser thread"</literal></expr></argument> )</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>hr</name> <operator>=</operator> <name>E_FAIL</name></expr>;</expr_stmt>
+
+<goto>goto <name>error</name>;</goto>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>fmt</name><operator>.</operator><name>channel_type</name></name> <operator>=</operator> <name>AUDIO_CHANNEL_TYPE_BITMAP</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><operator>*</operator><name>pfmt</name> <operator>=</operator> <name>fmt</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>sys</name><operator>-&gt;</operator><name>b_playing</name></name> <operator>=</operator> <name>false</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>sys</name><operator>-&gt;</operator><name>i_write</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>sys</name><operator>-&gt;</operator><name>i_last_read</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>sys</name><operator>-&gt;</operator><name>i_data</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<return>return <expr><name>DS_OK</name></expr>;</return>
+
+<label><name>error</name>:</label>
+
+<if_stmt><if>if<condition>( <expr><name><name>sys</name><operator>-&gt;</operator><name>p_notify</name></name> <operator>!=</operator> <name>NULL</name></expr> )</condition>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>IDirectSoundNotify_Release</name><argument_list>( <argument><expr><name><name>sys</name><operator>-&gt;</operator><name>p_notify</name></name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>sys</name><operator>-&gt;</operator><name>p_notify</name></name> <operator>=</operator> <name>NULL</name></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if<condition>( <expr><name><name>sys</name><operator>-&gt;</operator><name>p_dsbuffer</name></name> <operator>!=</operator> <name>NULL</name></expr> )</condition>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>IDirectSoundBuffer_Release</name><argument_list>( <argument><expr><name><name>sys</name><operator>-&gt;</operator><name>p_dsbuffer</name></name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>sys</name><operator>-&gt;</operator><name>p_dsbuffer</name></name> <operator>=</operator> <name>NULL</name></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>IDirectSound_Release</name><argument_list>( <argument><expr><name><name>sys</name><operator>-&gt;</operator><name>p_dsobject</name></name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>sys</name><operator>-&gt;</operator><name>p_dsobject</name></name> <operator>=</operator> <name>NULL</name></expr>;</expr_stmt>
+
+<return>return <expr><name>hr</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>HRESULT</name></type> <name>StreamStart</name><parameter_list>( <parameter><decl><type><name>aout_stream_t</name> <modifier>*</modifier></type><name>s</name></decl></parameter>,
+
+<parameter><decl><type><name>audio_sample_format_t</name> <modifier>*</modifier><specifier>restrict</specifier></type> <name>fmt</name></decl></parameter>,
+
+<parameter><decl><type><specifier>const</specifier> <name>GUID</name> <modifier>*</modifier></type><name>sid</name></decl></parameter> )</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>aout_stream_sys_t</name> <modifier>*</modifier></type><name>sys</name> <init>= <expr><call><name>calloc</name><argument_list>( <argument><expr><literal type="number">1</literal></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>( <argument><expr><operator>*</operator><name>sys</name></expr></argument> )</argument_list></sizeof></expr></argument> )</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if<condition>( <expr><call><name>unlikely</name><argument_list>(<argument><expr><name>sys</name> <operator>==</operator> <name>NULL</name></expr></argument>)</argument_list></call></expr> )</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>E_OUTOFMEMORY</name></expr>;</return></block_content></block></if></if_stmt>
+
+<decl_stmt><decl><type><name>void</name> <modifier>*</modifier></type><name>pv</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>HRESULT</name></type> <name>hr</name></decl>;</decl_stmt>
+
+<if_stmt><if>if<condition>( <expr><name>sid</name></expr> )</condition>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>DIRECTX_AUDIO_ACTIVATION_PARAMS</name></type> <name>params</name> <init>= <expr><block>{
+
+<expr><operator>.</operator><name>cbDirectXAudioActivationParams</name> <operator>=</operator> <sizeof>sizeof<argument_list>( <argument><expr><name>params</name></expr></argument> )</argument_list></sizeof></expr>,
+
+<expr><operator>.</operator><name>guidAudioSession</name> <operator>=</operator> <operator>*</operator><name>sid</name></expr>,
+
+<expr><operator>.</operator><name>dwAudioStreamFlags</name> <operator>=</operator> <literal type="number">0</literal></expr>,
+
+}</block></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>PROPVARIANT</name></type> <name>prop</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>PropVariantInit</name><argument_list>( <argument><expr><operator>&amp;</operator><name>prop</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>prop</name><operator>.</operator><name>vt</name></name> <operator>=</operator> <name>VT_BLOB</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>prop</name><operator>.</operator><name>blob</name><operator>.</operator><name>cbSize</name></name> <operator>=</operator> <sizeof>sizeof<argument_list>( <argument><expr><name>params</name></expr></argument> )</argument_list></sizeof></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>prop</name><operator>.</operator><name>blob</name><operator>.</operator><name>pBlobData</name></name> <operator>=</operator> <operator>(</operator><name>BYTE</name> <operator>*</operator><operator>)</operator><operator>&amp;</operator><name>params</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>hr</name> <operator>=</operator> <call><name>aout_stream_Activate</name><argument_list>( <argument><expr><name>s</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>IID_IDirectSound</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>prop</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>pv</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if>
+
+<else>else<block type="pseudo"><block_content>
+
+<expr_stmt><expr><name>hr</name> <operator>=</operator> <call><name>aout_stream_Activate</name><argument_list>( <argument><expr><name>s</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>IID_IDirectSound</name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>pv</name></expr></argument> )</argument_list></call></expr>;</expr_stmt></block_content></block></else></if_stmt>
+
+<if_stmt><if>if<condition>( <expr><call><name>FAILED</name><argument_list>(<argument><expr><name>hr</name></expr></argument>)</argument_list></call></expr> )</condition><block type="pseudo"><block_content>
+
+<goto>goto <name>error</name>;</goto></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name><name>sys</name><operator>-&gt;</operator><name>p_dsobject</name></name> <operator>=</operator> <name>pv</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>hr</name> <operator>=</operator> <call><name>Start</name><argument_list>( <argument><expr><call><name>VLC_OBJECT</name><argument_list>(<argument><expr><name>s</name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name>sys</name></expr></argument>, <argument><expr><name>fmt</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if<condition>( <expr><call><name>FAILED</name><argument_list>(<argument><expr><name>hr</name></expr></argument>)</argument_list></call></expr> )</condition><block type="pseudo"><block_content>
+
+<goto>goto <name>error</name>;</goto></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>sys</name></name> <operator>=</operator> <name>sys</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>time_get</name></name> <operator>=</operator> <name>StreamTimeGet</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>play</name></name> <operator>=</operator> <name>StreamPlay</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>pause</name></name> <operator>=</operator> <name>StreamPause</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>flush</name></name> <operator>=</operator> <name>StreamFlush</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>stop</name></name> <operator>=</operator> <name>StreamStop</name></expr>;</expr_stmt>
+
+<return>return <expr><name>S_OK</name></expr>;</return>
+
+<label><name>error</name>:</label>
+
+<expr_stmt><expr><call><name>free</name><argument_list>( <argument><expr><name>sys</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>hr</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>InitDirectSound</name><parameter_list>( <parameter><decl><type><name>audio_output_t</name> <modifier>*</modifier></type><name>p_aout</name></decl></parameter> )</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>aout_sys_t</name> <modifier>*</modifier></type><name>sys</name> <init>= <expr><name><name>p_aout</name><operator>-&gt;</operator><name>sys</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>GUID</name></type> <name>guid</name></decl>, <decl><type ref="prev"><modifier>*</modifier></type><name>p_guid</name> <init>= <expr><name>NULL</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>char</name> <modifier>*</modifier></type><name>dev</name> <init>= <expr><call><name>var_GetNonEmptyString</name><argument_list>( <argument><expr><name>p_aout</name></expr></argument>, <argument><expr><literal type="string">"directx-audio-device"</literal></expr></argument> )</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if<condition>( <expr><name>dev</name> <operator>!=</operator> <name>NULL</name></expr> )</condition>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>LPOLESTR</name></type> <name>lpsz</name> <init>= <expr><call><name>ToWide</name><argument_list>( <argument><expr><name>dev</name></expr></argument> )</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>free</name><argument_list>( <argument><expr><name>dev</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if<condition>( <expr><call><name>SUCCEEDED</name><argument_list>( <argument><expr><call><name>IIDFromString</name><argument_list>( <argument><expr><name>lpsz</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>guid</name></expr></argument> )</argument_list></call></expr></argument> )</argument_list></call></expr> )</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name>p_guid</name> <operator>=</operator> <operator>&amp;</operator><name>guid</name></expr>;</expr_stmt></block_content></block></if>
+
+<else>else<block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>msg_Err</name><argument_list>( <argument><expr><name>p_aout</name></expr></argument>, <argument><expr><literal type="string">"bad device GUID: %ls"</literal></expr></argument>, <argument><expr><name>lpsz</name></expr></argument> )</argument_list></call></expr>;</expr_stmt></block_content></block></else></if_stmt>
+
+<expr_stmt><expr><call><name>free</name><argument_list>( <argument><expr><name>lpsz</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if FAILED<condition>( <expr><call><name>DirectSoundCreate</name><argument_list>( <argument><expr><name>p_guid</name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>sys</name><operator>-&gt;</operator><name>s</name><operator>.</operator><name>p_dsobject</name></name></expr></argument>, <argument><expr><name>NULL</name></expr></argument> )</argument_list></call></expr> )</condition>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>msg_Warn</name><argument_list>( <argument><expr><name>p_aout</name></expr></argument>, <argument><expr><literal type="string">"cannot create a direct sound device"</literal></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+<goto>goto <name>error</name>;</goto>
+
+</block_content>}</block></if></if_stmt>
+
+<return>return <expr><name>VLC_SUCCESS</name></expr>;</return>
+
+<label><name>error</name>:</label>
+
+<expr_stmt><expr><name><name>sys</name><operator>-&gt;</operator><name>s</name><operator>.</operator><name>p_dsobject</name></name> <operator>=</operator> <name>NULL</name></expr>;</expr_stmt>
+
+<return>return <expr><name>VLC_EGENERIC</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>VolumeSet</name><parameter_list>( <parameter><decl><type><name>audio_output_t</name> <modifier>*</modifier></type><name>p_aout</name></decl></parameter>, <parameter><decl><type><name>float</name></type> <name>volume</name></decl></parameter> )</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>aout_sys_t</name> <modifier>*</modifier></type><name>sys</name> <init>= <expr><name><name>p_aout</name><operator>-&gt;</operator><name>sys</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>ret</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>float</name></type> <name>gain</name> <init>= <expr><ternary><condition><expr><name>volume</name> <operator>&gt;</operator> <literal type="number">1.f</literal></expr> ?</condition><then> <expr><name>volume</name> <operator>*</operator> <name>volume</name> <operator>*</operator> <name>volume</name></expr> </then><else>: <expr><literal type="number">1.f</literal></expr></else></ternary></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>aout_GainRequest</name><argument_list>( <argument><expr><name>p_aout</name></expr></argument>, <argument><expr><name>gain</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+<decl_stmt><decl><type><name>LONG</name></type> <name>mb</name> <init>= <expr><call><name>lroundf</name><argument_list>( <argument><expr><literal type="number">6000.f</literal> <operator>*</operator> <call><name>log10f</name><argument_list>( <argument><expr><call><name>__MIN</name><argument_list>( <argument><expr><name>volume</name></expr></argument>, <argument><expr><literal type="number">1.f</literal></expr></argument> )</argument_list></call></expr></argument> )</argument_list></call></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>static_assert</name><argument_list>( <argument><expr><name>DSBVOLUME_MIN</name> <operator>&lt;</operator> <name>DSBVOLUME_MAX</name></expr></argument>, <argument><expr><literal type="string">"DSBVOLUME_* confused"</literal></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if<condition>( <expr><name>mb</name> <operator>&gt;</operator> <name>DSBVOLUME_MAX</name></expr> )</condition>
+
+<block>{<block_content>
+
+<expr_stmt><expr><name>mb</name> <operator>=</operator> <name>DSBVOLUME_MAX</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <operator>-</operator><literal type="number">1</literal></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if<condition>( <expr><name>mb</name> <operator>&lt;=</operator> <name>DSBVOLUME_MIN</name></expr> )</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name>mb</name> <operator>=</operator> <name>DSBVOLUME_MIN</name></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name><name>sys</name><operator>-&gt;</operator><name>volume</name><operator>.</operator><name>mb</name></name> <operator>=</operator> <name>mb</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>sys</name><operator>-&gt;</operator><name>volume</name><operator>.</operator><name>volume</name></name> <operator>=</operator> <name>volume</name></expr>;</expr_stmt>
+
+<if_stmt><if>if<condition>( <expr><operator>!</operator><name><name>sys</name><operator>-&gt;</operator><name>volume</name><operator>.</operator><name>mute</name></name> <operator>&amp;&amp;</operator> <name><name>sys</name><operator>-&gt;</operator><name>s</name><operator>.</operator><name>p_dsbuffer</name></name> <operator>!=</operator> <name>NULL</name> <operator>&amp;&amp;</operator>
+
+<call><name>IDirectSoundBuffer_SetVolume</name><argument_list>( <argument><expr><name><name>sys</name><operator>-&gt;</operator><name>s</name><operator>.</operator><name>p_dsbuffer</name></name></expr></argument>, <argument><expr><name>mb</name></expr></argument> )</argument_list></call> <operator>!=</operator> <name>DS_OK</name></expr> )</condition><block type="pseudo"><block_content>
+
+<return>return <expr><operator>-</operator><literal type="number">1</literal></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>aout_VolumeReport</name><argument_list>( <argument><expr><name>p_aout</name></expr></argument>, <argument><expr><name>volume</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if<condition>( <expr><call><name>var_InheritBool</name><argument_list>( <argument><expr><name>p_aout</name></expr></argument>, <argument><expr><literal type="string">"volume-save"</literal></expr></argument> )</argument_list></call></expr> )</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>config_PutFloat</name><argument_list>( <argument><expr><literal type="string">"directx-volume"</literal></expr></argument>, <argument><expr><name>volume</name></expr></argument> )</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<return>return <expr><name>ret</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>MuteSet</name><parameter_list>( <parameter><decl><type><name>audio_output_t</name> <modifier>*</modifier></type><name>p_aout</name></decl></parameter>, <parameter><decl><type><name>bool</name></type> <name>mute</name></decl></parameter> )</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>HRESULT</name></type> <name>res</name> <init>= <expr><name>DS_OK</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>aout_sys_t</name> <modifier>*</modifier></type><name>sys</name> <init>= <expr><name><name>p_aout</name><operator>-&gt;</operator><name>sys</name></name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>sys</name><operator>-&gt;</operator><name>volume</name><operator>.</operator><name>mute</name></name> <operator>=</operator> <name>mute</name></expr>;</expr_stmt>
+
+<if_stmt><if>if<condition>( <expr><name><name>sys</name><operator>-&gt;</operator><name>s</name><operator>.</operator><name>p_dsbuffer</name></name> <operator>!=</operator> <name>NULL</name></expr> )</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name>res</name> <operator>=</operator> <call><name>IDirectSoundBuffer_SetVolume</name><argument_list>( <argument><expr><name><name>sys</name><operator>-&gt;</operator><name>s</name><operator>.</operator><name>p_dsbuffer</name></name></expr></argument>,
+
+<argument><expr><ternary><condition><expr><name>mute</name></expr>?</condition><then> <expr><name>DSBVOLUME_MIN</name></expr> </then><else>: <expr><name><name>sys</name><operator>-&gt;</operator><name>volume</name><operator>.</operator><name>mb</name></name></expr></else></ternary></expr></argument> )</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>aout_MuteReport</name><argument_list>( <argument><expr><name>p_aout</name></expr></argument>, <argument><expr><name>mute</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><operator>(</operator><name>res</name> <operator>!=</operator> <name>DS_OK</name><operator>)</operator></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>OutputStart</name><parameter_list>( <parameter><decl><type><name>audio_output_t</name> <modifier>*</modifier></type><name>p_aout</name></decl></parameter>,
+
+<parameter><decl><type><name>audio_sample_format_t</name> <modifier>*</modifier><specifier>restrict</specifier></type> <name>fmt</name></decl></parameter> )</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>msg_Dbg</name><argument_list>( <argument><expr><name>p_aout</name></expr></argument>, <argument><expr><literal type="string">"Opening DirectSound Audio Output"</literal></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if<condition>( <expr><call><name>InitDirectSound</name><argument_list>( <argument><expr><name>p_aout</name></expr></argument> )</argument_list></call></expr> )</condition>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>msg_Err</name><argument_list>( <argument><expr><name>p_aout</name></expr></argument>, <argument><expr><literal type="string">"cannot initialize DirectSound"</literal></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><operator>-</operator><literal type="number">1</literal></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<decl_stmt><decl><type><name>aout_sys_t</name> <modifier>*</modifier></type><name>sys</name> <init>= <expr><name><name>p_aout</name><operator>-&gt;</operator><name>sys</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>HRESULT</name></type> <name>hr</name> <init>= <expr><call><name>Start</name><argument_list>( <argument><expr><call><name>VLC_OBJECT</name><argument_list>(<argument><expr><name>p_aout</name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>sys</name><operator>-&gt;</operator><name>s</name></name></expr></argument>, <argument><expr><name>fmt</name></expr></argument> )</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if<condition>( <expr><call><name>FAILED</name><argument_list>(<argument><expr><name>hr</name></expr></argument>)</argument_list></call></expr> )</condition><block type="pseudo"><block_content>
+
+<return>return <expr><operator>-</operator><literal type="number">1</literal></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>VolumeSet</name><argument_list>( <argument><expr><name>p_aout</name></expr></argument>, <argument><expr><name><name>sys</name><operator>-&gt;</operator><name>volume</name><operator>.</operator><name>volume</name></name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>MuteSet</name><argument_list>( <argument><expr><name>p_aout</name></expr></argument>, <argument><expr><name><name>sys</name><operator>-&gt;</operator><name>volume</name><operator>.</operator><name>mute</name></name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>p_aout</name><operator>-&gt;</operator><name>time_get</name></name> <operator>=</operator> <name>OutputTimeGet</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>p_aout</name><operator>-&gt;</operator><name>play</name></name> <operator>=</operator> <name>OutputPlay</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>p_aout</name><operator>-&gt;</operator><name>pause</name></name> <operator>=</operator> <name>OutputPause</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>p_aout</name><operator>-&gt;</operator><name>flush</name></name> <operator>=</operator> <name>OutputFlush</name></expr>;</expr_stmt>
+
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+
+</block_content>}</block></function>
+
+<typedef>typedef <type><struct>struct
+
+<block>{
+
+<decl_stmt><decl><type><name>unsigned</name></type> <name>count</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>char</name> <modifier>*</modifier><modifier>*</modifier></type><name>ids</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>char</name> <modifier>*</modifier><modifier>*</modifier></type><name>names</name></decl>;</decl_stmt>
+
+}</block></struct></type> <name>ds_list_t</name>;</typedef>
+
+<function><type><specifier>static</specifier> <name>int</name> <name>CALLBACK</name></type> <name>DeviceEnumCallback</name><parameter_list>( <parameter><decl><type><name>LPGUID</name></type> <name>guid</name></decl></parameter>, <parameter><decl><type><name>LPCWSTR</name></type> <name>desc</name></decl></parameter>,
+
+<parameter><decl><type><name>LPCWSTR</name></type> <name>mod</name></decl></parameter>, <parameter><decl><type><name>LPVOID</name></type> <name>data</name></decl></parameter> )</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>ds_list_t</name> <modifier>*</modifier></type><name>list</name> <init>= <expr><name>data</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>OLECHAR</name></type> <name><name>buf</name><index>[<expr><literal type="number">48</literal></expr>]</index></name></decl>;</decl_stmt>
+
+<if_stmt><if>if<condition>( <expr><call><name>StringFromGUID2</name><argument_list>( <argument><expr><name>guid</name></expr></argument>, <argument><expr><name>buf</name></expr></argument>, <argument><expr><literal type="number">48</literal></expr></argument> )</argument_list></call> <operator>&lt;=</operator> <literal type="number">0</literal></expr> )</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>true</name></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name><name>list</name><operator>-&gt;</operator><name>count</name></name><operator>++</operator></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>list</name><operator>-&gt;</operator><name>ids</name></name> <operator>=</operator> <call><name>realloc_or_free</name><argument_list>( <argument><expr><name><name>list</name><operator>-&gt;</operator><name>ids</name></name></expr></argument>, <argument><expr><name><name>list</name><operator>-&gt;</operator><name>count</name></name> <operator>*</operator> <sizeof>sizeof<argument_list>(<argument><expr><name>char</name> <operator>*</operator></expr></argument>)</argument_list></sizeof></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if<condition>( <expr><name><name>list</name><operator>-&gt;</operator><name>ids</name></name> <operator>==</operator> <name>NULL</name></expr> )</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>false</name></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name><name>list</name><operator>-&gt;</operator><name>names</name></name> <operator>=</operator> <call><name>realloc_or_free</name><argument_list>( <argument><expr><name><name>list</name><operator>-&gt;</operator><name>names</name></name></expr></argument>, <argument><expr><name><name>list</name><operator>-&gt;</operator><name>count</name></name> <operator>*</operator> <sizeof>sizeof<argument_list>(<argument><expr><name>char</name> <operator>*</operator></expr></argument>)</argument_list></sizeof></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if<condition>( <expr><name><name>list</name><operator>-&gt;</operator><name>names</name></name> <operator>==</operator> <name>NULL</name></expr> )</condition>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>free</name><argument_list>( <argument><expr><name><name>list</name><operator>-&gt;</operator><name>ids</name></name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>false</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>list</name><operator>-&gt;</operator><name>ids</name><index>[<expr><name><name>list</name><operator>-&gt;</operator><name>count</name></name> <operator>-</operator> <literal type="number">1</literal></expr>]</index></name> <operator>=</operator> <call><name>FromWide</name><argument_list>( <argument><expr><name>buf</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>list</name><operator>-&gt;</operator><name>names</name><index>[<expr><name><name>list</name><operator>-&gt;</operator><name>count</name></name> <operator>-</operator> <literal type="number">1</literal></expr>]</index></name> <operator>=</operator> <call><name>FromWide</name><argument_list>( <argument><expr><name>desc</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><operator>(</operator><name>void</name><operator>)</operator> <name>mod</name></expr>;</expr_stmt>
+
+<return>return <expr><name>true</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>ReloadDirectXDevices</name><parameter_list>( <parameter><decl><type><name>char</name> <specifier>const</specifier> <modifier>*</modifier></type><name>psz_name</name></decl></parameter>,
+
+<parameter><decl><type><name>char</name> <modifier>*</modifier><modifier>*</modifier><modifier>*</modifier></type><name>values</name></decl></parameter>, <parameter><decl><type><name>char</name> <modifier>*</modifier><modifier>*</modifier><modifier>*</modifier></type><name>descs</name></decl></parameter> )</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>ds_list_t</name></type> <name>list</name> <init>= <expr><block>{
+
+<expr><operator>.</operator><name>count</name> <operator>=</operator> <literal type="number">1</literal></expr>,
+
+<expr><operator>.</operator><name>ids</name> <operator>=</operator> <call><name>xmalloc</name><argument_list>(<argument><expr><sizeof>sizeof <argument_list>(<argument><expr><name>char</name> <operator>*</operator></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>,
+
+<expr><operator>.</operator><name>names</name> <operator>=</operator> <call><name>xmalloc</name><argument_list>(<argument><expr><sizeof>sizeof <argument_list>(<argument><expr><name>char</name> <operator>*</operator></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>,
+
+}</block></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>list</name><operator>.</operator><name>ids</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>=</operator> <call><name>xstrdup</name><argument_list>(<argument><expr><literal type="string">""</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>list</name><operator>.</operator><name>names</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>=</operator> <call><name>xstrdup</name><argument_list>(<argument><expr><call><name>_</name><argument_list>(<argument><expr><literal type="string">"Default"</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><operator>(</operator><name>void</name><operator>)</operator> <name>psz_name</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>DirectSoundEnumerate</name><argument_list>( <argument><expr><name>DeviceEnumCallback</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>list</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><operator>*</operator><name>values</name> <operator>=</operator> <name><name>list</name><operator>.</operator><name>ids</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><operator>*</operator><name>descs</name> <operator>=</operator> <name><name>list</name><operator>.</operator><name>names</name></name></expr>;</expr_stmt>
+
+<return>return <expr><name><name>list</name><operator>.</operator><name>count</name></name></expr>;</return>
+
+</block_content>}</block></function>
+
+<macro><name>VLC_CONFIG_STRING_ENUM</name><argument_list>(<argument>ReloadDirectXDevices</argument>)</argument_list></macro>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>DeviceSelect</name> <parameter_list>(<parameter><decl><type><name>audio_output_t</name> <modifier>*</modifier></type><name>aout</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>id</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>var_SetString</name><argument_list>(<argument><expr><name>aout</name></expr></argument>, <argument><expr><literal type="string">"directx-audio-device"</literal></expr></argument>, <argument><expr><ternary><condition><expr><operator>(</operator><name>id</name> <operator>!=</operator> <name>NULL</name><operator>)</operator></expr> ?</condition><then> <expr><name>id</name></expr> </then><else>: <expr><literal type="string">""</literal></expr></else></ternary></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>aout_DeviceReport</name> <argument_list>(<argument><expr><name>aout</name></expr></argument>, <argument><expr><name>id</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>aout_RestartRequest</name> <argument_list>(<argument><expr><name>aout</name></expr></argument>, <argument><expr><name>AOUT_RESTART_OUTPUT</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>Open</name><parameter_list>(<parameter><decl><type><name>vlc_object_t</name> <modifier>*</modifier></type><name>obj</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>audio_output_t</name> <modifier>*</modifier></type><name>aout</name> <init>= <expr><operator>(</operator><name>audio_output_t</name> <operator>*</operator><operator>)</operator><name>obj</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>aout_sys_t</name> <modifier>*</modifier></type><name>sys</name> <init>= <expr><call><name>calloc</name><argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>, <argument><expr><sizeof>sizeof <argument_list>(<argument><expr><operator>*</operator><name>sys</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>unlikely</name><argument_list>(<argument><expr><name>sys</name> <operator>==</operator> <name>NULL</name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>VLC_ENOMEM</name></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name><name>aout</name><operator>-&gt;</operator><name>sys</name></name> <operator>=</operator> <name>sys</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>aout</name><operator>-&gt;</operator><name>start</name></name> <operator>=</operator> <name>OutputStart</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>aout</name><operator>-&gt;</operator><name>stop</name></name> <operator>=</operator> <name>OutputStop</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>aout</name><operator>-&gt;</operator><name>volume_set</name></name> <operator>=</operator> <name>VolumeSet</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>aout</name><operator>-&gt;</operator><name>mute_set</name></name> <operator>=</operator> <name>MuteSet</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>aout</name><operator>-&gt;</operator><name>device_select</name></name> <operator>=</operator> <name>DeviceSelect</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>sys</name><operator>-&gt;</operator><name>volume</name><operator>.</operator><name>volume</name></name> <operator>=</operator> <call><name>var_InheritFloat</name><argument_list>(<argument><expr><name>aout</name></expr></argument>, <argument><expr><literal type="string">"directx-volume"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>aout_VolumeReport</name><argument_list>(<argument><expr><name>aout</name></expr></argument>, <argument><expr><name><name>sys</name><operator>-&gt;</operator><name>volume</name><operator>.</operator><name>volume</name></name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>MuteSet</name><argument_list>(<argument><expr><name>aout</name></expr></argument>, <argument><expr><call><name>var_InheritBool</name><argument_list>(<argument><expr><name>aout</name></expr></argument>, <argument><expr><literal type="string">"mute"</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<decl_stmt><decl><type><name>char</name> <modifier>*</modifier><modifier>*</modifier></type><name>ids</name></decl>, <decl><type ref="prev"><modifier>*</modifier><modifier>*</modifier></type><name>names</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>count</name> <init>= <expr><call><name>ReloadDirectXDevices</name><argument_list>(<argument><expr><name>NULL</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>ids</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>names</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>msg_Dbg</name><argument_list>(<argument><expr><name>obj</name></expr></argument>, <argument><expr><literal type="string">"found %d devices"</literal></expr></argument>, <argument><expr><name>count</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>count</name> <operator>&gt;=</operator> <literal type="number">0</literal></expr>)</condition>
+
+<block>{<block_content>
+
+<for>for <control>(<init><decl><type><name>int</name></type> <name>i</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>count</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>aout_HotplugReport</name><argument_list>(<argument><expr><name>aout</name></expr></argument>, <argument><expr><name><name>ids</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>, <argument><expr><name><name>names</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>free</name><argument_list>(<argument><expr><name><name>names</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>free</name><argument_list>(<argument><expr><name><name>ids</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></for>
+
+<expr_stmt><expr><call><name>free</name><argument_list>(<argument><expr><name>names</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>free</name><argument_list>(<argument><expr><name>ids</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<decl_stmt><decl><type><name>char</name> <modifier>*</modifier></type><name>dev</name> <init>= <expr><call><name>var_CreateGetNonEmptyString</name><argument_list>(<argument><expr><name>aout</name></expr></argument>, <argument><expr><literal type="string">"directx-audio-device"</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>aout_DeviceReport</name><argument_list>(<argument><expr><name>aout</name></expr></argument>, <argument><expr><name>dev</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>free</name><argument_list>(<argument><expr><name>dev</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>VLC_SUCCESS</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>Close</name><parameter_list>(<parameter><decl><type><name>vlc_object_t</name> <modifier>*</modifier></type><name>obj</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>audio_output_t</name> <modifier>*</modifier></type><name>aout</name> <init>= <expr><operator>(</operator><name>audio_output_t</name> <operator>*</operator><operator>)</operator><name>obj</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>aout_sys_t</name> <modifier>*</modifier></type><name>sys</name> <init>= <expr><name><name>aout</name><operator>-&gt;</operator><name>sys</name></name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>var_Destroy</name><argument_list>(<argument><expr><name>aout</name></expr></argument>, <argument><expr><literal type="string">"directx-audio-device"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>free</name><argument_list>(<argument><expr><name>sys</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name> <modifier>*</modifier></type> <name>PlayedDataEraser</name><parameter_list>( <parameter><decl><type><name>void</name> <modifier>*</modifier></type> <name>data</name></decl></parameter> )</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>audio_output_t</name> <modifier>*</modifier></type><name>aout</name> <init>= <expr><operator>(</operator><name>audio_output_t</name> <operator>*</operator><operator>)</operator> <name>data</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>aout_sys_t</name> <modifier>*</modifier></type><name>aout_sys</name> <init>= <expr><name><name>aout</name><operator>-&gt;</operator><name>sys</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>aout_stream_sys_t</name> <modifier>*</modifier></type><name>p_sys</name> <init>= <expr><operator>&amp;</operator><name><name>aout_sys</name><operator>-&gt;</operator><name>s</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>void</name> <modifier>*</modifier></type><name>p_write_position</name></decl>, <decl><type ref="prev"><modifier>*</modifier></type><name>p_wrap_around</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>unsigned</name> <name>long</name></type> <name>l_bytes1</name></decl>, <decl><type ref="prev"/><name>l_bytes2</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>DWORD</name></type> <name>i_read</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int64_t</name></type> <name>toerase</name></decl>, <decl><type ref="prev"/><name>tosleep</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>vlc_tick_t</name></type> <name>ticksleep</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>HRESULT</name></type> <name>dsresult</name></decl>;</decl_stmt>
+
+<for>for<control>(<init>;</init><condition>;</condition><incr/>)</control>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>int</name></type> <name>canc</name> <init>= <expr><call><name>vlc_savecancel</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>vlc_mutex_lock</name><argument_list>( <argument><expr><operator>&amp;</operator><name><name>p_sys</name><operator>-&gt;</operator><name>lock</name></name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+<while>while<condition>( <expr><operator>!</operator><name><name>p_sys</name><operator>-&gt;</operator><name>b_playing</name></name></expr> )</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>vlc_cond_wait</name><argument_list>( <argument><expr><operator>&amp;</operator><name><name>p_sys</name><operator>-&gt;</operator><name>cond</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>p_sys</name><operator>-&gt;</operator><name>lock</name></name></expr></argument> )</argument_list></call></expr>;</expr_stmt></block_content></block></while>
+
+<expr_stmt><expr><name>toerase</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>tosleep</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>ticksleep</name> <operator>=</operator> <call><name>VLC_TICK_FROM_MS</name><argument_list>(<argument><expr><literal type="number">20</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>dsresult</name> <operator>=</operator> <call><name>IDirectSoundBuffer_GetCurrentPosition</name><argument_list>( <argument><expr><name><name>p_sys</name><operator>-&gt;</operator><name>p_dsbuffer</name></name></expr></argument>,
+
+<argument><expr><operator>&amp;</operator><name>i_read</name></expr></argument>, <argument><expr><name>NULL</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if<condition>( <expr><name>dsresult</name> <operator>==</operator> <name>DS_OK</name></expr> )</condition>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>int64_t</name></type> <name>max</name> <init>= <expr><operator>(</operator><name>int64_t</name><operator>)</operator> <name>i_read</name> <operator>-</operator> <operator>(</operator><name>int64_t</name><operator>)</operator> <name><name>p_sys</name><operator>-&gt;</operator><name>i_write</name></name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>tosleep</name> <operator>=</operator> <operator>-</operator><name>max</name></expr>;</expr_stmt>
+
+<if_stmt><if>if<condition>( <expr><name>max</name> <operator>&lt;=</operator> <literal type="number">0</literal></expr> )</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name>max</name> <operator>+=</operator> <name>DS_BUF_SIZE</name></expr>;</expr_stmt></block_content></block></if>
+
+<else>else<block type="pseudo"><block_content>
+
+<expr_stmt><expr><name>tosleep</name> <operator>+=</operator> <name>DS_BUF_SIZE</name></expr>;</expr_stmt></block_content></block></else></if_stmt>
+
+<expr_stmt><expr><name>toerase</name> <operator>=</operator> <name>max</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>ticksleep</name> <operator>=</operator> <call><name>vlc_tick_from_sec</name><argument_list>( <argument><expr><name>tosleep</name> <operator>/</operator> <name><name>p_sys</name><operator>-&gt;</operator><name>i_bytes_per_sample</name></name></expr></argument> )</argument_list></call> <operator>/</operator> <name><name>p_sys</name><operator>-&gt;</operator><name>i_rate</name></name></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name>ticksleep</name> <operator>=</operator> <call><name>__MAX</name><argument_list>( <argument><expr><name>ticksleep</name></expr></argument>, <argument><expr><call><name>VLC_TICK_FROM_MS</name><argument_list>(<argument><expr><literal type="number">20</literal></expr></argument>)</argument_list></call></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>dsresult</name> <operator>=</operator> <call><name>IDirectSoundBuffer_Lock</name><argument_list>( <argument><expr><name><name>p_sys</name><operator>-&gt;</operator><name>p_dsbuffer</name></name></expr></argument>,
+
+<argument><expr><name><name>p_sys</name><operator>-&gt;</operator><name>i_write</name></name></expr></argument>,
+
+<argument><expr><name>toerase</name></expr></argument>,
+
+<argument><expr><operator>&amp;</operator><name>p_write_position</name></expr></argument>,
+
+<argument><expr><operator>&amp;</operator><name>l_bytes1</name></expr></argument>,
+
+<argument><expr><operator>&amp;</operator><name>p_wrap_around</name></expr></argument>,
+
+<argument><expr><operator>&amp;</operator><name>l_bytes2</name></expr></argument>,
+
+<argument><expr><literal type="number">0</literal></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if<condition>( <expr><name>dsresult</name> <operator>==</operator> <name>DSERR_BUFFERLOST</name></expr> )</condition>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>IDirectSoundBuffer_Restore</name><argument_list>( <argument><expr><name><name>p_sys</name><operator>-&gt;</operator><name>p_dsbuffer</name></name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>dsresult</name> <operator>=</operator> <call><name>IDirectSoundBuffer_Lock</name><argument_list>( <argument><expr><name><name>p_sys</name><operator>-&gt;</operator><name>p_dsbuffer</name></name></expr></argument>,
+
+<argument><expr><name><name>p_sys</name><operator>-&gt;</operator><name>i_write</name></name></expr></argument>,
+
+<argument><expr><name>toerase</name></expr></argument>,
+
+<argument><expr><operator>&amp;</operator><name>p_write_position</name></expr></argument>,
+
+<argument><expr><operator>&amp;</operator><name>l_bytes1</name></expr></argument>,
+
+<argument><expr><operator>&amp;</operator><name>p_wrap_around</name></expr></argument>,
+
+<argument><expr><operator>&amp;</operator><name>l_bytes2</name></expr></argument>,
+
+<argument><expr><literal type="number">0</literal></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if<condition>( <expr><name>dsresult</name> <operator>!=</operator> <name>DS_OK</name></expr> )</condition><block type="pseudo"><block_content>
+
+<goto>goto <name>wait</name>;</goto></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>memset</name><argument_list>( <argument><expr><name>p_write_position</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><name>l_bytes1</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>memset</name><argument_list>( <argument><expr><name>p_wrap_around</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><name>l_bytes2</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>IDirectSoundBuffer_Unlock</name><argument_list>( <argument><expr><name><name>p_sys</name><operator>-&gt;</operator><name>p_dsbuffer</name></name></expr></argument>, <argument><expr><name>p_write_position</name></expr></argument>, <argument><expr><name>l_bytes1</name></expr></argument>,
+
+<argument><expr><name>p_wrap_around</name></expr></argument>, <argument><expr><name>l_bytes2</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+<label><name>wait</name>:</label>
+
+<expr_stmt><expr><call><name>vlc_mutex_unlock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>p_sys</name><operator>-&gt;</operator><name>lock</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>vlc_restorecancel</name><argument_list>(<argument><expr><name>canc</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>vlc_tick_sleep</name><argument_list>(<argument><expr><name>ticksleep</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></for>
+
+<return>return <expr><name>NULL</name></expr>;</return>
+
+</block_content>}</block></function>
+
+</unit>

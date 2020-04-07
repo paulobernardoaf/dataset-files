@@ -1,0 +1,167 @@
+
+
+
+
+
+
+
+
+#include "tomcrypt_private.h"
+
+
+
+
+
+
+#if defined(LTC_DER)
+
+
+
+
+const int der_asn1_type_to_identifier_map[] =
+{
+
+-1, 
+1, 
+2, 
+2, 
+3, 
+
+4, 
+5, 
+6, 
+22, 
+19, 
+
+12, 
+23, 
+-1, 
+48, 
+49, 
+
+49, 
+3, 
+20, 
+24, 
+-1, 
+};
+const unsigned long der_asn1_type_to_identifier_map_sz = sizeof(der_asn1_type_to_identifier_map)/sizeof(der_asn1_type_to_identifier_map[0]);
+
+
+
+
+const char* der_asn1_class_to_string_map[] =
+{
+"UNIVERSAL",
+"APPLICATION",
+"CONTEXT-SPECIFIC",
+"PRIVATE",
+};
+const unsigned long der_asn1_class_to_string_map_sz = sizeof(der_asn1_class_to_string_map)/sizeof(der_asn1_class_to_string_map[0]);
+
+
+
+
+const char* der_asn1_pc_to_string_map[] =
+{
+"PRIMITIVE",
+"CONSTRUCTED",
+};
+const unsigned long der_asn1_pc_to_string_map_sz = sizeof(der_asn1_pc_to_string_map)/sizeof(der_asn1_pc_to_string_map[0]);
+
+
+
+
+const char* der_asn1_tag_to_string_map[] =
+{
+"Reserved for use by the encoding rules",
+"Boolean type",
+"Integer type",
+"Bitstring type",
+"Octetstring type",
+"Null type",
+"Object identifier type",
+"Object descriptor type",
+"External type and Instance-of type",
+"Real type",
+"Enumerated type",
+"Embedded-pdv type",
+"UTF8String type",
+"Relative object identifier type",
+"The time type",
+"Reserved for future editions of this Recommendation | International Standard",
+"Sequence and Sequence-of types",
+"Set and Set-of types",
+"NumericString type",
+"PrintableString type",
+"TeletexString (T61String) type",
+"VideotexString type",
+"IA5String type",
+"UTCTime type",
+"GeneralizedTime type",
+"GraphicString type",
+"VisibleString (ISO646String) type",
+"GeneralString type",
+"UniversalString type",
+"UnrestrictedCharacterString type",
+"BMPString type",
+"Date type",
+"TimeOfDay type",
+"DateTime type",
+"Duration type",
+"OID internationalized resource identifier type",
+"Relative OID internationalized resource identifier type",
+};
+const unsigned long der_asn1_tag_to_string_map_sz = sizeof(der_asn1_tag_to_string_map)/sizeof(der_asn1_tag_to_string_map[0]);
+
+
+
+
+const ltc_asn1_type der_asn1_tag_to_type_map[] =
+{
+
+LTC_ASN1_EOL, 
+LTC_ASN1_BOOLEAN, 
+LTC_ASN1_INTEGER, 
+LTC_ASN1_BIT_STRING, 
+LTC_ASN1_OCTET_STRING, 
+
+LTC_ASN1_NULL, 
+LTC_ASN1_OBJECT_IDENTIFIER, 
+LTC_ASN1_CUSTOM_TYPE, 
+LTC_ASN1_CUSTOM_TYPE, 
+LTC_ASN1_CUSTOM_TYPE, 
+
+LTC_ASN1_CUSTOM_TYPE, 
+LTC_ASN1_CUSTOM_TYPE, 
+LTC_ASN1_UTF8_STRING, 
+LTC_ASN1_CUSTOM_TYPE, 
+LTC_ASN1_CUSTOM_TYPE, 
+
+LTC_ASN1_EOL, 
+LTC_ASN1_SEQUENCE, 
+LTC_ASN1_SET, 
+LTC_ASN1_CUSTOM_TYPE, 
+LTC_ASN1_PRINTABLE_STRING, 
+
+LTC_ASN1_TELETEX_STRING, 
+LTC_ASN1_CUSTOM_TYPE, 
+LTC_ASN1_IA5_STRING, 
+LTC_ASN1_UTCTIME, 
+LTC_ASN1_GENERALIZEDTIME, 
+
+LTC_ASN1_CUSTOM_TYPE, 
+LTC_ASN1_CUSTOM_TYPE, 
+LTC_ASN1_CUSTOM_TYPE, 
+LTC_ASN1_CUSTOM_TYPE, 
+LTC_ASN1_CUSTOM_TYPE, 
+
+LTC_ASN1_CUSTOM_TYPE, 
+};
+const unsigned long der_asn1_tag_to_type_map_sz = sizeof(der_asn1_tag_to_type_map)/sizeof(der_asn1_tag_to_type_map[0]);
+
+#endif
+
+
+
+

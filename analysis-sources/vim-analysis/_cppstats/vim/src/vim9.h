@@ -1,0 +1,179 @@
+typedef enum {
+ISN_EXEC, 
+ISN_ECHO, 
+ISN_EXECUTE, 
+ISN_LOAD, 
+ISN_LOADV, 
+ISN_LOADG, 
+ISN_LOADS, 
+ISN_LOADSCRIPT, 
+ISN_LOADOPT, 
+ISN_LOADENV, 
+ISN_LOADREG, 
+ISN_STORE, 
+ISN_STOREV, 
+ISN_STOREG, 
+ISN_STORES, 
+ISN_STORESCRIPT, 
+ISN_STOREOPT, 
+ISN_STOREENV, 
+ISN_STOREREG, 
+ISN_STORENR, 
+ISN_PUSHNR, 
+ISN_PUSHBOOL, 
+ISN_PUSHSPEC, 
+ISN_PUSHF, 
+ISN_PUSHS, 
+ISN_PUSHBLOB, 
+ISN_PUSHFUNC, 
+ISN_PUSHPARTIAL, 
+ISN_PUSHCHANNEL, 
+ISN_PUSHJOB, 
+ISN_NEWLIST, 
+ISN_NEWDICT, 
+ISN_BCALL, 
+ISN_DCALL, 
+ISN_UCALL, 
+ISN_PCALL, 
+ISN_PCALL_END, 
+ISN_RETURN, 
+ISN_FUNCREF, 
+ISN_JUMP, 
+ISN_FOR, 
+ISN_TRY, 
+ISN_THROW, 
+ISN_PUSHEXC, 
+ISN_CATCH, 
+ISN_ENDTRY, 
+ISN_ADDLIST,
+ISN_ADDBLOB,
+ISN_OPNR,
+ISN_OPFLOAT,
+ISN_OPANY,
+ISN_COMPAREBOOL,
+ISN_COMPARESPECIAL,
+ISN_COMPARENR,
+ISN_COMPAREFLOAT,
+ISN_COMPARESTRING,
+ISN_COMPAREBLOB,
+ISN_COMPARELIST,
+ISN_COMPAREDICT,
+ISN_COMPAREFUNC,
+ISN_COMPAREPARTIAL,
+ISN_COMPAREANY,
+ISN_CONCAT,
+ISN_INDEX, 
+ISN_MEMBER, 
+ISN_2BOOL, 
+ISN_2STRING, 
+ISN_NEGATENR, 
+ISN_CHECKNR, 
+ISN_CHECKTYPE, 
+ISN_DROP 
+} isntype_T;
+typedef struct {
+int cbf_idx; 
+int cbf_argcount; 
+} cbfunc_T;
+typedef struct {
+int cdf_idx; 
+int cdf_argcount; 
+} cdfunc_T;
+typedef struct {
+int cpf_top; 
+int cpf_argcount; 
+} cpfunc_T;
+typedef struct {
+char_u *cuf_name;
+int cuf_argcount; 
+} cufunc_T;
+typedef enum {
+JUMP_ALWAYS,
+JUMP_IF_FALSE, 
+JUMP_AND_KEEP_IF_TRUE, 
+JUMP_AND_KEEP_IF_FALSE, 
+} jumpwhen_T;
+typedef struct {
+jumpwhen_T jump_when;
+int jump_where; 
+} jump_T;
+typedef struct {
+int for_idx; 
+int for_end; 
+} forloop_T;
+typedef struct {
+int try_catch; 
+int try_finally; 
+} try_T;
+typedef struct {
+int echo_with_white; 
+int echo_count; 
+} echo_T;
+typedef struct {
+exptype_T op_type;
+int op_ic; 
+} opexpr_T;
+typedef struct {
+vartype_T ct_type;
+int ct_off; 
+} checktype_T;
+typedef struct {
+int stnr_idx;
+varnumber_T stnr_val;
+} storenr_T;
+typedef struct {
+char_u *so_name;
+int so_flags;
+} storeopt_T;
+typedef struct {
+char_u *ls_name; 
+int ls_sid; 
+} loadstore_T;
+typedef struct {
+int script_sid; 
+int script_idx; 
+} script_T;
+struct isn_S {
+isntype_T isn_type;
+int isn_lnum;
+union {
+char_u *string;
+varnumber_T number;
+blob_T *blob;
+#if defined(FEAT_FLOAT)
+float_T fnumber;
+#endif
+channel_T *channel;
+job_T *job;
+partial_T *partial;
+jump_T jump;
+forloop_T forloop;
+try_T try;
+cbfunc_T bfunc;
+cdfunc_T dfunc;
+cpfunc_T pfunc;
+cufunc_T ufunc;
+echo_T echo;
+opexpr_T op;
+checktype_T type;
+storenr_T storenr;
+storeopt_T storeopt;
+loadstore_T loadstore;
+script_T script;
+} isn_arg;
+};
+struct dfunc_S {
+ufunc_T *df_ufunc; 
+int df_idx; 
+int df_deleted; 
+garray_T df_def_args_isn; 
+isn_T *df_instr; 
+int df_instr_count;
+int df_varcount; 
+};
+#define STACK_FRAME_SIZE 3
+#if defined(DEFINE_VIM9_GLOBALS)
+garray_T def_functions = {0, 0, sizeof(dfunc_T), 50, NULL};
+#else
+extern garray_T def_functions;
+#endif

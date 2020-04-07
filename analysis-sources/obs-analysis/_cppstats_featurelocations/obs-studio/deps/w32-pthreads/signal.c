@@ -1,0 +1,179 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#include "pthread.h"
+#include "implement.h"
+
+#if defined(HAVE_SIGSET_T)
+
+static void
+ptw32_signal_thread ()
+{
+}
+
+static void
+ptw32_signal_callhandler ()
+{
+}
+
+int
+pthread_sigmask (int how, sigset_t const *set, sigset_t * oset)
+{
+pthread_t thread = pthread_self ();
+
+if (thread.p == NULL)
+{
+return ENOENT;
+}
+
+
+if (set != NULL)
+{
+switch (how)
+{
+case SIG_BLOCK:
+break;
+case SIG_UNBLOCK:
+break;
+case SIG_SETMASK:
+break;
+default:
+
+return EINVAL;
+}
+}
+
+
+if (oset != NULL)
+{
+memcpy (oset, &(thread.p->sigmask), sizeof (sigset_t));
+}
+
+if (set != NULL)
+{
+unsigned int i;
+
+
+
+
+unsigned long *src = (unsigned long const *) set;
+unsigned long *dest = (unsigned long *) &(thread.p->sigmask);
+
+switch (how)
+{
+case SIG_BLOCK:
+for (i = 0; i < (sizeof (sigset_t) / sizeof (unsigned long)); i++)
+{
+
+*dest++ |= *src++;
+}
+break;
+case SIG_UNBLOCK:
+for (i = 0; i < (sizeof (sigset_t) / sizeof (unsigned long)); i++)
+{
+
+*dest++ ^= *src++;
+}
+case SIG_SETMASK:
+
+memcpy (&(thread.p->sigmask), set, sizeof (sigset_t));
+break;
+}
+}
+
+return 0;
+}
+
+int
+sigwait (const sigset_t * set, int *sig)
+{
+
+pthread_test_cancel();
+}
+
+int
+sigaction (int signum, const struct sigaction *act, struct sigaction *oldact)
+{
+}
+
+#endif 

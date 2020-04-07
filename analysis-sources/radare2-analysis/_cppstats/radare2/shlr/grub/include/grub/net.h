@@ -1,0 +1,25 @@
+#include <grub/symbol.h>
+#include <grub/err.h>
+#include <grub/types.h>
+struct grub_net;
+struct grub_net_dev
+{
+const char *name;
+int (*probe) (struct grub_net *net, const void *addr);
+void (*reset) (struct grub_net *net);
+int (*poll) (struct grub_net *net);
+void (*transmit) (struct grub_net *net, const void *destip,
+unsigned srcsock, unsigned destsock, const void *packet);
+void (*disable) (struct grub_net *net);
+struct grub_net_dev *next;
+};
+typedef struct grub_net_dev *grub_net_dev_t;
+struct grub_fs;
+struct grub_net
+{
+const char *name;
+grub_net_dev_t dev;
+struct grub_fs *fs;
+void *data;
+};
+typedef struct grub_net *grub_net_t;

@@ -1,0 +1,3 @@
+#if defined(INCLUDE_GENERATED_DECLARATIONS)
+#include "os/lang.h.generated.h"
+#endif

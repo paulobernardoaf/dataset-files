@@ -1,0 +1,318 @@
+
+#if !defined(JEMALLOC_INTERNAL_DEFS_H_)
+#define JEMALLOC_INTERNAL_DEFS_H_
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#define JEMALLOC_PRIVATE_NAMESPACE je_
+
+
+
+
+
+#define CPU_SPINWAIT __asm__ volatile("pause")
+
+
+#define JEMALLOC_C11ATOMICS 1
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#define JEMALLOC_HAVE_BUILTIN_CLZ 
+
+
+
+
+
+
+
+
+
+
+
+
+
+#define JEMALLOC_USE_SYSCALL 
+
+
+
+
+#define JEMALLOC_HAVE_SECURE_GETENV 
+
+
+
+
+
+
+
+#define JEMALLOC_HAVE_PTHREAD_ATFORK 
+
+
+
+
+#define JEMALLOC_HAVE_CLOCK_MONOTONIC_COARSE 1
+
+
+
+
+#define JEMALLOC_HAVE_CLOCK_MONOTONIC 1
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#define JEMALLOC_THREADED_INIT 
+
+
+
+
+
+
+
+
+
+#define JEMALLOC_TLS_MODEL __attribute__((tls_model("initial-exec")))
+
+
+#define JEMALLOC_CC_SILENCE 
+
+
+
+
+
+
+
+
+
+
+
+#define JEMALLOC_STATS 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#define JEMALLOC_TCACHE 
+
+
+
+
+
+#define JEMALLOC_DSS 
+
+
+#define JEMALLOC_FILL 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#define LG_TINY_MIN 3
+
+
+
+
+
+
+
+
+#define LG_PAGE 12
+
+
+
+
+
+
+
+
+#define JEMALLOC_MAPS_COALESCE 
+
+
+
+
+
+
+
+
+
+#if !defined(_WIN32)
+#define JEMALLOC_TLS
+#endif
+
+
+
+
+
+#define JEMALLOC_INTERNAL_UNREACHABLE __builtin_unreachable
+
+
+
+
+
+#define JEMALLOC_INTERNAL_FFSLL __builtin_ffsll
+#define JEMALLOC_INTERNAL_FFSL __builtin_ffsl
+#define JEMALLOC_INTERNAL_FFS __builtin_ffs
+
+
+
+
+
+
+
+
+
+
+
+#define JEMALLOC_CACHE_OBLIVIOUS 
+
+
+
+
+
+
+
+
+
+
+
+
+
+#define JEMALLOC_PROC_SYS_VM_OVERCOMMIT_MEMORY 
+
+
+#define JEMALLOC_HAVE_MADVISE 
+
+
+
+
+
+#define JEMALLOC_HAVE_MADVISE_HUGE 
+
+
+
+
+
+
+
+
+
+
+
+#define JEMALLOC_PURGE_MADVISE_DONTNEED 
+
+
+#define JEMALLOC_THP 
+
+
+#define JEMALLOC_HAS_ALLOCA_H 1
+
+
+#define JEMALLOC_HAS_RESTRICT 1
+
+
+
+
+
+#define LG_SIZEOF_INT 2
+
+
+#define LG_SIZEOF_LONG 3
+
+
+#define LG_SIZEOF_LONG_LONG 3
+
+
+#define LG_SIZEOF_INTMAX_T 3
+
+
+#define JEMALLOC_GLIBC_MALLOC_HOOK 
+
+
+#define JEMALLOC_GLIBC_MEMALIGN_HOOK 
+
+
+#define JEMALLOC_HAVE_PTHREAD_MUTEX_ADAPTIVE_NP 
+
+
+
+
+
+
+
+
+#define JEMALLOC_CONFIG_MALLOC_CONF ""
+
+#endif 

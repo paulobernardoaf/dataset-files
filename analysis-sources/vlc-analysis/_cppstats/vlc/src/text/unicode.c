@@ -1,0 +1,208 @@
+#if defined(HAVE_CONFIG_H)
+#include "config.h"
+#endif
+#include <vlc_common.h>
+#include "libvlc.h"
+#include <vlc_charset.h>
+#include <assert.h>
+#include <stdio.h>
+#include <stdarg.h>
+#include <stdlib.h>
+#include <sys/types.h>
+#if defined(_WIN32)
+#include <io.h>
+#endif
+#include <errno.h>
+#include <wctype.h>
+int utf8_vfprintf( FILE *stream, const char *fmt, va_list ap )
+{
+#if !defined(_WIN32)
+return vfprintf (stream, fmt, ap);
+#else
+char *str;
+int res = vasprintf (&str, fmt, ap);
+if (unlikely(res == -1))
+return -1;
+#if !VLC_WINSTORE_APP
+int fd = _fileno (stream);
+if (likely(fd != -1) && _isatty (fd))
+{
+wchar_t *wide = ToWide (str);
+if (likely(wide != NULL))
+{
+HANDLE h = (HANDLE)((uintptr_t)_get_osfhandle (fd));
+DWORD out;
+BOOL ok = WriteConsoleW (h, wide, wcslen (wide), &out, NULL);
+free (wide);
+if (ok)
+goto out;
+}
+}
+#endif
+wchar_t *wide = ToWide(str);
+if (likely(wide != NULL))
+{
+res = fputws(wide, stream);
+free(wide);
+}
+else
+res = -1;
+out:
+free (str);
+return res;
+#endif
+}
+int utf8_fprintf( FILE *stream, const char *fmt, ... )
+{
+va_list ap;
+int res;
+va_start( ap, fmt );
+res = utf8_vfprintf( stream, fmt, ap );
+va_end( ap );
+return res;
+}
+size_t vlc_towc (const char *str, uint32_t *restrict pwc)
+{
+uint8_t *ptr = (uint8_t *)str, c;
+uint32_t cp;
+assert (str != NULL);
+c = *ptr;
+if (unlikely(c > 0xF4))
+return -1;
+int charlen = clz((unsigned char)(c ^ 0xFF));
+switch (charlen)
+{
+case 0: 
+*pwc = c;
+return c != '\0';
+case 1: 
+return -1;
+case 2:
+if (unlikely(c < 0xC2)) 
+return -1;
+cp = (c & 0x1F) << 6;
+break;
+case 3:
+cp = (c & 0x0F) << 12;
+break;
+case 4:
+cp = (c & 0x07) << 18;
+break;
+default:
+vlc_assert_unreachable ();
+}
+switch (charlen)
+{
+case 4:
+c = *++ptr;
+if (unlikely((c & 0xC0) != 0x80)) 
+return -1;
+cp |= (c & 0x3F) << 12;
+if (unlikely(cp >= 0x110000)) 
+return -1;
+case 3:
+c = *++ptr;
+if (unlikely((c & 0xC0) != 0x80)) 
+return -1;
+cp |= (c & 0x3F) << 6;
+if (unlikely(cp >= 0xD800 && cp < 0xE000)) 
+return -1;
+if (unlikely(cp < (1u << (5 * charlen - 4)))) 
+return -1;
+case 2:
+c = *++ptr;
+if (unlikely((c & 0xC0) != 0x80)) 
+return -1;
+cp |= (c & 0x3F);
+break;
+}
+*pwc = cp;
+return charlen;
+}
+char *vlc_strcasestr (const char *haystack, const char *needle)
+{
+ssize_t s;
+do
+{
+const char *h = haystack, *n = needle;
+for (;;)
+{
+uint32_t cph, cpn;
+s = vlc_towc (n, &cpn);
+if (s == 0)
+return (char *)haystack;
+if (unlikely(s < 0))
+return NULL;
+n += s;
+s = vlc_towc (h, &cph);
+if (s <= 0 || towlower (cph) != towlower (cpn))
+break;
+h += s;
+}
+s = vlc_towc (haystack, &(uint32_t) { 0 });
+haystack += s;
+}
+while (s > 0);
+return NULL;
+}
+char *FromCharset(const char *charset, const void *data, size_t data_size)
+{
+vlc_iconv_t handle = vlc_iconv_open ("UTF-8", charset);
+if (handle == (vlc_iconv_t)(-1))
+return NULL;
+char *out = NULL;
+for(unsigned mul = 4; mul < 8; mul++ )
+{
+size_t in_size = data_size;
+const char *in = data;
+size_t out_max = mul * data_size;
+char *tmp = out = malloc (1 + out_max);
+if (!out)
+break;
+if (vlc_iconv (handle, &in, &in_size, &tmp, &out_max) != (size_t)(-1)) {
+*tmp = '\0';
+break;
+}
+free(out);
+out = NULL;
+if (errno != E2BIG)
+break;
+}
+vlc_iconv_close(handle);
+return out;
+}
+void *ToCharset(const char *charset, const char *in, size_t *outsize)
+{
+vlc_iconv_t hd = vlc_iconv_open (charset, "UTF-8");
+if (hd == (vlc_iconv_t)(-1))
+return NULL;
+const size_t inlen = strlen (in);
+void *res;
+for (unsigned mul = 4; mul < 16; mul++)
+{
+size_t outlen = mul * (inlen + 1);
+res = malloc (outlen);
+if (unlikely(res == NULL))
+break;
+const char *inp = in;
+char *outp = res;
+size_t inb = inlen;
+size_t outb = outlen - mul;
+if (vlc_iconv (hd, &inp, &inb, &outp, &outb) != (size_t)(-1))
+{
+*outsize = outlen - mul - outb;
+outb += mul;
+inb = 1; 
+if (vlc_iconv (hd, &inp, &inb, &outp, &outb) != (size_t)(-1))
+break;
+if (errno == EILSEQ) 
+break;
+}
+free (res);
+res = NULL;
+if (errno != E2BIG) 
+break;
+}
+vlc_iconv_close (hd);
+return res;
+}

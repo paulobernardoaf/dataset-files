@@ -1,0 +1,51 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#include "libavutil/common.h"
+#include "libavcodec/htmlsubtitles.c"
+
+static const char * const test_cases[] = {
+
+"<<hello>>", 
+"<<<b>hello</b>>>", 
+"< hello < 2000 > world >", 
+"<h1>TITLE</h1>", 
+"< font color=red >red</font>", 
+"Foo <foo@bar.com>", 
+
+"<b> foo <I> bar </B> bla </i>", 
+
+"A<br>B<BR/>C<br / >D< Br >E<brk><brk/>", 
+};
+
+int main(void)
+{
+int i;
+AVBPrint dst;
+
+av_bprint_init(&dst, 0, AV_BPRINT_SIZE_UNLIMITED);
+for (i = 0; i < FF_ARRAY_ELEMS(test_cases); i++) {
+int ret = ff_htmlmarkup_to_ass(NULL, &dst, test_cases[i]);
+if (ret < 0)
+return ret;
+printf("%s --> %s\n", test_cases[i], dst.str);
+av_bprint_clear(&dst);
+}
+av_bprint_finalize(&dst, NULL);
+return 0;
+}

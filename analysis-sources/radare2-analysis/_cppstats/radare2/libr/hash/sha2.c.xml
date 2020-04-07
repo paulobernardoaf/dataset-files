@@ -1,0 +1,1305 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" revision="1.0.0" language="C" filename="D:\Pesquisa\Projects\radare2-analysis\_cppstats\radare2\libr\hash\sha2.c"><cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;string.h&gt;</cpp:file></cpp:include> 
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"r_hash.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"sha2.h"</cpp:file></cpp:include>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>WEAK_ALIASING</name></cpp:macro> <cpp:value>0</cpp:value></cpp:define>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><operator>!</operator><call><name>defined</name><argument_list>(<argument><expr><name>BYTE_ORDER</name></expr></argument>)</argument_list></call></expr></cpp:if>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>LITTLE_ENDIAN</name></cpp:macro> <cpp:value>1234</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>BIG_ENDIAN</name></cpp:macro> <cpp:value>4321</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>BYTE_ORDER</name></cpp:macro> <cpp:value>LITTLE_ENDIAN</cpp:value></cpp:define>
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><operator>!</operator><call><name>defined</name><argument_list>(<argument><expr><name>BYTE_ORDER</name></expr></argument>)</argument_list></call> <operator>||</operator> <operator>(</operator><name>BYTE_ORDER</name> <operator>!=</operator> <name>LITTLE_ENDIAN</name> <operator>&amp;&amp;</operator> <name>BYTE_ORDER</name> <operator>!=</operator> <name>BIG_ENDIAN</name><operator>)</operator></expr></cpp:if>
+
+<cpp:warning>#<cpp:directive>warning</cpp:directive> Define BYTE_ORDER to be equal to either LITTLE_ENDIAN or BIG_ENDIAN</cpp:warning>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>BYTE_ORDER</name></cpp:macro> <cpp:value>BIG_ENDIAN</cpp:value></cpp:define>
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>SHA256_SHORT_BLOCK_LENGTH</name></cpp:macro> <cpp:value>(SHA256_BLOCK_LENGTH - 8)</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>SHA384_SHORT_BLOCK_LENGTH</name></cpp:macro> <cpp:value>(SHA384_BLOCK_LENGTH - 16)</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>SHA512_SHORT_BLOCK_LENGTH</name></cpp:macro> <cpp:value>(SHA512_BLOCK_LENGTH - 16)</cpp:value></cpp:define>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><name>BYTE_ORDER</name> <operator>==</operator> <name>LITTLE_ENDIAN</name></expr></cpp:if>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>REVERSE32</name><parameter_list>(<parameter><type><name>w</name></type></parameter>, <parameter><type><name>x</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>{ut32 tmp = (w);tmp = (tmp &gt;&gt; 16) | (tmp &lt;&lt; 16);(x) = ((tmp &amp; 0xff00ff00UL) &gt;&gt; 8) | ((tmp &amp; 0x00ff00ffUL) &lt;&lt; 8);}</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>REVERSE64</name><parameter_list>(<parameter><type><name>w</name></type></parameter>, <parameter><type><name>x</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>{ut64 tmp = (w);tmp = (tmp &gt;&gt; 32) | (tmp &lt;&lt; 32);tmp = ((tmp &amp; 0xff00ff00ff00ff00ULL) &gt;&gt; 8) |((tmp &amp; 0x00ff00ff00ff00ffULL) &lt;&lt; 8);(x) = ((tmp &amp; 0xffff0000ffff0000ULL) &gt;&gt; 16) |((tmp &amp; 0x0000ffff0000ffffULL) &lt;&lt; 16);}</cpp:value></cpp:define>
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif> 
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>ADDINC128</name><parameter_list>(<parameter><type><name>w</name></type></parameter>, <parameter><type><name>n</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>{(w)[0] += (ut64) (n);if ((w)[0] &lt; (n)) {(w)[1]++;}}</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>R</name><parameter_list>(<parameter><type><name>b</name></type></parameter>, <parameter><type><name>x</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>((x) &gt;&gt; (b))</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>S32</name><parameter_list>(<parameter><type><name>b</name></type></parameter>, <parameter><type><name>x</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>(((x) &gt;&gt; (b)) | ((x) &lt;&lt; (32 - (b))))</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>S64</name><parameter_list>(<parameter><type><name>b</name></type></parameter>, <parameter><type><name>x</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>(((x) &gt;&gt; (b)) | ((x) &lt;&lt; (64 - (b))))</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>Ch</name><parameter_list>(<parameter><type><name>x</name></type></parameter>, <parameter><type><name>y</name></type></parameter>, <parameter><type><name>z</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>(((x) &amp; (y)) ^ ((~(x)) &amp; (z)))</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>Maj</name><parameter_list>(<parameter><type><name>x</name></type></parameter>, <parameter><type><name>y</name></type></parameter>, <parameter><type><name>z</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>(((x) &amp; (y)) ^ ((x) &amp; (z)) ^ ((y) &amp; (z)))</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>Sigma0_256</name><parameter_list>(<parameter><type><name>x</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>(S32 (2, (x)) ^ S32 (13, (x)) ^ S32 (22, (x)))</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>Sigma1_256</name><parameter_list>(<parameter><type><name>x</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>(S32 (6, (x)) ^ S32 (11, (x)) ^ S32 (25, (x)))</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>sigma0_256</name><parameter_list>(<parameter><type><name>x</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>(S32 (7, (x)) ^ S32 (18, (x)) ^ R (3, (x)))</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>sigma1_256</name><parameter_list>(<parameter><type><name>x</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>(S32 (17, (x)) ^ S32 (19, (x)) ^ R (10, (x)))</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>Sigma0_512</name><parameter_list>(<parameter><type><name>x</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>(S64 (28, (x)) ^ S64 (34, (x)) ^ S64 (39, (x)))</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>Sigma1_512</name><parameter_list>(<parameter><type><name>x</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>(S64 (14, (x)) ^ S64 (18, (x)) ^ S64 (41, (x)))</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>sigma0_512</name><parameter_list>(<parameter><type><name>x</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>(S64 ( 1, (x)) ^ S64 ( 8, (x)) ^ R ( 7, (x)))</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>sigma1_512</name><parameter_list>(<parameter><type><name>x</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>(S64 (19, (x)) ^ S64 (61, (x)) ^ R ( 6, (x)))</cpp:value></cpp:define>
+
+<function_decl><type><name>void</name></type> <name>SHA512_Last</name><parameter_list>(<parameter><decl><type><name>R_SHA512_CTX</name> <modifier>*</modifier></type></decl></parameter>)</parameter_list>;</function_decl>
+
+<function_decl><type><name>void</name></type> <name>SHA256_Transform</name><parameter_list>(<parameter><decl><type><name>R_SHA256_CTX</name> <modifier>*</modifier></type></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>ut32</name> <modifier>*</modifier></type></decl></parameter>)</parameter_list>;</function_decl>
+
+<function_decl><type><name>void</name></type> <name>SHA512_Transform</name><parameter_list>(<parameter><decl><type><name>R_SHA512_CTX</name> <modifier>*</modifier></type></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>ut64</name> <modifier>*</modifier></type></decl></parameter>)</parameter_list>;</function_decl>
+
+<decl_stmt><decl><type><specifier>static</specifier> <specifier>const</specifier> <name>ut32</name></type> <name><name>K256</name><index>[<expr><literal type="number">64</literal></expr>]</index></name> <init>= <expr><block>{
+
+<expr><literal type="number">0x428a2f98UL</literal></expr>, <expr><literal type="number">0x71374491UL</literal></expr>, <expr><literal type="number">0xb5c0fbcfUL</literal></expr>, <expr><literal type="number">0xe9b5dba5UL</literal></expr>,
+
+<expr><literal type="number">0x3956c25bUL</literal></expr>, <expr><literal type="number">0x59f111f1UL</literal></expr>, <expr><literal type="number">0x923f82a4UL</literal></expr>, <expr><literal type="number">0xab1c5ed5UL</literal></expr>,
+
+<expr><literal type="number">0xd807aa98UL</literal></expr>, <expr><literal type="number">0x12835b01UL</literal></expr>, <expr><literal type="number">0x243185beUL</literal></expr>, <expr><literal type="number">0x550c7dc3UL</literal></expr>,
+
+<expr><literal type="number">0x72be5d74UL</literal></expr>, <expr><literal type="number">0x80deb1feUL</literal></expr>, <expr><literal type="number">0x9bdc06a7UL</literal></expr>, <expr><literal type="number">0xc19bf174UL</literal></expr>,
+
+<expr><literal type="number">0xe49b69c1UL</literal></expr>, <expr><literal type="number">0xefbe4786UL</literal></expr>, <expr><literal type="number">0x0fc19dc6UL</literal></expr>, <expr><literal type="number">0x240ca1ccUL</literal></expr>,
+
+<expr><literal type="number">0x2de92c6fUL</literal></expr>, <expr><literal type="number">0x4a7484aaUL</literal></expr>, <expr><literal type="number">0x5cb0a9dcUL</literal></expr>, <expr><literal type="number">0x76f988daUL</literal></expr>,
+
+<expr><literal type="number">0x983e5152UL</literal></expr>, <expr><literal type="number">0xa831c66dUL</literal></expr>, <expr><literal type="number">0xb00327c8UL</literal></expr>, <expr><literal type="number">0xbf597fc7UL</literal></expr>,
+
+<expr><literal type="number">0xc6e00bf3UL</literal></expr>, <expr><literal type="number">0xd5a79147UL</literal></expr>, <expr><literal type="number">0x06ca6351UL</literal></expr>, <expr><literal type="number">0x14292967UL</literal></expr>,
+
+<expr><literal type="number">0x27b70a85UL</literal></expr>, <expr><literal type="number">0x2e1b2138UL</literal></expr>, <expr><literal type="number">0x4d2c6dfcUL</literal></expr>, <expr><literal type="number">0x53380d13UL</literal></expr>,
+
+<expr><literal type="number">0x650a7354UL</literal></expr>, <expr><literal type="number">0x766a0abbUL</literal></expr>, <expr><literal type="number">0x81c2c92eUL</literal></expr>, <expr><literal type="number">0x92722c85UL</literal></expr>,
+
+<expr><literal type="number">0xa2bfe8a1UL</literal></expr>, <expr><literal type="number">0xa81a664bUL</literal></expr>, <expr><literal type="number">0xc24b8b70UL</literal></expr>, <expr><literal type="number">0xc76c51a3UL</literal></expr>,
+
+<expr><literal type="number">0xd192e819UL</literal></expr>, <expr><literal type="number">0xd6990624UL</literal></expr>, <expr><literal type="number">0xf40e3585UL</literal></expr>, <expr><literal type="number">0x106aa070UL</literal></expr>,
+
+<expr><literal type="number">0x19a4c116UL</literal></expr>, <expr><literal type="number">0x1e376c08UL</literal></expr>, <expr><literal type="number">0x2748774cUL</literal></expr>, <expr><literal type="number">0x34b0bcb5UL</literal></expr>,
+
+<expr><literal type="number">0x391c0cb3UL</literal></expr>, <expr><literal type="number">0x4ed8aa4aUL</literal></expr>, <expr><literal type="number">0x5b9cca4fUL</literal></expr>, <expr><literal type="number">0x682e6ff3UL</literal></expr>,
+
+<expr><literal type="number">0x748f82eeUL</literal></expr>, <expr><literal type="number">0x78a5636fUL</literal></expr>, <expr><literal type="number">0x84c87814UL</literal></expr>, <expr><literal type="number">0x8cc70208UL</literal></expr>,
+
+<expr><literal type="number">0x90befffaUL</literal></expr>, <expr><literal type="number">0xa4506cebUL</literal></expr>, <expr><literal type="number">0xbef9a3f7UL</literal></expr>, <expr><literal type="number">0xc67178f2UL</literal></expr>
+
+}</block></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <specifier>const</specifier> <name>ut32</name></type> <name><name>sha256_initial_hash_value</name><index>[<expr><literal type="number">8</literal></expr>]</index></name> <init>= <expr><block>{
+
+<expr><literal type="number">0x6a09e667UL</literal></expr>,
+
+<expr><literal type="number">0xbb67ae85UL</literal></expr>,
+
+<expr><literal type="number">0x3c6ef372UL</literal></expr>,
+
+<expr><literal type="number">0xa54ff53aUL</literal></expr>,
+
+<expr><literal type="number">0x510e527fUL</literal></expr>,
+
+<expr><literal type="number">0x9b05688cUL</literal></expr>,
+
+<expr><literal type="number">0x1f83d9abUL</literal></expr>,
+
+<expr><literal type="number">0x5be0cd19UL</literal></expr>
+
+}</block></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <specifier>const</specifier> <name>ut64</name></type> <name><name>K512</name><index>[<expr><literal type="number">80</literal></expr>]</index></name> <init>= <expr><block>{
+
+<expr><literal type="number">0x428a2f98d728ae22ULL</literal></expr>, <expr><literal type="number">0x7137449123ef65cdULL</literal></expr>,
+
+<expr><literal type="number">0xb5c0fbcfec4d3b2fULL</literal></expr>, <expr><literal type="number">0xe9b5dba58189dbbcULL</literal></expr>,
+
+<expr><literal type="number">0x3956c25bf348b538ULL</literal></expr>, <expr><literal type="number">0x59f111f1b605d019ULL</literal></expr>,
+
+<expr><literal type="number">0x923f82a4af194f9bULL</literal></expr>, <expr><literal type="number">0xab1c5ed5da6d8118ULL</literal></expr>,
+
+<expr><literal type="number">0xd807aa98a3030242ULL</literal></expr>, <expr><literal type="number">0x12835b0145706fbeULL</literal></expr>,
+
+<expr><literal type="number">0x243185be4ee4b28cULL</literal></expr>, <expr><literal type="number">0x550c7dc3d5ffb4e2ULL</literal></expr>,
+
+<expr><literal type="number">0x72be5d74f27b896fULL</literal></expr>, <expr><literal type="number">0x80deb1fe3b1696b1ULL</literal></expr>,
+
+<expr><literal type="number">0x9bdc06a725c71235ULL</literal></expr>, <expr><literal type="number">0xc19bf174cf692694ULL</literal></expr>,
+
+<expr><literal type="number">0xe49b69c19ef14ad2ULL</literal></expr>, <expr><literal type="number">0xefbe4786384f25e3ULL</literal></expr>,
+
+<expr><literal type="number">0x0fc19dc68b8cd5b5ULL</literal></expr>, <expr><literal type="number">0x240ca1cc77ac9c65ULL</literal></expr>,
+
+<expr><literal type="number">0x2de92c6f592b0275ULL</literal></expr>, <expr><literal type="number">0x4a7484aa6ea6e483ULL</literal></expr>,
+
+<expr><literal type="number">0x5cb0a9dcbd41fbd4ULL</literal></expr>, <expr><literal type="number">0x76f988da831153b5ULL</literal></expr>,
+
+<expr><literal type="number">0x983e5152ee66dfabULL</literal></expr>, <expr><literal type="number">0xa831c66d2db43210ULL</literal></expr>,
+
+<expr><literal type="number">0xb00327c898fb213fULL</literal></expr>, <expr><literal type="number">0xbf597fc7beef0ee4ULL</literal></expr>,
+
+<expr><literal type="number">0xc6e00bf33da88fc2ULL</literal></expr>, <expr><literal type="number">0xd5a79147930aa725ULL</literal></expr>,
+
+<expr><literal type="number">0x06ca6351e003826fULL</literal></expr>, <expr><literal type="number">0x142929670a0e6e70ULL</literal></expr>,
+
+<expr><literal type="number">0x27b70a8546d22ffcULL</literal></expr>, <expr><literal type="number">0x2e1b21385c26c926ULL</literal></expr>,
+
+<expr><literal type="number">0x4d2c6dfc5ac42aedULL</literal></expr>, <expr><literal type="number">0x53380d139d95b3dfULL</literal></expr>,
+
+<expr><literal type="number">0x650a73548baf63deULL</literal></expr>, <expr><literal type="number">0x766a0abb3c77b2a8ULL</literal></expr>,
+
+<expr><literal type="number">0x81c2c92e47edaee6ULL</literal></expr>, <expr><literal type="number">0x92722c851482353bULL</literal></expr>,
+
+<expr><literal type="number">0xa2bfe8a14cf10364ULL</literal></expr>, <expr><literal type="number">0xa81a664bbc423001ULL</literal></expr>,
+
+<expr><literal type="number">0xc24b8b70d0f89791ULL</literal></expr>, <expr><literal type="number">0xc76c51a30654be30ULL</literal></expr>,
+
+<expr><literal type="number">0xd192e819d6ef5218ULL</literal></expr>, <expr><literal type="number">0xd69906245565a910ULL</literal></expr>,
+
+<expr><literal type="number">0xf40e35855771202aULL</literal></expr>, <expr><literal type="number">0x106aa07032bbd1b8ULL</literal></expr>,
+
+<expr><literal type="number">0x19a4c116b8d2d0c8ULL</literal></expr>, <expr><literal type="number">0x1e376c085141ab53ULL</literal></expr>,
+
+<expr><literal type="number">0x2748774cdf8eeb99ULL</literal></expr>, <expr><literal type="number">0x34b0bcb5e19b48a8ULL</literal></expr>,
+
+<expr><literal type="number">0x391c0cb3c5c95a63ULL</literal></expr>, <expr><literal type="number">0x4ed8aa4ae3418acbULL</literal></expr>,
+
+<expr><literal type="number">0x5b9cca4f7763e373ULL</literal></expr>, <expr><literal type="number">0x682e6ff3d6b2b8a3ULL</literal></expr>,
+
+<expr><literal type="number">0x748f82ee5defb2fcULL</literal></expr>, <expr><literal type="number">0x78a5636f43172f60ULL</literal></expr>,
+
+<expr><literal type="number">0x84c87814a1f0ab72ULL</literal></expr>, <expr><literal type="number">0x8cc702081a6439ecULL</literal></expr>,
+
+<expr><literal type="number">0x90befffa23631e28ULL</literal></expr>, <expr><literal type="number">0xa4506cebde82bde9ULL</literal></expr>,
+
+<expr><literal type="number">0xbef9a3f7b2c67915ULL</literal></expr>, <expr><literal type="number">0xc67178f2e372532bULL</literal></expr>,
+
+<expr><literal type="number">0xca273eceea26619cULL</literal></expr>, <expr><literal type="number">0xd186b8c721c0c207ULL</literal></expr>,
+
+<expr><literal type="number">0xeada7dd6cde0eb1eULL</literal></expr>, <expr><literal type="number">0xf57d4f7fee6ed178ULL</literal></expr>,
+
+<expr><literal type="number">0x06f067aa72176fbaULL</literal></expr>, <expr><literal type="number">0x0a637dc5a2c898a6ULL</literal></expr>,
+
+<expr><literal type="number">0x113f9804bef90daeULL</literal></expr>, <expr><literal type="number">0x1b710b35131c471bULL</literal></expr>,
+
+<expr><literal type="number">0x28db77f523047d84ULL</literal></expr>, <expr><literal type="number">0x32caab7b40c72493ULL</literal></expr>,
+
+<expr><literal type="number">0x3c9ebe0a15c9bebcULL</literal></expr>, <expr><literal type="number">0x431d67c49c100d4cULL</literal></expr>,
+
+<expr><literal type="number">0x4cc5d4becb3e42b6ULL</literal></expr>, <expr><literal type="number">0x597f299cfc657e2aULL</literal></expr>,
+
+<expr><literal type="number">0x5fcb6fab3ad6faecULL</literal></expr>, <expr><literal type="number">0x6c44198c4a475817ULL</literal></expr>
+
+}</block></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <specifier>const</specifier> <name>ut64</name></type> <name><name>sha384_initial_hash_value</name><index>[<expr><literal type="number">8</literal></expr>]</index></name> <init>= <expr><block>{
+
+<expr><literal type="number">0xcbbb9d5dc1059ed8ULL</literal></expr>,
+
+<expr><literal type="number">0x629a292a367cd507ULL</literal></expr>,
+
+<expr><literal type="number">0x9159015a3070dd17ULL</literal></expr>,
+
+<expr><literal type="number">0x152fecd8f70e5939ULL</literal></expr>,
+
+<expr><literal type="number">0x67332667ffc00b31ULL</literal></expr>,
+
+<expr><literal type="number">0x8eb44a8768581511ULL</literal></expr>,
+
+<expr><literal type="number">0xdb0c2e0d64f98fa7ULL</literal></expr>,
+
+<expr><literal type="number">0x47b5481dbefa4fa4ULL</literal></expr>
+
+}</block></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <specifier>const</specifier> <name>ut64</name></type> <name><name>sha512_initial_hash_value</name><index>[<expr><literal type="number">8</literal></expr>]</index></name> <init>= <expr><block>{
+
+<expr><literal type="number">0x6a09e667f3bcc908ULL</literal></expr>,
+
+<expr><literal type="number">0xbb67ae8584caa73bULL</literal></expr>,
+
+<expr><literal type="number">0x3c6ef372fe94f82bULL</literal></expr>,
+
+<expr><literal type="number">0xa54ff53a5f1d36f1ULL</literal></expr>,
+
+<expr><literal type="number">0x510e527fade682d1ULL</literal></expr>,
+
+<expr><literal type="number">0x9b05688c2b3e6c1fULL</literal></expr>,
+
+<expr><literal type="number">0x1f83d9abfb41bd6bULL</literal></expr>,
+
+<expr><literal type="number">0x5be0cd19137e2179ULL</literal></expr>
+
+}</block></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>sha2_hex_digits</name> <init>= <expr><literal type="string">"0123456789abcdef"</literal></expr></init></decl>;</decl_stmt>
+
+<function><type><name>void</name></type> <name>SHA256_Init</name><parameter_list>(<parameter><decl><type><name>R_SHA256_CTX</name> <modifier>*</modifier></type><name>context</name></decl></parameter>)</parameter_list> <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><name>context</name> <operator>==</operator> <operator>(</operator><name>R_SHA256_CTX</name> <operator>*</operator><operator>)</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<return>return;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>memcpy</name> <argument_list>(<argument><expr><name><name>context</name><operator>-&gt;</operator><name>state</name></name></expr></argument>, <argument><expr><name>sha256_initial_hash_value</name></expr></argument>, <argument><expr><name>SHA256_DIGEST_LENGTH</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>r_mem_memzero</name> <argument_list>(<argument><expr><name><name>context</name><operator>-&gt;</operator><name>buffer</name></name></expr></argument>, <argument><expr><name>SHA256_BLOCK_LENGTH</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>context</name><operator>-&gt;</operator><name>bitcount</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><call><name>defined</name><argument_list>(<argument><expr><name>SHA2_UNROLL_TRANSFORM</name></expr></argument>)</argument_list></call></expr></cpp:if>
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><name>BYTE_ORDER</name> <operator>==</operator> <name>LITTLE_ENDIAN</name></expr></cpp:if>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>ROUND256_0_TO_15</name><parameter_list>(<parameter><type><name>a</name></type></parameter>, <parameter><type><name>b</name></type></parameter>, <parameter><type><name>c</name></type></parameter>, <parameter><type><name>d</name></type></parameter>, <parameter><type><name>e</name></type></parameter>, <parameter><type><name>f</name></type></parameter>, <parameter><type><name>g</name></type></parameter>, <parameter><type><name>h</name></type></parameter>)</parameter_list></cpp:macro><cpp:value>REVERSE32 (*data++, W256[j]);T1 = (h) + Sigma1_256 (e) + Ch ((e), (f), (g)) +K256[j] + W256[j];(d) += T1;(h) = T1 + Sigma0_256 (a) + Maj ((a), (b), (c));j++</cpp:value></cpp:define>
+
+<cpp:else>#<cpp:directive>else</cpp:directive></cpp:else> 
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>ROUND256_0_TO_15</name><parameter_list>(<parameter><type><name>a</name></type></parameter>, <parameter><type><name>b</name></type></parameter>, <parameter><type><name>c</name></type></parameter>, <parameter><type><name>d</name></type></parameter>, <parameter><type><name>e</name></type></parameter>, <parameter><type><name>f</name></type></parameter>, <parameter><type><name>g</name></type></parameter>, <parameter><type><name>h</name></type></parameter>)</parameter_list></cpp:macro><cpp:value>T1 = (h) + Sigma1_256 (e) + Ch ((e), (f), (g)) +K256[j] + (W256[j] = *data++);(d) += T1;(h) = T1 + Sigma0_256 (a) + Maj ((a), (b), (c));j++</cpp:value></cpp:define>
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif> 
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>ROUND256</name><parameter_list>(<parameter><type><name>a</name></type></parameter>, <parameter><type><name>b</name></type></parameter>, <parameter><type><name>c</name></type></parameter>, <parameter><type><name>d</name></type></parameter>, <parameter><type><name>e</name></type></parameter>, <parameter><type><name>f</name></type></parameter>, <parameter><type><name>g</name></type></parameter>, <parameter><type><name>h</name></type></parameter>)</parameter_list></cpp:macro><cpp:value>s0 = W256[(j + 1) &amp; 0x0f];s0 = sigma0_256 (s0);s1 = W256[(j + 14) &amp; 0x0f];s1 = sigma1_256 (s1);T1 = (h) + Sigma1_256 (e) + Ch ((e), (f), (g)) + K256[j] +(W256[j &amp; 0x0f] += s1 + W256[(j + 9) &amp; 0x0f] + s0);(d) += T1;(h) = T1 + Sigma0_256 (a) + Maj ((a), (b), (c));j++</cpp:value></cpp:define>
+
+<function><type><name>void</name></type> <name>SHA256_Transform</name><parameter_list>(<parameter><decl><type><name>R_SHA256_CTX</name> <modifier>*</modifier></type><name>context</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>ut32</name> <modifier>*</modifier></type><name>data</name></decl></parameter>)</parameter_list> <block>{<block_content>
+
+<decl_stmt><decl><type><name>ut32</name></type> <name>a</name></decl>, <decl><type ref="prev"/><name>b</name></decl>, <decl><type ref="prev"/><name>c</name></decl>, <decl><type ref="prev"/><name>d</name></decl>, <decl><type ref="prev"/><name>e</name></decl>, <decl><type ref="prev"/><name>f</name></decl>, <decl><type ref="prev"/><name>g</name></decl>, <decl><type ref="prev"/><name>h</name></decl>, <decl><type ref="prev"/><name>s0</name></decl>, <decl><type ref="prev"/><name>s1</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>ut32</name></type> <name>T1</name></decl>, <decl><type ref="prev"><modifier>*</modifier></type><name>W256</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>j</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>W256</name> <operator>=</operator> <operator>(</operator><name>ut32</name> <operator>*</operator><operator>)</operator> <name><name>context</name><operator>-&gt;</operator><name>buffer</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>a</name> <operator>=</operator> <name><name>context</name><operator>-&gt;</operator><name>state</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>b</name> <operator>=</operator> <name><name>context</name><operator>-&gt;</operator><name>state</name><index>[<expr><literal type="number">1</literal></expr>]</index></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>c</name> <operator>=</operator> <name><name>context</name><operator>-&gt;</operator><name>state</name><index>[<expr><literal type="number">2</literal></expr>]</index></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>d</name> <operator>=</operator> <name><name>context</name><operator>-&gt;</operator><name>state</name><index>[<expr><literal type="number">3</literal></expr>]</index></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>e</name> <operator>=</operator> <name><name>context</name><operator>-&gt;</operator><name>state</name><index>[<expr><literal type="number">4</literal></expr>]</index></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>f</name> <operator>=</operator> <name><name>context</name><operator>-&gt;</operator><name>state</name><index>[<expr><literal type="number">5</literal></expr>]</index></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>g</name> <operator>=</operator> <name><name>context</name><operator>-&gt;</operator><name>state</name><index>[<expr><literal type="number">6</literal></expr>]</index></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>h</name> <operator>=</operator> <name><name>context</name><operator>-&gt;</operator><name>state</name><index>[<expr><literal type="number">7</literal></expr>]</index></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>j</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<do>do <block>{<block_content>
+
+<expr_stmt><expr><call><name>ROUND256_0_TO_15</name> <argument_list>(<argument><expr><name>a</name></expr></argument>, <argument><expr><name>b</name></expr></argument>, <argument><expr><name>c</name></expr></argument>, <argument><expr><name>d</name></expr></argument>, <argument><expr><name>e</name></expr></argument>, <argument><expr><name>f</name></expr></argument>, <argument><expr><name>g</name></expr></argument>, <argument><expr><name>h</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>ROUND256_0_TO_15</name> <argument_list>(<argument><expr><name>h</name></expr></argument>, <argument><expr><name>a</name></expr></argument>, <argument><expr><name>b</name></expr></argument>, <argument><expr><name>c</name></expr></argument>, <argument><expr><name>d</name></expr></argument>, <argument><expr><name>e</name></expr></argument>, <argument><expr><name>f</name></expr></argument>, <argument><expr><name>g</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>ROUND256_0_TO_15</name> <argument_list>(<argument><expr><name>g</name></expr></argument>, <argument><expr><name>h</name></expr></argument>, <argument><expr><name>a</name></expr></argument>, <argument><expr><name>b</name></expr></argument>, <argument><expr><name>c</name></expr></argument>, <argument><expr><name>d</name></expr></argument>, <argument><expr><name>e</name></expr></argument>, <argument><expr><name>f</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>ROUND256_0_TO_15</name> <argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><name>g</name></expr></argument>, <argument><expr><name>h</name></expr></argument>, <argument><expr><name>a</name></expr></argument>, <argument><expr><name>b</name></expr></argument>, <argument><expr><name>c</name></expr></argument>, <argument><expr><name>d</name></expr></argument>, <argument><expr><name>e</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>ROUND256_0_TO_15</name> <argument_list>(<argument><expr><name>e</name></expr></argument>, <argument><expr><name>f</name></expr></argument>, <argument><expr><name>g</name></expr></argument>, <argument><expr><name>h</name></expr></argument>, <argument><expr><name>a</name></expr></argument>, <argument><expr><name>b</name></expr></argument>, <argument><expr><name>c</name></expr></argument>, <argument><expr><name>d</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>ROUND256_0_TO_15</name> <argument_list>(<argument><expr><name>d</name></expr></argument>, <argument><expr><name>e</name></expr></argument>, <argument><expr><name>f</name></expr></argument>, <argument><expr><name>g</name></expr></argument>, <argument><expr><name>h</name></expr></argument>, <argument><expr><name>a</name></expr></argument>, <argument><expr><name>b</name></expr></argument>, <argument><expr><name>c</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>ROUND256_0_TO_15</name> <argument_list>(<argument><expr><name>c</name></expr></argument>, <argument><expr><name>d</name></expr></argument>, <argument><expr><name>e</name></expr></argument>, <argument><expr><name>f</name></expr></argument>, <argument><expr><name>g</name></expr></argument>, <argument><expr><name>h</name></expr></argument>, <argument><expr><name>a</name></expr></argument>, <argument><expr><name>b</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>ROUND256_0_TO_15</name> <argument_list>(<argument><expr><name>b</name></expr></argument>, <argument><expr><name>c</name></expr></argument>, <argument><expr><name>d</name></expr></argument>, <argument><expr><name>e</name></expr></argument>, <argument><expr><name>f</name></expr></argument>, <argument><expr><name>g</name></expr></argument>, <argument><expr><name>h</name></expr></argument>, <argument><expr><name>a</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block> while <condition>(<expr><name>j</name> <operator>&lt;</operator> <literal type="number">16</literal></expr>)</condition>;</do>
+
+<do>do <block>{<block_content>
+
+<expr_stmt><expr><call><name>ROUND256</name> <argument_list>(<argument><expr><name>a</name></expr></argument>, <argument><expr><name>b</name></expr></argument>, <argument><expr><name>c</name></expr></argument>, <argument><expr><name>d</name></expr></argument>, <argument><expr><name>e</name></expr></argument>, <argument><expr><name>f</name></expr></argument>, <argument><expr><name>g</name></expr></argument>, <argument><expr><name>h</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>ROUND256</name> <argument_list>(<argument><expr><name>h</name></expr></argument>, <argument><expr><name>a</name></expr></argument>, <argument><expr><name>b</name></expr></argument>, <argument><expr><name>c</name></expr></argument>, <argument><expr><name>d</name></expr></argument>, <argument><expr><name>e</name></expr></argument>, <argument><expr><name>f</name></expr></argument>, <argument><expr><name>g</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>ROUND256</name> <argument_list>(<argument><expr><name>g</name></expr></argument>, <argument><expr><name>h</name></expr></argument>, <argument><expr><name>a</name></expr></argument>, <argument><expr><name>b</name></expr></argument>, <argument><expr><name>c</name></expr></argument>, <argument><expr><name>d</name></expr></argument>, <argument><expr><name>e</name></expr></argument>, <argument><expr><name>f</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>ROUND256</name> <argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><name>g</name></expr></argument>, <argument><expr><name>h</name></expr></argument>, <argument><expr><name>a</name></expr></argument>, <argument><expr><name>b</name></expr></argument>, <argument><expr><name>c</name></expr></argument>, <argument><expr><name>d</name></expr></argument>, <argument><expr><name>e</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>ROUND256</name> <argument_list>(<argument><expr><name>e</name></expr></argument>, <argument><expr><name>f</name></expr></argument>, <argument><expr><name>g</name></expr></argument>, <argument><expr><name>h</name></expr></argument>, <argument><expr><name>a</name></expr></argument>, <argument><expr><name>b</name></expr></argument>, <argument><expr><name>c</name></expr></argument>, <argument><expr><name>d</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>ROUND256</name> <argument_list>(<argument><expr><name>d</name></expr></argument>, <argument><expr><name>e</name></expr></argument>, <argument><expr><name>f</name></expr></argument>, <argument><expr><name>g</name></expr></argument>, <argument><expr><name>h</name></expr></argument>, <argument><expr><name>a</name></expr></argument>, <argument><expr><name>b</name></expr></argument>, <argument><expr><name>c</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>ROUND256</name> <argument_list>(<argument><expr><name>c</name></expr></argument>, <argument><expr><name>d</name></expr></argument>, <argument><expr><name>e</name></expr></argument>, <argument><expr><name>f</name></expr></argument>, <argument><expr><name>g</name></expr></argument>, <argument><expr><name>h</name></expr></argument>, <argument><expr><name>a</name></expr></argument>, <argument><expr><name>b</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>ROUND256</name> <argument_list>(<argument><expr><name>b</name></expr></argument>, <argument><expr><name>c</name></expr></argument>, <argument><expr><name>d</name></expr></argument>, <argument><expr><name>e</name></expr></argument>, <argument><expr><name>f</name></expr></argument>, <argument><expr><name>g</name></expr></argument>, <argument><expr><name>h</name></expr></argument>, <argument><expr><name>a</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block> while <condition>(<expr><name>j</name> <operator>&lt;</operator> <literal type="number">64</literal></expr>)</condition>;</do>
+
+<expr_stmt><expr><name><name>context</name><operator>-&gt;</operator><name>state</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>+=</operator> <name>a</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>context</name><operator>-&gt;</operator><name>state</name><index>[<expr><literal type="number">1</literal></expr>]</index></name> <operator>+=</operator> <name>b</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>context</name><operator>-&gt;</operator><name>state</name><index>[<expr><literal type="number">2</literal></expr>]</index></name> <operator>+=</operator> <name>c</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>context</name><operator>-&gt;</operator><name>state</name><index>[<expr><literal type="number">3</literal></expr>]</index></name> <operator>+=</operator> <name>d</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>context</name><operator>-&gt;</operator><name>state</name><index>[<expr><literal type="number">4</literal></expr>]</index></name> <operator>+=</operator> <name>e</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>context</name><operator>-&gt;</operator><name>state</name><index>[<expr><literal type="number">5</literal></expr>]</index></name> <operator>+=</operator> <name>f</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>context</name><operator>-&gt;</operator><name>state</name><index>[<expr><literal type="number">6</literal></expr>]</index></name> <operator>+=</operator> <name>g</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>context</name><operator>-&gt;</operator><name>state</name><index>[<expr><literal type="number">7</literal></expr>]</index></name> <operator>+=</operator> <name>h</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>a</name> <operator>=</operator> <name>b</name> <operator>=</operator> <name>c</name> <operator>=</operator> <name>d</name> <operator>=</operator> <name>e</name> <operator>=</operator> <name>f</name> <operator>=</operator> <name>g</name> <operator>=</operator> <name>h</name> <operator>=</operator> <name>T1</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<cpp:else>#<cpp:directive>else</cpp:directive></cpp:else> 
+
+<function><type><name>void</name></type> <name>SHA256_Transform</name><parameter_list>(<parameter><decl><type><name>R_SHA256_CTX</name> <modifier>*</modifier></type><name>context</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>ut32</name> <modifier>*</modifier></type><name>data</name></decl></parameter>)</parameter_list> <block>{<block_content>
+
+<decl_stmt><decl><type><name>ut32</name></type> <name>a</name></decl>, <decl><type ref="prev"/><name>b</name></decl>, <decl><type ref="prev"/><name>c</name></decl>, <decl><type ref="prev"/><name>d</name></decl>, <decl><type ref="prev"/><name>e</name></decl>, <decl><type ref="prev"/><name>f</name></decl>, <decl><type ref="prev"/><name>g</name></decl>, <decl><type ref="prev"/><name>h</name></decl>, <decl><type ref="prev"/><name>s0</name></decl>, <decl><type ref="prev"/><name>s1</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>ut32</name></type> <name>T1</name></decl>, <decl><type ref="prev"/><name>T2</name></decl>, <decl><type ref="prev"><modifier>*</modifier></type><name>W256</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>j</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>W256</name> <operator>=</operator> <operator>(</operator><name>ut32</name> <operator>*</operator><operator>)</operator> <name><name>context</name><operator>-&gt;</operator><name>buffer</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>a</name> <operator>=</operator> <name><name>context</name><operator>-&gt;</operator><name>state</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>b</name> <operator>=</operator> <name><name>context</name><operator>-&gt;</operator><name>state</name><index>[<expr><literal type="number">1</literal></expr>]</index></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>c</name> <operator>=</operator> <name><name>context</name><operator>-&gt;</operator><name>state</name><index>[<expr><literal type="number">2</literal></expr>]</index></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>d</name> <operator>=</operator> <name><name>context</name><operator>-&gt;</operator><name>state</name><index>[<expr><literal type="number">3</literal></expr>]</index></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>e</name> <operator>=</operator> <name><name>context</name><operator>-&gt;</operator><name>state</name><index>[<expr><literal type="number">4</literal></expr>]</index></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>f</name> <operator>=</operator> <name><name>context</name><operator>-&gt;</operator><name>state</name><index>[<expr><literal type="number">5</literal></expr>]</index></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>g</name> <operator>=</operator> <name><name>context</name><operator>-&gt;</operator><name>state</name><index>[<expr><literal type="number">6</literal></expr>]</index></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>h</name> <operator>=</operator> <name><name>context</name><operator>-&gt;</operator><name>state</name><index>[<expr><literal type="number">7</literal></expr>]</index></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>j</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<do>do <block>{<block_content>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><name>BYTE_ORDER</name> <operator>==</operator> <name>LITTLE_ENDIAN</name></expr></cpp:if>
+
+<expr_stmt><expr><call><name>REVERSE32</name> <argument_list>(<argument><expr><operator>*</operator><name>data</name><operator>++</operator></expr></argument>, <argument><expr><name><name>W256</name><index>[<expr><name>j</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>T1</name> <operator>=</operator> <name>h</name> <operator>+</operator> <call><name>Sigma1_256</name> <argument_list>(<argument><expr><name>e</name></expr></argument>)</argument_list></call> <operator>+</operator> <call><name>Ch</name> <argument_list>(<argument><expr><name>e</name></expr></argument>, <argument><expr><name>f</name></expr></argument>, <argument><expr><name>g</name></expr></argument>)</argument_list></call> <operator>+</operator> <name><name>K256</name><index>[<expr><name>j</name></expr>]</index></name> <operator>+</operator> <name><name>W256</name><index>[<expr><name>j</name></expr>]</index></name></expr>;</expr_stmt>
+
+<cpp:else>#<cpp:directive>else</cpp:directive></cpp:else> 
+
+<expr_stmt><expr><name>T1</name> <operator>=</operator> <name>h</name> <operator>+</operator> <call><name>Sigma1_256</name> <argument_list>(<argument><expr><name>e</name></expr></argument>)</argument_list></call> <operator>+</operator> <call><name>Ch</name> <argument_list>(<argument><expr><name>e</name></expr></argument>, <argument><expr><name>f</name></expr></argument>, <argument><expr><name>g</name></expr></argument>)</argument_list></call> <operator>+</operator> <name><name>K256</name><index>[<expr><name>j</name></expr>]</index></name> <operator>+</operator> <operator>(</operator><name><name>W256</name><index>[<expr><name>j</name></expr>]</index></name> <operator>=</operator> <operator>*</operator><name>data</name><operator>++</operator><operator>)</operator></expr>;</expr_stmt>
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif> 
+
+<expr_stmt><expr><name>T2</name> <operator>=</operator> <call><name>Sigma0_256</name> <argument_list>(<argument><expr><name>a</name></expr></argument>)</argument_list></call> <operator>+</operator> <call><name>Maj</name> <argument_list>(<argument><expr><name>a</name></expr></argument>, <argument><expr><name>b</name></expr></argument>, <argument><expr><name>c</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>h</name> <operator>=</operator> <name>g</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>g</name> <operator>=</operator> <name>f</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>f</name> <operator>=</operator> <name>e</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>e</name> <operator>=</operator> <name>d</name> <operator>+</operator> <name>T1</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>d</name> <operator>=</operator> <name>c</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>c</name> <operator>=</operator> <name>b</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>b</name> <operator>=</operator> <name>a</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>a</name> <operator>=</operator> <name>T1</name> <operator>+</operator> <name>T2</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>j</name><operator>++</operator></expr>;</expr_stmt>
+
+</block_content>}</block> while <condition>(<expr><name>j</name> <operator>&lt;</operator> <literal type="number">16</literal></expr>)</condition>;</do>
+
+<do>do <block>{<block_content>
+
+<expr_stmt><expr><name>s0</name> <operator>=</operator> <name><name>W256</name><index>[<expr><operator>(</operator><name>j</name> <operator>+</operator> <literal type="number">1</literal><operator>)</operator> <operator>&amp;</operator> <literal type="number">0x0f</literal></expr>]</index></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>s0</name> <operator>=</operator> <call><name>sigma0_256</name> <argument_list>(<argument><expr><name>s0</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>s1</name> <operator>=</operator> <name><name>W256</name><index>[<expr><operator>(</operator><name>j</name> <operator>+</operator> <literal type="number">14</literal><operator>)</operator> <operator>&amp;</operator> <literal type="number">0x0f</literal></expr>]</index></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>s1</name> <operator>=</operator> <call><name>sigma1_256</name> <argument_list>(<argument><expr><name>s1</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>T1</name> <operator>=</operator> <name>h</name> <operator>+</operator> <call><name>Sigma1_256</name> <argument_list>(<argument><expr><name>e</name></expr></argument>)</argument_list></call> <operator>+</operator> <call><name>Ch</name> <argument_list>(<argument><expr><name>e</name></expr></argument>, <argument><expr><name>f</name></expr></argument>, <argument><expr><name>g</name></expr></argument>)</argument_list></call> <operator>+</operator> <name><name>K256</name><index>[<expr><name>j</name></expr>]</index></name> <operator>+</operator>
+
+<operator>(</operator><name><name>W256</name><index>[<expr><name>j</name> <operator>&amp;</operator> <literal type="number">0x0f</literal></expr>]</index></name> <operator>+=</operator> <name>s1</name> <operator>+</operator> <name><name>W256</name><index>[<expr><operator>(</operator><name>j</name> <operator>+</operator> <literal type="number">9</literal><operator>)</operator> <operator>&amp;</operator> <literal type="number">0x0f</literal></expr>]</index></name> <operator>+</operator> <name>s0</name><operator>)</operator></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>T2</name> <operator>=</operator> <call><name>Sigma0_256</name> <argument_list>(<argument><expr><name>a</name></expr></argument>)</argument_list></call> <operator>+</operator> <call><name>Maj</name> <argument_list>(<argument><expr><name>a</name></expr></argument>, <argument><expr><name>b</name></expr></argument>, <argument><expr><name>c</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>h</name> <operator>=</operator> <name>g</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>g</name> <operator>=</operator> <name>f</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>f</name> <operator>=</operator> <name>e</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>e</name> <operator>=</operator> <name>d</name> <operator>+</operator> <name>T1</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>d</name> <operator>=</operator> <name>c</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>c</name> <operator>=</operator> <name>b</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>b</name> <operator>=</operator> <name>a</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>a</name> <operator>=</operator> <name>T1</name> <operator>+</operator> <name>T2</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>j</name><operator>++</operator></expr>;</expr_stmt>
+
+</block_content>}</block> while <condition>(<expr><name>j</name> <operator>&lt;</operator> <literal type="number">64</literal></expr>)</condition>;</do>
+
+<expr_stmt><expr><name><name>context</name><operator>-&gt;</operator><name>state</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>+=</operator> <name>a</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>context</name><operator>-&gt;</operator><name>state</name><index>[<expr><literal type="number">1</literal></expr>]</index></name> <operator>+=</operator> <name>b</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>context</name><operator>-&gt;</operator><name>state</name><index>[<expr><literal type="number">2</literal></expr>]</index></name> <operator>+=</operator> <name>c</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>context</name><operator>-&gt;</operator><name>state</name><index>[<expr><literal type="number">3</literal></expr>]</index></name> <operator>+=</operator> <name>d</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>context</name><operator>-&gt;</operator><name>state</name><index>[<expr><literal type="number">4</literal></expr>]</index></name> <operator>+=</operator> <name>e</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>context</name><operator>-&gt;</operator><name>state</name><index>[<expr><literal type="number">5</literal></expr>]</index></name> <operator>+=</operator> <name>f</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>context</name><operator>-&gt;</operator><name>state</name><index>[<expr><literal type="number">6</literal></expr>]</index></name> <operator>+=</operator> <name>g</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>context</name><operator>-&gt;</operator><name>state</name><index>[<expr><literal type="number">7</literal></expr>]</index></name> <operator>+=</operator> <name>h</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>a</name> <operator>=</operator> <name>b</name> <operator>=</operator> <name>c</name> <operator>=</operator> <name>d</name> <operator>=</operator> <name>e</name> <operator>=</operator> <name>f</name> <operator>=</operator> <name>g</name> <operator>=</operator> <name>h</name> <operator>=</operator> <name>T1</name> <operator>=</operator> <name>T2</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif> 
+
+<function><type><name>void</name></type> <name>SHA256_Update</name><parameter_list>(<parameter><decl><type><name>R_SHA256_CTX</name> <modifier>*</modifier></type><name>context</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>ut8</name> <modifier>*</modifier></type><name>data</name></decl></parameter>, <parameter><decl><type><name>size_t</name></type> <name>len</name></decl></parameter>)</parameter_list> <block>{<block_content>
+
+<decl_stmt><decl><type><name>unsigned</name> <name>int</name></type> <name>freespace</name></decl>, <decl><type ref="prev"/><name>usedspace</name></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>context</name> <operator>||</operator> <operator>!</operator><name>data</name> <operator>||</operator> <name>len</name> <operator>==</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<return>return;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name>usedspace</name> <operator>=</operator> <operator>(</operator><name><name>context</name><operator>-&gt;</operator><name>bitcount</name></name> <operator>&gt;&gt;</operator> <literal type="number">3</literal><operator>)</operator> <operator>%</operator> <name>SHA256_BLOCK_LENGTH</name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>usedspace</name> <operator>&gt;</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>freespace</name> <operator>=</operator> <name>SHA256_BLOCK_LENGTH</name> <operator>-</operator> <name>usedspace</name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>len</name> <operator>&gt;=</operator> <name>freespace</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>memcpy</name> <argument_list>(<argument><expr><operator>&amp;</operator><name><name>context</name><operator>-&gt;</operator><name>buffer</name><index>[<expr><name>usedspace</name></expr>]</index></name></expr></argument>, <argument><expr><name>data</name></expr></argument>, <argument><expr><name>freespace</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>context</name><operator>-&gt;</operator><name>bitcount</name></name> <operator>+=</operator> <name>freespace</name> <operator>&lt;&lt;</operator> <literal type="number">3</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>len</name> <operator>-=</operator> <name>freespace</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>data</name> <operator>+=</operator> <name>freespace</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>SHA256_Transform</name> <argument_list>(<argument><expr><name>context</name></expr></argument>, <argument><expr><operator>(</operator><name>ut32</name> <operator>*</operator><operator>)</operator> <name><name>context</name><operator>-&gt;</operator><name>buffer</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<expr_stmt><expr><call><name>memcpy</name> <argument_list>(<argument><expr><operator>&amp;</operator><name><name>context</name><operator>-&gt;</operator><name>buffer</name><index>[<expr><name>usedspace</name></expr>]</index></name></expr></argument>, <argument><expr><name>data</name></expr></argument>, <argument><expr><name>len</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>context</name><operator>-&gt;</operator><name>bitcount</name></name> <operator>+=</operator> <name>len</name> <operator>&lt;&lt;</operator> <literal type="number">3</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>usedspace</name> <operator>=</operator> <name>freespace</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<return>return;</return>
+
+</block_content>}</block></else></if_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<while>while <condition>(<expr><name>len</name> <operator>&gt;=</operator> <name>SHA256_BLOCK_LENGTH</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>SHA256_Transform</name> <argument_list>(<argument><expr><name>context</name></expr></argument>, <argument><expr><operator>(</operator><name>ut32</name> <operator>*</operator><operator>)</operator> <name>data</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>context</name><operator>-&gt;</operator><name>bitcount</name></name> <operator>+=</operator> <name>SHA256_BLOCK_LENGTH</name> <operator>&lt;&lt;</operator> <literal type="number">3</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>len</name> <operator>-=</operator> <name>SHA256_BLOCK_LENGTH</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>data</name> <operator>+=</operator> <name>SHA256_BLOCK_LENGTH</name></expr>;</expr_stmt>
+
+</block_content>}</block></while>
+
+<if_stmt><if>if <condition>(<expr><name>len</name> <operator>&gt;</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>memcpy</name> <argument_list>(<argument><expr><name><name>context</name><operator>-&gt;</operator><name>buffer</name></name></expr></argument>, <argument><expr><name>data</name></expr></argument>, <argument><expr><name>len</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>context</name><operator>-&gt;</operator><name>bitcount</name></name> <operator>+=</operator> <name>len</name> <operator>&lt;&lt;</operator> <literal type="number">3</literal></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name>usedspace</name> <operator>=</operator> <name>freespace</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><name>void</name></type> <name>SHA256_Final</name><parameter_list>(<parameter><decl><type><name>ut8</name> <modifier>*</modifier></type><name>digest</name></decl></parameter>, <parameter><decl><type><name>R_SHA256_CTX</name> <modifier>*</modifier></type><name>context</name></decl></parameter>)</parameter_list> <block>{<block_content>
+
+<decl_stmt><decl><type><name>ut32</name> <modifier>*</modifier></type><name>d</name> <init>= <expr><operator>(</operator><name>ut32</name> <operator>*</operator><operator>)</operator> <name>digest</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>unsigned</name> <name>int</name></type> <name>usedspace</name></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>context</name></expr>)</condition> <block>{<block_content>
+
+<return>return;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>digest</name> <operator>!=</operator> <operator>(</operator><name>ut8</name> <operator>*</operator><operator>)</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>usedspace</name> <operator>=</operator> <operator>(</operator><name><name>context</name><operator>-&gt;</operator><name>bitcount</name></name> <operator>&gt;&gt;</operator> <literal type="number">3</literal><operator>)</operator> <operator>%</operator> <name>SHA256_BLOCK_LENGTH</name></expr>;</expr_stmt>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><name>BYTE_ORDER</name> <operator>==</operator> <name>LITTLE_ENDIAN</name></expr></cpp:if>
+
+<expr_stmt><expr><call><name>REVERSE64</name> <argument_list>(<argument><expr><name><name>context</name><operator>-&gt;</operator><name>bitcount</name></name></expr></argument>, <argument><expr><name><name>context</name><operator>-&gt;</operator><name>bitcount</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+<if_stmt><if>if <condition>(<expr><name>usedspace</name> <operator>&gt;</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name><name>context</name><operator>-&gt;</operator><name>buffer</name><index>[<expr><name>usedspace</name><operator>++</operator></expr>]</index></name> <operator>=</operator> <literal type="number">0x80</literal></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>usedspace</name> <operator>&lt;=</operator> <name>SHA256_SHORT_BLOCK_LENGTH</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>memset</name> <argument_list>(<argument><expr><operator>&amp;</operator><name><name>context</name><operator>-&gt;</operator><name>buffer</name><index>[<expr><name>usedspace</name></expr>]</index></name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><name>SHA256_SHORT_BLOCK_LENGTH</name> <operator>-</operator> <name>usedspace</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><name>usedspace</name> <operator>&lt;</operator> <name>SHA256_BLOCK_LENGTH</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>memset</name> <argument_list>(<argument><expr><operator>&amp;</operator><name><name>context</name><operator>-&gt;</operator><name>buffer</name><index>[<expr><name>usedspace</name></expr>]</index></name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><name>SHA256_BLOCK_LENGTH</name> <operator>-</operator> <name>usedspace</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>SHA256_Transform</name> <argument_list>(<argument><expr><name>context</name></expr></argument>, <argument><expr><operator>(</operator><name>ut32</name> <operator>*</operator><operator>)</operator> <name><name>context</name><operator>-&gt;</operator><name>buffer</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>memset</name> <argument_list>(<argument><expr><name><name>context</name><operator>-&gt;</operator><name>buffer</name></name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><name>SHA256_SHORT_BLOCK_LENGTH</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<expr_stmt><expr><call><name>memset</name> <argument_list>(<argument><expr><name><name>context</name><operator>-&gt;</operator><name>buffer</name></name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><name>SHA256_SHORT_BLOCK_LENGTH</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><operator>*</operator><name><name>context</name><operator>-&gt;</operator><name>buffer</name></name> <operator>=</operator> <literal type="number">0x80</literal></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><name>WEAK_ALIASING</name></expr></cpp:if>
+
+<expr_stmt><expr><operator>*</operator><operator>(</operator><name>ut64</name> <operator>*</operator><operator>)</operator> <operator>&amp;</operator><name><name>context</name><operator>-&gt;</operator><name>buffer</name><index>[<expr><name>SHA256_SHORT_BLOCK_LENGTH</name></expr>]</index></name> <operator>=</operator> <name><name>context</name><operator>-&gt;</operator><name>bitcount</name></name></expr>;</expr_stmt>
+
+<cpp:else>#<cpp:directive>else</cpp:directive></cpp:else>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>ut64</name> <modifier>*</modifier></type><name>p</name> <init>= <expr><operator>(</operator><name>ut64</name> <operator>*</operator><operator>)</operator> <operator>(</operator><operator>(</operator><name>ut8</name> <operator>*</operator><operator>)</operator> <name><name>context</name><operator>-&gt;</operator><name>buffer</name></name> <operator>+</operator> <name>SHA256_SHORT_BLOCK_LENGTH</name><operator>)</operator></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><operator>*</operator><name>p</name> <operator>=</operator> <operator>(</operator><name>ut64</name><operator>)</operator> <name><name>context</name><operator>-&gt;</operator><name>bitcount</name></name></expr>;</expr_stmt>
+
+</block_content>}</block>
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+<expr_stmt><expr><call><name>SHA256_Transform</name> <argument_list>(<argument><expr><name>context</name></expr></argument>, <argument><expr><operator>(</operator><name>ut32</name> <operator>*</operator><operator>)</operator> <name><name>context</name><operator>-&gt;</operator><name>buffer</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><name>BYTE_ORDER</name> <operator>==</operator> <name>LITTLE_ENDIAN</name></expr></cpp:if>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>int</name></type> <name>j</name></decl>;</decl_stmt>
+
+<for>for <control>(<init><expr><name>j</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>j</name> <operator>&lt;</operator> <literal type="number">8</literal></expr>;</condition> <incr><expr><name>j</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+
+<expr_stmt><expr><call><name>REVERSE32</name> <argument_list>(<argument><expr><name><name>context</name><operator>-&gt;</operator><name>state</name><index>[<expr><name>j</name></expr>]</index></name></expr></argument>, <argument><expr><name><name>context</name><operator>-&gt;</operator><name>state</name><index>[<expr><name>j</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><operator>*</operator><name>d</name><operator>++</operator> <operator>=</operator> <name><name>context</name><operator>-&gt;</operator><name>state</name><index>[<expr><name>j</name></expr>]</index></name></expr>;</expr_stmt>
+
+</block_content>}</block></for>
+
+</block_content>}</block>
+
+<cpp:else>#<cpp:directive>else</cpp:directive></cpp:else>
+
+<expr_stmt><expr><call><name>memcpy</name> <argument_list>(<argument><expr><name>d</name></expr></argument>, <argument><expr><name><name>context</name><operator>-&gt;</operator><name>state</name></name></expr></argument>, <argument><expr><name>SHA256_DIGEST_LENGTH</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>r_mem_memzero</name> <argument_list>(<argument><expr><name>context</name></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr><operator>*</operator><name>context</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>usedspace</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><name>char</name> <modifier>*</modifier></type><name>SHA256_End</name><parameter_list>(<parameter><decl><type><name>R_SHA256_CTX</name> <modifier>*</modifier></type><name>context</name></decl></parameter>, <parameter><decl><type><name>char</name></type> <name><name>buffer</name><index>[]</index></name></decl></parameter>)</parameter_list> <block>{<block_content>
+
+<decl_stmt><decl><type><name>ut8</name></type> <name><name>digest</name><index>[<expr><name>SHA256_DIGEST_LENGTH</name></expr>]</index></name></decl>, <decl><type ref="prev"><modifier>*</modifier></type><name>d</name> <init>= <expr><name>digest</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>i</name></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>context</name></expr>)</condition> <block>{<block_content>
+
+<return>return <expr><name>NULL</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>buffer</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>SHA256_Final</name> <argument_list>(<argument><expr><name>digest</name></expr></argument>, <argument><expr><name>context</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>SHA256_DIGEST_LENGTH</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+
+<expr_stmt><expr><operator>*</operator><name>buffer</name><operator>++</operator> <operator>=</operator> <name><name>sha2_hex_digits</name><index>[<expr><operator>(</operator><operator>*</operator><name>d</name> <operator>&amp;</operator> <literal type="number">0xf0</literal><operator>)</operator> <operator>&gt;&gt;</operator> <literal type="number">4</literal></expr>]</index></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><operator>*</operator><name>buffer</name><operator>++</operator> <operator>=</operator> <name><name>sha2_hex_digits</name><index>[<expr><operator>*</operator><name>d</name> <operator>&amp;</operator> <literal type="number">0x0f</literal></expr>]</index></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>d</name><operator>++</operator></expr>;</expr_stmt>
+
+</block_content>}</block></for>
+
+<expr_stmt><expr><operator>*</operator><name>buffer</name> <operator>=</operator> <operator>(</operator><name>char</name><operator>)</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<expr_stmt><expr><call><name>r_mem_memzero</name> <argument_list>(<argument><expr><name>context</name></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr><operator>*</operator><name>context</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+<expr_stmt><expr><call><name>r_mem_memzero</name> <argument_list>(<argument><expr><name>digest</name></expr></argument>, <argument><expr><name>SHA256_DIGEST_LENGTH</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>buffer</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><name>char</name> <modifier>*</modifier></type><name>SHA256_Data</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name>ut8</name> <modifier>*</modifier></type><name>data</name></decl></parameter>, <parameter><decl><type><name>size_t</name></type> <name>len</name></decl></parameter>, <parameter><decl><type><name>char</name></type> <name><name>digest</name><index>[<expr><name>SHA256_DIGEST_STRING_LENGTH</name></expr>]</index></name></decl></parameter>)</parameter_list> <block>{<block_content>
+
+<decl_stmt><decl><type><name>R_SHA256_CTX</name></type> <name>context</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>SHA256_Init</name> <argument_list>(<argument><expr><operator>&amp;</operator><name>context</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>SHA256_Update</name> <argument_list>(<argument><expr><operator>&amp;</operator><name>context</name></expr></argument>, <argument><expr><name>data</name></expr></argument>, <argument><expr><name>len</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><call><name>SHA256_End</name> <argument_list>(<argument><expr><operator>&amp;</operator><name>context</name></expr></argument>, <argument><expr><name>digest</name></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><name>void</name></type> <name>SHA512_Init</name><parameter_list>(<parameter><decl><type><name>R_SHA512_CTX</name> <modifier>*</modifier></type><name>context</name></decl></parameter>)</parameter_list> <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><name>context</name> <operator>==</operator> <operator>(</operator><name>R_SHA512_CTX</name> <operator>*</operator><operator>)</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<return>return;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>memcpy</name> <argument_list>(<argument><expr><name><name>context</name><operator>-&gt;</operator><name>state</name></name></expr></argument>, <argument><expr><name>sha512_initial_hash_value</name></expr></argument>, <argument><expr><name>SHA512_DIGEST_LENGTH</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>r_mem_memzero</name> <argument_list>(<argument><expr><name><name>context</name><operator>-&gt;</operator><name>buffer</name></name></expr></argument>, <argument><expr><name>SHA512_BLOCK_LENGTH</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>context</name><operator>-&gt;</operator><name>bitcount</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>=</operator> <name><name>context</name><operator>-&gt;</operator><name>bitcount</name><index>[<expr><literal type="number">1</literal></expr>]</index></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><call><name>defined</name><argument_list>(<argument><expr><name>SHA2_UNROLL_TRANSFORM</name></expr></argument>)</argument_list></call></expr></cpp:if>
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><name>BYTE_ORDER</name> <operator>==</operator> <name>LITTLE_ENDIAN</name></expr></cpp:if>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>ROUND512_0_TO_15</name><parameter_list>(<parameter><type><name>a</name></type></parameter>, <parameter><type><name>b</name></type></parameter>, <parameter><type><name>c</name></type></parameter>, <parameter><type><name>d</name></type></parameter>, <parameter><type><name>e</name></type></parameter>, <parameter><type><name>f</name></type></parameter>, <parameter><type><name>g</name></type></parameter>, <parameter><type><name>h</name></type></parameter>)</parameter_list></cpp:macro><cpp:value>REVERSE64 (*data++, W512[j]);T1 = (h) + Sigma1_512 (e) + Ch ((e), (f), (g)) +K512[j] + W512[j];(d) += T1,(h) = T1 + Sigma0_512 (a) + Maj ((a), (b), (c)),j++</cpp:value></cpp:define>
+
+<cpp:else>#<cpp:directive>else</cpp:directive></cpp:else> 
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>ROUND512_0_TO_15</name><parameter_list>(<parameter><type><name>a</name></type></parameter>, <parameter><type><name>b</name></type></parameter>, <parameter><type><name>c</name></type></parameter>, <parameter><type><name>d</name></type></parameter>, <parameter><type><name>e</name></type></parameter>, <parameter><type><name>f</name></type></parameter>, <parameter><type><name>g</name></type></parameter>, <parameter><type><name>h</name></type></parameter>)</parameter_list></cpp:macro><cpp:value>T1 = (h) + Sigma1_512 (e) + Ch ((e), (f), (g)) +K512[j] + (W512[j] = *data++);(d) += T1;(h) = T1 + Sigma0_512 (a) + Maj ((a), (b), (c));j++</cpp:value></cpp:define>
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif> 
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>ROUND512</name><parameter_list>(<parameter><type><name>a</name></type></parameter>, <parameter><type><name>b</name></type></parameter>, <parameter><type><name>c</name></type></parameter>, <parameter><type><name>d</name></type></parameter>, <parameter><type><name>e</name></type></parameter>, <parameter><type><name>f</name></type></parameter>, <parameter><type><name>g</name></type></parameter>, <parameter><type><name>h</name></type></parameter>)</parameter_list></cpp:macro><cpp:value>s0 = W512[(j + 1) &amp; 0x0f];s0 = sigma0_512 (s0);s1 = W512[(j + 14) &amp; 0x0f];s1 = sigma1_512 (s1);T1 = (h) + Sigma1_512 (e) + Ch ((e), (f), (g)) + K512[j] +(W512[j &amp; 0x0f] += s1 + W512[(j + 9) &amp; 0x0f] + s0);(d) += T1;(h) = T1 + Sigma0_512 (a) + Maj ((a), (b), (c));j++</cpp:value></cpp:define>
+
+<function><type><name>void</name></type> <name>SHA512_Transform</name><parameter_list>(<parameter><decl><type><name>R_SHA512_CTX</name> <modifier>*</modifier></type><name>context</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>ut64</name> <modifier>*</modifier></type><name>data</name></decl></parameter>)</parameter_list> <block>{<block_content>
+
+<decl_stmt><decl><type><name>ut64</name></type> <name>a</name></decl>, <decl><type ref="prev"/><name>b</name></decl>, <decl><type ref="prev"/><name>c</name></decl>, <decl><type ref="prev"/><name>d</name></decl>, <decl><type ref="prev"/><name>e</name></decl>, <decl><type ref="prev"/><name>f</name></decl>, <decl><type ref="prev"/><name>g</name></decl>, <decl><type ref="prev"/><name>h</name></decl>, <decl><type ref="prev"/><name>s0</name></decl>, <decl><type ref="prev"/><name>s1</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>ut64</name></type> <name>T1</name></decl>, <decl><type ref="prev"><modifier>*</modifier></type><name>W512</name> <init>= <expr><operator>(</operator><name>ut64</name> <operator>*</operator><operator>)</operator> <name><name>context</name><operator>-&gt;</operator><name>buffer</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>j</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>a</name> <operator>=</operator> <name><name>context</name><operator>-&gt;</operator><name>state</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>b</name> <operator>=</operator> <name><name>context</name><operator>-&gt;</operator><name>state</name><index>[<expr><literal type="number">1</literal></expr>]</index></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>c</name> <operator>=</operator> <name><name>context</name><operator>-&gt;</operator><name>state</name><index>[<expr><literal type="number">2</literal></expr>]</index></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>d</name> <operator>=</operator> <name><name>context</name><operator>-&gt;</operator><name>state</name><index>[<expr><literal type="number">3</literal></expr>]</index></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>e</name> <operator>=</operator> <name><name>context</name><operator>-&gt;</operator><name>state</name><index>[<expr><literal type="number">4</literal></expr>]</index></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>f</name> <operator>=</operator> <name><name>context</name><operator>-&gt;</operator><name>state</name><index>[<expr><literal type="number">5</literal></expr>]</index></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>g</name> <operator>=</operator> <name><name>context</name><operator>-&gt;</operator><name>state</name><index>[<expr><literal type="number">6</literal></expr>]</index></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>h</name> <operator>=</operator> <name><name>context</name><operator>-&gt;</operator><name>state</name><index>[<expr><literal type="number">7</literal></expr>]</index></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>j</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<do>do <block>{<block_content>
+
+<expr_stmt><expr><call><name>ROUND512_0_TO_15</name> <argument_list>(<argument><expr><name>a</name></expr></argument>, <argument><expr><name>b</name></expr></argument>, <argument><expr><name>c</name></expr></argument>, <argument><expr><name>d</name></expr></argument>, <argument><expr><name>e</name></expr></argument>, <argument><expr><name>f</name></expr></argument>, <argument><expr><name>g</name></expr></argument>, <argument><expr><name>h</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>ROUND512_0_TO_15</name> <argument_list>(<argument><expr><name>h</name></expr></argument>, <argument><expr><name>a</name></expr></argument>, <argument><expr><name>b</name></expr></argument>, <argument><expr><name>c</name></expr></argument>, <argument><expr><name>d</name></expr></argument>, <argument><expr><name>e</name></expr></argument>, <argument><expr><name>f</name></expr></argument>, <argument><expr><name>g</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>ROUND512_0_TO_15</name> <argument_list>(<argument><expr><name>g</name></expr></argument>, <argument><expr><name>h</name></expr></argument>, <argument><expr><name>a</name></expr></argument>, <argument><expr><name>b</name></expr></argument>, <argument><expr><name>c</name></expr></argument>, <argument><expr><name>d</name></expr></argument>, <argument><expr><name>e</name></expr></argument>, <argument><expr><name>f</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>ROUND512_0_TO_15</name> <argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><name>g</name></expr></argument>, <argument><expr><name>h</name></expr></argument>, <argument><expr><name>a</name></expr></argument>, <argument><expr><name>b</name></expr></argument>, <argument><expr><name>c</name></expr></argument>, <argument><expr><name>d</name></expr></argument>, <argument><expr><name>e</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>ROUND512_0_TO_15</name> <argument_list>(<argument><expr><name>e</name></expr></argument>, <argument><expr><name>f</name></expr></argument>, <argument><expr><name>g</name></expr></argument>, <argument><expr><name>h</name></expr></argument>, <argument><expr><name>a</name></expr></argument>, <argument><expr><name>b</name></expr></argument>, <argument><expr><name>c</name></expr></argument>, <argument><expr><name>d</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>ROUND512_0_TO_15</name> <argument_list>(<argument><expr><name>d</name></expr></argument>, <argument><expr><name>e</name></expr></argument>, <argument><expr><name>f</name></expr></argument>, <argument><expr><name>g</name></expr></argument>, <argument><expr><name>h</name></expr></argument>, <argument><expr><name>a</name></expr></argument>, <argument><expr><name>b</name></expr></argument>, <argument><expr><name>c</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>ROUND512_0_TO_15</name> <argument_list>(<argument><expr><name>c</name></expr></argument>, <argument><expr><name>d</name></expr></argument>, <argument><expr><name>e</name></expr></argument>, <argument><expr><name>f</name></expr></argument>, <argument><expr><name>g</name></expr></argument>, <argument><expr><name>h</name></expr></argument>, <argument><expr><name>a</name></expr></argument>, <argument><expr><name>b</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>ROUND512_0_TO_15</name> <argument_list>(<argument><expr><name>b</name></expr></argument>, <argument><expr><name>c</name></expr></argument>, <argument><expr><name>d</name></expr></argument>, <argument><expr><name>e</name></expr></argument>, <argument><expr><name>f</name></expr></argument>, <argument><expr><name>g</name></expr></argument>, <argument><expr><name>h</name></expr></argument>, <argument><expr><name>a</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block> while <condition>(<expr><name>j</name> <operator>&lt;</operator> <literal type="number">16</literal></expr>)</condition>;</do>
+
+<do>do <block>{<block_content>
+
+<expr_stmt><expr><call><name>ROUND512</name> <argument_list>(<argument><expr><name>a</name></expr></argument>, <argument><expr><name>b</name></expr></argument>, <argument><expr><name>c</name></expr></argument>, <argument><expr><name>d</name></expr></argument>, <argument><expr><name>e</name></expr></argument>, <argument><expr><name>f</name></expr></argument>, <argument><expr><name>g</name></expr></argument>, <argument><expr><name>h</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>ROUND512</name> <argument_list>(<argument><expr><name>h</name></expr></argument>, <argument><expr><name>a</name></expr></argument>, <argument><expr><name>b</name></expr></argument>, <argument><expr><name>c</name></expr></argument>, <argument><expr><name>d</name></expr></argument>, <argument><expr><name>e</name></expr></argument>, <argument><expr><name>f</name></expr></argument>, <argument><expr><name>g</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>ROUND512</name> <argument_list>(<argument><expr><name>g</name></expr></argument>, <argument><expr><name>h</name></expr></argument>, <argument><expr><name>a</name></expr></argument>, <argument><expr><name>b</name></expr></argument>, <argument><expr><name>c</name></expr></argument>, <argument><expr><name>d</name></expr></argument>, <argument><expr><name>e</name></expr></argument>, <argument><expr><name>f</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>ROUND512</name> <argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><name>g</name></expr></argument>, <argument><expr><name>h</name></expr></argument>, <argument><expr><name>a</name></expr></argument>, <argument><expr><name>b</name></expr></argument>, <argument><expr><name>c</name></expr></argument>, <argument><expr><name>d</name></expr></argument>, <argument><expr><name>e</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>ROUND512</name> <argument_list>(<argument><expr><name>e</name></expr></argument>, <argument><expr><name>f</name></expr></argument>, <argument><expr><name>g</name></expr></argument>, <argument><expr><name>h</name></expr></argument>, <argument><expr><name>a</name></expr></argument>, <argument><expr><name>b</name></expr></argument>, <argument><expr><name>c</name></expr></argument>, <argument><expr><name>d</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>ROUND512</name> <argument_list>(<argument><expr><name>d</name></expr></argument>, <argument><expr><name>e</name></expr></argument>, <argument><expr><name>f</name></expr></argument>, <argument><expr><name>g</name></expr></argument>, <argument><expr><name>h</name></expr></argument>, <argument><expr><name>a</name></expr></argument>, <argument><expr><name>b</name></expr></argument>, <argument><expr><name>c</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>ROUND512</name> <argument_list>(<argument><expr><name>c</name></expr></argument>, <argument><expr><name>d</name></expr></argument>, <argument><expr><name>e</name></expr></argument>, <argument><expr><name>f</name></expr></argument>, <argument><expr><name>g</name></expr></argument>, <argument><expr><name>h</name></expr></argument>, <argument><expr><name>a</name></expr></argument>, <argument><expr><name>b</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>ROUND512</name> <argument_list>(<argument><expr><name>b</name></expr></argument>, <argument><expr><name>c</name></expr></argument>, <argument><expr><name>d</name></expr></argument>, <argument><expr><name>e</name></expr></argument>, <argument><expr><name>f</name></expr></argument>, <argument><expr><name>g</name></expr></argument>, <argument><expr><name>h</name></expr></argument>, <argument><expr><name>a</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block> while <condition>(<expr><name>j</name> <operator>&lt;</operator> <literal type="number">80</literal></expr>)</condition>;</do>
+
+<expr_stmt><expr><name><name>context</name><operator>-&gt;</operator><name>state</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>+=</operator> <name>a</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>context</name><operator>-&gt;</operator><name>state</name><index>[<expr><literal type="number">1</literal></expr>]</index></name> <operator>+=</operator> <name>b</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>context</name><operator>-&gt;</operator><name>state</name><index>[<expr><literal type="number">2</literal></expr>]</index></name> <operator>+=</operator> <name>c</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>context</name><operator>-&gt;</operator><name>state</name><index>[<expr><literal type="number">3</literal></expr>]</index></name> <operator>+=</operator> <name>d</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>context</name><operator>-&gt;</operator><name>state</name><index>[<expr><literal type="number">4</literal></expr>]</index></name> <operator>+=</operator> <name>e</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>context</name><operator>-&gt;</operator><name>state</name><index>[<expr><literal type="number">5</literal></expr>]</index></name> <operator>+=</operator> <name>f</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>context</name><operator>-&gt;</operator><name>state</name><index>[<expr><literal type="number">6</literal></expr>]</index></name> <operator>+=</operator> <name>g</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>context</name><operator>-&gt;</operator><name>state</name><index>[<expr><literal type="number">7</literal></expr>]</index></name> <operator>+=</operator> <name>h</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>a</name> <operator>=</operator> <name>b</name> <operator>=</operator> <name>c</name> <operator>=</operator> <name>d</name> <operator>=</operator> <name>e</name> <operator>=</operator> <name>f</name> <operator>=</operator> <name>g</name> <operator>=</operator> <name>h</name> <operator>=</operator> <name>T1</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<cpp:else>#<cpp:directive>else</cpp:directive></cpp:else> 
+
+<function><type><name>void</name></type> <name>SHA512_Transform</name><parameter_list>(<parameter><decl><type><name>R_SHA512_CTX</name> <modifier>*</modifier></type><name>context</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>ut64</name> <modifier>*</modifier></type><name>data</name></decl></parameter>)</parameter_list> <block>{<block_content>
+
+<decl_stmt><decl><type><name>ut64</name></type> <name>a</name></decl>, <decl><type ref="prev"/><name>b</name></decl>, <decl><type ref="prev"/><name>c</name></decl>, <decl><type ref="prev"/><name>d</name></decl>, <decl><type ref="prev"/><name>e</name></decl>, <decl><type ref="prev"/><name>f</name></decl>, <decl><type ref="prev"/><name>g</name></decl>, <decl><type ref="prev"/><name>h</name></decl>, <decl><type ref="prev"/><name>s0</name></decl>, <decl><type ref="prev"/><name>s1</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>ut64</name></type> <name>T1</name></decl>, <decl><type ref="prev"/><name>T2</name></decl>, <decl><type ref="prev"><modifier>*</modifier></type><name>W512</name> <init>= <expr><operator>(</operator><name>ut64</name> <operator>*</operator><operator>)</operator> <name><name>context</name><operator>-&gt;</operator><name>buffer</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>j</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>a</name> <operator>=</operator> <name><name>context</name><operator>-&gt;</operator><name>state</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>b</name> <operator>=</operator> <name><name>context</name><operator>-&gt;</operator><name>state</name><index>[<expr><literal type="number">1</literal></expr>]</index></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>c</name> <operator>=</operator> <name><name>context</name><operator>-&gt;</operator><name>state</name><index>[<expr><literal type="number">2</literal></expr>]</index></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>d</name> <operator>=</operator> <name><name>context</name><operator>-&gt;</operator><name>state</name><index>[<expr><literal type="number">3</literal></expr>]</index></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>e</name> <operator>=</operator> <name><name>context</name><operator>-&gt;</operator><name>state</name><index>[<expr><literal type="number">4</literal></expr>]</index></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>f</name> <operator>=</operator> <name><name>context</name><operator>-&gt;</operator><name>state</name><index>[<expr><literal type="number">5</literal></expr>]</index></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>g</name> <operator>=</operator> <name><name>context</name><operator>-&gt;</operator><name>state</name><index>[<expr><literal type="number">6</literal></expr>]</index></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>h</name> <operator>=</operator> <name><name>context</name><operator>-&gt;</operator><name>state</name><index>[<expr><literal type="number">7</literal></expr>]</index></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>j</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<do>do <block>{<block_content>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><name>BYTE_ORDER</name> <operator>==</operator> <name>LITTLE_ENDIAN</name></expr></cpp:if>
+
+<expr_stmt><expr><call><name>REVERSE64</name> <argument_list>(<argument><expr><operator>*</operator><name>data</name><operator>++</operator></expr></argument>, <argument><expr><name><name>W512</name><index>[<expr><name>j</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>T1</name> <operator>=</operator> <name>h</name> <operator>+</operator> <call><name>Sigma1_512</name> <argument_list>(<argument><expr><name>e</name></expr></argument>)</argument_list></call> <operator>+</operator> <call><name>Ch</name> <argument_list>(<argument><expr><name>e</name></expr></argument>, <argument><expr><name>f</name></expr></argument>, <argument><expr><name>g</name></expr></argument>)</argument_list></call> <operator>+</operator> <name><name>K512</name><index>[<expr><name>j</name></expr>]</index></name> <operator>+</operator> <name><name>W512</name><index>[<expr><name>j</name></expr>]</index></name></expr>;</expr_stmt>
+
+<cpp:else>#<cpp:directive>else</cpp:directive></cpp:else> 
+
+<expr_stmt><expr><name>T1</name> <operator>=</operator> <name>h</name> <operator>+</operator> <call><name>Sigma1_512</name> <argument_list>(<argument><expr><name>e</name></expr></argument>)</argument_list></call> <operator>+</operator> <call><name>Ch</name> <argument_list>(<argument><expr><name>e</name></expr></argument>, <argument><expr><name>f</name></expr></argument>, <argument><expr><name>g</name></expr></argument>)</argument_list></call> <operator>+</operator> <name><name>K512</name><index>[<expr><name>j</name></expr>]</index></name> <operator>+</operator> <operator>(</operator><name><name>W512</name><index>[<expr><name>j</name></expr>]</index></name> <operator>=</operator> <operator>*</operator><name>data</name><operator>++</operator><operator>)</operator></expr>;</expr_stmt>
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif> 
+
+<expr_stmt><expr><name>T2</name> <operator>=</operator> <call><name>Sigma0_512</name> <argument_list>(<argument><expr><name>a</name></expr></argument>)</argument_list></call> <operator>+</operator> <call><name>Maj</name> <argument_list>(<argument><expr><name>a</name></expr></argument>, <argument><expr><name>b</name></expr></argument>, <argument><expr><name>c</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>h</name> <operator>=</operator> <name>g</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>g</name> <operator>=</operator> <name>f</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>f</name> <operator>=</operator> <name>e</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>e</name> <operator>=</operator> <name>d</name> <operator>+</operator> <name>T1</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>d</name> <operator>=</operator> <name>c</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>c</name> <operator>=</operator> <name>b</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>b</name> <operator>=</operator> <name>a</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>a</name> <operator>=</operator> <name>T1</name> <operator>+</operator> <name>T2</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>j</name><operator>++</operator></expr>;</expr_stmt>
+
+</block_content>}</block> while <condition>(<expr><name>j</name> <operator>&lt;</operator> <literal type="number">16</literal></expr>)</condition>;</do>
+
+<do>do <block>{<block_content>
+
+<expr_stmt><expr><name>s0</name> <operator>=</operator> <name><name>W512</name><index>[<expr><operator>(</operator><name>j</name> <operator>+</operator> <literal type="number">1</literal><operator>)</operator> <operator>&amp;</operator> <literal type="number">0x0f</literal></expr>]</index></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>s0</name> <operator>=</operator> <call><name>sigma0_512</name> <argument_list>(<argument><expr><name>s0</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>s1</name> <operator>=</operator> <name><name>W512</name><index>[<expr><operator>(</operator><name>j</name> <operator>+</operator> <literal type="number">14</literal><operator>)</operator> <operator>&amp;</operator> <literal type="number">0x0f</literal></expr>]</index></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>s1</name> <operator>=</operator> <call><name>sigma1_512</name> <argument_list>(<argument><expr><name>s1</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>T1</name> <operator>=</operator> <name>h</name> <operator>+</operator> <call><name>Sigma1_512</name> <argument_list>(<argument><expr><name>e</name></expr></argument>)</argument_list></call> <operator>+</operator> <call><name>Ch</name> <argument_list>(<argument><expr><name>e</name></expr></argument>, <argument><expr><name>f</name></expr></argument>, <argument><expr><name>g</name></expr></argument>)</argument_list></call> <operator>+</operator> <name><name>K512</name><index>[<expr><name>j</name></expr>]</index></name> <operator>+</operator>
+
+<operator>(</operator><name><name>W512</name><index>[<expr><name>j</name> <operator>&amp;</operator> <literal type="number">0x0f</literal></expr>]</index></name> <operator>+=</operator> <name>s1</name> <operator>+</operator> <name><name>W512</name><index>[<expr><operator>(</operator><name>j</name> <operator>+</operator> <literal type="number">9</literal><operator>)</operator> <operator>&amp;</operator> <literal type="number">0x0f</literal></expr>]</index></name> <operator>+</operator> <name>s0</name><operator>)</operator></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>T2</name> <operator>=</operator> <call><name>Sigma0_512</name> <argument_list>(<argument><expr><name>a</name></expr></argument>)</argument_list></call> <operator>+</operator> <call><name>Maj</name> <argument_list>(<argument><expr><name>a</name></expr></argument>, <argument><expr><name>b</name></expr></argument>, <argument><expr><name>c</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>h</name> <operator>=</operator> <name>g</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>g</name> <operator>=</operator> <name>f</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>f</name> <operator>=</operator> <name>e</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>e</name> <operator>=</operator> <name>d</name> <operator>+</operator> <name>T1</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>d</name> <operator>=</operator> <name>c</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>c</name> <operator>=</operator> <name>b</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>b</name> <operator>=</operator> <name>a</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>a</name> <operator>=</operator> <name>T1</name> <operator>+</operator> <name>T2</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>j</name><operator>++</operator></expr>;</expr_stmt>
+
+</block_content>}</block> while <condition>(<expr><name>j</name> <operator>&lt;</operator> <literal type="number">80</literal></expr>)</condition>;</do>
+
+<expr_stmt><expr><name><name>context</name><operator>-&gt;</operator><name>state</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>+=</operator> <name>a</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>context</name><operator>-&gt;</operator><name>state</name><index>[<expr><literal type="number">1</literal></expr>]</index></name> <operator>+=</operator> <name>b</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>context</name><operator>-&gt;</operator><name>state</name><index>[<expr><literal type="number">2</literal></expr>]</index></name> <operator>+=</operator> <name>c</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>context</name><operator>-&gt;</operator><name>state</name><index>[<expr><literal type="number">3</literal></expr>]</index></name> <operator>+=</operator> <name>d</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>context</name><operator>-&gt;</operator><name>state</name><index>[<expr><literal type="number">4</literal></expr>]</index></name> <operator>+=</operator> <name>e</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>context</name><operator>-&gt;</operator><name>state</name><index>[<expr><literal type="number">5</literal></expr>]</index></name> <operator>+=</operator> <name>f</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>context</name><operator>-&gt;</operator><name>state</name><index>[<expr><literal type="number">6</literal></expr>]</index></name> <operator>+=</operator> <name>g</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>context</name><operator>-&gt;</operator><name>state</name><index>[<expr><literal type="number">7</literal></expr>]</index></name> <operator>+=</operator> <name>h</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>a</name> <operator>=</operator> <name>b</name> <operator>=</operator> <name>c</name> <operator>=</operator> <name>d</name> <operator>=</operator> <name>e</name> <operator>=</operator> <name>f</name> <operator>=</operator> <name>g</name> <operator>=</operator> <name>h</name> <operator>=</operator> <name>T1</name> <operator>=</operator> <name>T2</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif> 
+
+<function><type><name>void</name></type> <name>SHA512_Update</name><parameter_list>(<parameter><decl><type><name>R_SHA512_CTX</name> <modifier>*</modifier></type><name>context</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>ut8</name> <modifier>*</modifier></type><name>data</name></decl></parameter>, <parameter><decl><type><name>size_t</name></type> <name>len</name></decl></parameter>)</parameter_list> <block>{<block_content>
+
+<decl_stmt><decl><type><name>unsigned</name> <name>int</name></type> <name>freespace</name></decl>, <decl><type ref="prev"/><name>usedspace</name></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>len</name> <operator>==</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<return>return;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>context</name> <operator>||</operator> <operator>!</operator><name>data</name></expr>)</condition> <block>{<block_content>
+
+<return>return;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name>usedspace</name> <operator>=</operator> <operator>(</operator><name><name>context</name><operator>-&gt;</operator><name>bitcount</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>&gt;&gt;</operator> <literal type="number">3</literal><operator>)</operator> <operator>%</operator> <name>SHA512_BLOCK_LENGTH</name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>usedspace</name> <operator>&gt;</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>freespace</name> <operator>=</operator> <name>SHA512_BLOCK_LENGTH</name> <operator>-</operator> <name>usedspace</name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>len</name> <operator>&gt;=</operator> <name>freespace</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>memcpy</name> <argument_list>(<argument><expr><operator>&amp;</operator><name><name>context</name><operator>-&gt;</operator><name>buffer</name><index>[<expr><name>usedspace</name></expr>]</index></name></expr></argument>, <argument><expr><name>data</name></expr></argument>, <argument><expr><name>freespace</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>ADDINC128</name> <argument_list>(<argument><expr><name><name>context</name><operator>-&gt;</operator><name>bitcount</name></name></expr></argument>, <argument><expr><name>freespace</name> <operator>&lt;&lt;</operator> <literal type="number">3</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>len</name> <operator>-=</operator> <name>freespace</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>data</name> <operator>+=</operator> <name>freespace</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>SHA512_Transform</name> <argument_list>(<argument><expr><name>context</name></expr></argument>, <argument><expr><operator>(</operator><name>ut64</name> <operator>*</operator><operator>)</operator> <name><name>context</name><operator>-&gt;</operator><name>buffer</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<expr_stmt><expr><call><name>memcpy</name> <argument_list>(<argument><expr><operator>&amp;</operator><name><name>context</name><operator>-&gt;</operator><name>buffer</name><index>[<expr><name>usedspace</name></expr>]</index></name></expr></argument>, <argument><expr><name>data</name></expr></argument>, <argument><expr><name>len</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>ADDINC128</name> <argument_list>(<argument><expr><name><name>context</name><operator>-&gt;</operator><name>bitcount</name></name></expr></argument>, <argument><expr><name>len</name> <operator>&lt;&lt;</operator> <literal type="number">3</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>usedspace</name> <operator>=</operator> <name>freespace</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<return>return;</return>
+
+</block_content>}</block></else></if_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<while>while <condition>(<expr><name>len</name> <operator>&gt;=</operator> <name>SHA512_BLOCK_LENGTH</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>SHA512_Transform</name> <argument_list>(<argument><expr><name>context</name></expr></argument>, <argument><expr><operator>(</operator><name>ut64</name> <operator>*</operator><operator>)</operator> <name>data</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>ADDINC128</name> <argument_list>(<argument><expr><name><name>context</name><operator>-&gt;</operator><name>bitcount</name></name></expr></argument>, <argument><expr><name>SHA512_BLOCK_LENGTH</name> <operator>&lt;&lt;</operator> <literal type="number">3</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>len</name> <operator>-=</operator> <name>SHA512_BLOCK_LENGTH</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>data</name> <operator>+=</operator> <name>SHA512_BLOCK_LENGTH</name></expr>;</expr_stmt>
+
+</block_content>}</block></while>
+
+<if_stmt><if>if <condition>(<expr><name>len</name> <operator>&gt;</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>memcpy</name> <argument_list>(<argument><expr><name><name>context</name><operator>-&gt;</operator><name>buffer</name></name></expr></argument>, <argument><expr><name>data</name></expr></argument>, <argument><expr><name>len</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>ADDINC128</name> <argument_list>(<argument><expr><name><name>context</name><operator>-&gt;</operator><name>bitcount</name></name></expr></argument>, <argument><expr><name>len</name> <operator>&lt;&lt;</operator> <literal type="number">3</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name>usedspace</name> <operator>=</operator> <name>freespace</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><name>void</name></type> <name>SHA512_Last</name><parameter_list>(<parameter><decl><type><name>R_SHA512_CTX</name> <modifier>*</modifier></type><name>context</name></decl></parameter>)</parameter_list> <block>{<block_content>
+
+<decl_stmt><decl><type><name>unsigned</name> <name>int</name></type> <name>usedspace</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>usedspace</name> <operator>=</operator> <operator>(</operator><name><name>context</name><operator>-&gt;</operator><name>bitcount</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>&gt;&gt;</operator> <literal type="number">3</literal><operator>)</operator> <operator>%</operator> <name>SHA512_BLOCK_LENGTH</name></expr>;</expr_stmt>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><name>BYTE_ORDER</name> <operator>==</operator> <name>LITTLE_ENDIAN</name></expr></cpp:if>
+
+<expr_stmt><expr><call><name>REVERSE64</name> <argument_list>(<argument><expr><name><name>context</name><operator>-&gt;</operator><name>bitcount</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>, <argument><expr><name><name>context</name><operator>-&gt;</operator><name>bitcount</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>REVERSE64</name> <argument_list>(<argument><expr><name><name>context</name><operator>-&gt;</operator><name>bitcount</name><index>[<expr><literal type="number">1</literal></expr>]</index></name></expr></argument>, <argument><expr><name><name>context</name><operator>-&gt;</operator><name>bitcount</name><index>[<expr><literal type="number">1</literal></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+<if_stmt><if>if <condition>(<expr><name>usedspace</name> <operator>&gt;</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name><name>context</name><operator>-&gt;</operator><name>buffer</name><index>[<expr><name>usedspace</name><operator>++</operator></expr>]</index></name> <operator>=</operator> <literal type="number">0x80</literal></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>usedspace</name> <operator>&lt;=</operator> <name>SHA512_SHORT_BLOCK_LENGTH</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>memset</name> <argument_list>(<argument><expr><operator>&amp;</operator><name><name>context</name><operator>-&gt;</operator><name>buffer</name><index>[<expr><name>usedspace</name></expr>]</index></name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><name>SHA512_SHORT_BLOCK_LENGTH</name> <operator>-</operator> <name>usedspace</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><name>usedspace</name> <operator>&lt;</operator> <name>SHA512_BLOCK_LENGTH</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>memset</name> <argument_list>(<argument><expr><operator>&amp;</operator><name><name>context</name><operator>-&gt;</operator><name>buffer</name><index>[<expr><name>usedspace</name></expr>]</index></name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><name>SHA512_BLOCK_LENGTH</name> <operator>-</operator> <name>usedspace</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>SHA512_Transform</name> <argument_list>(<argument><expr><name>context</name></expr></argument>, <argument><expr><operator>(</operator><name>ut64</name> <operator>*</operator><operator>)</operator> <name><name>context</name><operator>-&gt;</operator><name>buffer</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>memset</name> <argument_list>(<argument><expr><name><name>context</name><operator>-&gt;</operator><name>buffer</name></name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><name>SHA512_BLOCK_LENGTH</name> <operator>-</operator> <literal type="number">2</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<expr_stmt><expr><call><name>memset</name> <argument_list>(<argument><expr><name><name>context</name><operator>-&gt;</operator><name>buffer</name></name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><name>SHA512_SHORT_BLOCK_LENGTH</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><operator>*</operator><name><name>context</name><operator>-&gt;</operator><name>buffer</name></name> <operator>=</operator> <literal type="number">0x80</literal></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><name>WEAK_ALIASING</name></expr></cpp:if>
+
+<expr_stmt><expr><operator>*</operator><operator>(</operator><name>ut64</name> <operator>*</operator><operator>)</operator> <operator>&amp;</operator><name><name>context</name><operator>-&gt;</operator><name>buffer</name><index>[<expr><name>SHA512_SHORT_BLOCK_LENGTH</name></expr>]</index></name> <operator>=</operator> <name><name>context</name><operator>-&gt;</operator><name>bitcount</name><index>[<expr><literal type="number">1</literal></expr>]</index></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><operator>*</operator><operator>(</operator><name>ut64</name> <operator>*</operator><operator>)</operator> <operator>&amp;</operator><name><name>context</name><operator>-&gt;</operator><name>buffer</name><index>[<expr><name>SHA512_SHORT_BLOCK_LENGTH</name> <operator>+</operator> <literal type="number">8</literal></expr>]</index></name> <operator>=</operator> <name><name>context</name><operator>-&gt;</operator><name>bitcount</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr>;</expr_stmt>
+
+<cpp:else>#<cpp:directive>else</cpp:directive></cpp:else>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>ut64</name> <modifier>*</modifier></type><name>p</name> <init>= <expr><operator>(</operator><name>ut64</name> <operator>*</operator><operator>)</operator> <operator>(</operator><operator>(</operator><name>ut8</name> <operator>*</operator><operator>)</operator> <name><name>context</name><operator>-&gt;</operator><name>buffer</name></name> <operator>+</operator> <name>SHA512_SHORT_BLOCK_LENGTH</name><operator>)</operator></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><operator>*</operator><name>p</name> <operator>=</operator> <operator>(</operator><name>ut64</name><operator>)</operator> <name><name>context</name><operator>-&gt;</operator><name>bitcount</name><index>[<expr><literal type="number">1</literal></expr>]</index></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>p</name> <operator>=</operator> <operator>(</operator><name>ut64</name> <operator>*</operator><operator>)</operator> <operator>(</operator><operator>(</operator><name>ut8</name> <operator>*</operator><operator>)</operator> <name><name>context</name><operator>-&gt;</operator><name>buffer</name></name> <operator>+</operator> <name>SHA512_SHORT_BLOCK_LENGTH</name> <operator>+</operator> <literal type="number">8</literal><operator>)</operator></expr>;</expr_stmt>
+
+<expr_stmt><expr><operator>*</operator><name>p</name> <operator>=</operator> <operator>(</operator><name>ut64</name><operator>)</operator> <name><name>context</name><operator>-&gt;</operator><name>bitcount</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr>;</expr_stmt>
+
+</block_content>}</block>
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+<expr_stmt><expr><call><name>SHA512_Transform</name> <argument_list>(<argument><expr><name>context</name></expr></argument>, <argument><expr><operator>(</operator><name>ut64</name> <operator>*</operator><operator>)</operator> <name><name>context</name><operator>-&gt;</operator><name>buffer</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><name>void</name></type> <name>SHA512_Final</name><parameter_list>(<parameter><decl><type><name>ut8</name></type> <name><name>digest</name><index>[]</index></name></decl></parameter>, <parameter><decl><type><name>R_SHA512_CTX</name> <modifier>*</modifier></type><name>context</name></decl></parameter>)</parameter_list> <block>{<block_content>
+
+<decl_stmt><decl><type><name>ut64</name> <modifier>*</modifier></type><name>d</name> <init>= <expr><operator>(</operator><name>ut64</name> <operator>*</operator><operator>)</operator> <name>digest</name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>context</name></expr>)</condition> <block>{<block_content>
+
+<return>return;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>digest</name> <operator>!=</operator> <operator>(</operator><name>ut8</name> <operator>*</operator><operator>)</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>SHA512_Last</name> <argument_list>(<argument><expr><name>context</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><name>BYTE_ORDER</name> <operator>==</operator> <name>LITTLE_ENDIAN</name></expr></cpp:if>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>int</name></type> <name>j</name></decl>;</decl_stmt>
+
+<for>for <control>(<init><expr><name>j</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>j</name> <operator>&lt;</operator> <literal type="number">8</literal></expr>;</condition> <incr><expr><name>j</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+
+<expr_stmt><expr><call><name>REVERSE64</name> <argument_list>(<argument><expr><name><name>context</name><operator>-&gt;</operator><name>state</name><index>[<expr><name>j</name></expr>]</index></name></expr></argument>, <argument><expr><name><name>context</name><operator>-&gt;</operator><name>state</name><index>[<expr><name>j</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><operator>*</operator><name>d</name><operator>++</operator> <operator>=</operator> <name><name>context</name><operator>-&gt;</operator><name>state</name><index>[<expr><name>j</name></expr>]</index></name></expr>;</expr_stmt>
+
+</block_content>}</block></for>
+
+</block_content>}</block>
+
+<cpp:else>#<cpp:directive>else</cpp:directive></cpp:else>
+
+<expr_stmt><expr><call><name>memcpy</name> <argument_list>(<argument><expr><name>d</name></expr></argument>, <argument><expr><name><name>context</name><operator>-&gt;</operator><name>state</name></name></expr></argument>, <argument><expr><name>SHA512_DIGEST_LENGTH</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>r_mem_memzero</name> <argument_list>(<argument><expr><name>context</name></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr><operator>*</operator><name>context</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><name>char</name> <modifier>*</modifier></type><name>SHA512_End</name><parameter_list>(<parameter><decl><type><name>R_SHA512_CTX</name> <modifier>*</modifier></type><name>context</name></decl></parameter>, <parameter><decl><type><name>char</name></type> <name><name>buffer</name><index>[]</index></name></decl></parameter>)</parameter_list> <block>{<block_content>
+
+<decl_stmt><decl><type><name>ut8</name></type> <name><name>digest</name><index>[<expr><name>SHA512_DIGEST_LENGTH</name></expr>]</index></name></decl>, <decl><type ref="prev"><modifier>*</modifier></type><name>d</name> <init>= <expr><name>digest</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>i</name></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>context</name></expr>)</condition> <block>{<block_content>
+
+<return>return <expr><name>NULL</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>buffer</name> <operator>!=</operator> <operator>(</operator><name>char</name> <operator>*</operator><operator>)</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>SHA512_Final</name> <argument_list>(<argument><expr><name>digest</name></expr></argument>, <argument><expr><name>context</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>SHA512_DIGEST_LENGTH</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+
+<expr_stmt><expr><operator>*</operator><name>buffer</name><operator>++</operator> <operator>=</operator> <name><name>sha2_hex_digits</name><index>[<expr><operator>(</operator><operator>*</operator><name>d</name> <operator>&amp;</operator> <literal type="number">0xf0</literal><operator>)</operator> <operator>&gt;&gt;</operator> <literal type="number">4</literal></expr>]</index></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><operator>*</operator><name>buffer</name><operator>++</operator> <operator>=</operator> <name><name>sha2_hex_digits</name><index>[<expr><operator>*</operator><name>d</name> <operator>&amp;</operator> <literal type="number">0x0f</literal></expr>]</index></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>d</name><operator>++</operator></expr>;</expr_stmt>
+
+</block_content>}</block></for>
+
+<expr_stmt><expr><operator>*</operator><name>buffer</name> <operator>=</operator> <operator>(</operator><name>char</name><operator>)</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<expr_stmt><expr><call><name>r_mem_memzero</name> <argument_list>(<argument><expr><name>context</name></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr><operator>*</operator><name>context</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+<expr_stmt><expr><call><name>r_mem_memzero</name> <argument_list>(<argument><expr><name>digest</name></expr></argument>, <argument><expr><name>SHA512_DIGEST_LENGTH</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>buffer</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><name>char</name> <modifier>*</modifier></type><name>SHA512_Data</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name>ut8</name> <modifier>*</modifier></type><name>data</name></decl></parameter>, <parameter><decl><type><name>size_t</name></type> <name>len</name></decl></parameter>, <parameter><decl><type><name>char</name></type> <name><name>digest</name><index>[<expr><name>SHA512_DIGEST_STRING_LENGTH</name></expr>]</index></name></decl></parameter>)</parameter_list> <block>{<block_content>
+
+<decl_stmt><decl><type><name>R_SHA512_CTX</name></type> <name>context</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>SHA512_Init</name> <argument_list>(<argument><expr><operator>&amp;</operator><name>context</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>SHA512_Update</name> <argument_list>(<argument><expr><operator>&amp;</operator><name>context</name></expr></argument>, <argument><expr><name>data</name></expr></argument>, <argument><expr><name>len</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><call><name>SHA512_End</name> <argument_list>(<argument><expr><operator>&amp;</operator><name>context</name></expr></argument>, <argument><expr><name>digest</name></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><name>void</name></type> <name>SHA384_Init</name><parameter_list>(<parameter><decl><type><name>R_SHA384_CTX</name> <modifier>*</modifier></type><name>context</name></decl></parameter>)</parameter_list> <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><name>context</name> <operator>==</operator> <operator>(</operator><name>R_SHA384_CTX</name> <operator>*</operator><operator>)</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<return>return;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>memcpy</name> <argument_list>(<argument><expr><name><name>context</name><operator>-&gt;</operator><name>state</name></name></expr></argument>, <argument><expr><name>sha384_initial_hash_value</name></expr></argument>, <argument><expr><name>SHA512_DIGEST_LENGTH</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>memset</name> <argument_list>(<argument><expr><name><name>context</name><operator>-&gt;</operator><name>buffer</name></name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><name>SHA384_BLOCK_LENGTH</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>context</name><operator>-&gt;</operator><name>bitcount</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>=</operator> <name><name>context</name><operator>-&gt;</operator><name>bitcount</name><index>[<expr><literal type="number">1</literal></expr>]</index></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><name>void</name></type> <name>SHA384_Update</name><parameter_list>(<parameter><decl><type><name>R_SHA384_CTX</name> <modifier>*</modifier></type><name>context</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>ut8</name> <modifier>*</modifier></type><name>data</name></decl></parameter>, <parameter><decl><type><name>size_t</name></type> <name>len</name></decl></parameter>)</parameter_list> <block>{<block_content>
+
+<expr_stmt><expr><call><name>SHA512_Update</name> <argument_list>(<argument><expr><operator>(</operator><name>R_SHA512_CTX</name> <operator>*</operator><operator>)</operator> <name>context</name></expr></argument>, <argument><expr><name>data</name></expr></argument>, <argument><expr><name>len</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><name>void</name></type> <name>SHA384_Final</name><parameter_list>(<parameter><decl><type><name>ut8</name></type> <name><name>digest</name><index>[]</index></name></decl></parameter>, <parameter><decl><type><name>R_SHA384_CTX</name> <modifier>*</modifier></type><name>context</name></decl></parameter>)</parameter_list> <block>{<block_content>
+
+<decl_stmt><decl><type><name>ut64</name> <modifier>*</modifier></type><name>d</name> <init>= <expr><operator>(</operator><name>ut64</name> <operator>*</operator><operator>)</operator> <name>digest</name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>context</name></expr>)</condition> <block>{<block_content>
+
+<return>return;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>digest</name> <operator>!=</operator> <operator>(</operator><name>ut8</name> <operator>*</operator><operator>)</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>SHA512_Last</name> <argument_list>(<argument><expr><operator>(</operator><name>R_SHA512_CTX</name> <operator>*</operator><operator>)</operator> <name>context</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><name>BYTE_ORDER</name> <operator>==</operator> <name>LITTLE_ENDIAN</name></expr></cpp:if>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>int</name></type> <name>j</name></decl>;</decl_stmt>
+
+<for>for <control>(<init><expr><name>j</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>j</name> <operator>&lt;</operator> <literal type="number">6</literal></expr>;</condition> <incr><expr><name>j</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+
+<expr_stmt><expr><call><name>REVERSE64</name> <argument_list>(<argument><expr><name><name>context</name><operator>-&gt;</operator><name>state</name><index>[<expr><name>j</name></expr>]</index></name></expr></argument>, <argument><expr><name><name>context</name><operator>-&gt;</operator><name>state</name><index>[<expr><name>j</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><operator>*</operator><name>d</name><operator>++</operator> <operator>=</operator> <name><name>context</name><operator>-&gt;</operator><name>state</name><index>[<expr><name>j</name></expr>]</index></name></expr>;</expr_stmt>
+
+</block_content>}</block></for>
+
+</block_content>}</block>
+
+<cpp:else>#<cpp:directive>else</cpp:directive></cpp:else>
+
+<expr_stmt><expr><call><name>memcpy</name> <argument_list>(<argument><expr><name>d</name></expr></argument>, <argument><expr><name><name>context</name><operator>-&gt;</operator><name>state</name></name></expr></argument>, <argument><expr><name>SHA384_DIGEST_LENGTH</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>memset</name> <argument_list>(<argument><expr><name>context</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr><operator>*</operator><name>context</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><name>char</name> <modifier>*</modifier></type><name>SHA384_End</name><parameter_list>(<parameter><decl><type><name>R_SHA384_CTX</name> <modifier>*</modifier></type><name>context</name></decl></parameter>, <parameter><decl><type><name>char</name></type> <name><name>buffer</name><index>[]</index></name></decl></parameter>)</parameter_list> <block>{<block_content>
+
+<decl_stmt><decl><type><name>ut8</name></type> <name><name>digest</name><index>[<expr><name>SHA384_DIGEST_LENGTH</name></expr>]</index></name></decl>, <decl><type ref="prev"><modifier>*</modifier></type><name>d</name> <init>= <expr><name>digest</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>i</name></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>context</name></expr>)</condition> <block>{<block_content>
+
+<return>return <expr><name>NULL</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>buffer</name> <operator>!=</operator> <operator>(</operator><name>char</name> <operator>*</operator><operator>)</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>SHA384_Final</name> <argument_list>(<argument><expr><name>digest</name></expr></argument>, <argument><expr><name>context</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>SHA384_DIGEST_LENGTH</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+
+<expr_stmt><expr><operator>*</operator><name>buffer</name><operator>++</operator> <operator>=</operator> <name><name>sha2_hex_digits</name><index>[<expr><operator>(</operator><operator>*</operator><name>d</name> <operator>&amp;</operator> <literal type="number">0xf0</literal><operator>)</operator> <operator>&gt;&gt;</operator> <literal type="number">4</literal></expr>]</index></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><operator>*</operator><name>buffer</name><operator>++</operator> <operator>=</operator> <name><name>sha2_hex_digits</name><index>[<expr><operator>*</operator><name>d</name> <operator>&amp;</operator> <literal type="number">0x0f</literal></expr>]</index></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>d</name><operator>++</operator></expr>;</expr_stmt>
+
+</block_content>}</block></for>
+
+<expr_stmt><expr><operator>*</operator><name>buffer</name> <operator>=</operator> <operator>(</operator><name>char</name><operator>)</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<expr_stmt><expr><call><name>memset</name> <argument_list>(<argument><expr><name>context</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr><operator>*</operator><name>context</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+<expr_stmt><expr><call><name>memset</name> <argument_list>(<argument><expr><name>digest</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><name>SHA384_DIGEST_LENGTH</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>buffer</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><name>char</name> <modifier>*</modifier></type><name>SHA384_Data</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name>ut8</name> <modifier>*</modifier></type><name>data</name></decl></parameter>, <parameter><decl><type><name>size_t</name></type> <name>len</name></decl></parameter>, <parameter><decl><type><name>char</name></type> <name><name>digest</name><index>[<expr><name>SHA384_DIGEST_STRING_LENGTH</name></expr>]</index></name></decl></parameter>)</parameter_list> <block>{<block_content>
+
+<decl_stmt><decl><type><name>R_SHA384_CTX</name></type> <name>context</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>SHA384_Init</name> <argument_list>(<argument><expr><operator>&amp;</operator><name>context</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>SHA384_Update</name> <argument_list>(<argument><expr><operator>&amp;</operator><name>context</name></expr></argument>, <argument><expr><name>data</name></expr></argument>, <argument><expr><name>len</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><call><name>SHA384_End</name> <argument_list>(<argument><expr><operator>&amp;</operator><name>context</name></expr></argument>, <argument><expr><name>digest</name></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+</unit>

@@ -1,0 +1,40 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#if !defined(AVFORMAT_SAUCE_H)
+#define AVFORMAT_SAUCE_H
+
+#include "avformat.h"
+
+
+
+
+
+
+
+int ff_sauce_read(AVFormatContext *avctx, uint64_t *fsize, int *got_width, int get_height);
+
+#endif 

@@ -1,0 +1,1607 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+
+#ifdef CAN_COMPILE_MMXEXT
+#include "mmx.h"
+#endif
+
+#include <stdint.h>
+#include <assert.h>
+
+#include <vlc_common.h>
+#include <vlc_cpu.h>
+#include <vlc_picture.h>
+#include <vlc_filter.h>
+
+#include "deinterlace.h" 
+#include "helpers.h"
+
+#include "algo_ivtc.h"
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+typedef enum { IVTC_MODE_DETECTING = 0,
+IVTC_MODE_TELECINED_NTSC_HARD = 1,
+IVTC_MODE_TELECINED_NTSC_SOFT = 2 } ivtc_mode;
+
+
+
+
+
+
+typedef enum { FIELD_PAIR_TPBP = 0, FIELD_PAIR_TPBC = 1,
+FIELD_PAIR_TCBP = 2, FIELD_PAIR_TCBC = 3,
+FIELD_PAIR_TCBN = 4, FIELD_PAIR_TNBC = 5,
+FIELD_PAIR_TNBN = 6 } ivtc_field_pair;
+
+
+#define NUM_CADENCE_POS 9
+
+
+
+
+
+
+
+
+
+
+
+
+
+typedef enum { CADENCE_POS_INVALID = -1,
+CADENCE_POS_PROGRESSIVE = 0,
+CADENCE_POS_TFF_ABC = 1,
+CADENCE_POS_TFF_BCD = 2,
+CADENCE_POS_TFF_CDE = 3,
+CADENCE_POS_TFF_EAB = 4,
+CADENCE_POS_BFF_ABC = 5,
+CADENCE_POS_BFF_BCD = 6,
+CADENCE_POS_BFF_CDE = 7,
+CADENCE_POS_BFF_EAB = 8 } ivtc_cadence_pos;
+
+#define CADENCE_POS_TFF_FIRST 1
+#define CADENCE_POS_TFF_END 5
+#define CADENCE_POS_BFF_FIRST 5
+#define CADENCE_POS_BFF_END 9
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+const int pi_detected_pos_to_bitmask[NUM_CADENCE_POS] = { 0x0808, 
+0x0001, 
+0x0002, 
+0x0004, 
+0x0010, 
+0x0100, 
+0x0200, 
+0x0400, 
+0x1000, 
+};
+#define VEKTOR_CADENCE_POS_ALL 0x1F1F
+#define VEKTOR_CADENCE_POS_TFF 0x00FF
+#define VEKTOR_CADENCE_POS_BFF 0xFF00
+#define VEKTOR_CADENCE_POS_TFF_HIGH 0x0010
+#define VEKTOR_CADENCE_POS_TFF_LOW 0x0001
+#define VEKTOR_CADENCE_POS_BFF_HIGH 0x1000
+#define VEKTOR_CADENCE_POS_BFF_LOW 0x0100
+
+
+typedef enum { TFD_INVALID = -1, TFD_TFF = 0, TFD_BFF = 1 } ivtc_tfd;
+
+
+
+
+
+
+
+
+
+static const ivtc_field_pair pi_best_field_pairs[NUM_CADENCE_POS][3] = {
+{FIELD_PAIR_TPBP, FIELD_PAIR_TCBC, FIELD_PAIR_TNBN}, 
+
+{FIELD_PAIR_TPBP, FIELD_PAIR_TCBP, FIELD_PAIR_TNBC}, 
+{FIELD_PAIR_TCBP, FIELD_PAIR_TNBC, FIELD_PAIR_TNBN}, 
+{FIELD_PAIR_TCBP, FIELD_PAIR_TCBC, FIELD_PAIR_TNBN}, 
+{FIELD_PAIR_TPBP, FIELD_PAIR_TCBC, FIELD_PAIR_TNBC}, 
+
+{FIELD_PAIR_TPBP, FIELD_PAIR_TPBC, FIELD_PAIR_TCBN}, 
+{FIELD_PAIR_TPBC, FIELD_PAIR_TCBN, FIELD_PAIR_TNBN}, 
+{FIELD_PAIR_TPBC, FIELD_PAIR_TCBC, FIELD_PAIR_TNBN}, 
+{FIELD_PAIR_TPBP, FIELD_PAIR_TCBC, FIELD_PAIR_TCBN}, 
+};
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#if 0
+static const ivtc_field_pair pi_worst_field_pairs[NUM_CADENCE_POS][4] = {
+{FIELD_PAIR_TPBC, FIELD_PAIR_TCBP,
+FIELD_PAIR_TCBN, FIELD_PAIR_TNBC}, 
+
+{FIELD_PAIR_TPBC, FIELD_PAIR_TCBC,
+FIELD_PAIR_TCBN, FIELD_PAIR_TNBN}, 
+{FIELD_PAIR_TPBP, FIELD_PAIR_TPBC,
+FIELD_PAIR_TCBC, FIELD_PAIR_TCBN}, 
+{FIELD_PAIR_TPBP, FIELD_PAIR_TPBC,
+FIELD_PAIR_TCBN, FIELD_PAIR_TNBC}, 
+{FIELD_PAIR_TPBC, FIELD_PAIR_TCBP,
+FIELD_PAIR_TCBN, FIELD_PAIR_TNBN}, 
+
+{FIELD_PAIR_TCBP, FIELD_PAIR_TCBC,
+FIELD_PAIR_TNBC, FIELD_PAIR_TNBN}, 
+{FIELD_PAIR_TPBP, FIELD_PAIR_TCBP,
+FIELD_PAIR_TCBC, FIELD_PAIR_TNBC}, 
+{FIELD_PAIR_TPBP, FIELD_PAIR_TCBP,
+FIELD_PAIR_TNBC, FIELD_PAIR_TCBN}, 
+{FIELD_PAIR_TCBP, FIELD_PAIR_TPBC,
+FIELD_PAIR_TNBC, FIELD_PAIR_TNBN}, 
+};
+#endif
+
+
+
+
+
+
+
+
+
+static const int pi_detected_pos_to_cadence_pos[NUM_CADENCE_POS] = {
+3, 
+0, 
+1, 
+2, 
+4, 
+0, 
+1, 
+2, 
+4, 
+};
+
+
+
+
+
+
+
+
+
+
+static const int pi_detected_pos_to_tfd[NUM_CADENCE_POS] = {
+TFD_INVALID, 
+TFD_TFF, 
+TFD_TFF, 
+TFD_TFF, 
+TFD_TFF, 
+TFD_BFF, 
+TFD_BFF, 
+TFD_BFF, 
+TFD_BFF, 
+};
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+typedef enum { IVTC_OP_DROP_FRAME,
+IVTC_OP_COPY_N,
+IVTC_OP_COPY_C,
+IVTC_OP_COMPOSE_TNBC,
+IVTC_OP_COMPOSE_TCBN } ivtc_op;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+static const ivtc_op pi_reconstruction_ops[2][5] = { 
+{IVTC_OP_COMPOSE_TNBC,
+IVTC_OP_COPY_N,
+IVTC_OP_COPY_N,
+IVTC_OP_DROP_FRAME,
+IVTC_OP_COMPOSE_TNBC},
+
+
+{IVTC_OP_COMPOSE_TCBN,
+IVTC_OP_COPY_N,
+IVTC_OP_COPY_N,
+IVTC_OP_DROP_FRAME,
+IVTC_OP_COMPOSE_TCBN},
+};
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+static const int pi_timestamp_deltas[5] = { 1, 2, 3, -1, 0 };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+static void IVTCFrameInit( filter_t *p_filter )
+{
+assert( p_filter != NULL );
+
+filter_sys_t *p_sys = p_filter->p_sys;
+ivtc_sys_t *p_ivtc = &p_sys->ivtc;
+
+
+for( int i = 1; i < IVTC_DETECTION_HISTORY_SIZE; i++ )
+{
+p_ivtc->pi_top_rep[i-1] = p_ivtc->pi_top_rep[i];
+p_ivtc->pi_bot_rep[i-1] = p_ivtc->pi_bot_rep[i];
+p_ivtc->pi_motion[i-1] = p_ivtc->pi_motion[i];
+
+p_ivtc->pi_s_cadence_pos[i-1] = p_ivtc->pi_s_cadence_pos[i];
+p_ivtc->pb_s_reliable[i-1] = p_ivtc->pb_s_reliable[i];
+p_ivtc->pi_v_cadence_pos[i-1] = p_ivtc->pi_v_cadence_pos[i];
+p_ivtc->pi_v_raw[i-1] = p_ivtc->pi_v_raw[i];
+p_ivtc->pb_v_reliable[i-1] = p_ivtc->pb_v_reliable[i];
+
+p_ivtc->pi_cadence_pos_history[i-1]
+= p_ivtc->pi_cadence_pos_history[i];
+
+p_ivtc->pb_all_progressives[i-1] = p_ivtc->pb_all_progressives[i];
+}
+
+p_ivtc->pi_s_cadence_pos[IVTC_LATEST] = CADENCE_POS_INVALID;
+p_ivtc->pb_s_reliable[IVTC_LATEST] = false;
+p_ivtc->pi_v_cadence_pos[IVTC_LATEST] = CADENCE_POS_INVALID;
+p_ivtc->pi_v_raw[IVTC_LATEST] = VEKTOR_CADENCE_POS_ALL;
+p_ivtc->pb_v_reliable[IVTC_LATEST] = false;
+p_ivtc->pi_cadence_pos_history[IVTC_LATEST] = CADENCE_POS_INVALID;
+p_ivtc->pi_top_rep[IVTC_LATEST] = 0;
+p_ivtc->pi_bot_rep[IVTC_LATEST] = 0;
+p_ivtc->pi_motion[IVTC_LATEST] = -1;
+p_ivtc->pb_all_progressives[IVTC_LATEST] = false;
+
+
+p_ivtc->pi_scores[FIELD_PAIR_TPBP] = p_ivtc->pi_scores[FIELD_PAIR_TCBC];
+p_ivtc->pi_scores[FIELD_PAIR_TPBC] = p_ivtc->pi_scores[FIELD_PAIR_TCBN];
+p_ivtc->pi_scores[FIELD_PAIR_TCBP] = p_ivtc->pi_scores[FIELD_PAIR_TNBC];
+p_ivtc->pi_scores[FIELD_PAIR_TCBC] = p_ivtc->pi_scores[FIELD_PAIR_TNBN];
+
+p_ivtc->pi_scores[FIELD_PAIR_TCBN] = 0;
+p_ivtc->pi_scores[FIELD_PAIR_TNBC] = 0;
+p_ivtc->pi_scores[FIELD_PAIR_TNBN] = 0;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+static void IVTCLowLevelDetect( filter_t *p_filter )
+{
+assert( p_filter != NULL );
+
+filter_sys_t *p_sys = p_filter->p_sys;
+ivtc_sys_t *p_ivtc = &p_sys->ivtc;
+picture_t *p_curr = p_sys->context.pp_history[1];
+picture_t *p_next = p_sys->context.pp_history[2];
+
+assert( p_next != NULL );
+assert( p_curr != NULL );
+
+
+
+p_ivtc->pi_scores[FIELD_PAIR_TNBN] = CalculateInterlaceScore( p_next,
+p_next );
+p_ivtc->pi_scores[FIELD_PAIR_TNBC] = CalculateInterlaceScore( p_next,
+p_curr );
+p_ivtc->pi_scores[FIELD_PAIR_TCBN] = CalculateInterlaceScore( p_curr,
+p_next );
+
+int i_top = 0, i_bot = 0;
+int i_motion = EstimateNumBlocksWithMotion(p_curr, p_next, &i_top, &i_bot);
+p_ivtc->pi_motion[IVTC_LATEST] = i_motion;
+
+
+
+
+
+
+
+
+p_ivtc->pi_top_rep[IVTC_LATEST] = (i_top <= 2*i_bot/3);
+p_ivtc->pi_bot_rep[IVTC_LATEST] = (i_bot <= 2*i_top/3);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+static void IVTCCadenceDetectAlgoScores( filter_t *p_filter )
+{
+assert( p_filter != NULL );
+
+filter_sys_t *p_sys = p_filter->p_sys;
+ivtc_sys_t *p_ivtc = &p_sys->ivtc;
+picture_t *p_next = p_sys->context.pp_history[2];
+
+assert( p_next != NULL );
+
+
+
+
+int pi_ivtc_scores[NUM_CADENCE_POS];
+for( int i = 0; i < NUM_CADENCE_POS; i++ )
+pi_ivtc_scores[i] = p_ivtc->pi_scores[ pi_best_field_pairs[i][0] ]
++ p_ivtc->pi_scores[ pi_best_field_pairs[i][1] ]
++ p_ivtc->pi_scores[ pi_best_field_pairs[i][2] ];
+
+int j = CADENCE_POS_PROGRESSIVE; 
+int minscore = pi_ivtc_scores[j];
+
+
+int imin = CADENCE_POS_TFF_FIRST; 
+int iend = CADENCE_POS_TFF_END; 
+if( !p_next->b_top_field_first )
+{
+imin = CADENCE_POS_BFF_FIRST; 
+iend = CADENCE_POS_BFF_END; 
+}
+for( int i = imin; i < iend; i++ )
+{
+if( pi_ivtc_scores[i] < minscore )
+{
+minscore = pi_ivtc_scores[i];
+j = i;
+}
+}
+
+
+
+p_ivtc->pi_s_cadence_pos[IVTC_LATEST] = j;
+
+
+
+
+
+
+
+
+
+
+
+
+
+int mean = pi_ivtc_scores[CADENCE_POS_PROGRESSIVE];
+int mean_except_min = 0;
+if( j != CADENCE_POS_PROGRESSIVE )
+mean_except_min = pi_ivtc_scores[CADENCE_POS_PROGRESSIVE];
+for( int i = imin; i < iend; i++ )
+{
+mean += pi_ivtc_scores[i];
+if( i != j )
+mean_except_min += pi_ivtc_scores[i];
+}
+
+mean /= (iend - imin + 1);
+mean_except_min /= (iend - imin);
+
+
+double mean_ratio = (double)mean_except_min / (double)mean;
+
+
+
+
+
+
+
+
+
+
+int64_t diff = (int64_t)(pi_ivtc_scores[CADENCE_POS_PROGRESSIVE] - mean);
+int64_t var = diff*diff;
+int64_t var_except_min = 0;
+if( j != CADENCE_POS_PROGRESSIVE )
+{
+int64_t diff_exm = (int64_t)(pi_ivtc_scores[CADENCE_POS_PROGRESSIVE]
+- mean_except_min);
+var_except_min = diff_exm*diff_exm;
+}
+for( int i = imin; i < iend; i++ )
+{
+diff = (int64_t)(pi_ivtc_scores[i] - mean);
+var += (diff*diff);
+if( i != j )
+{
+int64_t diff_exm = (int64_t)(pi_ivtc_scores[i] - mean_except_min);
+var_except_min += (diff_exm*diff_exm);
+}
+}
+
+var /= (uint64_t)(iend - imin + 1);
+var_except_min /= (uint64_t)(iend - imin);
+
+
+
+
+
+
+
+
+int j_curr = p_ivtc->pi_cadence_pos_history[IVTC_LATEST-1];
+int pos_next = pi_detected_pos_to_cadence_pos[j];
+
+
+
+
+bool b_expected = false;
+if( j_curr != CADENCE_POS_INVALID )
+{
+int pos_curr = pi_detected_pos_to_cadence_pos[j_curr];
+b_expected = (pos_next == (pos_curr + 1) % 5);
+}
+
+
+
+
+int i_blocks_with_motion = p_ivtc->pi_motion[IVTC_LATEST];
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+bool b_result_reliable =
+( i_blocks_with_motion > 0 &&
+mean_ratio > 1.005 &&
+( b_expected || ( (double)var > 1.17*(double)var_except_min ) )
+);
+p_ivtc->pb_s_reliable[IVTC_LATEST] = b_result_reliable;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+static void IVTCCadenceDetectAlgoVektor( filter_t *p_filter )
+{
+assert( p_filter != NULL );
+
+filter_sys_t *p_sys = p_filter->p_sys;
+ivtc_sys_t *p_ivtc = &p_sys->ivtc;
+
+picture_t *p_next = p_sys->context.pp_history[2];
+
+assert( p_next != NULL );
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+int detected = 0;
+detected |= pi_detected_pos_to_bitmask[ CADENCE_POS_PROGRESSIVE ];
+
+
+
+
+
+bool b_top_rep = p_ivtc->pi_top_rep[IVTC_LATEST];
+bool b_bot_rep = p_ivtc->pi_bot_rep[IVTC_LATEST];
+bool b_old_top_rep = p_ivtc->pi_top_rep[IVTC_LATEST-1];
+bool b_old_bot_rep = p_ivtc->pi_bot_rep[IVTC_LATEST-1];
+if( b_top_rep )
+{
+detected |= pi_detected_pos_to_bitmask[ CADENCE_POS_TFF_EAB ];
+detected |= pi_detected_pos_to_bitmask[ CADENCE_POS_BFF_BCD ];
+}
+if( b_old_top_rep )
+{
+detected |= pi_detected_pos_to_bitmask[ CADENCE_POS_TFF_ABC ];
+detected |= pi_detected_pos_to_bitmask[ CADENCE_POS_BFF_CDE ];
+}
+if( b_bot_rep )
+{
+detected |= pi_detected_pos_to_bitmask[ CADENCE_POS_TFF_BCD ];
+detected |= pi_detected_pos_to_bitmask[ CADENCE_POS_BFF_EAB ];
+}
+if( b_old_bot_rep )
+{
+detected |= pi_detected_pos_to_bitmask[ CADENCE_POS_TFF_CDE ];
+detected |= pi_detected_pos_to_bitmask[ CADENCE_POS_BFF_ABC ];
+}
+
+
+
+
+
+
+
+bool b_tff = p_next->b_top_field_first;
+if( b_tff )
+detected &= VEKTOR_CADENCE_POS_TFF;
+else
+detected &= VEKTOR_CADENCE_POS_BFF;
+
+
+
+int predicted = p_ivtc->pi_v_raw[IVTC_LATEST-1];
+bool b_wrap_tff = false;
+bool b_wrap_bff = false;
+if( predicted & VEKTOR_CADENCE_POS_TFF_HIGH )
+b_wrap_tff = true;
+if( predicted & VEKTOR_CADENCE_POS_BFF_HIGH )
+b_wrap_bff = true;
+
+predicted = (predicted << 1) & VEKTOR_CADENCE_POS_ALL;
+
+if( b_wrap_tff )
+predicted |= VEKTOR_CADENCE_POS_TFF_LOW;
+if( b_wrap_bff )
+predicted |= VEKTOR_CADENCE_POS_BFF_LOW;
+
+
+
+
+
+if( (detected & predicted) != 0 )
+detected = detected & predicted;
+else
+detected = VEKTOR_CADENCE_POS_ALL;
+
+
+
+
+
+
+
+
+p_ivtc->pi_v_raw[IVTC_LATEST] = detected;
+
+
+
+ivtc_cadence_pos exact = CADENCE_POS_INVALID;
+if( detected != 0 )
+{
+for( int i = 0; i < NUM_CADENCE_POS; i++ )
+{
+
+
+
+if( detected == (detected & pi_detected_pos_to_bitmask[i]) )
+{
+exact = i;
+break;
+}
+}
+}
+
+
+
+
+
+
+
+p_ivtc->pi_v_cadence_pos[IVTC_LATEST] = exact;
+p_ivtc->pb_v_reliable[IVTC_LATEST] = (exact != CADENCE_POS_INVALID);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+static void IVTCCadenceDetectFinalize( filter_t *p_filter )
+{
+assert( p_filter != NULL );
+
+filter_sys_t *p_sys = p_filter->p_sys;
+ivtc_sys_t *p_ivtc = &p_sys->ivtc;
+
+
+
+
+
+
+
+
+
+
+
+int pos = CADENCE_POS_INVALID;
+if( p_ivtc->pb_v_reliable[IVTC_LATEST] )
+pos = p_ivtc->pi_v_cadence_pos[IVTC_LATEST];
+else if( p_ivtc->pb_s_reliable[IVTC_LATEST] )
+pos = p_ivtc->pi_s_cadence_pos[IVTC_LATEST];
+p_ivtc->pi_cadence_pos_history[IVTC_LATEST] = pos;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+static void IVTCSoftTelecineDetect( filter_t *p_filter )
+{
+assert( p_filter != NULL );
+
+filter_sys_t *p_sys = p_filter->p_sys;
+ivtc_sys_t *p_ivtc = &p_sys->ivtc;
+picture_t *p_prev = p_sys->context.pp_history[0];
+picture_t *p_curr = p_sys->context.pp_history[1];
+picture_t *p_next = p_sys->context.pp_history[2];
+
+assert( p_next != NULL );
+assert( p_curr != NULL );
+assert( p_prev != NULL );
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+bool b_soft_telecine_1 = (p_prev->i_nb_fields == 2) &&
+(p_curr->i_nb_fields == 3) &&
+(p_next->i_nb_fields == 2);
+
+bool b_soft_telecine_2 = (p_prev->i_nb_fields == 3) &&
+(p_curr->i_nb_fields == 2) &&
+(p_next->i_nb_fields == 3);
+
+
+bool b_soft_telecine_3 = (p_prev->i_nb_fields == 3) &&
+(p_curr->i_nb_fields == 2) &&
+(p_next->i_nb_fields == 2);
+
+
+
+
+if( b_soft_telecine_1 || b_soft_telecine_2 || b_soft_telecine_3 )
+{
+if( p_ivtc->i_mode != IVTC_MODE_TELECINED_NTSC_SOFT )
+{
+msg_Dbg( p_filter, "IVTC: 3:2 pulldown: NTSC soft telecine "\
+"detected." );
+p_ivtc->i_old_mode = p_ivtc->i_mode;
+}
+
+
+p_ivtc->i_mode = IVTC_MODE_TELECINED_NTSC_SOFT;
+
+
+p_ivtc->i_cadence_pos = CADENCE_POS_INVALID;
+p_ivtc->i_tfd = TFD_INVALID;
+}
+
+else if( p_ivtc->i_mode == IVTC_MODE_TELECINED_NTSC_SOFT )
+{
+msg_Dbg( p_filter, "IVTC: 3:2 pulldown: NTSC soft telecine ended. "\
+"Returning to previous mode." );
+
+
+
+
+
+
+
+
+p_ivtc->i_mode = p_ivtc->i_old_mode;
+p_ivtc->i_cadence_pos = 0; 
+
+
+
+p_ivtc->i_tfd = !p_next->b_top_field_first; 
+}
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+static void IVTCCadenceAnalyze( filter_t *p_filter )
+{
+assert( p_filter != NULL );
+
+filter_sys_t *p_sys = p_filter->p_sys;
+ivtc_sys_t *p_ivtc = &p_sys->ivtc;
+picture_t *p_prev = p_sys->context.pp_history[0];
+picture_t *p_curr = p_sys->context.pp_history[1];
+picture_t *p_next = p_sys->context.pp_history[2];
+
+assert( p_next != NULL );
+assert( p_curr != NULL );
+assert( p_prev != NULL );
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+int j_next = p_ivtc->pi_cadence_pos_history[IVTC_LATEST];
+int j_curr = p_ivtc->pi_cadence_pos_history[IVTC_LATEST-1];
+int j_prev = p_ivtc->pi_cadence_pos_history[IVTC_LATEST-2];
+
+bool b_expected = false;
+if( j_next != CADENCE_POS_INVALID && j_curr != CADENCE_POS_INVALID )
+{
+int pos_next = pi_detected_pos_to_cadence_pos[j_next];
+int pos_curr = pi_detected_pos_to_cadence_pos[j_curr];
+b_expected = (pos_next == (pos_curr + 1) % 5);
+}
+bool b_old_expected = false;
+if( j_curr != CADENCE_POS_INVALID && j_prev != CADENCE_POS_INVALID )
+{
+int pos_curr = pi_detected_pos_to_cadence_pos[j_curr];
+int pos_prev = pi_detected_pos_to_cadence_pos[j_prev];
+b_old_expected = (pos_curr == (pos_prev + 1) % 5);
+}
+
+int i_motion = p_ivtc->pi_motion[IVTC_LATEST];
+int i_old_motion = p_ivtc->pi_motion[IVTC_LATEST-1];
+
+bool b_prev_valid = (p_prev->i_nb_fields == 2);
+bool b_curr_valid = (p_curr->i_nb_fields == 2) &&
+(i_old_motion > 0 || b_old_expected);
+bool b_next_valid = (p_next->i_nb_fields == 2) &&
+(i_motion > 0 || b_expected);
+bool b_no_invalids = (b_prev_valid && b_curr_valid && b_next_valid);
+
+
+
+
+
+if( b_no_invalids )
+{
+for( int i = 0; i < IVTC_DETECTION_HISTORY_SIZE; ++i )
+{
+const int i_detected_pos = p_ivtc->pi_cadence_pos_history[i];
+if( i_detected_pos == CADENCE_POS_INVALID )
+{
+b_no_invalids = false;
+break;
+}
+}
+}
+
+
+p_ivtc->b_sequence_valid = false; 
+if( b_no_invalids )
+{
+
+int pi_tfd[IVTC_DETECTION_HISTORY_SIZE];
+int pi_pos[IVTC_DETECTION_HISTORY_SIZE];
+for( int i = 0; i < IVTC_DETECTION_HISTORY_SIZE; ++i )
+{
+const int i_detected_pos = p_ivtc->pi_cadence_pos_history[i];
+pi_pos[i] = pi_detected_pos_to_cadence_pos[i_detected_pos];
+pi_tfd[i] = pi_detected_pos_to_tfd[i_detected_pos];
+}
+
+
+
+
+
+
+
+
+
+
+p_ivtc->b_sequence_valid = true;
+bool b_all_progressive = (pi_pos[0] == 3);
+int j = pi_pos[0];
+for( int i = 1; i < IVTC_DETECTION_HISTORY_SIZE; ++i )
+{
+if( pi_pos[i] != (++j % 5) )
+p_ivtc->b_sequence_valid = false;
+if( pi_pos[i] != 3 )
+b_all_progressive = false;
+}
+p_ivtc->pb_all_progressives[IVTC_LATEST] = b_all_progressive;
+
+if( p_ivtc->b_sequence_valid )
+{
+
+int i_vote_invalid = 0;
+int i_vote_tff = 0;
+int i_vote_bff = 0;
+for( int i = 0; i < IVTC_DETECTION_HISTORY_SIZE; ++i )
+{
+if( pi_tfd[i] == TFD_INVALID )
+i_vote_invalid++;
+else if( pi_tfd[i] == TFD_TFF )
+i_vote_tff++;
+else if( pi_tfd[i] == TFD_BFF )
+i_vote_bff++;
+}
+
+
+
+int i_telecine_field_dominance = TFD_INVALID;
+if( i_vote_tff >= 2)
+i_telecine_field_dominance = TFD_TFF;
+else if( i_vote_bff >= 2)
+i_telecine_field_dominance = TFD_BFF;
+
+
+
+
+
+
+
+
+
+
+if( i_telecine_field_dominance == TFD_TFF )
+{
+if( p_ivtc->i_mode != IVTC_MODE_TELECINED_NTSC_HARD )
+msg_Dbg( p_filter, "IVTC: 3:2 pulldown: NTSC TFF "\
+"hard telecine detected." );
+p_ivtc->i_mode = IVTC_MODE_TELECINED_NTSC_HARD;
+p_ivtc->i_cadence_pos = pi_pos[IVTC_LATEST];
+p_ivtc->i_tfd = TFD_TFF;
+}
+else if( i_telecine_field_dominance == TFD_BFF )
+{
+if( p_ivtc->i_mode != IVTC_MODE_TELECINED_NTSC_HARD )
+msg_Dbg( p_filter, "IVTC: 3:2 pulldown: NTSC BFF "\
+"hard telecine detected." );
+p_ivtc->i_mode = IVTC_MODE_TELECINED_NTSC_HARD;
+p_ivtc->i_cadence_pos = pi_pos[IVTC_LATEST];
+p_ivtc->i_tfd = TFD_BFF;
+}
+}
+
+else if( b_all_progressive )
+{
+
+
+
+
+bool b_really_all_progressive = true;
+for( int i = 0; i < IVTC_DETECTION_HISTORY_SIZE ; i++ )
+{
+if( p_ivtc->pb_all_progressives[i] == false )
+{
+b_really_all_progressive = false;
+break;
+}
+}
+
+
+if( b_really_all_progressive )
+{
+
+
+
+
+
+if( p_ivtc->i_mode == IVTC_MODE_TELECINED_NTSC_HARD )
+msg_Dbg( p_filter, "IVTC: 3:2 pulldown: progressive "\
+"signal detected." );
+p_ivtc->i_mode = IVTC_MODE_DETECTING;
+p_ivtc->i_cadence_pos = CADENCE_POS_INVALID;
+p_ivtc->i_tfd = TFD_INVALID;
+}
+}
+
+
+
+
+
+
+
+
+
+
+
+}
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+static bool IVTCOutputOrDropFrame( filter_t *p_filter, picture_t *p_dst )
+{
+assert( p_filter != NULL );
+assert( p_dst != NULL );
+
+filter_sys_t *p_sys = p_filter->p_sys;
+ivtc_sys_t *p_ivtc = &p_sys->ivtc;
+vlc_tick_t t_final = VLC_TICK_INVALID; 
+
+picture_t *p_curr = p_sys->context.pp_history[1];
+picture_t *p_next = p_sys->context.pp_history[2];
+
+assert( p_next != NULL );
+assert( p_curr != NULL );
+
+
+
+
+
+
+
+
+
+
+
+
+int i_result_score = -1;
+int op;
+if( p_ivtc->i_mode == IVTC_MODE_TELECINED_NTSC_HARD )
+{
+
+
+
+if( p_ivtc->b_sequence_valid )
+{
+assert( p_ivtc->i_cadence_pos != CADENCE_POS_INVALID );
+assert( p_ivtc->i_tfd != TFD_INVALID );
+
+
+op = pi_reconstruction_ops[p_ivtc->i_tfd][p_ivtc->i_cadence_pos];
+
+if( op == IVTC_OP_DROP_FRAME )
+{
+
+p_ivtc->i_cadence_pos = (p_ivtc->i_cadence_pos + 1) % 5;
+
+
+return false;
+}
+else
+{
+if( op == IVTC_OP_COPY_N )
+i_result_score = p_ivtc->pi_scores[FIELD_PAIR_TNBN];
+else if( op == IVTC_OP_COPY_C )
+i_result_score = p_ivtc->pi_scores[FIELD_PAIR_TCBC];
+else if( op == IVTC_OP_COMPOSE_TNBC )
+i_result_score = p_ivtc->pi_scores[FIELD_PAIR_TNBC];
+else if( op == IVTC_OP_COMPOSE_TCBN )
+i_result_score = p_ivtc->pi_scores[FIELD_PAIR_TCBN];
+
+
+
+
+
+int i_avg = 0;
+for( int i = 0; i < IVTC_DETECTION_HISTORY_SIZE; i++)
+i_avg += p_ivtc->pi_final_scores[i];
+i_avg /= IVTC_DETECTION_HISTORY_SIZE;
+
+
+
+if( i_result_score > 1000 && i_result_score > 2*i_avg )
+{
+
+
+p_ivtc->b_sequence_valid = false;
+msg_Dbg( p_filter, "Rejected cadence-based frame "\
+"construction: interlace score %d "\
+"(running average %d)",
+i_result_score, i_avg );
+
+
+
+
+
+
+
+
+p_ivtc->pi_v_raw[IVTC_LATEST] = VEKTOR_CADENCE_POS_ALL;
+}
+}
+}
+
+
+
+
+
+
+
+if( !p_ivtc->b_sequence_valid )
+{
+
+
+
+
+
+
+
+
+
+
+
+
+int tnbn = p_ivtc->pi_scores[FIELD_PAIR_TNBN]; 
+int tnbc = p_ivtc->pi_scores[FIELD_PAIR_TNBC]; 
+int tcbn = p_ivtc->pi_scores[FIELD_PAIR_TCBN]; 
+
+if( p_next->b_top_field_first )
+{
+if( tnbn <= tnbc )
+{
+op = IVTC_OP_COPY_N;
+i_result_score = tnbn;
+}
+else
+{
+op = IVTC_OP_COMPOSE_TNBC;
+i_result_score = tnbc;
+}
+}
+else
+{
+if( tnbn <= tcbn )
+{
+op = IVTC_OP_COPY_N;
+i_result_score = tnbn;
+}
+else
+{
+op = IVTC_OP_COMPOSE_TCBN;
+i_result_score = tcbn;
+}
+}
+}
+
+
+
+
+
+
+
+
+
+if( p_ivtc->b_sequence_valid )
+{
+
+
+
+int i_timestamp_delta = pi_timestamp_deltas[p_ivtc->i_cadence_pos];
+assert( i_timestamp_delta >= 0 );
+
+
+t_final = p_curr->date
++ (p_next->date - p_curr->date)*i_timestamp_delta/4;
+}
+else 
+
+
+
+
+
+
+
+{
+t_final = p_curr->date;
+}
+
+
+p_ivtc->i_cadence_pos = (p_ivtc->i_cadence_pos + 1) % 5;
+}
+else if( p_ivtc->i_mode == IVTC_MODE_TELECINED_NTSC_SOFT )
+{
+
+
+
+
+
+
+
+
+
+op = IVTC_OP_COPY_C;
+i_result_score = p_ivtc->pi_scores[FIELD_PAIR_TCBC];
+
+
+
+
+
+
+if( p_curr->i_nb_fields == 3 )
+{
+
+
+vlc_tick_t i_half_field_dur = ( (p_next->date - p_curr->date)/3 ) / 2;
+t_final = p_curr->date + i_half_field_dur;
+}
+else 
+{
+t_final = p_curr->date;
+}
+}
+else 
+{
+op = IVTC_OP_COPY_N;
+i_result_score = p_ivtc->pi_scores[FIELD_PAIR_TNBN];
+
+
+
+t_final = p_next->date;
+}
+
+
+
+assert( op != IVTC_OP_DROP_FRAME );
+
+
+if( op == IVTC_OP_COPY_N )
+picture_Copy( p_dst, p_next );
+else if( op == IVTC_OP_COPY_C )
+picture_Copy( p_dst, p_curr );
+else if( op == IVTC_OP_COMPOSE_TNBC )
+ComposeFrame( p_filter, p_dst, p_next, p_curr, CC_ALTLINE, false );
+else if( op == IVTC_OP_COMPOSE_TCBN )
+ComposeFrame( p_filter, p_dst, p_curr, p_next, CC_ALTLINE, false );
+
+
+
+
+
+
+
+
+for( int i = 1; i < IVTC_DETECTION_HISTORY_SIZE; i++ )
+p_ivtc->pi_final_scores[i-1] = p_ivtc->pi_final_scores[i];
+p_ivtc->pi_final_scores[IVTC_LATEST] = i_result_score;
+
+
+
+
+if( t_final != VLC_TICK_INVALID )
+p_dst->date = t_final;
+
+return true;
+}
+
+
+
+
+
+
+int RenderIVTC( filter_t *p_filter, picture_t *p_dst, picture_t *p_pic )
+{
+VLC_UNUSED(p_pic);
+assert( p_filter != NULL );
+assert( p_dst != NULL );
+
+filter_sys_t *p_sys = p_filter->p_sys;
+ivtc_sys_t *p_ivtc = &p_sys->ivtc;
+
+picture_t *p_prev = p_sys->context.pp_history[0];
+picture_t *p_curr = p_sys->context.pp_history[1];
+picture_t *p_next = p_sys->context.pp_history[2];
+
+
+if( !p_next )
+return VLC_EGENERIC;
+
+
+IVTCFrameInit( p_filter );
+
+
+
+if( p_prev && p_curr )
+{
+
+IVTCLowLevelDetect( p_filter );
+
+
+
+
+
+IVTCSoftTelecineDetect( p_filter );
+
+
+
+
+
+
+
+
+
+
+
+
+IVTCCadenceDetectAlgoScores( p_filter );
+IVTCCadenceDetectAlgoVektor( p_filter );
+IVTCCadenceDetectFinalize( p_filter ); 
+IVTCCadenceAnalyze( p_filter ); 
+
+
+bool b_have_output_frame = IVTCOutputOrDropFrame( p_filter, p_dst );
+
+if( b_have_output_frame )
+return VLC_SUCCESS;
+else
+return VLC_EGENERIC; 
+}
+else if( !p_prev && !p_curr ) 
+{
+
+
+
+
+
+
+int i_score = CalculateInterlaceScore( p_next, p_next );
+p_ivtc->pi_scores[FIELD_PAIR_TNBN] = i_score;
+p_ivtc->pi_final_scores[0] = i_score;
+
+picture_Copy( p_dst, p_next );
+return VLC_SUCCESS;
+}
+else 
+{
+
+
+assert( p_curr && !p_prev );
+
+
+
+
+
+
+
+
+
+
+
+
+
+IVTCLowLevelDetect( p_filter );
+
+
+
+
+p_ivtc->pi_final_scores[1] = p_ivtc->pi_scores[FIELD_PAIR_TNBN];
+
+picture_Copy( p_dst, p_next );
+return VLC_SUCCESS;
+}
+}
+
+
+void IVTCClearState( filter_t *p_filter )
+{
+assert( p_filter != NULL );
+
+filter_sys_t *p_sys = p_filter->p_sys;
+ivtc_sys_t *p_ivtc = &p_sys->ivtc;
+
+p_ivtc->i_cadence_pos = CADENCE_POS_INVALID;
+p_ivtc->i_tfd = TFD_INVALID;
+p_ivtc->b_sequence_valid = false;
+p_ivtc->i_mode = IVTC_MODE_DETECTING;
+p_ivtc->i_old_mode = IVTC_MODE_DETECTING;
+for( int i = 0; i < IVTC_NUM_FIELD_PAIRS; i++ )
+p_ivtc->pi_scores[i] = 0;
+for( int i = 0; i < IVTC_DETECTION_HISTORY_SIZE; i++ )
+{
+p_ivtc->pi_cadence_pos_history[i] = CADENCE_POS_INVALID;
+
+p_ivtc->pi_s_cadence_pos[i] = CADENCE_POS_INVALID;
+p_ivtc->pb_s_reliable[i] = false;
+p_ivtc->pi_v_cadence_pos[i] = CADENCE_POS_INVALID;
+p_ivtc->pb_v_reliable[i] = false;
+
+p_ivtc->pi_v_raw[i] = VEKTOR_CADENCE_POS_ALL;
+
+p_ivtc->pi_top_rep[i] = 0;
+p_ivtc->pi_bot_rep[i] = 0;
+p_ivtc->pi_motion[i] = -1;
+
+p_ivtc->pb_all_progressives[i] = false;
+
+p_ivtc->pi_final_scores[i] = 0;
+}
+}

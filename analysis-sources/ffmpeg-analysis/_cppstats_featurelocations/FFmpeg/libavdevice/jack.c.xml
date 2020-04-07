@@ -1,0 +1,356 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" revision="1.0.0" language="C" filename="D:\Pesquisa\Projects\ffmpeg-analysis\_cppstats_featurelocations\FFmpeg\libavdevice\jack.c">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"config.h"</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;semaphore.h&gt;</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;jack/jack.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"libavutil/internal.h"</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"libavutil/log.h"</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"libavutil/fifo.h"</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"libavutil/opt.h"</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"libavutil/time.h"</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"libavcodec/avcodec.h"</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"libavformat/avformat.h"</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"libavformat/internal.h"</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"timefilter.h"</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"avdevice.h"</cpp:file></cpp:include>
+
+
+
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>FIFO_PACKETS_NUM</name></cpp:macro> <cpp:value>16</cpp:value></cpp:define>
+
+<typedef>typedef <type><struct>struct <name>JackData</name> <block>{
+<decl_stmt><decl><type><name>AVClass</name> <modifier>*</modifier></type><name>class</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>jack_client_t</name> <modifier>*</modifier></type> <name>client</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>activated</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>sem_t</name></type> <name>packet_count</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>jack_nframes_t</name></type> <name>sample_rate</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>jack_nframes_t</name></type> <name>buffer_size</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>jack_port_t</name> <modifier>*</modifier><modifier>*</modifier></type> <name>ports</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>nports</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>TimeFilter</name> <modifier>*</modifier></type> <name>timefilter</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>AVFifoBuffer</name> <modifier>*</modifier></type> <name>new_pkts</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>AVFifoBuffer</name> <modifier>*</modifier></type> <name>filled_pkts</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>pkt_xrun</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>jack_xrun</name></decl>;</decl_stmt>
+}</block></struct></type> <name>JackData</name>;</typedef>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>process_callback</name><parameter_list>(<parameter><decl><type><name>jack_nframes_t</name></type> <name>nframes</name></decl></parameter>, <parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>arg</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+
+
+
+<decl_stmt><decl><type><name>int</name></type> <name>i</name></decl>, <decl><type ref="prev"/><name>j</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>JackData</name> <modifier>*</modifier></type><name>self</name> <init>= <expr><name>arg</name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>float</name> <modifier>*</modifier></type> <name>buffer</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>jack_nframes_t</name></type> <name>latency</name></decl>, <decl><type ref="prev"/><name>cycle_delay</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>AVPacket</name></type> <name>pkt</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>float</name> <modifier>*</modifier></type><name>pkt_data</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>double</name></type> <name>cycle_time</name></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>self</name><operator>-&gt;</operator><name>client</name></name></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><literal type="number">0</literal></expr>;</return></block_content></block></if></if_stmt>
+
+
+<expr_stmt><expr><name>cycle_delay</name> <operator>=</operator> <call><name>jack_frames_since_cycle_start</name><argument_list>(<argument><expr><name><name>self</name><operator>-&gt;</operator><name>client</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+
+<expr_stmt><expr><name>cycle_time</name> <operator>=</operator> <call><name>ff_timefilter_update</name><argument_list>(<argument><expr><name><name>self</name><operator>-&gt;</operator><name>timefilter</name></name></expr></argument>,
+<argument><expr><call><name>av_gettime</name><argument_list>()</argument_list></call> <operator>/</operator> <literal type="number">1000000.0</literal> <operator>-</operator> <operator>(</operator><name>double</name><operator>)</operator> <name>cycle_delay</name> <operator>/</operator> <name><name>self</name><operator>-&gt;</operator><name>sample_rate</name></name></expr></argument>,
+<argument><expr><name><name>self</name><operator>-&gt;</operator><name>buffer_size</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+
+<if_stmt><if>if <condition>(<expr><operator>(</operator><call><name>av_fifo_size</name><argument_list>(<argument><expr><name><name>self</name><operator>-&gt;</operator><name>new_pkts</name></name></expr></argument>)</argument_list></call> <operator>&lt;</operator> <sizeof>sizeof<argument_list>(<argument><expr><name>pkt</name></expr></argument>)</argument_list></sizeof><operator>)</operator> <operator>||</operator> <operator>(</operator><call><name>av_fifo_space</name><argument_list>(<argument><expr><name><name>self</name><operator>-&gt;</operator><name>filled_pkts</name></name></expr></argument>)</argument_list></call> <operator>&lt;</operator> <sizeof>sizeof<argument_list>(<argument><expr><name>pkt</name></expr></argument>)</argument_list></sizeof><operator>)</operator></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name><name>self</name><operator>-&gt;</operator><name>pkt_xrun</name></name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+</block_content>}</block></if></if_stmt>
+
+
+<expr_stmt><expr><call><name>av_fifo_generic_read</name><argument_list>(<argument><expr><name><name>self</name><operator>-&gt;</operator><name>new_pkts</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name>pkt</name></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr><name>pkt</name></expr></argument>)</argument_list></sizeof></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>pkt_data</name> <operator>=</operator> <operator>(</operator><name>float</name> <operator>*</operator><operator>)</operator> <name><name>pkt</name><operator>.</operator><name>data</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name>latency</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name><name>self</name><operator>-&gt;</operator><name>nports</name></name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<decl_stmt><decl><type><name>jack_latency_range_t</name></type> <name>range</name></decl>;</decl_stmt>
+<expr_stmt><expr><call><name>jack_port_get_latency_range</name><argument_list>(<argument><expr><name><name>self</name><operator>-&gt;</operator><name>ports</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>, <argument><expr><name>JackCaptureLatency</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>range</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>latency</name> <operator>+=</operator> <name><name>range</name><operator>.</operator><name>max</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name>buffer</name> <operator>=</operator> <call><name>jack_port_get_buffer</name><argument_list>(<argument><expr><name><name>self</name><operator>-&gt;</operator><name>ports</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>, <argument><expr><name><name>self</name><operator>-&gt;</operator><name>buffer_size</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<for>for <control>(<init><expr><name>j</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>j</name> <operator>&lt;</operator> <name><name>self</name><operator>-&gt;</operator><name>buffer_size</name></name></expr>;</condition> <incr><expr><name>j</name><operator>++</operator></expr></incr>)</control><block type="pseudo"><block_content>
+<expr_stmt><expr><name><name>pkt_data</name><index>[<expr><name>j</name> <operator>*</operator> <name><name>self</name><operator>-&gt;</operator><name>nports</name></name> <operator>+</operator> <name>i</name></expr>]</index></name> <operator>=</operator> <name><name>buffer</name><index>[<expr><name>j</name></expr>]</index></name></expr>;</expr_stmt></block_content></block></for>
+</block_content>}</block></for>
+
+
+<expr_stmt><expr><name><name>pkt</name><operator>.</operator><name>pts</name></name> <operator>=</operator> <operator>(</operator><name>cycle_time</name> <operator>-</operator> <operator>(</operator><name>double</name><operator>)</operator> <name>latency</name> <operator>/</operator> <operator>(</operator><name><name>self</name><operator>-&gt;</operator><name>nports</name></name> <operator>*</operator> <name><name>self</name><operator>-&gt;</operator><name>sample_rate</name></name><operator>)</operator><operator>)</operator> <operator>*</operator> <literal type="number">1000000.0</literal></expr>;</expr_stmt>
+
+
+<expr_stmt><expr><call><name>av_fifo_generic_write</name><argument_list>(<argument><expr><name><name>self</name><operator>-&gt;</operator><name>filled_pkts</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name>pkt</name></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr><name>pkt</name></expr></argument>)</argument_list></sizeof></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>sem_post</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>self</name><operator>-&gt;</operator><name>packet_count</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>shutdown_callback</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>arg</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>JackData</name> <modifier>*</modifier></type><name>self</name> <init>= <expr><name>arg</name></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><name><name>self</name><operator>-&gt;</operator><name>client</name></name> <operator>=</operator> <name>NULL</name></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>xrun_callback</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>arg</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>JackData</name> <modifier>*</modifier></type><name>self</name> <init>= <expr><name>arg</name></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><name><name>self</name><operator>-&gt;</operator><name>jack_xrun</name></name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ff_timefilter_reset</name><argument_list>(<argument><expr><name><name>self</name><operator>-&gt;</operator><name>timefilter</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>supply_new_packets</name><parameter_list>(<parameter><decl><type><name>JackData</name> <modifier>*</modifier></type><name>self</name></decl></parameter>, <parameter><decl><type><name>AVFormatContext</name> <modifier>*</modifier></type><name>context</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>AVPacket</name></type> <name>pkt</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>test</name></decl>, <decl><type ref="prev"/><name>pkt_size</name> <init>= <expr><name><name>self</name><operator>-&gt;</operator><name>buffer_size</name></name> <operator>*</operator> <name><name>self</name><operator>-&gt;</operator><name>nports</name></name> <operator>*</operator> <sizeof>sizeof<argument_list>(<argument><expr><name>float</name></expr></argument>)</argument_list></sizeof></expr></init></decl>;</decl_stmt>
+
+
+
+
+<while>while <condition>(<expr><call><name>av_fifo_space</name><argument_list>(<argument><expr><name><name>self</name><operator>-&gt;</operator><name>new_pkts</name></name></expr></argument>)</argument_list></call> <operator>&gt;=</operator> <sizeof>sizeof<argument_list>(<argument><expr><name>pkt</name></expr></argument>)</argument_list></sizeof></expr>)</condition> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><operator>(</operator><name>test</name> <operator>=</operator> <call><name>av_new_packet</name><argument_list>(<argument><expr><operator>&amp;</operator><name>pkt</name></expr></argument>, <argument><expr><name>pkt_size</name></expr></argument>)</argument_list></call><operator>)</operator> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>av_log</name><argument_list>(<argument><expr><name>context</name></expr></argument>, <argument><expr><name>AV_LOG_ERROR</name></expr></argument>, <argument><expr><literal type="string">"Could not create packet of size %d\n"</literal></expr></argument>, <argument><expr><name>pkt_size</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>test</name></expr>;</return>
+</block_content>}</block></if></if_stmt>
+<expr_stmt><expr><call><name>av_fifo_generic_write</name><argument_list>(<argument><expr><name><name>self</name><operator>-&gt;</operator><name>new_pkts</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name>pkt</name></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr><name>pkt</name></expr></argument>)</argument_list></sizeof></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></while>
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>start_jack</name><parameter_list>(<parameter><decl><type><name>AVFormatContext</name> <modifier>*</modifier></type><name>context</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>JackData</name> <modifier>*</modifier></type><name>self</name> <init>= <expr><name><name>context</name><operator>-&gt;</operator><name>priv_data</name></name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>jack_status_t</name></type> <name>status</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>i</name></decl>, <decl><type ref="prev"/><name>test</name></decl>;</decl_stmt>
+
+
+<expr_stmt><expr><name><name>self</name><operator>-&gt;</operator><name>client</name></name> <operator>=</operator> <call><name>jack_client_open</name><argument_list>(<argument><expr><name><name>context</name><operator>-&gt;</operator><name>url</name></name></expr></argument>, <argument><expr><name>JackNullOption</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>status</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>self</name><operator>-&gt;</operator><name>client</name></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>av_log</name><argument_list>(<argument><expr><name>context</name></expr></argument>, <argument><expr><name>AV_LOG_ERROR</name></expr></argument>, <argument><expr><literal type="string">"Unable to register as a JACK client\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><call><name>AVERROR</name><argument_list>(<argument><expr><name>EIO</name></expr></argument>)</argument_list></call></expr>;</return>
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>sem_init</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>self</name><operator>-&gt;</operator><name>packet_count</name></name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>self</name><operator>-&gt;</operator><name>sample_rate</name></name> <operator>=</operator> <call><name>jack_get_sample_rate</name><argument_list>(<argument><expr><name><name>self</name><operator>-&gt;</operator><name>client</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>self</name><operator>-&gt;</operator><name>ports</name></name> <operator>=</operator> <call><name>av_malloc_array</name><argument_list>(<argument><expr><name><name>self</name><operator>-&gt;</operator><name>nports</name></name></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr><operator>*</operator><name><name>self</name><operator>-&gt;</operator><name>ports</name></name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>self</name><operator>-&gt;</operator><name>ports</name></name></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><call><name>AVERROR</name><argument_list>(<argument><expr><name>ENOMEM</name></expr></argument>)</argument_list></call></expr>;</return></block_content></block></if></if_stmt>
+<expr_stmt><expr><name><name>self</name><operator>-&gt;</operator><name>buffer_size</name></name> <operator>=</operator> <call><name>jack_get_buffer_size</name><argument_list>(<argument><expr><name><name>self</name><operator>-&gt;</operator><name>client</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name><name>self</name><operator>-&gt;</operator><name>nports</name></name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<decl_stmt><decl><type><name>char</name></type> <name><name>str</name><index>[<expr><literal type="number">16</literal></expr>]</index></name></decl>;</decl_stmt>
+<expr_stmt><expr><call><name>snprintf</name><argument_list>(<argument><expr><name>str</name></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr><name>str</name></expr></argument>)</argument_list></sizeof></expr></argument>, <argument><expr><literal type="string">"input_%d"</literal></expr></argument>, <argument><expr><name>i</name> <operator>+</operator> <literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>self</name><operator>-&gt;</operator><name>ports</name><index>[<expr><name>i</name></expr>]</index></name> <operator>=</operator> <call><name>jack_port_register</name><argument_list>(<argument><expr><name><name>self</name><operator>-&gt;</operator><name>client</name></name></expr></argument>, <argument><expr><name>str</name></expr></argument>,
+<argument><expr><name>JACK_DEFAULT_AUDIO_TYPE</name></expr></argument>,
+<argument><expr><name>JackPortIsInput</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>self</name><operator>-&gt;</operator><name>ports</name><index>[<expr><name>i</name></expr>]</index></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>av_log</name><argument_list>(<argument><expr><name>context</name></expr></argument>, <argument><expr><name>AV_LOG_ERROR</name></expr></argument>, <argument><expr><literal type="string">"Unable to register port %s:%s\n"</literal></expr></argument>,
+<argument><expr><name><name>context</name><operator>-&gt;</operator><name>url</name></name></expr></argument>, <argument><expr><name>str</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>jack_client_close</name><argument_list>(<argument><expr><name><name>self</name><operator>-&gt;</operator><name>client</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><call><name>AVERROR</name><argument_list>(<argument><expr><name>EIO</name></expr></argument>)</argument_list></call></expr>;</return>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block></for>
+
+
+<expr_stmt><expr><call><name>jack_set_process_callback</name><argument_list>(<argument><expr><name><name>self</name><operator>-&gt;</operator><name>client</name></name></expr></argument>, <argument><expr><name>process_callback</name></expr></argument>, <argument><expr><name>self</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>jack_on_shutdown</name><argument_list>(<argument><expr><name><name>self</name><operator>-&gt;</operator><name>client</name></name></expr></argument>, <argument><expr><name>shutdown_callback</name></expr></argument>, <argument><expr><name>self</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>jack_set_xrun_callback</name><argument_list>(<argument><expr><name><name>self</name><operator>-&gt;</operator><name>client</name></name></expr></argument>, <argument><expr><name>xrun_callback</name></expr></argument>, <argument><expr><name>self</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+
+<expr_stmt><expr><name><name>self</name><operator>-&gt;</operator><name>timefilter</name></name> <operator>=</operator> <call><name>ff_timefilter_new</name> <argument_list>(<argument><expr><literal type="number">1.0</literal> <operator>/</operator> <name><name>self</name><operator>-&gt;</operator><name>sample_rate</name></name></expr></argument>, <argument><expr><name><name>self</name><operator>-&gt;</operator><name>buffer_size</name></name></expr></argument>, <argument><expr><literal type="number">1.5</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>self</name><operator>-&gt;</operator><name>timefilter</name></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>jack_client_close</name><argument_list>(<argument><expr><name><name>self</name><operator>-&gt;</operator><name>client</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><call><name>AVERROR</name><argument_list>(<argument><expr><name>ENOMEM</name></expr></argument>)</argument_list></call></expr>;</return>
+</block_content>}</block></if></if_stmt>
+
+
+<expr_stmt><expr><name><name>self</name><operator>-&gt;</operator><name>filled_pkts</name></name> <operator>=</operator> <call><name>av_fifo_alloc_array</name><argument_list>(<argument><expr><name>FIFO_PACKETS_NUM</name></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr><name>AVPacket</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>self</name><operator>-&gt;</operator><name>new_pkts</name></name> <operator>=</operator> <call><name>av_fifo_alloc_array</name><argument_list>(<argument><expr><operator>(</operator><name>FIFO_PACKETS_NUM</name> <operator>+</operator> <literal type="number">1</literal><operator>)</operator></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr><name>AVPacket</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>self</name><operator>-&gt;</operator><name>new_pkts</name></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>jack_client_close</name><argument_list>(<argument><expr><name><name>self</name><operator>-&gt;</operator><name>client</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><call><name>AVERROR</name><argument_list>(<argument><expr><name>ENOMEM</name></expr></argument>)</argument_list></call></expr>;</return>
+</block_content>}</block></if></if_stmt>
+<if_stmt><if>if <condition>(<expr><operator>(</operator><name>test</name> <operator>=</operator> <call><name>supply_new_packets</name><argument_list>(<argument><expr><name>self</name></expr></argument>, <argument><expr><name>context</name></expr></argument>)</argument_list></call><operator>)</operator></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>jack_client_close</name><argument_list>(<argument><expr><name><name>self</name><operator>-&gt;</operator><name>client</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>test</name></expr>;</return>
+</block_content>}</block></if></if_stmt>
+
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>free_pkt_fifo</name><parameter_list>(<parameter><decl><type><name>AVFifoBuffer</name> <modifier>*</modifier><modifier>*</modifier></type><name>fifo</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>AVPacket</name></type> <name>pkt</name></decl>;</decl_stmt>
+<while>while <condition>(<expr><call><name>av_fifo_size</name><argument_list>(<argument><expr><operator>*</operator><name>fifo</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>av_fifo_generic_read</name><argument_list>(<argument><expr><operator>*</operator><name>fifo</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>pkt</name></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr><name>pkt</name></expr></argument>)</argument_list></sizeof></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>av_packet_unref</name><argument_list>(<argument><expr><operator>&amp;</operator><name>pkt</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></while>
+<expr_stmt><expr><call><name>av_fifo_freep</name><argument_list>(<argument><expr><name>fifo</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>stop_jack</name><parameter_list>(<parameter><decl><type><name>JackData</name> <modifier>*</modifier></type><name>self</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name><name>self</name><operator>-&gt;</operator><name>client</name></name></expr>)</condition> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name><name>self</name><operator>-&gt;</operator><name>activated</name></name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>jack_deactivate</name><argument_list>(<argument><expr><name><name>self</name><operator>-&gt;</operator><name>client</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+<expr_stmt><expr><call><name>jack_client_close</name><argument_list>(<argument><expr><name><name>self</name><operator>-&gt;</operator><name>client</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+<expr_stmt><expr><call><name>sem_destroy</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>self</name><operator>-&gt;</operator><name>packet_count</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>free_pkt_fifo</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>self</name><operator>-&gt;</operator><name>new_pkts</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>free_pkt_fifo</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>self</name><operator>-&gt;</operator><name>filled_pkts</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>av_freep</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>self</name><operator>-&gt;</operator><name>ports</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ff_timefilter_destroy</name><argument_list>(<argument><expr><name><name>self</name><operator>-&gt;</operator><name>timefilter</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>audio_read_header</name><parameter_list>(<parameter><decl><type><name>AVFormatContext</name> <modifier>*</modifier></type><name>context</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>JackData</name> <modifier>*</modifier></type><name>self</name> <init>= <expr><name><name>context</name><operator>-&gt;</operator><name>priv_data</name></name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>AVStream</name> <modifier>*</modifier></type><name>stream</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>test</name></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>(</operator><name>test</name> <operator>=</operator> <call><name>start_jack</name><argument_list>(<argument><expr><name>context</name></expr></argument>)</argument_list></call><operator>)</operator></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><name>test</name></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>stream</name> <operator>=</operator> <call><name>avformat_new_stream</name><argument_list>(<argument><expr><name>context</name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>stream</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>stop_jack</name><argument_list>(<argument><expr><name>self</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><call><name>AVERROR</name><argument_list>(<argument><expr><name>ENOMEM</name></expr></argument>)</argument_list></call></expr>;</return>
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>stream</name><operator>-&gt;</operator><name>codecpar</name><operator>-&gt;</operator><name>codec_type</name></name> <operator>=</operator> <name>AVMEDIA_TYPE_AUDIO</name></expr>;</expr_stmt>
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><name>HAVE_BIGENDIAN</name></expr></cpp:if>
+<expr_stmt><expr><name><name>stream</name><operator>-&gt;</operator><name>codecpar</name><operator>-&gt;</operator><name>codec_id</name></name> <operator>=</operator> <name>AV_CODEC_ID_PCM_F32BE</name></expr>;</expr_stmt>
+<cpp:else>#<cpp:directive>else</cpp:directive></cpp:else>
+<expr_stmt><expr><name><name>stream</name><operator>-&gt;</operator><name>codecpar</name><operator>-&gt;</operator><name>codec_id</name></name> <operator>=</operator> <name>AV_CODEC_ID_PCM_F32LE</name></expr>;</expr_stmt>
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+<expr_stmt><expr><name><name>stream</name><operator>-&gt;</operator><name>codecpar</name><operator>-&gt;</operator><name>sample_rate</name></name> <operator>=</operator> <name><name>self</name><operator>-&gt;</operator><name>sample_rate</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>stream</name><operator>-&gt;</operator><name>codecpar</name><operator>-&gt;</operator><name>channels</name></name> <operator>=</operator> <name><name>self</name><operator>-&gt;</operator><name>nports</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>avpriv_set_pts_info</name><argument_list>(<argument><expr><name>stream</name></expr></argument>, <argument><expr><literal type="number">64</literal></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>, <argument><expr><literal type="number">1000000</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt> 
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>audio_read_packet</name><parameter_list>(<parameter><decl><type><name>AVFormatContext</name> <modifier>*</modifier></type><name>context</name></decl></parameter>, <parameter><decl><type><name>AVPacket</name> <modifier>*</modifier></type><name>pkt</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>JackData</name> <modifier>*</modifier></type><name>self</name> <init>= <expr><name><name>context</name><operator>-&gt;</operator><name>priv_data</name></name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name><name>struct</name> <name>timespec</name></name></type> <name>timeout</name> <init>= <expr><block>{<expr><literal type="number">0</literal></expr>, <expr><literal type="number">0</literal></expr>}</block></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>test</name></decl>;</decl_stmt>
+
+
+
+
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>self</name><operator>-&gt;</operator><name>activated</name></name></expr>)</condition> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>jack_activate</name><argument_list>(<argument><expr><name><name>self</name><operator>-&gt;</operator><name>client</name></name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name><name>self</name><operator>-&gt;</operator><name>activated</name></name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>av_log</name><argument_list>(<argument><expr><name>context</name></expr></argument>, <argument><expr><name>AV_LOG_INFO</name></expr></argument>,
+<argument><expr><literal type="string">"JACK client registered and activated (rate=%dHz, buffer_size=%d frames)\n"</literal></expr></argument>,
+<argument><expr><name><name>self</name><operator>-&gt;</operator><name>sample_rate</name></name></expr></argument>, <argument><expr><name><name>self</name><operator>-&gt;</operator><name>buffer_size</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<expr_stmt><expr><call><name>av_log</name><argument_list>(<argument><expr><name>context</name></expr></argument>, <argument><expr><name>AV_LOG_ERROR</name></expr></argument>, <argument><expr><literal type="string">"Unable to activate JACK client\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><call><name>AVERROR</name><argument_list>(<argument><expr><name>EIO</name></expr></argument>)</argument_list></call></expr>;</return>
+</block_content>}</block></else></if_stmt>
+</block_content>}</block></if></if_stmt>
+
+
+<expr_stmt><expr><name><name>timeout</name><operator>.</operator><name>tv_sec</name></name> <operator>=</operator> <call><name>av_gettime</name><argument_list>()</argument_list></call> <operator>/</operator> <literal type="number">1000000</literal> <operator>+</operator> <literal type="number">2</literal></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><call><name>sem_timedwait</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>self</name><operator>-&gt;</operator><name>packet_count</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name>timeout</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name>errno</name> <operator>==</operator> <name>ETIMEDOUT</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>av_log</name><argument_list>(<argument><expr><name>context</name></expr></argument>, <argument><expr><name>AV_LOG_ERROR</name></expr></argument>,
+<argument><expr><literal type="string">"Input error: timed out when waiting for JACK process callback output\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<decl_stmt><decl><type><name>char</name></type> <name><name>errbuf</name><index>[<expr><literal type="number">128</literal></expr>]</index></name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>ret</name> <init>= <expr><call><name>AVERROR</name><argument_list>(<argument><expr><name>errno</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><call><name>av_strerror</name><argument_list>(<argument><expr><name>ret</name></expr></argument>, <argument><expr><name>errbuf</name></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr><name>errbuf</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>av_log</name><argument_list>(<argument><expr><name>context</name></expr></argument>, <argument><expr><name>AV_LOG_ERROR</name></expr></argument>, <argument><expr><literal type="string">"Error while waiting for audio packet: %s\n"</literal></expr></argument>,
+<argument><expr><name>errbuf</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></else></if_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>self</name><operator>-&gt;</operator><name>client</name></name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>av_log</name><argument_list>(<argument><expr><name>context</name></expr></argument>, <argument><expr><name>AV_LOG_ERROR</name></expr></argument>, <argument><expr><literal type="string">"Input error: JACK server is gone\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<return>return <expr><call><name>AVERROR</name><argument_list>(<argument><expr><name>EIO</name></expr></argument>)</argument_list></call></expr>;</return>
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>self</name><operator>-&gt;</operator><name>pkt_xrun</name></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>av_log</name><argument_list>(<argument><expr><name>context</name></expr></argument>, <argument><expr><name>AV_LOG_WARNING</name></expr></argument>, <argument><expr><literal type="string">"Audio packet xrun\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>self</name><operator>-&gt;</operator><name>pkt_xrun</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>self</name><operator>-&gt;</operator><name>jack_xrun</name></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>av_log</name><argument_list>(<argument><expr><name>context</name></expr></argument>, <argument><expr><name>AV_LOG_WARNING</name></expr></argument>, <argument><expr><literal type="string">"JACK xrun\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>self</name><operator>-&gt;</operator><name>jack_xrun</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+
+
+<expr_stmt><expr><call><name>av_fifo_generic_read</name><argument_list>(<argument><expr><name><name>self</name><operator>-&gt;</operator><name>filled_pkts</name></name></expr></argument>, <argument><expr><name>pkt</name></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr><operator>*</operator><name>pkt</name></expr></argument>)</argument_list></sizeof></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>(</operator><name>test</name> <operator>=</operator> <call><name>supply_new_packets</name><argument_list>(<argument><expr><name>self</name></expr></argument>, <argument><expr><name>context</name></expr></argument>)</argument_list></call><operator>)</operator></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><name>test</name></expr>;</return></block_content></block></if></if_stmt>
+
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>audio_read_close</name><parameter_list>(<parameter><decl><type><name>AVFormatContext</name> <modifier>*</modifier></type><name>context</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>JackData</name> <modifier>*</modifier></type><name>self</name> <init>= <expr><name><name>context</name><operator>-&gt;</operator><name>priv_data</name></name></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><call><name>stop_jack</name><argument_list>(<argument><expr><name>self</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+</block_content>}</block></function>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>OFFSET</name><parameter_list>(<parameter><type><name>x</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>offsetof(JackData, x)</cpp:value></cpp:define>
+<decl_stmt><decl><type><specifier>static</specifier> <specifier>const</specifier> <name>AVOption</name></type> <name><name>options</name><index>[]</index></name> <init>= <expr><block>{
+<expr><block>{ <expr><literal type="string">"channels"</literal></expr>, <expr><literal type="string">"Number of audio channels."</literal></expr>, <expr><call><name>OFFSET</name><argument_list>(<argument><expr><name>nports</name></expr></argument>)</argument_list></call></expr>, <expr><name>AV_OPT_TYPE_INT</name></expr>, <expr><block>{ <expr><operator>.</operator><name>i64</name> <operator>=</operator> <literal type="number">2</literal></expr> }</block></expr>, <expr><literal type="number">1</literal></expr>, <expr><name>INT_MAX</name></expr>, <expr><name>AV_OPT_FLAG_DECODING_PARAM</name></expr> }</block></expr>,
+<expr><block>{ <expr><name>NULL</name></expr> }</block></expr>,
+}</block></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <specifier>const</specifier> <name>AVClass</name></type> <name>jack_indev_class</name> <init>= <expr><block>{
+<expr><operator>.</operator><name>class_name</name> <operator>=</operator> <literal type="string">"JACK indev"</literal></expr>,
+<expr><operator>.</operator><name>item_name</name> <operator>=</operator> <name>av_default_item_name</name></expr>,
+<expr><operator>.</operator><name>option</name> <operator>=</operator> <name>options</name></expr>,
+<expr><operator>.</operator><name>version</name> <operator>=</operator> <name>LIBAVUTIL_VERSION_INT</name></expr>,
+<expr><operator>.</operator><name>category</name> <operator>=</operator> <name>AV_CLASS_CATEGORY_DEVICE_AUDIO_INPUT</name></expr>,
+}</block></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>AVInputFormat</name></type> <name>ff_jack_demuxer</name> <init>= <expr><block>{
+<expr><operator>.</operator><name>name</name> <operator>=</operator> <literal type="string">"jack"</literal></expr>,
+<expr><operator>.</operator><name>long_name</name> <operator>=</operator> <call><name>NULL_IF_CONFIG_SMALL</name><argument_list>(<argument><expr><literal type="string">"JACK Audio Connection Kit"</literal></expr></argument>)</argument_list></call></expr>,
+<expr><operator>.</operator><name>priv_data_size</name> <operator>=</operator> <sizeof>sizeof<argument_list>(<argument><expr><name>JackData</name></expr></argument>)</argument_list></sizeof></expr>,
+<expr><operator>.</operator><name>read_header</name> <operator>=</operator> <name>audio_read_header</name></expr>,
+<expr><operator>.</operator><name>read_packet</name> <operator>=</operator> <name>audio_read_packet</name></expr>,
+<expr><operator>.</operator><name>read_close</name> <operator>=</operator> <name>audio_read_close</name></expr>,
+<expr><operator>.</operator><name>flags</name> <operator>=</operator> <name>AVFMT_NOFILE</name></expr>,
+<expr><operator>.</operator><name>priv_class</name> <operator>=</operator> <operator>&amp;</operator><name>jack_indev_class</name></expr>,
+}</block></expr></init></decl>;</decl_stmt>
+</unit>

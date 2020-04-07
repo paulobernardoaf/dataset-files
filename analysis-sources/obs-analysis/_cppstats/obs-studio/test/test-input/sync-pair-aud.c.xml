@@ -1,0 +1,215 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" revision="1.0.0" language="C" filename="D:\Pesquisa\Projects\obs-analysis\_cppstats\obs-studio\test\test-input\sync-pair-aud.c"><cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;math.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;util/bmem.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;util/threading.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;util/platform.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;obs.h&gt;</cpp:file></cpp:include>
+
+<struct>struct <name>sync_pair_aud</name> <block>{
+
+<decl_stmt><decl><type><name>bool</name></type> <name>initialized_thread</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>pthread_t</name></type> <name>thread</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>os_event_t</name> <modifier>*</modifier></type><name>event</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>obs_source_t</name> <modifier>*</modifier></type><name>source</name></decl>;</decl_stmt>
+
+}</block>;</struct>
+
+<decl_stmt><decl><type><specifier>static</specifier> <specifier>const</specifier> <name>double</name></type> <name>rate</name> <init>= <expr><literal type="number">261.63</literal> <operator>/</operator> <literal type="number">48000.0</literal></expr></init></decl>;</decl_stmt>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><operator>!</operator><call><name>defined</name><argument_list>(<argument><expr><name>M_PI</name></expr></argument>)</argument_list></call></expr></cpp:if>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>M_PI</name></cpp:macro> <cpp:value>3.1415926535897932384626433832795</cpp:value></cpp:define>
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>M_PI_X2</name></cpp:macro> <cpp:value>M_PI * 2</cpp:value></cpp:define>
+
+<decl_stmt><decl><type><specifier>extern</specifier> <name>uint64_t</name></type> <name>starting_time</name></decl>;</decl_stmt>
+
+<function><type><specifier>static</specifier> <specifier>inline</specifier> <name>bool</name></type> <name>whitelist_time</name><parameter_list>(<parameter><decl><type><name>uint64_t</name></type> <name>ts</name></decl></parameter>, <parameter><decl><type><name>uint64_t</name></type> <name>interval</name></decl></parameter>,
+
+<parameter><decl><type><name>uint64_t</name></type> <name>fps_num</name></decl></parameter>, <parameter><decl><type><name>uint64_t</name></type> <name>fps_den</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>starting_time</name></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>false</name></expr>;</return></block_content></block></if></if_stmt>
+
+<decl_stmt><decl><type><name>uint64_t</name></type> <name>count</name> <init>= <expr><operator>(</operator><name>ts</name> <operator>-</operator> <name>starting_time</name><operator>)</operator> <operator>/</operator> <name>interval</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>uint64_t</name></type> <name>sec</name> <init>= <expr><name>count</name> <operator>*</operator> <name>fps_den</name> <operator>/</operator> <name>fps_num</name></expr></init></decl>;</decl_stmt>
+
+<return>return <expr><name>sec</name> <operator>%</operator> <literal type="number">2</literal> <operator>==</operator> <literal type="number">1</literal></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name> <modifier>*</modifier></type><name>sync_pair_aud_thread</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>pdata</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>sync_pair_aud</name></name> <modifier>*</modifier></type><name>spa</name> <init>= <expr><name>pdata</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>uint32_t</name></type> <name>sample_rate</name> <init>= <expr><call><name>audio_output_get_sample_rate</name><argument_list>(<argument><expr><call><name>obs_get_audio</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>uint32_t</name></type> <name>frames</name> <init>= <expr><name>sample_rate</name> <operator>/</operator> <literal type="number">100</literal></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>uint64_t</name></type> <name>last_time</name> <init>= <expr><call><name>obs_get_video_frame_time</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>double</name></type> <name>cos_val</name> <init>= <expr><literal type="number">0.0</literal></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>float</name> <modifier>*</modifier></type><name>samples</name> <init>= <expr><call><name>malloc</name><argument_list>(<argument><expr><name>frames</name> <operator>*</operator> <sizeof>sizeof<argument_list>(<argument><expr><name>float</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>uint64_t</name></type> <name>interval</name> <init>= <expr><call><name>video_output_get_frame_time</name><argument_list>(<argument><expr><call><name>obs_get_video</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name><name>struct</name> <name>video_output_info</name></name> <modifier>*</modifier></type><name>voi</name> <init>=
+
+<expr><call><name>video_output_get_info</name><argument_list>(<argument><expr><call><name>obs_get_video</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>uint64_t</name></type> <name>fps_num</name> <init>= <expr><name><name>voi</name><operator>-&gt;</operator><name>fps_num</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>uint64_t</name></type> <name>fps_den</name> <init>= <expr><name><name>voi</name><operator>-&gt;</operator><name>fps_den</name></name></expr></init></decl>;</decl_stmt>
+
+<while>while <condition>(<expr><call><name>os_event_try</name><argument_list>(<argument><expr><name><name>spa</name><operator>-&gt;</operator><name>event</name></name></expr></argument>)</argument_list></call> <operator>==</operator> <name>EAGAIN</name></expr>)</condition> <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>os_sleepto_ns</name><argument_list>(<argument><expr><name>last_time</name> <operator>+=</operator> <literal type="number">10000000</literal></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name>last_time</name> <operator>=</operator> <call><name>obs_get_video_frame_time</name><argument_list>()</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<for>for <control>(<init><decl><type><name>uint64_t</name></type> <name>i</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>frames</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+
+<decl_stmt><decl><type><name>uint64_t</name></type> <name>ts</name> <init>=
+
+<expr><name>last_time</name> <operator>+</operator> <name>i</name> <operator>*</operator> <literal type="number">1000000000ULL</literal> <operator>/</operator> <name>sample_rate</name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>whitelist_time</name><argument_list>(<argument><expr><name>ts</name></expr></argument>, <argument><expr><name>interval</name></expr></argument>, <argument><expr><name>fps_num</name></expr></argument>, <argument><expr><name>fps_den</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>cos_val</name> <operator>+=</operator> <name>rate</name> <operator>*</operator> <name>M_PI_X2</name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>cos_val</name> <operator>&gt;</operator> <name>M_PI_X2</name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name>cos_val</name> <operator>-=</operator> <name>M_PI_X2</name></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name><name>samples</name><index>[<expr><name>i</name></expr>]</index></name> <operator>=</operator> <operator>(</operator><name>float</name><operator>)</operator><operator>(</operator><call><name>cos</name><argument_list>(<argument><expr><name>cos_val</name></expr></argument>)</argument_list></call> <operator>*</operator> <literal type="number">0.5</literal><operator>)</operator></expr>;</expr_stmt>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<expr_stmt><expr><name><name>samples</name><index>[<expr><name>i</name></expr>]</index></name> <operator>=</operator> <literal type="number">0.0f</literal></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+</block_content>}</block></for>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>obs_source_audio</name></name></type> <name>data</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>data</name><operator>.</operator><name>data</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>=</operator> <operator>(</operator><name>uint8_t</name> <operator>*</operator><operator>)</operator><name>samples</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>data</name><operator>.</operator><name>frames</name></name> <operator>=</operator> <name>frames</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>data</name><operator>.</operator><name>speakers</name></name> <operator>=</operator> <name>SPEAKERS_MONO</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>data</name><operator>.</operator><name>samples_per_sec</name></name> <operator>=</operator> <name>sample_rate</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>data</name><operator>.</operator><name>timestamp</name></name> <operator>=</operator> <name>last_time</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>data</name><operator>.</operator><name>format</name></name> <operator>=</operator> <name>AUDIO_FORMAT_FLOAT</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_source_output_audio</name><argument_list>(<argument><expr><name><name>spa</name><operator>-&gt;</operator><name>source</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name>data</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></while>
+
+<expr_stmt><expr><call><name>free</name><argument_list>(<argument><expr><name>samples</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>NULL</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>sync_pair_aud_getname</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>unused</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>UNUSED_PARAMETER</name><argument_list>(<argument><expr><name>unused</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><literal type="string">"Sync Test Pair (Audio)"</literal></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>sync_pair_aud_destroy</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>sync_pair_aud</name></name> <modifier>*</modifier></type><name>spa</name> <init>= <expr><name>data</name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>spa</name></expr>)</condition> <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><name><name>spa</name><operator>-&gt;</operator><name>initialized_thread</name></name></expr>)</condition> <block>{<block_content>
+
+<decl_stmt><decl><type><name>void</name> <modifier>*</modifier></type><name>ret</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>os_event_signal</name><argument_list>(<argument><expr><name><name>spa</name><operator>-&gt;</operator><name>event</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>pthread_join</name><argument_list>(<argument><expr><name><name>spa</name><operator>-&gt;</operator><name>thread</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name>ret</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>os_event_destroy</name><argument_list>(<argument><expr><name><name>spa</name><operator>-&gt;</operator><name>event</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>bfree</name><argument_list>(<argument><expr><name>spa</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name> <modifier>*</modifier></type><name>sync_pair_aud_create</name><parameter_list>(<parameter><decl><type><name>obs_data_t</name> <modifier>*</modifier></type><name>settings</name></decl></parameter>, <parameter><decl><type><name>obs_source_t</name> <modifier>*</modifier></type><name>source</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>sync_pair_aud</name></name> <modifier>*</modifier></type><name>spa</name> <init>= <expr><call><name>bzalloc</name><argument_list>(<argument><expr><sizeof>sizeof<argument_list>(<argument><expr>struct <name>sync_pair_aud</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>spa</name><operator>-&gt;</operator><name>source</name></name> <operator>=</operator> <name>source</name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>os_event_init</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>spa</name><operator>-&gt;</operator><name>event</name></name></expr></argument>, <argument><expr><name>OS_EVENT_TYPE_MANUAL</name></expr></argument>)</argument_list></call> <operator>!=</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+
+<goto>goto <name>fail</name>;</goto></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>pthread_create</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>spa</name><operator>-&gt;</operator><name>thread</name></name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>, <argument><expr><name>sync_pair_aud_thread</name></expr></argument>, <argument><expr><name>spa</name></expr></argument>)</argument_list></call> <operator>!=</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+
+<goto>goto <name>fail</name>;</goto></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name><name>spa</name><operator>-&gt;</operator><name>initialized_thread</name></name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>UNUSED_PARAMETER</name><argument_list>(<argument><expr><name>settings</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>spa</name></expr>;</return>
+
+<label><name>fail</name>:</label>
+
+<expr_stmt><expr><call><name>sync_pair_aud_destroy</name><argument_list>(<argument><expr><name>spa</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>NULL</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>obs_source_info</name></name></type> <name>sync_audio</name> <init>= <expr><block>{
+
+<expr><operator>.</operator><name>id</name> <operator>=</operator> <literal type="string">"sync_audio"</literal></expr>,
+
+<expr><operator>.</operator><name>type</name> <operator>=</operator> <name>OBS_SOURCE_TYPE_INPUT</name></expr>,
+
+<expr><operator>.</operator><name>output_flags</name> <operator>=</operator> <name>OBS_SOURCE_AUDIO</name></expr>,
+
+<expr><operator>.</operator><name>get_name</name> <operator>=</operator> <name>sync_pair_aud_getname</name></expr>,
+
+<expr><operator>.</operator><name>create</name> <operator>=</operator> <name>sync_pair_aud_create</name></expr>,
+
+<expr><operator>.</operator><name>destroy</name> <operator>=</operator> <name>sync_pair_aud_destroy</name></expr>,
+
+}</block></expr></init></decl>;</decl_stmt>
+
+</unit>

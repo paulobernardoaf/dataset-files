@@ -1,0 +1,37 @@
+#include "internal.h"
+#include "libavutil/opt.h"
+#include "libavformat/avformat.h"
+int ff_alloc_input_device_context(AVFormatContext **avctx, AVInputFormat *iformat, const char *format)
+{
+AVFormatContext *s;
+int ret = 0;
+*avctx = NULL;
+if (!iformat && !format)
+return AVERROR(EINVAL);
+if (!(s = avformat_alloc_context()))
+return AVERROR(ENOMEM);
+if (!iformat)
+iformat = av_find_input_format(format);
+if (!iformat || !iformat->priv_class || !AV_IS_INPUT_DEVICE(iformat->priv_class->category)) {
+ret = AVERROR(EINVAL);
+goto error;
+}
+s->iformat = iformat;
+if (s->iformat->priv_data_size > 0) {
+s->priv_data = av_mallocz(s->iformat->priv_data_size);
+if (!s->priv_data) {
+ret = AVERROR(ENOMEM);
+goto error;
+}
+if (s->iformat->priv_class) {
+*(const AVClass**)s->priv_data= s->iformat->priv_class;
+av_opt_set_defaults(s->priv_data);
+}
+} else
+s->priv_data = NULL;
+*avctx = s;
+return 0;
+error:
+avformat_free_context(s);
+return ret;
+}

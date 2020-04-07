@@ -1,0 +1,12 @@
+#import <Cocoa/Cocoa.h>
+@interface VLCHUDOutlineView : NSOutlineView
+@property (strong) NSColor *tableBackgroundColor;
+@property (strong) NSArray *cellAlternatingRowColors;
+@property (strong) NSColor *cellHighlightColor;
+@property (strong) NSColor *cellEditingFillColor;
+@property (strong) NSColor *cellTextColor;
+@property (strong) NSColor *cellSelectedTextColor;
+@property (strong) NSColor *strokeColor;
+@property (strong) NSGradient *highlightGradient;
+@property (strong) NSGradient *normalGradient;
+@end

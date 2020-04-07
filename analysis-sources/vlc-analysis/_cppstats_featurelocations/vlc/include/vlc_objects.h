@@ -1,0 +1,299 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+struct vlc_logger;
+struct vlc_object_internals;
+struct vlc_object_marker;
+
+
+
+
+
+
+
+
+struct vlc_object_t
+{
+struct vlc_logger *logger;
+union {
+struct vlc_object_internals *priv;
+struct vlc_object_marker *obj;
+};
+
+bool no_interact;
+
+
+
+
+
+
+bool force;
+};
+
+
+
+
+
+
+
+
+
+#if !defined(__cplusplus)
+#define VLC_OBJECT(x) _Generic((x)->obj, struct vlc_object_marker *: (x), default: (&((x)->obj)) )
+
+
+
+
+#define vlc_object_cast(t)
+#else
+static inline vlc_object_t *VLC_OBJECT(vlc_object_t *o)
+{
+return o;
+}
+
+#define vlc_object_cast(t) struct t; static inline struct vlc_object_t *VLC_OBJECT(struct t *d) { return (struct vlc_object_t *)d; }
+
+
+
+
+
+#endif
+
+vlc_object_cast(libvlc_int_t)
+vlc_object_cast(intf_thread_t)
+vlc_object_cast(vlc_player_t)
+vlc_object_cast(playlist_t)
+vlc_object_cast(stream_t)
+vlc_object_cast(stream_directory_t)
+vlc_object_cast(stream_extractor_t)
+vlc_object_cast(decoder_t)
+vlc_object_cast(filter_t)
+vlc_object_cast(audio_output)
+vlc_object_cast(vout_thread_t)
+vlc_object_cast(vout_display_t)
+vlc_object_cast(vout_window_t)
+vlc_object_cast(sout_instance_t)
+vlc_object_cast(sout_stream_t)
+vlc_object_cast(sout_access_out_t)
+vlc_object_cast(extensions_manager_t)
+vlc_object_cast(fingerprinter_thread_t)
+vlc_object_cast(demux_meta_t)
+vlc_object_cast(xml_t)
+vlc_object_cast(services_discovery_t)
+vlc_object_cast(vlc_renderer_discovery_t)
+vlc_object_cast(vlc_medialibrary_module_t)
+
+
+struct libvlc_int_t
+{
+struct vlc_object_t obj;
+};
+
+
+
+
+
+
+
+
+VLC_API void *vlc_object_create( vlc_object_t *, size_t ) VLC_MALLOC VLC_USED;
+
+
+
+
+
+
+
+
+VLC_API void vlc_object_delete(vlc_object_t *obj);
+#define vlc_object_delete(obj) vlc_object_delete(VLC_OBJECT(obj))
+
+VLC_API size_t vlc_list_children(vlc_object_t *, vlc_object_t **, size_t) VLC_USED;
+
+
+
+
+
+
+
+
+
+VLC_API const char *vlc_object_typename(const vlc_object_t *obj) VLC_USED;
+
+
+
+
+
+
+
+
+VLC_API vlc_object_t *vlc_object_parent(vlc_object_t *obj) VLC_USED;
+#define vlc_object_parent(o) vlc_object_parent(VLC_OBJECT(o))
+
+static inline struct vlc_logger *vlc_object_logger(vlc_object_t *obj)
+{
+return obj->logger;
+}
+#define vlc_object_logger(o) vlc_object_logger(VLC_OBJECT(o))
+
+
+
+
+
+
+
+
+
+
+
+
+#define vlc_object_get_name(obj) var_GetString(obj, "module-name")
+
+#define vlc_object_create(a,b) vlc_object_create( VLC_OBJECT(a), b )
+
+#define vlc_object_find_name(a,b) vlc_object_find_name( VLC_OBJECT(a),b)
+
+
+VLC_USED
+static inline libvlc_int_t *vlc_object_instance(vlc_object_t *obj)
+{
+vlc_object_t *parent;
+
+do
+parent = obj;
+while ((obj = vlc_object_parent(obj)) != NULL);
+
+return (libvlc_int_t *)parent;
+}
+#define vlc_object_instance(o) vlc_object_instance(VLC_OBJECT(o))
+
+
+VLC_API vout_thread_t *vout_Hold(vout_thread_t *vout);
+VLC_API void vout_Release(vout_thread_t *vout);
+
+
+VLC_API audio_output_t *aout_Hold(audio_output_t *aout);
+VLC_API void aout_Release(audio_output_t *aout);
+
+
+VLC_DEPRECATED static inline void *vlc_object_hold(vlc_object_t *o)
+{
+const char *tn = vlc_object_typename(o);
+
+if (!strcmp(tn, "audio output"))
+aout_Hold((audio_output_t *)o);
+if (!strcmp(tn, "video output"))
+vout_Hold((vout_thread_t *)o);
+return o;
+}
+
+static inline void vlc_object_release(vlc_object_t *o)
+{
+const char *tn = vlc_object_typename(o);
+
+if (!strcmp(tn, "audio output"))
+aout_Release((audio_output_t *)o);
+if (!strcmp(tn, "video output"))
+vout_Release((vout_thread_t *)o);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+VLC_API VLC_MALLOC void *vlc_obj_malloc(vlc_object_t *obj, size_t size);
+
+
+
+
+
+
+
+
+
+
+
+
+
+VLC_API VLC_MALLOC void *vlc_obj_calloc(vlc_object_t *obj, size_t nmemb,
+size_t size);
+
+
+
+
+
+
+
+
+
+
+
+
+VLC_API VLC_MALLOC char *vlc_obj_strdup(vlc_object_t *obj, const char *str);
+
+
+
+
+
+
+
+
+
+
+
+VLC_API void vlc_obj_free(vlc_object_t *obj, void *ptr);
+
+
+

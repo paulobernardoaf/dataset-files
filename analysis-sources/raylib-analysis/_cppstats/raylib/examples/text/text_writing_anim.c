@@ -1,0 +1,24 @@
+#include "raylib.h"
+int main(void)
+{
+const int screenWidth = 800;
+const int screenHeight = 450;
+InitWindow(screenWidth, screenHeight, "raylib [text] example - text writing anim");
+const char message[128] = "This sample illustrates a text writing\nanimation effect! Check it out! ;)";
+int framesCounter = 0;
+SetTargetFPS(60); 
+while (!WindowShouldClose()) 
+{
+if (IsKeyDown(KEY_SPACE)) framesCounter += 8;
+else framesCounter++;
+if (IsKeyPressed(KEY_ENTER)) framesCounter = 0;
+BeginDrawing();
+ClearBackground(RAYWHITE);
+DrawText(TextSubtext(message, 0, framesCounter/10), 210, 160, 20, MAROON);
+DrawText("PRESS [ENTER] to RESTART!", 240, 260, 20, LIGHTGRAY);
+DrawText("PRESS [SPACE] to SPEED UP!", 239, 300, 20, LIGHTGRAY);
+EndDrawing();
+}
+CloseWindow(); 
+return 0;
+}

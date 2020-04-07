@@ -1,0 +1,96 @@
+#if defined(__cplusplus)
+extern "C" {
+#endif
+#if defined(LV_CONF_INCLUDE_SIMPLE)
+#include "lv_conf.h"
+#else
+#include "../../../lv_conf.h"
+#endif
+#if LV_USE_FILESYSTEM
+#include <stdint.h>
+#include <stdbool.h>
+#include "lv_mem.h"
+#define LV_FS_MAX_FN_LENGTH 64
+#define LV_FS_MAX_PATH_LENGTH 256
+enum {
+LV_FS_RES_OK = 0,
+LV_FS_RES_HW_ERR, 
+LV_FS_RES_FS_ERR, 
+LV_FS_RES_NOT_EX, 
+LV_FS_RES_FULL, 
+LV_FS_RES_LOCKED, 
+LV_FS_RES_DENIED, 
+LV_FS_RES_BUSY, 
+LV_FS_RES_TOUT, 
+LV_FS_RES_NOT_IMP, 
+LV_FS_RES_OUT_OF_MEM, 
+LV_FS_RES_INV_PARAM, 
+LV_FS_RES_UNKNOWN, 
+};
+typedef uint8_t lv_fs_res_t;
+enum {
+LV_FS_MODE_WR = 0x01,
+LV_FS_MODE_RD = 0x02,
+};
+typedef uint8_t lv_fs_mode_t;
+typedef struct _lv_fs_drv_t
+{
+char letter;
+uint16_t file_size;
+uint16_t rddir_size;
+bool (*ready_cb)(struct _lv_fs_drv_t * drv);
+lv_fs_res_t (*open_cb)(struct _lv_fs_drv_t * drv, void * file_p, const char * path, lv_fs_mode_t mode);
+lv_fs_res_t (*close_cb)(struct _lv_fs_drv_t * drv, void * file_p);
+lv_fs_res_t (*remove_cb)(struct _lv_fs_drv_t * drv, const char * fn);
+lv_fs_res_t (*read_cb)(struct _lv_fs_drv_t * drv, void * file_p, void * buf, uint32_t btr, uint32_t * br);
+lv_fs_res_t (*write_cb)(struct _lv_fs_drv_t * drv, void * file_p, const void * buf, uint32_t btw, uint32_t * bw);
+lv_fs_res_t (*seek_cb)(struct _lv_fs_drv_t * drv, void * file_p, uint32_t pos);
+lv_fs_res_t (*tell_cb)(struct _lv_fs_drv_t * drv, void * file_p, uint32_t * pos_p);
+lv_fs_res_t (*trunc_cb)(struct _lv_fs_drv_t * drv, void * file_p);
+lv_fs_res_t (*size_cb)(struct _lv_fs_drv_t * drv, void * file_p, uint32_t * size_p);
+lv_fs_res_t (*rename_cb)(struct _lv_fs_drv_t * drv, const char * oldname, const char * newname);
+lv_fs_res_t (*free_space_cb)(struct _lv_fs_drv_t * drv, uint32_t * total_p, uint32_t * free_p);
+lv_fs_res_t (*dir_open_cb)(struct _lv_fs_drv_t * drv, void * rddir_p, const char * path);
+lv_fs_res_t (*dir_read_cb)(struct _lv_fs_drv_t * drv, void * rddir_p, char * fn);
+lv_fs_res_t (*dir_close_cb)(struct _lv_fs_drv_t * drv, void * rddir_p);
+#if LV_USE_USER_DATA
+lv_fs_drv_user_data_t user_data; 
+#endif
+} lv_fs_drv_t;
+typedef struct
+{
+void * file_d;
+lv_fs_drv_t * drv;
+} lv_fs_file_t;
+typedef struct
+{
+void * dir_d;
+lv_fs_drv_t * drv;
+} lv_fs_dir_t;
+void lv_fs_init(void);
+void lv_fs_drv_init(lv_fs_drv_t * drv);
+void lv_fs_drv_register(lv_fs_drv_t * drv_p);
+lv_fs_drv_t * lv_fs_get_drv(char letter);
+bool lv_fs_is_ready(char letter);
+lv_fs_res_t lv_fs_open(lv_fs_file_t * file_p, const char * path, lv_fs_mode_t mode);
+lv_fs_res_t lv_fs_close(lv_fs_file_t * file_p);
+lv_fs_res_t lv_fs_remove(const char * path);
+lv_fs_res_t lv_fs_read(lv_fs_file_t * file_p, void * buf, uint32_t btr, uint32_t * br);
+lv_fs_res_t lv_fs_write(lv_fs_file_t * file_p, const void * buf, uint32_t btw, uint32_t * bw);
+lv_fs_res_t lv_fs_seek(lv_fs_file_t * file_p, uint32_t pos);
+lv_fs_res_t lv_fs_tell(lv_fs_file_t * file_p, uint32_t * pos);
+lv_fs_res_t lv_fs_trunc(lv_fs_file_t * file_p);
+lv_fs_res_t lv_fs_size(lv_fs_file_t * file_p, uint32_t * size);
+lv_fs_res_t lv_fs_rename(const char * oldname, const char * newname);
+lv_fs_res_t lv_fs_dir_open(lv_fs_dir_t * rddir_p, const char * path);
+lv_fs_res_t lv_fs_dir_read(lv_fs_dir_t * rddir_p, char * fn);
+lv_fs_res_t lv_fs_dir_close(lv_fs_dir_t * rddir_p);
+lv_fs_res_t lv_fs_free_space(char letter, uint32_t * total_p, uint32_t * free_p);
+char * lv_fs_get_letters(char * buf);
+const char * lv_fs_get_ext(const char * fn);
+char * lv_fs_up(char * path);
+const char * lv_fs_get_last(const char * path);
+#endif 
+#if defined(__cplusplus)
+} 
+#endif

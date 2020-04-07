@@ -1,0 +1,203 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+#include "raylib.h"
+#include "raymath.h"
+
+#define FLT_MAX 340282346638528859811704183484516925440.0f 
+
+int main(void)
+{
+
+
+const int screenWidth = 800;
+const int screenHeight = 450;
+
+InitWindow(screenWidth, screenHeight, "raylib [models] example - mesh picking");
+
+
+Camera camera = { 0 };
+camera.position = (Vector3){ 20.0f, 20.0f, 20.0f }; 
+camera.target = (Vector3){ 0.0f, 8.0f, 0.0f }; 
+camera.up = (Vector3){ 0.0f, 1.6f, 0.0f }; 
+camera.fovy = 45.0f; 
+camera.type = CAMERA_PERSPECTIVE; 
+
+Ray ray = { 0 }; 
+
+Model tower = LoadModel("resources/models/turret.obj"); 
+Texture2D texture = LoadTexture("resources/models/turret_diffuse.png"); 
+tower.materials[0].maps[MAP_DIFFUSE].texture = texture; 
+
+Vector3 towerPos = { 0.0f, 0.0f, 0.0f }; 
+BoundingBox towerBBox = MeshBoundingBox(tower.meshes[0]); 
+bool hitMeshBBox = false;
+bool hitTriangle = false;
+
+
+Vector3 ta = (Vector3){ -25.0, 0.5, 0.0 };
+Vector3 tb = (Vector3){ -4.0, 2.5, 1.0 };
+Vector3 tc = (Vector3){ -8.0, 6.5, 0.0 };
+
+Vector3 bary = { 0.0f, 0.0f, 0.0f };
+
+SetCameraMode(camera, CAMERA_FREE); 
+
+SetTargetFPS(60); 
+
+
+while (!WindowShouldClose()) 
+{
+
+
+UpdateCamera(&camera); 
+
+
+RayHitInfo nearestHit = { 0 };
+char *hitObjectName = "None";
+nearestHit.distance = FLT_MAX;
+nearestHit.hit = false;
+Color cursorColor = WHITE;
+
+
+ray = GetMouseRay(GetMousePosition(), camera);
+
+
+RayHitInfo groundHitInfo = GetCollisionRayGround(ray, 0.0f);
+
+if ((groundHitInfo.hit) && (groundHitInfo.distance < nearestHit.distance))
+{
+nearestHit = groundHitInfo;
+cursorColor = GREEN;
+hitObjectName = "Ground";
+}
+
+
+RayHitInfo triHitInfo = GetCollisionRayTriangle(ray, ta, tb, tc);
+
+if ((triHitInfo.hit) && (triHitInfo.distance < nearestHit.distance))
+{
+nearestHit = triHitInfo;
+cursorColor = PURPLE;
+hitObjectName = "Triangle";
+
+bary = Vector3Barycenter(nearestHit.position, ta, tb, tc);
+hitTriangle = true;
+}
+else hitTriangle = false;
+
+RayHitInfo meshHitInfo = { 0 };
+
+
+if (CheckCollisionRayBox(ray, towerBBox))
+{
+hitMeshBBox = true;
+
+
+
+meshHitInfo = GetCollisionRayModel(ray, tower);
+
+if ((meshHitInfo.hit) && (meshHitInfo.distance < nearestHit.distance))
+{
+nearestHit = meshHitInfo;
+cursorColor = ORANGE;
+hitObjectName = "Mesh";
+}
+}
+
+hitMeshBBox = false;
+
+
+
+
+BeginDrawing();
+
+ClearBackground(RAYWHITE);
+
+BeginMode3D(camera);
+
+
+
+
+DrawModel(tower, towerPos, 1.0f, WHITE);
+
+
+DrawLine3D(ta, tb, PURPLE);
+DrawLine3D(tb, tc, PURPLE);
+DrawLine3D(tc, ta, PURPLE);
+
+
+if (hitMeshBBox) DrawBoundingBox(towerBBox, LIME);
+
+
+if (nearestHit.hit)
+{
+DrawCube(nearestHit.position, 0.3, 0.3, 0.3, cursorColor);
+DrawCubeWires(nearestHit.position, 0.3, 0.3, 0.3, RED);
+
+Vector3 normalEnd;
+normalEnd.x = nearestHit.position.x + nearestHit.normal.x;
+normalEnd.y = nearestHit.position.y + nearestHit.normal.y;
+normalEnd.z = nearestHit.position.z + nearestHit.normal.z;
+
+DrawLine3D(nearestHit.position, normalEnd, RED);
+}
+
+DrawRay(ray, MAROON);
+
+DrawGrid(10, 10.0f);
+
+EndMode3D();
+
+
+DrawText(FormatText("Hit Object: %s", hitObjectName), 10, 50, 10, BLACK);
+
+if (nearestHit.hit)
+{
+int ypos = 70;
+
+DrawText(FormatText("Distance: %3.2f", nearestHit.distance), 10, ypos, 10, BLACK);
+
+DrawText(FormatText("Hit Pos: %3.2f %3.2f %3.2f",
+nearestHit.position.x,
+nearestHit.position.y,
+nearestHit.position.z), 10, ypos + 15, 10, BLACK);
+
+DrawText(FormatText("Hit Norm: %3.2f %3.2f %3.2f",
+nearestHit.normal.x,
+nearestHit.normal.y,
+nearestHit.normal.z), 10, ypos + 30, 10, BLACK);
+
+if (hitTriangle) DrawText(FormatText("Barycenter: %3.2f %3.2f %3.2f", bary.x, bary.y, bary.z), 10, ypos + 45, 10, BLACK);
+}
+
+DrawText("Use Mouse to Move Camera", 10, 430, 10, GRAY);
+
+DrawText("(c) Turret 3D model by Alberto Cano", screenWidth - 200, screenHeight - 20, 10, GRAY);
+
+DrawFPS(10, 10);
+
+EndDrawing();
+
+}
+
+
+
+UnloadModel(tower); 
+UnloadTexture(texture); 
+
+CloseWindow(); 
+
+
+return 0;
+}

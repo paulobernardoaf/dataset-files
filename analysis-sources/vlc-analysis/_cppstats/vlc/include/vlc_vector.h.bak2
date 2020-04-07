@@ -1,0 +1,644 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#ifndef VLC_VECTOR_H
+#define VLC_VECTOR_H
+
+#include <stdbool.h>
+#include <stddef.h>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#define VLC_VECTOR(type) { size_t cap; size_t size; type *data; }
+
+
+
+
+
+
+
+
+
+#define VLC_VECTOR_INITIALIZER { 0, 0, NULL }
+
+
+
+
+#define vlc_vector_init(pv) (void) (  (pv)->cap = 0, (pv)->size = 0, (pv)->data = NULL )
+
+
+
+
+
+
+
+
+
+
+
+
+#define vlc_vector_destroy(pv) free((pv)->data)
+
+
+
+
+
+
+
+#define vlc_vector_clear(pv) (  vlc_vector_destroy(pv), vlc_vector_init(pv) )
+
+
+
+
+
+
+
+
+
+
+
+#define VLC_VECTOR_MINCAP_ ((size_t) 10)
+
+static inline size_t
+vlc_vector_min_(size_t a, size_t b)
+{
+    return a < b ? a : b;
+}
+
+static inline size_t
+vlc_vector_max_(size_t a, size_t b)
+{
+    return a > b ? a : b;
+}
+
+static inline size_t
+vlc_vector_between_(size_t x, size_t min, size_t max)
+{
+    return vlc_vector_max_(min, vlc_vector_min_(max, x));
+}
+
+static inline size_t
+vlc_vector_enforce_size_t_(size_t value)
+{
+    return value;
+}
+
+#define VLC_VECTOR_FAILFLAG_ (~(((size_t) -1) >> 1)) 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+static inline void *
+vlc_vector_reallocdata_(void *ptr, size_t count, size_t size,
+                        size_t *restrict pcap, size_t *restrict psize)
+{
+    void *n = vlc_reallocarray(ptr, count, size);
+    if (!n)
+    {
+        
+
+
+        *pcap |= VLC_VECTOR_FAILFLAG_;
+        return ptr;
+    }
+    *pcap = count;
+    *psize = vlc_vector_min_(*psize, count);
+    return n;
+}
+
+
+
+
+
+
+
+static inline bool
+vlc_vector_test_and_reset_failflag_(size_t *pcap)
+{
+    if (*pcap & VLC_VECTOR_FAILFLAG_)
+    {
+        *pcap &= ~VLC_VECTOR_FAILFLAG_;
+        return true;
+    }
+    return false;
+}
+
+
+
+
+
+
+
+
+
+
+
+#define vlc_vector_realloc_(pv, newcap) ( (pv)->data = vlc_vector_reallocdata_((pv)->data, newcap, sizeof(*(pv)->data), &(pv)->cap, &(pv)->size), !vlc_vector_test_and_reset_failflag_(&(pv)->cap) )
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#define vlc_vector_resize_(pv, newcap) ( (pv)->cap == (newcap)  || ( (newcap) > 0 ? vlc_vector_realloc_(pv, newcap) : (vlc_vector_clear(pv), true) ) )
+
+
+
+
+
+
+
+
+static inline size_t
+vlc_vector_growsize_(size_t value)
+{
+    
+    return value + (value >> 1);
+}
+
+
+#define vlc_vector_max_cap_(pv) (SIZE_MAX / 2 / sizeof(*(pv)->data))
+
+
+
+
+
+
+
+
+
+#define vlc_vector_reserve(pv, mincap)  vlc_vector_reserve_internal_(pv, vlc_vector_max_(mincap, VLC_VECTOR_MINCAP_))
+
+
+
+
+#define vlc_vector_reserve_internal_(pv, mincap) ( (mincap) <= (pv)->cap  || ( (mincap) <= vlc_vector_max_cap_(pv)  && vlc_vector_realloc_(pv,  vlc_vector_between_(vlc_vector_growsize_((pv)->cap), mincap, vlc_vector_max_cap_(pv))) ) )
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#define vlc_vector_shrink_to_fit(pv) (void)  vlc_vector_resize_(pv, (pv)->size)
+
+
+
+
+
+
+
+
+
+
+#define vlc_vector_autoshrink(pv) (void) ( (pv)->cap <= VLC_VECTOR_MINCAP_  || (pv)->cap < vlc_vector_growsize_((pv)->size+5)  || vlc_vector_resize_(pv, vlc_vector_max_((pv)->size+5, VLC_VECTOR_MINCAP_)) )
+
+
+
+
+
+
+#define vlc_vector_check_same_ptr_type_(a, b) (void) ((a) == (b)) 
+
+
+
+
+
+
+
+
+
+
+
+
+#define vlc_vector_push(pv, item) ( vlc_vector_reserve(pv, (pv)->size + 1) && ( (pv)->data[(pv)->size++] = (item), true ) )
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#define vlc_vector_push_all(pv, items, count) vlc_vector_push_all_internal_(pv, items, vlc_vector_enforce_size_t_(count))
+
+
+#define vlc_vector_push_all_internal_(pv, items, count) ( vlc_vector_check_same_ptr_type_((pv)->data, items), vlc_vector_reserve(pv, (pv)->size + (count)) && ( memcpy(&(pv)->data[(pv)->size], items, (count) * sizeof(*(pv)->data)), (pv)->size += (count), true ) )
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#define vlc_vector_insert_hole(pv, index, count) vlc_vector_insert_hole_internal_(pv, vlc_vector_enforce_size_t_(index), vlc_vector_enforce_size_t_(count))
+
+
+
+#define vlc_vector_insert_hole_internal_(pv, index, count) ( vlc_vector_reserve(pv, (pv)->size + (count)) && ( (index) == (pv)->size || ( memmove(&(pv)->data[(index) + (count)], &(pv)->data[index], ((pv)->size - (index)) * sizeof(*(pv)->data)), true ) ) && ( (pv)->size += (count), true ) )
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#define vlc_vector_insert(pv, index, item) ( vlc_vector_insert_hole(pv, index, 1) && ( (pv)->data[index] = (item), true ) )
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#define vlc_vector_insert_all(pv, index, items, count) ( vlc_vector_check_same_ptr_type_((pv)->data, items), vlc_vector_insert_hole(pv, index, count) && ( memcpy(&(pv)->data[index], items, (count) * sizeof(*(pv)->data)), true ) )
+
+
+
+
+
+
+
+
+
+
+static inline void
+vlc_vector_reverse_array_(char *array, size_t len)
+{
+    for (size_t i = 0; i < len / 2; ++i)
+    {
+        char c = array[i];
+        array[i] = array[len - i - 1];
+        array[len - i - 1] = c;
+    }
+}
+
+
+
+
+
+
+
+
+
+static inline void
+vlc_vector_rotate_array_left_(char *array, size_t len, size_t distance)
+{
+    vlc_vector_reverse_array_(array, distance);
+    vlc_vector_reverse_array_(&array[distance], len - distance);
+    vlc_vector_reverse_array_(array, len);
+}
+
+
+
+
+
+
+
+
+
+static inline void
+vlc_vector_rotate_array_right_(char *array, size_t len, size_t distance)
+{
+    vlc_vector_rotate_array_left_(array, len, len - distance);
+}
+
+
+
+
+
+
+static inline void
+vlc_vector_move_(char *array, size_t index, size_t count, size_t target)
+{
+    if (index < target)
+        vlc_vector_rotate_array_left_(&array[index], target - index + count,
+                                      count);
+    else
+        vlc_vector_rotate_array_right_(&array[target], index - target + count,
+                                       count);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+#define vlc_vector_move_slice(pv, index, count, target) vlc_vector_move_slice_internal_(pv, vlc_vector_enforce_size_t_(index), vlc_vector_enforce_size_t_(count), vlc_vector_enforce_size_t_(target))
+
+
+
+
+
+#define vlc_vector_move_slice_internal_(pv, index, count, target) vlc_vector_move_((char *) (pv)->data, (index) * sizeof((pv)->data[0]), (count) * sizeof((pv)->data[0]), (target) * sizeof((pv)->data[0]))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#define vlc_vector_move(pv, index, target) vlc_vector_move_slice(pv, index, 1, target)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#define vlc_vector_remove_slice_noshrink(pv, index, count) vlc_vector_remove_slice_noshrink_internal_(pv, vlc_vector_enforce_size_t_(index), vlc_vector_enforce_size_t_(count))
+
+
+
+
+#define vlc_vector_remove_slice_noshrink_internal_(pv, index, count) do { if ((index) + (count) < (pv)->size) memmove(&(pv)->data[index], &(pv)->data[(index) + (count)], ((pv)->size - (index) - (count)) * sizeof(*(pv)->data)); (pv)->size -= (count); } while (0)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#define vlc_vector_remove_slice(pv, index, count) do { vlc_vector_remove_slice_noshrink(pv, index, count); vlc_vector_autoshrink(pv); } while (0)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#define vlc_vector_remove_noshrink(pv, index) vlc_vector_remove_slice_noshrink(pv, index, 1)
+
+
+
+
+
+
+
+
+
+
+#define vlc_vector_remove(pv, index) do { vlc_vector_remove_noshrink(pv, index); vlc_vector_autoshrink(pv); } while (0)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#define vlc_vector_swap_remove(pv, index) do { (pv)->data[index] = (pv)->data[(pv)->size-1]; (pv)->size--; } while(0)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#define vlc_vector_index_of(pv, item, pidx) do { ssize_t *out = pidx;  size_t vlc_vector_find_idx_; for (vlc_vector_find_idx_ = 0; vlc_vector_find_idx_ < (pv)->size; ++vlc_vector_find_idx_) if ((pv)->data[vlc_vector_find_idx_] == (item)) break; *out = vlc_vector_find_idx_ == (pv)->size ? -1 : (ssize_t) vlc_vector_find_idx_; } while (0)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#define vlc_vector_foreach(item, pv) for (size_t vlc_vector_idx_##item = 0; vlc_vector_idx_##item < (pv)->size && ((item) = (pv)->data[vlc_vector_idx_##item], true); ++vlc_vector_idx_##item)
+
+
+
+
+
+
+
+#endif

@@ -1,0 +1,1177 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" revision="1.0.0" language="C" filename="D:\Pesquisa\Projects\obs-analysis\_cppstats\obs-studio\plugins\obs-qsv11\obs-qsv11.c"><cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;stdio.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;util/dstr.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;util/darray.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;util/platform.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;obs-module.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;obs-avc.h&gt;</cpp:file></cpp:include>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><operator>!</operator><call><name>defined</name><argument_list>(<argument><expr><name>_STDINT_H_INCLUDED</name></expr></argument>)</argument_list></call></expr></cpp:if>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>_STDINT_H_INCLUDED</name></cpp:macro></cpp:define>
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"QSV_Encoder.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;Windows.h&gt;</cpp:file></cpp:include>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>do_log</name><parameter_list>(<parameter><type><name>level</name></type></parameter>, <parameter><type><name>format</name></type></parameter>, <parameter><type><modifier>...</modifier></type></parameter>)</parameter_list></cpp:macro> <cpp:value>blog(level, "[qsv encoder: '%s'] " format, obs_encoder_get_name(obsqsv-&gt;encoder), ##__VA_ARGS__)</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>warn</name><parameter_list>(<parameter><type><name>format</name></type></parameter>, <parameter><type><modifier>...</modifier></type></parameter>)</parameter_list></cpp:macro> <cpp:value>do_log(LOG_WARNING, format, ##__VA_ARGS__)</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>info</name><parameter_list>(<parameter><type><name>format</name></type></parameter>, <parameter><type><modifier>...</modifier></type></parameter>)</parameter_list></cpp:macro> <cpp:value>do_log(LOG_INFO, format, ##__VA_ARGS__)</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>debug</name><parameter_list>(<parameter><type><name>format</name></type></parameter>, <parameter><type><modifier>...</modifier></type></parameter>)</parameter_list></cpp:macro> <cpp:value>do_log(LOG_DEBUG, format, ##__VA_ARGS__)</cpp:value></cpp:define>
+
+<struct>struct <name>obs_qsv</name> <block>{
+
+<decl_stmt><decl><type><name>obs_encoder_t</name> <modifier>*</modifier></type><name>encoder</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>qsv_param_t</name></type> <name>params</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>qsv_t</name> <modifier>*</modifier></type><name>context</name></decl>;</decl_stmt>
+
+<macro><name>DARRAY</name><argument_list>(<argument>uint8_t</argument>)</argument_list></macro> <expr_stmt><expr><name>packet_data</name></expr>;</expr_stmt>
+
+<decl_stmt><decl><type><name>uint8_t</name> <modifier>*</modifier></type><name>extra_data</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>uint8_t</name> <modifier>*</modifier></type><name>sei</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>size_t</name></type> <name>extra_data_size</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>size_t</name></type> <name>sei_size</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>os_performance_token_t</name> <modifier>*</modifier></type><name>performance_token</name></decl>;</decl_stmt>
+
+}</block>;</struct>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>CRITICAL_SECTION</name></type> <name>g_QsvCs</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>unsigned</name> <name>short</name></type> <name>g_verMajor</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>unsigned</name> <name>short</name></type> <name>g_verMinor</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>int64_t</name></type> <name>g_pts2dtsShift</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>int64_t</name></type> <name>g_prevDts</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>bool</name></type> <name>g_bFirst</name></decl>;</decl_stmt>
+
+<function><type><specifier>static</specifier> <specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>obs_qsv_getname</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>type_data</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>UNUSED_PARAMETER</name><argument_list>(<argument><expr><name>type_data</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><literal type="string">"QuickSync H.264"</literal></expr>;</return>
+
+</block_content>}</block></function>
+
+<function_decl><type><specifier>static</specifier> <name>void</name></type> <name>obs_qsv_stop</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>)</parameter_list>;</function_decl>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>clear_data</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>obs_qsv</name></name> <modifier>*</modifier></type><name>obsqsv</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><name><name>obsqsv</name><operator>-&gt;</operator><name>context</name></name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>EnterCriticalSection</name><argument_list>(<argument><expr><operator>&amp;</operator><name>g_QsvCs</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>qsv_encoder_close</name><argument_list>(<argument><expr><name><name>obsqsv</name><operator>-&gt;</operator><name>context</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>obsqsv</name><operator>-&gt;</operator><name>context</name></name> <operator>=</operator> <name>NULL</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>LeaveCriticalSection</name><argument_list>(<argument><expr><operator>&amp;</operator><name>g_QsvCs</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>bfree</name><argument_list>(<argument><expr><name><name>obsqsv</name><operator>-&gt;</operator><name>extra_data</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>obsqsv</name><operator>-&gt;</operator><name>extra_data</name></name> <operator>=</operator> <name>NULL</name></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>obs_qsv_destroy</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>obs_qsv</name></name> <modifier>*</modifier></type><name>obsqsv</name> <init>= <expr><operator>(</operator>struct <name>obs_qsv</name> <operator>*</operator><operator>)</operator><name>data</name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>obsqsv</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>os_end_high_performance</name><argument_list>(<argument><expr><name><name>obsqsv</name><operator>-&gt;</operator><name>performance_token</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>clear_data</name><argument_list>(<argument><expr><name>obsqsv</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>da_free</name><argument_list>(<argument><expr><name><name>obsqsv</name><operator>-&gt;</operator><name>packet_data</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>bfree</name><argument_list>(<argument><expr><name>obsqsv</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>obs_qsv_defaults</name><parameter_list>(<parameter><decl><type><name>obs_data_t</name> <modifier>*</modifier></type><name>settings</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>obs_data_set_default_string</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"target_usage"</literal></expr></argument>, <argument><expr><literal type="string">"balanced"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_data_set_default_int</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"bitrate"</literal></expr></argument>, <argument><expr><literal type="number">2500</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_data_set_default_int</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"max_bitrate"</literal></expr></argument>, <argument><expr><literal type="number">3000</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_data_set_default_string</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"profile"</literal></expr></argument>, <argument><expr><literal type="string">"high"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_data_set_default_int</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"async_depth"</literal></expr></argument>, <argument><expr><literal type="number">4</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_data_set_default_string</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"rate_control"</literal></expr></argument>, <argument><expr><literal type="string">"CBR"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_data_set_default_int</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"accuracy"</literal></expr></argument>, <argument><expr><literal type="number">1000</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_data_set_default_int</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"convergence"</literal></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_data_set_default_int</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"qpi"</literal></expr></argument>, <argument><expr><literal type="number">23</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_data_set_default_int</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"qpp"</literal></expr></argument>, <argument><expr><literal type="number">23</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_data_set_default_int</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"qpb"</literal></expr></argument>, <argument><expr><literal type="number">23</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_data_set_default_int</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"icq_quality"</literal></expr></argument>, <argument><expr><literal type="number">23</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_data_set_default_int</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"la_depth"</literal></expr></argument>, <argument><expr><literal type="number">15</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_data_set_default_int</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"keyint_sec"</literal></expr></argument>, <argument><expr><literal type="number">3</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_data_set_default_int</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"bframes"</literal></expr></argument>, <argument><expr><literal type="number">3</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_data_set_default_bool</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"mbbrc"</literal></expr></argument>, <argument><expr><name>true</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <specifier>inline</specifier> <name>void</name></type> <name>add_strings</name><parameter_list>(<parameter><decl><type><name>obs_property_t</name> <modifier>*</modifier></type><name>list</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier><specifier>const</specifier> <modifier>*</modifier></type><name>strings</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<while>while <condition>(<expr><operator>*</operator><name>strings</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>obs_property_list_add_string</name><argument_list>(<argument><expr><name>list</name></expr></argument>, <argument><expr><operator>*</operator><name>strings</name></expr></argument>, <argument><expr><operator>*</operator><name>strings</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>strings</name><operator>++</operator></expr>;</expr_stmt>
+
+</block_content>}</block></while>
+
+</block_content>}</block></function>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>TEXT_SPEED</name></cpp:macro> <cpp:value>obs_module_text("TargetUsage")</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>TEXT_TARGET_BITRATE</name></cpp:macro> <cpp:value>obs_module_text("Bitrate")</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>TEXT_MAX_BITRATE</name></cpp:macro> <cpp:value>obs_module_text("MaxBitrate")</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>TEXT_PROFILE</name></cpp:macro> <cpp:value>obs_module_text("Profile")</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>TEXT_ASYNC_DEPTH</name></cpp:macro> <cpp:value>obs_module_text("AsyncDepth")</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>TEXT_RATE_CONTROL</name></cpp:macro> <cpp:value>obs_module_text("RateControl")</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>TEXT_ACCURACY</name></cpp:macro> <cpp:value>obs_module_text("Accuracy")</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>TEXT_CONVERGENCE</name></cpp:macro> <cpp:value>obs_module_text("Convergence")</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>TEXT_ICQ_QUALITY</name></cpp:macro> <cpp:value>obs_module_text("ICQQuality")</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>TEXT_LA_DEPTH</name></cpp:macro> <cpp:value>obs_module_text("LookAheadDepth")</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>TEXT_KEYINT_SEC</name></cpp:macro> <cpp:value>obs_module_text("KeyframeIntervalSec")</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>TEXT_BFRAMES</name></cpp:macro> <cpp:value>obs_module_text("B Frames")</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>TEXT_MBBRC</name></cpp:macro> <cpp:value>obs_module_text("Content Adaptive Quantization")</cpp:value></cpp:define>
+
+<function><type><specifier>static</specifier> <specifier>inline</specifier> <name>bool</name></type> <name>is_skl_or_greater_platform</name><parameter_list>()</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>enum</name> <name>qsv_cpu_platform</name></name></type> <name>plat</name> <init>= <expr><call><name>qsv_get_cpu_platform</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<return>return <expr><operator>(</operator><name>plat</name> <operator>&gt;=</operator> <name>QSV_CPU_PLATFORM_SKL</name><operator>)</operator></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>bool</name></type> <name>rate_control_modified</name><parameter_list>(<parameter><decl><type><name>obs_properties_t</name> <modifier>*</modifier></type><name>ppts</name></decl></parameter>, <parameter><decl><type><name>obs_property_t</name> <modifier>*</modifier></type><name>p</name></decl></parameter>,
+
+<parameter><decl><type><name>obs_data_t</name> <modifier>*</modifier></type><name>settings</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>rate_control</name> <init>=
+
+<expr><call><name>obs_data_get_string</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"rate_control"</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>bool</name></type> <name>bVisible</name> <init>= <expr><call><name>astrcmpi</name><argument_list>(<argument><expr><name>rate_control</name></expr></argument>, <argument><expr><literal type="string">"VCM"</literal></expr></argument>)</argument_list></call> <operator>==</operator> <literal type="number">0</literal> <operator>||</operator>
+
+<call><name>astrcmpi</name><argument_list>(<argument><expr><name>rate_control</name></expr></argument>, <argument><expr><literal type="string">"VBR"</literal></expr></argument>)</argument_list></call> <operator>==</operator> <literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>p</name> <operator>=</operator> <call><name>obs_properties_get</name><argument_list>(<argument><expr><name>ppts</name></expr></argument>, <argument><expr><literal type="string">"max_bitrate"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_property_set_visible</name><argument_list>(<argument><expr><name>p</name></expr></argument>, <argument><expr><name>bVisible</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>bVisible</name> <operator>=</operator> <call><name>astrcmpi</name><argument_list>(<argument><expr><name>rate_control</name></expr></argument>, <argument><expr><literal type="string">"CQP"</literal></expr></argument>)</argument_list></call> <operator>==</operator> <literal type="number">0</literal> <operator>||</operator>
+
+<call><name>astrcmpi</name><argument_list>(<argument><expr><name>rate_control</name></expr></argument>, <argument><expr><literal type="string">"LA_ICQ"</literal></expr></argument>)</argument_list></call> <operator>==</operator> <literal type="number">0</literal> <operator>||</operator>
+
+<call><name>astrcmpi</name><argument_list>(<argument><expr><name>rate_control</name></expr></argument>, <argument><expr><literal type="string">"ICQ"</literal></expr></argument>)</argument_list></call> <operator>==</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>p</name> <operator>=</operator> <call><name>obs_properties_get</name><argument_list>(<argument><expr><name>ppts</name></expr></argument>, <argument><expr><literal type="string">"bitrate"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_property_set_visible</name><argument_list>(<argument><expr><name>p</name></expr></argument>, <argument><expr><operator>!</operator><name>bVisible</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>bVisible</name> <operator>=</operator> <call><name>astrcmpi</name><argument_list>(<argument><expr><name>rate_control</name></expr></argument>, <argument><expr><literal type="string">"AVBR"</literal></expr></argument>)</argument_list></call> <operator>==</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>p</name> <operator>=</operator> <call><name>obs_properties_get</name><argument_list>(<argument><expr><name>ppts</name></expr></argument>, <argument><expr><literal type="string">"accuracy"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_property_set_visible</name><argument_list>(<argument><expr><name>p</name></expr></argument>, <argument><expr><name>bVisible</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>p</name> <operator>=</operator> <call><name>obs_properties_get</name><argument_list>(<argument><expr><name>ppts</name></expr></argument>, <argument><expr><literal type="string">"convergence"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_property_set_visible</name><argument_list>(<argument><expr><name>p</name></expr></argument>, <argument><expr><name>bVisible</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>bVisible</name> <operator>=</operator> <call><name>astrcmpi</name><argument_list>(<argument><expr><name>rate_control</name></expr></argument>, <argument><expr><literal type="string">"CQP"</literal></expr></argument>)</argument_list></call> <operator>==</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>p</name> <operator>=</operator> <call><name>obs_properties_get</name><argument_list>(<argument><expr><name>ppts</name></expr></argument>, <argument><expr><literal type="string">"qpi"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_property_set_visible</name><argument_list>(<argument><expr><name>p</name></expr></argument>, <argument><expr><name>bVisible</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>p</name> <operator>=</operator> <call><name>obs_properties_get</name><argument_list>(<argument><expr><name>ppts</name></expr></argument>, <argument><expr><literal type="string">"qpb"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_property_set_visible</name><argument_list>(<argument><expr><name>p</name></expr></argument>, <argument><expr><name>bVisible</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>p</name> <operator>=</operator> <call><name>obs_properties_get</name><argument_list>(<argument><expr><name>ppts</name></expr></argument>, <argument><expr><literal type="string">"qpp"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_property_set_visible</name><argument_list>(<argument><expr><name>p</name></expr></argument>, <argument><expr><name>bVisible</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>bVisible</name> <operator>=</operator> <call><name>astrcmpi</name><argument_list>(<argument><expr><name>rate_control</name></expr></argument>, <argument><expr><literal type="string">"ICQ"</literal></expr></argument>)</argument_list></call> <operator>==</operator> <literal type="number">0</literal> <operator>||</operator>
+
+<call><name>astrcmpi</name><argument_list>(<argument><expr><name>rate_control</name></expr></argument>, <argument><expr><literal type="string">"LA_ICQ"</literal></expr></argument>)</argument_list></call> <operator>==</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>p</name> <operator>=</operator> <call><name>obs_properties_get</name><argument_list>(<argument><expr><name>ppts</name></expr></argument>, <argument><expr><literal type="string">"icq_quality"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_property_set_visible</name><argument_list>(<argument><expr><name>p</name></expr></argument>, <argument><expr><name>bVisible</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>bVisible</name> <operator>=</operator> <call><name>astrcmpi</name><argument_list>(<argument><expr><name>rate_control</name></expr></argument>, <argument><expr><literal type="string">"LA_ICQ"</literal></expr></argument>)</argument_list></call> <operator>==</operator> <literal type="number">0</literal> <operator>||</operator>
+
+<call><name>astrcmpi</name><argument_list>(<argument><expr><name>rate_control</name></expr></argument>, <argument><expr><literal type="string">"LA_CBR"</literal></expr></argument>)</argument_list></call> <operator>==</operator> <literal type="number">0</literal> <operator>||</operator>
+
+<call><name>astrcmpi</name><argument_list>(<argument><expr><name>rate_control</name></expr></argument>, <argument><expr><literal type="string">"LA_VBR"</literal></expr></argument>)</argument_list></call> <operator>==</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>p</name> <operator>=</operator> <call><name>obs_properties_get</name><argument_list>(<argument><expr><name>ppts</name></expr></argument>, <argument><expr><literal type="string">"la_depth"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_property_set_visible</name><argument_list>(<argument><expr><name>p</name></expr></argument>, <argument><expr><name>bVisible</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>bVisible</name> <operator>=</operator> <call><name>astrcmpi</name><argument_list>(<argument><expr><name>rate_control</name></expr></argument>, <argument><expr><literal type="string">"CBR"</literal></expr></argument>)</argument_list></call> <operator>==</operator> <literal type="number">0</literal> <operator>||</operator>
+
+<call><name>astrcmpi</name><argument_list>(<argument><expr><name>rate_control</name></expr></argument>, <argument><expr><literal type="string">"VBR"</literal></expr></argument>)</argument_list></call> <operator>==</operator> <literal type="number">0</literal> <operator>||</operator>
+
+<call><name>astrcmpi</name><argument_list>(<argument><expr><name>rate_control</name></expr></argument>, <argument><expr><literal type="string">"AVBR"</literal></expr></argument>)</argument_list></call> <operator>==</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>p</name> <operator>=</operator> <call><name>obs_properties_get</name><argument_list>(<argument><expr><name>ppts</name></expr></argument>, <argument><expr><literal type="string">"mbbrc"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_property_set_visible</name><argument_list>(<argument><expr><name>p</name></expr></argument>, <argument><expr><name>bVisible</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>true</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>bool</name></type> <name>profile_modified</name><parameter_list>(<parameter><decl><type><name>obs_properties_t</name> <modifier>*</modifier></type><name>ppts</name></decl></parameter>, <parameter><decl><type><name>obs_property_t</name> <modifier>*</modifier></type><name>p</name></decl></parameter>,
+
+<parameter><decl><type><name>obs_data_t</name> <modifier>*</modifier></type><name>settings</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>profile</name> <init>= <expr><call><name>obs_data_get_string</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"profile"</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name><name>enum</name> <name>qsv_cpu_platform</name></name></type> <name>plat</name> <init>= <expr><call><name>qsv_get_cpu_platform</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>bool</name></type> <name>bVisible</name> <init>= <expr><operator>(</operator><operator>(</operator><call><name>astrcmpi</name><argument_list>(<argument><expr><name>profile</name></expr></argument>, <argument><expr><literal type="string">"high"</literal></expr></argument>)</argument_list></call> <operator>==</operator> <literal type="number">0</literal><operator>)</operator> <operator>&amp;&amp;</operator>
+
+<operator>(</operator><name>plat</name> <operator>&gt;=</operator> <name>QSV_CPU_PLATFORM_ICL</name><operator>)</operator><operator>)</operator></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>p</name> <operator>=</operator> <call><name>obs_properties_get</name><argument_list>(<argument><expr><name>ppts</name></expr></argument>, <argument><expr><literal type="string">"CQM"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_property_set_visible</name><argument_list>(<argument><expr><name>p</name></expr></argument>, <argument><expr><name>bVisible</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>true</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <specifier>inline</specifier> <name>void</name></type> <name>add_rate_controls</name><parameter_list>(<parameter><decl><type><name>obs_property_t</name> <modifier>*</modifier></type><name>list</name></decl></parameter>,
+
+<parameter><decl><type><specifier>const</specifier> <name><name>struct</name> <name>qsv_rate_control_info</name></name> <modifier>*</modifier></type><name>rc</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>enum</name> <name>qsv_cpu_platform</name></name></type> <name>plat</name> <init>= <expr><call><name>qsv_get_cpu_platform</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<while>while <condition>(<expr><name><name>rc</name><operator>-&gt;</operator><name>name</name></name></expr>)</condition> <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>rc</name><operator>-&gt;</operator><name>haswell_or_greater</name></name> <operator>||</operator> <name>plat</name> <operator>&gt;=</operator> <name>QSV_CPU_PLATFORM_HSW</name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>obs_property_list_add_string</name><argument_list>(<argument><expr><name>list</name></expr></argument>, <argument><expr><name><name>rc</name><operator>-&gt;</operator><name>name</name></name></expr></argument>, <argument><expr><name><name>rc</name><operator>-&gt;</operator><name>name</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>rc</name><operator>++</operator></expr>;</expr_stmt>
+
+</block_content>}</block></while>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>obs_properties_t</name> <modifier>*</modifier></type><name>obs_qsv_props</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>unused</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>UNUSED_PARAMETER</name><argument_list>(<argument><expr><name>unused</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<decl_stmt><decl><type><name>obs_properties_t</name> <modifier>*</modifier></type><name>props</name> <init>= <expr><call><name>obs_properties_create</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>obs_property_t</name> <modifier>*</modifier></type><name>list</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>list</name> <operator>=</operator> <call><name>obs_properties_add_list</name><argument_list>(<argument><expr><name>props</name></expr></argument>, <argument><expr><literal type="string">"target_usage"</literal></expr></argument>, <argument><expr><name>TEXT_SPEED</name></expr></argument>,
+
+<argument><expr><name>OBS_COMBO_TYPE_LIST</name></expr></argument>,
+
+<argument><expr><name>OBS_COMBO_FORMAT_STRING</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>add_strings</name><argument_list>(<argument><expr><name>list</name></expr></argument>, <argument><expr><name>qsv_usage_names</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>list</name> <operator>=</operator> <call><name>obs_properties_add_list</name><argument_list>(<argument><expr><name>props</name></expr></argument>, <argument><expr><literal type="string">"profile"</literal></expr></argument>, <argument><expr><name>TEXT_PROFILE</name></expr></argument>,
+
+<argument><expr><name>OBS_COMBO_TYPE_LIST</name></expr></argument>,
+
+<argument><expr><name>OBS_COMBO_FORMAT_STRING</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>add_strings</name><argument_list>(<argument><expr><name>list</name></expr></argument>, <argument><expr><name>qsv_profile_names</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_property_set_modified_callback</name><argument_list>(<argument><expr><name>list</name></expr></argument>, <argument><expr><name>profile_modified</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_properties_add_int</name><argument_list>(<argument><expr><name>props</name></expr></argument>, <argument><expr><literal type="string">"keyint_sec"</literal></expr></argument>, <argument><expr><name>TEXT_KEYINT_SEC</name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>, <argument><expr><literal type="number">20</literal></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_properties_add_int</name><argument_list>(<argument><expr><name>props</name></expr></argument>, <argument><expr><literal type="string">"async_depth"</literal></expr></argument>, <argument><expr><name>TEXT_ASYNC_DEPTH</name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>, <argument><expr><literal type="number">7</literal></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>list</name> <operator>=</operator> <call><name>obs_properties_add_list</name><argument_list>(<argument><expr><name>props</name></expr></argument>, <argument><expr><literal type="string">"rate_control"</literal></expr></argument>, <argument><expr><name>TEXT_RATE_CONTROL</name></expr></argument>,
+
+<argument><expr><name>OBS_COMBO_TYPE_LIST</name></expr></argument>,
+
+<argument><expr><name>OBS_COMBO_FORMAT_STRING</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>add_rate_controls</name><argument_list>(<argument><expr><name>list</name></expr></argument>, <argument><expr><name>qsv_ratecontrols</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_property_set_modified_callback</name><argument_list>(<argument><expr><name>list</name></expr></argument>, <argument><expr><name>rate_control_modified</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<decl_stmt><decl><type><name>obs_property_t</name> <modifier>*</modifier></type><name>p</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>p</name> <operator>=</operator> <call><name>obs_properties_add_int</name><argument_list>(<argument><expr><name>props</name></expr></argument>, <argument><expr><literal type="string">"bitrate"</literal></expr></argument>, <argument><expr><name>TEXT_TARGET_BITRATE</name></expr></argument>, <argument><expr><literal type="number">50</literal></expr></argument>,
+
+<argument><expr><literal type="number">10000000</literal></expr></argument>, <argument><expr><literal type="number">50</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_property_int_set_suffix</name><argument_list>(<argument><expr><name>p</name></expr></argument>, <argument><expr><literal type="string">" Kbps"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>p</name> <operator>=</operator> <call><name>obs_properties_add_int</name><argument_list>(<argument><expr><name>props</name></expr></argument>, <argument><expr><literal type="string">"max_bitrate"</literal></expr></argument>, <argument><expr><name>TEXT_MAX_BITRATE</name></expr></argument>, <argument><expr><literal type="number">50</literal></expr></argument>,
+
+<argument><expr><literal type="number">10000000</literal></expr></argument>, <argument><expr><literal type="number">50</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_property_int_set_suffix</name><argument_list>(<argument><expr><name>p</name></expr></argument>, <argument><expr><literal type="string">" Kbps"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_properties_add_int</name><argument_list>(<argument><expr><name>props</name></expr></argument>, <argument><expr><literal type="string">"accuracy"</literal></expr></argument>, <argument><expr><name>TEXT_ACCURACY</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><literal type="number">10000</literal></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_properties_add_int</name><argument_list>(<argument><expr><name>props</name></expr></argument>, <argument><expr><literal type="string">"convergence"</literal></expr></argument>, <argument><expr><name>TEXT_CONVERGENCE</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><literal type="number">10</literal></expr></argument>,
+
+<argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_properties_add_int</name><argument_list>(<argument><expr><name>props</name></expr></argument>, <argument><expr><literal type="string">"qpi"</literal></expr></argument>, <argument><expr><literal type="string">"QPI"</literal></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>, <argument><expr><literal type="number">51</literal></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_properties_add_int</name><argument_list>(<argument><expr><name>props</name></expr></argument>, <argument><expr><literal type="string">"qpp"</literal></expr></argument>, <argument><expr><literal type="string">"QPP"</literal></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>, <argument><expr><literal type="number">51</literal></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_properties_add_int</name><argument_list>(<argument><expr><name>props</name></expr></argument>, <argument><expr><literal type="string">"qpb"</literal></expr></argument>, <argument><expr><literal type="string">"QPB"</literal></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>, <argument><expr><literal type="number">51</literal></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_properties_add_int</name><argument_list>(<argument><expr><name>props</name></expr></argument>, <argument><expr><literal type="string">"icq_quality"</literal></expr></argument>, <argument><expr><name>TEXT_ICQ_QUALITY</name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>, <argument><expr><literal type="number">51</literal></expr></argument>,
+
+<argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_properties_add_int</name><argument_list>(<argument><expr><name>props</name></expr></argument>, <argument><expr><literal type="string">"la_depth"</literal></expr></argument>, <argument><expr><name>TEXT_LA_DEPTH</name></expr></argument>, <argument><expr><literal type="number">10</literal></expr></argument>, <argument><expr><literal type="number">100</literal></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_properties_add_int</name><argument_list>(<argument><expr><name>props</name></expr></argument>, <argument><expr><literal type="string">"bframes"</literal></expr></argument>, <argument><expr><name>TEXT_BFRAMES</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><literal type="number">3</literal></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>is_skl_or_greater_platform</name><argument_list>()</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>obs_properties_add_bool</name><argument_list>(<argument><expr><name>props</name></expr></argument>, <argument><expr><literal type="string">"mbbrc"</literal></expr></argument>, <argument><expr><name>TEXT_MBBRC</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>obs_properties_add_bool</name><argument_list>(<argument><expr><name>props</name></expr></argument>, <argument><expr><literal type="string">"CQM"</literal></expr></argument>, <argument><expr><literal type="string">"Customized quantization matrix"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>props</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>update_params</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>obs_qsv</name></name> <modifier>*</modifier></type><name>obsqsv</name></decl></parameter>, <parameter><decl><type><name>obs_data_t</name> <modifier>*</modifier></type><name>settings</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>video_t</name> <modifier>*</modifier></type><name>video</name> <init>= <expr><call><name>obs_encoder_video</name><argument_list>(<argument><expr><name><name>obsqsv</name><operator>-&gt;</operator><name>encoder</name></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name><name>struct</name> <name>video_output_info</name></name> <modifier>*</modifier></type><name>voi</name> <init>= <expr><call><name>video_output_get_info</name><argument_list>(<argument><expr><name>video</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>target_usage</name> <init>=
+
+<expr><call><name>obs_data_get_string</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"target_usage"</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>profile</name> <init>= <expr><call><name>obs_data_get_string</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"profile"</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>rate_control</name> <init>=
+
+<expr><call><name>obs_data_get_string</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"rate_control"</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>async_depth</name> <init>= <expr><operator>(</operator><name>int</name><operator>)</operator><call><name>obs_data_get_int</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"async_depth"</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>target_bitrate</name> <init>= <expr><operator>(</operator><name>int</name><operator>)</operator><call><name>obs_data_get_int</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"bitrate"</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>max_bitrate</name> <init>= <expr><operator>(</operator><name>int</name><operator>)</operator><call><name>obs_data_get_int</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"max_bitrate"</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>accuracy</name> <init>= <expr><operator>(</operator><name>int</name><operator>)</operator><call><name>obs_data_get_int</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"accuracy"</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>convergence</name> <init>= <expr><operator>(</operator><name>int</name><operator>)</operator><call><name>obs_data_get_int</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"convergence"</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>qpi</name> <init>= <expr><operator>(</operator><name>int</name><operator>)</operator><call><name>obs_data_get_int</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"qpi"</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>qpp</name> <init>= <expr><operator>(</operator><name>int</name><operator>)</operator><call><name>obs_data_get_int</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"qpp"</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>qpb</name> <init>= <expr><operator>(</operator><name>int</name><operator>)</operator><call><name>obs_data_get_int</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"qpb"</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>icq_quality</name> <init>= <expr><operator>(</operator><name>int</name><operator>)</operator><call><name>obs_data_get_int</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"icq_quality"</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>la_depth</name> <init>= <expr><operator>(</operator><name>int</name><operator>)</operator><call><name>obs_data_get_int</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"la_depth"</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>keyint_sec</name> <init>= <expr><operator>(</operator><name>int</name><operator>)</operator><call><name>obs_data_get_int</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"keyint_sec"</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>bool</name></type> <name>cbr_override</name> <init>= <expr><call><name>obs_data_get_bool</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"cbr"</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>bFrames</name> <init>= <expr><operator>(</operator><name>int</name><operator>)</operator><call><name>obs_data_get_int</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"bframes"</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>bool</name></type> <name>mbbrc</name> <init>= <expr><call><name>obs_data_get_bool</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"mbbrc"</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>obs_data_has_user_value</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"bf"</literal></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name>bFrames</name> <operator>=</operator> <operator>(</operator><name>int</name><operator>)</operator><call><name>obs_data_get_int</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"bf"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<decl_stmt><decl><type><name><name>enum</name> <name>qsv_cpu_platform</name></name></type> <name>plat</name> <init>= <expr><call><name>qsv_get_cpu_platform</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>plat</name> <operator>==</operator> <name>QSV_CPU_PLATFORM_IVB</name> <operator>||</operator> <name>plat</name> <operator>==</operator> <name>QSV_CPU_PLATFORM_SNB</name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name>bFrames</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>width</name> <init>= <expr><operator>(</operator><name>int</name><operator>)</operator><call><name>obs_encoder_get_width</name><argument_list>(<argument><expr><name><name>obsqsv</name><operator>-&gt;</operator><name>encoder</name></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>height</name> <init>= <expr><operator>(</operator><name>int</name><operator>)</operator><call><name>obs_encoder_get_height</name><argument_list>(<argument><expr><name><name>obsqsv</name><operator>-&gt;</operator><name>encoder</name></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>astrcmpi</name><argument_list>(<argument><expr><name>target_usage</name></expr></argument>, <argument><expr><literal type="string">"quality"</literal></expr></argument>)</argument_list></call> <operator>==</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name><name>obsqsv</name><operator>-&gt;</operator><name>params</name><operator>.</operator><name>nTargetUsage</name></name> <operator>=</operator> <name>MFX_TARGETUSAGE_BEST_QUALITY</name></expr>;</expr_stmt></block_content></block></if>
+
+<if type="elseif">else if <condition>(<expr><call><name>astrcmpi</name><argument_list>(<argument><expr><name>target_usage</name></expr></argument>, <argument><expr><literal type="string">"balanced"</literal></expr></argument>)</argument_list></call> <operator>==</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name><name>obsqsv</name><operator>-&gt;</operator><name>params</name><operator>.</operator><name>nTargetUsage</name></name> <operator>=</operator> <name>MFX_TARGETUSAGE_BALANCED</name></expr>;</expr_stmt></block_content></block></if>
+
+<if type="elseif">else if <condition>(<expr><call><name>astrcmpi</name><argument_list>(<argument><expr><name>target_usage</name></expr></argument>, <argument><expr><literal type="string">"speed"</literal></expr></argument>)</argument_list></call> <operator>==</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name><name>obsqsv</name><operator>-&gt;</operator><name>params</name><operator>.</operator><name>nTargetUsage</name></name> <operator>=</operator> <name>MFX_TARGETUSAGE_BEST_SPEED</name></expr>;</expr_stmt></block_content></block></if>
+
+<if type="elseif">else if <condition>(<expr><call><name>astrcmpi</name><argument_list>(<argument><expr><name>target_usage</name></expr></argument>, <argument><expr><literal type="string">"veryslow"</literal></expr></argument>)</argument_list></call> <operator>==</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name><name>obsqsv</name><operator>-&gt;</operator><name>params</name><operator>.</operator><name>nTargetUsage</name></name> <operator>=</operator> <name>MFX_TARGETUSAGE_1</name></expr>;</expr_stmt></block_content></block></if>
+
+<if type="elseif">else if <condition>(<expr><call><name>astrcmpi</name><argument_list>(<argument><expr><name>target_usage</name></expr></argument>, <argument><expr><literal type="string">"slower"</literal></expr></argument>)</argument_list></call> <operator>==</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name><name>obsqsv</name><operator>-&gt;</operator><name>params</name><operator>.</operator><name>nTargetUsage</name></name> <operator>=</operator> <name>MFX_TARGETUSAGE_2</name></expr>;</expr_stmt></block_content></block></if>
+
+<if type="elseif">else if <condition>(<expr><call><name>astrcmpi</name><argument_list>(<argument><expr><name>target_usage</name></expr></argument>, <argument><expr><literal type="string">"slow"</literal></expr></argument>)</argument_list></call> <operator>==</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name><name>obsqsv</name><operator>-&gt;</operator><name>params</name><operator>.</operator><name>nTargetUsage</name></name> <operator>=</operator> <name>MFX_TARGETUSAGE_3</name></expr>;</expr_stmt></block_content></block></if>
+
+<if type="elseif">else if <condition>(<expr><call><name>astrcmpi</name><argument_list>(<argument><expr><name>target_usage</name></expr></argument>, <argument><expr><literal type="string">"medium"</literal></expr></argument>)</argument_list></call> <operator>==</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name><name>obsqsv</name><operator>-&gt;</operator><name>params</name><operator>.</operator><name>nTargetUsage</name></name> <operator>=</operator> <name>MFX_TARGETUSAGE_4</name></expr>;</expr_stmt></block_content></block></if>
+
+<if type="elseif">else if <condition>(<expr><call><name>astrcmpi</name><argument_list>(<argument><expr><name>target_usage</name></expr></argument>, <argument><expr><literal type="string">"fast"</literal></expr></argument>)</argument_list></call> <operator>==</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name><name>obsqsv</name><operator>-&gt;</operator><name>params</name><operator>.</operator><name>nTargetUsage</name></name> <operator>=</operator> <name>MFX_TARGETUSAGE_5</name></expr>;</expr_stmt></block_content></block></if>
+
+<if type="elseif">else if <condition>(<expr><call><name>astrcmpi</name><argument_list>(<argument><expr><name>target_usage</name></expr></argument>, <argument><expr><literal type="string">"faster"</literal></expr></argument>)</argument_list></call> <operator>==</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name><name>obsqsv</name><operator>-&gt;</operator><name>params</name><operator>.</operator><name>nTargetUsage</name></name> <operator>=</operator> <name>MFX_TARGETUSAGE_6</name></expr>;</expr_stmt></block_content></block></if>
+
+<if type="elseif">else if <condition>(<expr><call><name>astrcmpi</name><argument_list>(<argument><expr><name>target_usage</name></expr></argument>, <argument><expr><literal type="string">"veryfast"</literal></expr></argument>)</argument_list></call> <operator>==</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name><name>obsqsv</name><operator>-&gt;</operator><name>params</name><operator>.</operator><name>nTargetUsage</name></name> <operator>=</operator> <name>MFX_TARGETUSAGE_7</name></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>astrcmpi</name><argument_list>(<argument><expr><name>profile</name></expr></argument>, <argument><expr><literal type="string">"baseline"</literal></expr></argument>)</argument_list></call> <operator>==</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name><name>obsqsv</name><operator>-&gt;</operator><name>params</name><operator>.</operator><name>nCodecProfile</name></name> <operator>=</operator> <name>MFX_PROFILE_AVC_BASELINE</name></expr>;</expr_stmt></block_content></block></if>
+
+<if type="elseif">else if <condition>(<expr><call><name>astrcmpi</name><argument_list>(<argument><expr><name>profile</name></expr></argument>, <argument><expr><literal type="string">"main"</literal></expr></argument>)</argument_list></call> <operator>==</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name><name>obsqsv</name><operator>-&gt;</operator><name>params</name><operator>.</operator><name>nCodecProfile</name></name> <operator>=</operator> <name>MFX_PROFILE_AVC_MAIN</name></expr>;</expr_stmt></block_content></block></if>
+
+<if type="elseif">else if <condition>(<expr><call><name>astrcmpi</name><argument_list>(<argument><expr><name>profile</name></expr></argument>, <argument><expr><literal type="string">"high"</literal></expr></argument>)</argument_list></call> <operator>==</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name><name>obsqsv</name><operator>-&gt;</operator><name>params</name><operator>.</operator><name>nCodecProfile</name></name> <operator>=</operator> <name>MFX_PROFILE_AVC_HIGH</name></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>cbr_override</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>warn</name><argument_list>(<argument><expr><literal type="string">"\"cbr\" setting has been deprecated for all encoders! "</literal>
+
+<literal type="string">"Please set \"rate_control\" to \"CBR\" instead. "</literal>
+
+<literal type="string">"Forcing CBR mode. "</literal>
+
+<literal type="string">"(Note to all: this is why you shouldn't use strings for "</literal>
+
+<literal type="string">"common settings)"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>rate_control</name> <operator>=</operator> <literal type="string">"CBR"</literal></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>astrcmpi</name><argument_list>(<argument><expr><name>rate_control</name></expr></argument>, <argument><expr><literal type="string">"CBR"</literal></expr></argument>)</argument_list></call> <operator>==</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name><name>obsqsv</name><operator>-&gt;</operator><name>params</name><operator>.</operator><name>nRateControl</name></name> <operator>=</operator> <name>MFX_RATECONTROL_CBR</name></expr>;</expr_stmt></block_content></block></if>
+
+<if type="elseif">else if <condition>(<expr><call><name>astrcmpi</name><argument_list>(<argument><expr><name>rate_control</name></expr></argument>, <argument><expr><literal type="string">"VBR"</literal></expr></argument>)</argument_list></call> <operator>==</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name><name>obsqsv</name><operator>-&gt;</operator><name>params</name><operator>.</operator><name>nRateControl</name></name> <operator>=</operator> <name>MFX_RATECONTROL_VBR</name></expr>;</expr_stmt></block_content></block></if>
+
+<if type="elseif">else if <condition>(<expr><call><name>astrcmpi</name><argument_list>(<argument><expr><name>rate_control</name></expr></argument>, <argument><expr><literal type="string">"VCM"</literal></expr></argument>)</argument_list></call> <operator>==</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name><name>obsqsv</name><operator>-&gt;</operator><name>params</name><operator>.</operator><name>nRateControl</name></name> <operator>=</operator> <name>MFX_RATECONTROL_VCM</name></expr>;</expr_stmt></block_content></block></if>
+
+<if type="elseif">else if <condition>(<expr><call><name>astrcmpi</name><argument_list>(<argument><expr><name>rate_control</name></expr></argument>, <argument><expr><literal type="string">"CQP"</literal></expr></argument>)</argument_list></call> <operator>==</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name><name>obsqsv</name><operator>-&gt;</operator><name>params</name><operator>.</operator><name>nRateControl</name></name> <operator>=</operator> <name>MFX_RATECONTROL_CQP</name></expr>;</expr_stmt></block_content></block></if>
+
+<if type="elseif">else if <condition>(<expr><call><name>astrcmpi</name><argument_list>(<argument><expr><name>rate_control</name></expr></argument>, <argument><expr><literal type="string">"AVBR"</literal></expr></argument>)</argument_list></call> <operator>==</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name><name>obsqsv</name><operator>-&gt;</operator><name>params</name><operator>.</operator><name>nRateControl</name></name> <operator>=</operator> <name>MFX_RATECONTROL_AVBR</name></expr>;</expr_stmt></block_content></block></if>
+
+<if type="elseif">else if <condition>(<expr><call><name>astrcmpi</name><argument_list>(<argument><expr><name>rate_control</name></expr></argument>, <argument><expr><literal type="string">"ICQ"</literal></expr></argument>)</argument_list></call> <operator>==</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name><name>obsqsv</name><operator>-&gt;</operator><name>params</name><operator>.</operator><name>nRateControl</name></name> <operator>=</operator> <name>MFX_RATECONTROL_ICQ</name></expr>;</expr_stmt></block_content></block></if>
+
+<if type="elseif">else if <condition>(<expr><call><name>astrcmpi</name><argument_list>(<argument><expr><name>rate_control</name></expr></argument>, <argument><expr><literal type="string">"LA_ICQ"</literal></expr></argument>)</argument_list></call> <operator>==</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name><name>obsqsv</name><operator>-&gt;</operator><name>params</name><operator>.</operator><name>nRateControl</name></name> <operator>=</operator> <name>MFX_RATECONTROL_LA_ICQ</name></expr>;</expr_stmt></block_content></block></if>
+
+<if type="elseif">else if <condition>(<expr><call><name>astrcmpi</name><argument_list>(<argument><expr><name>rate_control</name></expr></argument>, <argument><expr><literal type="string">"LA_VBR"</literal></expr></argument>)</argument_list></call> <operator>==</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name><name>obsqsv</name><operator>-&gt;</operator><name>params</name><operator>.</operator><name>nRateControl</name></name> <operator>=</operator> <name>MFX_RATECONTROL_LA</name></expr>;</expr_stmt></block_content></block></if>
+
+<if type="elseif">else if <condition>(<expr><call><name>astrcmpi</name><argument_list>(<argument><expr><name>rate_control</name></expr></argument>, <argument><expr><literal type="string">"LA_CBR"</literal></expr></argument>)</argument_list></call> <operator>==</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name><name>obsqsv</name><operator>-&gt;</operator><name>params</name><operator>.</operator><name>nRateControl</name></name> <operator>=</operator> <name>MFX_RATECONTROL_LA_HRD</name></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name><name>obsqsv</name><operator>-&gt;</operator><name>params</name><operator>.</operator><name>nAsyncDepth</name></name> <operator>=</operator> <operator>(</operator><name>mfxU16</name><operator>)</operator><name>async_depth</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>obsqsv</name><operator>-&gt;</operator><name>params</name><operator>.</operator><name>nAccuracy</name></name> <operator>=</operator> <operator>(</operator><name>mfxU16</name><operator>)</operator><name>accuracy</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>obsqsv</name><operator>-&gt;</operator><name>params</name><operator>.</operator><name>nConvergence</name></name> <operator>=</operator> <operator>(</operator><name>mfxU16</name><operator>)</operator><name>convergence</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>obsqsv</name><operator>-&gt;</operator><name>params</name><operator>.</operator><name>nQPI</name></name> <operator>=</operator> <operator>(</operator><name>mfxU16</name><operator>)</operator><name>qpi</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>obsqsv</name><operator>-&gt;</operator><name>params</name><operator>.</operator><name>nQPP</name></name> <operator>=</operator> <operator>(</operator><name>mfxU16</name><operator>)</operator><name>qpp</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>obsqsv</name><operator>-&gt;</operator><name>params</name><operator>.</operator><name>nQPB</name></name> <operator>=</operator> <operator>(</operator><name>mfxU16</name><operator>)</operator><name>qpb</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>obsqsv</name><operator>-&gt;</operator><name>params</name><operator>.</operator><name>nLADEPTH</name></name> <operator>=</operator> <operator>(</operator><name>mfxU16</name><operator>)</operator><name>la_depth</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>obsqsv</name><operator>-&gt;</operator><name>params</name><operator>.</operator><name>nTargetBitRate</name></name> <operator>=</operator> <operator>(</operator><name>mfxU16</name><operator>)</operator><name>target_bitrate</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>obsqsv</name><operator>-&gt;</operator><name>params</name><operator>.</operator><name>nMaxBitRate</name></name> <operator>=</operator> <operator>(</operator><name>mfxU16</name><operator>)</operator><name>max_bitrate</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>obsqsv</name><operator>-&gt;</operator><name>params</name><operator>.</operator><name>nWidth</name></name> <operator>=</operator> <operator>(</operator><name>mfxU16</name><operator>)</operator><name>width</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>obsqsv</name><operator>-&gt;</operator><name>params</name><operator>.</operator><name>nHeight</name></name> <operator>=</operator> <operator>(</operator><name>mfxU16</name><operator>)</operator><name>height</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>obsqsv</name><operator>-&gt;</operator><name>params</name><operator>.</operator><name>nFpsNum</name></name> <operator>=</operator> <operator>(</operator><name>mfxU16</name><operator>)</operator><name><name>voi</name><operator>-&gt;</operator><name>fps_num</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>obsqsv</name><operator>-&gt;</operator><name>params</name><operator>.</operator><name>nFpsDen</name></name> <operator>=</operator> <operator>(</operator><name>mfxU16</name><operator>)</operator><name><name>voi</name><operator>-&gt;</operator><name>fps_den</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>obsqsv</name><operator>-&gt;</operator><name>params</name><operator>.</operator><name>nbFrames</name></name> <operator>=</operator> <operator>(</operator><name>mfxU16</name><operator>)</operator><name>bFrames</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>obsqsv</name><operator>-&gt;</operator><name>params</name><operator>.</operator><name>nKeyIntSec</name></name> <operator>=</operator> <operator>(</operator><name>mfxU16</name><operator>)</operator><name>keyint_sec</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>obsqsv</name><operator>-&gt;</operator><name>params</name><operator>.</operator><name>nICQQuality</name></name> <operator>=</operator> <operator>(</operator><name>mfxU16</name><operator>)</operator><name>icq_quality</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>obsqsv</name><operator>-&gt;</operator><name>params</name><operator>.</operator><name>bMBBRC</name></name> <operator>=</operator> <name>mbbrc</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>info</name><argument_list>(<argument><expr><literal type="string">"settings:\n\trate_control: %s"</literal></expr></argument>, <argument><expr><name>rate_control</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>obsqsv</name><operator>-&gt;</operator><name>params</name><operator>.</operator><name>nRateControl</name></name> <operator>!=</operator> <name>MFX_RATECONTROL_LA_ICQ</name> <operator>&amp;&amp;</operator>
+
+<name><name>obsqsv</name><operator>-&gt;</operator><name>params</name><operator>.</operator><name>nRateControl</name></name> <operator>!=</operator> <name>MFX_RATECONTROL_ICQ</name> <operator>&amp;&amp;</operator>
+
+<name><name>obsqsv</name><operator>-&gt;</operator><name>params</name><operator>.</operator><name>nRateControl</name></name> <operator>!=</operator> <name>MFX_RATECONTROL_CQP</name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>blog</name><argument_list>(<argument><expr><name>LOG_INFO</name></expr></argument>, <argument><expr><literal type="string">"\ttarget_bitrate: %d"</literal></expr></argument>,
+
+<argument><expr><operator>(</operator><name>int</name><operator>)</operator><name><name>obsqsv</name><operator>-&gt;</operator><name>params</name><operator>.</operator><name>nTargetBitRate</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>obsqsv</name><operator>-&gt;</operator><name>params</name><operator>.</operator><name>nRateControl</name></name> <operator>==</operator> <name>MFX_RATECONTROL_VBR</name> <operator>||</operator>
+
+<name><name>obsqsv</name><operator>-&gt;</operator><name>params</name><operator>.</operator><name>nRateControl</name></name> <operator>==</operator> <name>MFX_RATECONTROL_VCM</name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>blog</name><argument_list>(<argument><expr><name>LOG_INFO</name></expr></argument>, <argument><expr><literal type="string">"\tmax_bitrate: %d"</literal></expr></argument>,
+
+<argument><expr><operator>(</operator><name>int</name><operator>)</operator><name><name>obsqsv</name><operator>-&gt;</operator><name>params</name><operator>.</operator><name>nMaxBitRate</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>obsqsv</name><operator>-&gt;</operator><name>params</name><operator>.</operator><name>nRateControl</name></name> <operator>==</operator> <name>MFX_RATECONTROL_LA_ICQ</name> <operator>||</operator>
+
+<name><name>obsqsv</name><operator>-&gt;</operator><name>params</name><operator>.</operator><name>nRateControl</name></name> <operator>==</operator> <name>MFX_RATECONTROL_ICQ</name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>blog</name><argument_list>(<argument><expr><name>LOG_INFO</name></expr></argument>, <argument><expr><literal type="string">"\tICQ Quality: %d"</literal></expr></argument>,
+
+<argument><expr><operator>(</operator><name>int</name><operator>)</operator><name><name>obsqsv</name><operator>-&gt;</operator><name>params</name><operator>.</operator><name>nICQQuality</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>obsqsv</name><operator>-&gt;</operator><name>params</name><operator>.</operator><name>nRateControl</name></name> <operator>==</operator> <name>MFX_RATECONTROL_LA_ICQ</name> <operator>||</operator>
+
+<name><name>obsqsv</name><operator>-&gt;</operator><name>params</name><operator>.</operator><name>nRateControl</name></name> <operator>==</operator> <name>MFX_RATECONTROL_LA</name> <operator>||</operator>
+
+<name><name>obsqsv</name><operator>-&gt;</operator><name>params</name><operator>.</operator><name>nRateControl</name></name> <operator>==</operator> <name>MFX_RATECONTROL_LA_HRD</name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>blog</name><argument_list>(<argument><expr><name>LOG_INFO</name></expr></argument>, <argument><expr><literal type="string">"\tLookahead Depth:%d"</literal></expr></argument>,
+
+<argument><expr><operator>(</operator><name>int</name><operator>)</operator><name><name>obsqsv</name><operator>-&gt;</operator><name>params</name><operator>.</operator><name>nLADEPTH</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>obsqsv</name><operator>-&gt;</operator><name>params</name><operator>.</operator><name>nRateControl</name></name> <operator>==</operator> <name>MFX_RATECONTROL_CQP</name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>blog</name><argument_list>(<argument><expr><name>LOG_INFO</name></expr></argument>,
+
+<argument><expr><literal type="string">"\tqpi: %d\n"</literal>
+
+<literal type="string">"\tqpb: %d\n"</literal>
+
+<literal type="string">"\tqpp: %d"</literal></expr></argument>,
+
+<argument><expr><name>qpi</name></expr></argument>, <argument><expr><name>qpb</name></expr></argument>, <argument><expr><name>qpp</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>blog</name><argument_list>(<argument><expr><name>LOG_INFO</name></expr></argument>,
+
+<argument><expr><literal type="string">"\tfps_num: %d\n"</literal>
+
+<literal type="string">"\tfps_den: %d\n"</literal>
+
+<literal type="string">"\twidth: %d\n"</literal>
+
+<literal type="string">"\theight: %d"</literal></expr></argument>,
+
+<argument><expr><name><name>voi</name><operator>-&gt;</operator><name>fps_num</name></name></expr></argument>, <argument><expr><name><name>voi</name><operator>-&gt;</operator><name>fps_den</name></name></expr></argument>, <argument><expr><name>width</name></expr></argument>, <argument><expr><name>height</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>obsqsv</name><operator>-&gt;</operator><name>params</name><operator>.</operator><name>bCQM</name></name> <operator>=</operator> <operator>(</operator><name>bool</name><operator>)</operator><call><name>obs_data_get_bool</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"CQM"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>info</name><argument_list>(<argument><expr><literal type="string">"debug info:"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>bool</name></type> <name>update_settings</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>obs_qsv</name></name> <modifier>*</modifier></type><name>obsqsv</name></decl></parameter>, <parameter><decl><type><name>obs_data_t</name> <modifier>*</modifier></type><name>settings</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>update_params</name><argument_list>(<argument><expr><name>obsqsv</name></expr></argument>, <argument><expr><name>settings</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>true</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>load_headers</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>obs_qsv</name></name> <modifier>*</modifier></type><name>obsqsv</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<macro><name>DARRAY</name><argument_list>(<argument>uint8_t</argument>)</argument_list></macro> <expr_stmt><expr><name>header</name></expr>;</expr_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>uint8_t</name></type> <name>sei</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>da_init</name><argument_list>(<argument><expr><name>header</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<decl_stmt><decl><type><name>uint8_t</name> <modifier>*</modifier></type><name>pSPS</name></decl>, <decl><type ref="prev"><modifier>*</modifier></type><name>pPPS</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>uint16_t</name></type> <name>nSPS</name></decl>, <decl><type ref="prev"/><name>nPPS</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>qsv_encoder_headers</name><argument_list>(<argument><expr><name><name>obsqsv</name><operator>-&gt;</operator><name>context</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name>pSPS</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>pPPS</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>nSPS</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>nPPS</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>da_push_back_array</name><argument_list>(<argument><expr><name>header</name></expr></argument>, <argument><expr><name>pSPS</name></expr></argument>, <argument><expr><name>nSPS</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>da_push_back_array</name><argument_list>(<argument><expr><name>header</name></expr></argument>, <argument><expr><name>pPPS</name></expr></argument>, <argument><expr><name>nPPS</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>obsqsv</name><operator>-&gt;</operator><name>extra_data</name></name> <operator>=</operator> <name><name>header</name><operator>.</operator><name>array</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>obsqsv</name><operator>-&gt;</operator><name>extra_data_size</name></name> <operator>=</operator> <name><name>header</name><operator>.</operator><name>num</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>obsqsv</name><operator>-&gt;</operator><name>sei</name></name> <operator>=</operator> <operator>&amp;</operator><name>sei</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>obsqsv</name><operator>-&gt;</operator><name>sei_size</name></name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>bool</name></type> <name>obs_qsv_update</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>, <parameter><decl><type><name>obs_data_t</name> <modifier>*</modifier></type><name>settings</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>obs_qsv</name></name> <modifier>*</modifier></type><name>obsqsv</name> <init>= <expr><name>data</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>bool</name></type> <name>success</name> <init>= <expr><call><name>update_settings</name><argument_list>(<argument><expr><name>obsqsv</name></expr></argument>, <argument><expr><name>settings</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>ret</name></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>success</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>EnterCriticalSection</name><argument_list>(<argument><expr><operator>&amp;</operator><name>g_QsvCs</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <call><name>qsv_encoder_reconfig</name><argument_list>(<argument><expr><name><name>obsqsv</name><operator>-&gt;</operator><name>context</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>obsqsv</name><operator>-&gt;</operator><name>params</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>ret</name> <operator>!=</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>warn</name><argument_list>(<argument><expr><literal type="string">"Failed to reconfigure: %d"</literal></expr></argument>, <argument><expr><name>ret</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>LeaveCriticalSection</name><argument_list>(<argument><expr><operator>&amp;</operator><name>g_QsvCs</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>ret</name> <operator>==</operator> <literal type="number">0</literal></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<return>return <expr><name>false</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name> <modifier>*</modifier></type><name>obs_qsv_create</name><parameter_list>(<parameter><decl><type><name>obs_data_t</name> <modifier>*</modifier></type><name>settings</name></decl></parameter>, <parameter><decl><type><name>obs_encoder_t</name> <modifier>*</modifier></type><name>encoder</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>InitializeCriticalSection</name><argument_list>(<argument><expr><operator>&amp;</operator><name>g_QsvCs</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>obs_qsv</name></name> <modifier>*</modifier></type><name>obsqsv</name> <init>= <expr><call><name>bzalloc</name><argument_list>(<argument><expr><sizeof>sizeof<argument_list>(<argument><expr>struct <name>obs_qsv</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>obsqsv</name><operator>-&gt;</operator><name>encoder</name></name> <operator>=</operator> <name>encoder</name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>update_settings</name><argument_list>(<argument><expr><name>obsqsv</name></expr></argument>, <argument><expr><name>settings</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>EnterCriticalSection</name><argument_list>(<argument><expr><operator>&amp;</operator><name>g_QsvCs</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>obsqsv</name><operator>-&gt;</operator><name>context</name></name> <operator>=</operator> <call><name>qsv_encoder_open</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>obsqsv</name><operator>-&gt;</operator><name>params</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>LeaveCriticalSection</name><argument_list>(<argument><expr><operator>&amp;</operator><name>g_QsvCs</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>obsqsv</name><operator>-&gt;</operator><name>context</name></name> <operator>==</operator> <name>NULL</name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>warn</name><argument_list>(<argument><expr><literal type="string">"qsv failed to load"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if>
+
+<else>else<block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>load_headers</name><argument_list>(<argument><expr><name>obsqsv</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></else></if_stmt>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<expr_stmt><expr><call><name>warn</name><argument_list>(<argument><expr><literal type="string">"bad settings specified"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+<expr_stmt><expr><call><name>qsv_encoder_version</name><argument_list>(<argument><expr><operator>&amp;</operator><name>g_verMajor</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>g_verMinor</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>blog</name><argument_list>(<argument><expr><name>LOG_INFO</name></expr></argument>,
+
+<argument><expr><literal type="string">"\tmajor: %d\n"</literal>
+
+<literal type="string">"\tminor: %d"</literal></expr></argument>,
+
+<argument><expr><name>g_verMajor</name></expr></argument>, <argument><expr><name>g_verMinor</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>g_verMajor</name> <operator>==</operator> <literal type="number">1</literal> <operator>&amp;&amp;</operator> <name>g_verMinor</name> <operator>&lt;</operator> <literal type="number">7</literal></expr>)</condition> <block>{<block_content>
+
+<decl_stmt><decl><type><name>int64_t</name></type> <name>interval</name> <init>= <expr><name><name>obsqsv</name><operator>-&gt;</operator><name>params</name><operator>.</operator><name>nbFrames</name></name> <operator>+</operator> <literal type="number">1</literal></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int64_t</name></type> <name>GopPicSize</name> <init>= <expr><operator>(</operator><name>int64_t</name><operator>)</operator><operator>(</operator><name><name>obsqsv</name><operator>-&gt;</operator><name>params</name><operator>.</operator><name>nKeyIntSec</name></name> <operator>*</operator>
+
+<name><name>obsqsv</name><operator>-&gt;</operator><name>params</name><operator>.</operator><name>nFpsNum</name></name> <operator>/</operator>
+
+<operator>(</operator><name>float</name><operator>)</operator><name><name>obsqsv</name><operator>-&gt;</operator><name>params</name><operator>.</operator><name>nFpsDen</name></name><operator>)</operator></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>g_pts2dtsShift</name> <operator>=</operator>
+
+<name>GopPicSize</name> <operator>-</operator> <operator>(</operator><name>GopPicSize</name> <operator>/</operator> <name>interval</name><operator>)</operator> <operator>*</operator> <name>interval</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>blog</name><argument_list>(<argument><expr><name>LOG_INFO</name></expr></argument>,
+
+<argument><expr><literal type="string">"\tinterval: %d\n"</literal>
+
+<literal type="string">"\tGopPictSize: %d\n"</literal>
+
+<literal type="string">"\tg_pts2dtsShift: %d"</literal></expr></argument>,
+
+<argument><expr><name>interval</name></expr></argument>, <argument><expr><name>GopPicSize</name></expr></argument>, <argument><expr><name>g_pts2dtsShift</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if> <else>else<block type="pseudo"><block_content>
+
+<expr_stmt><expr><name>g_pts2dtsShift</name> <operator>=</operator> <operator>-</operator><literal type="number">1</literal></expr>;</expr_stmt></block_content></block></else></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>obsqsv</name><operator>-&gt;</operator><name>context</name></name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>bfree</name><argument_list>(<argument><expr><name>obsqsv</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>NULL</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>obsqsv</name><operator>-&gt;</operator><name>performance_token</name></name> <operator>=</operator> <call><name>os_request_high_performance</name><argument_list>(<argument><expr><literal type="string">"qsv encoding"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>g_bFirst</name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+
+<return>return <expr><name>obsqsv</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>bool</name></type> <name>obs_qsv_extra_data</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>, <parameter><decl><type><name>uint8_t</name> <modifier>*</modifier><modifier>*</modifier></type><name>extra_data</name></decl></parameter>, <parameter><decl><type><name>size_t</name> <modifier>*</modifier></type><name>size</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>obs_qsv</name></name> <modifier>*</modifier></type><name>obsqsv</name> <init>= <expr><name>data</name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>obsqsv</name><operator>-&gt;</operator><name>context</name></name></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>false</name></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><operator>*</operator><name>extra_data</name> <operator>=</operator> <name><name>obsqsv</name><operator>-&gt;</operator><name>extra_data</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><operator>*</operator><name>size</name> <operator>=</operator> <name><name>obsqsv</name><operator>-&gt;</operator><name>extra_data_size</name></name></expr>;</expr_stmt>
+
+<return>return <expr><name>true</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>bool</name></type> <name>obs_qsv_sei</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>, <parameter><decl><type><name>uint8_t</name> <modifier>*</modifier><modifier>*</modifier></type><name>sei</name></decl></parameter>, <parameter><decl><type><name>size_t</name> <modifier>*</modifier></type><name>size</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>obs_qsv</name></name> <modifier>*</modifier></type><name>obsqsv</name> <init>= <expr><name>data</name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>obsqsv</name><operator>-&gt;</operator><name>context</name></name></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>false</name></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>UNUSED_PARAMETER</name><argument_list>(<argument><expr><name>sei</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>UNUSED_PARAMETER</name><argument_list>(<argument><expr><name>size</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><operator>*</operator><name>sei</name> <operator>=</operator> <name><name>obsqsv</name><operator>-&gt;</operator><name>sei</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><operator>*</operator><name>size</name> <operator>=</operator> <name><name>obsqsv</name><operator>-&gt;</operator><name>sei_size</name></name></expr>;</expr_stmt>
+
+<return>return <expr><name>true</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <specifier>inline</specifier> <name>bool</name></type> <name>valid_format</name><parameter_list>(<parameter><decl><type><name><name>enum</name> <name>video_format</name></name></type> <name>format</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<return>return <expr><name>format</name> <operator>==</operator> <name>VIDEO_FORMAT_NV12</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <specifier>inline</specifier> <name>void</name></type> <name>cap_resolution</name><parameter_list>(<parameter><decl><type><name>obs_encoder_t</name> <modifier>*</modifier></type><name>encoder</name></decl></parameter>,
+
+<parameter><decl><type><name><name>struct</name> <name>video_scale_info</name></name> <modifier>*</modifier></type><name>info</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>enum</name> <name>qsv_cpu_platform</name></name></type> <name>qsv_platform</name> <init>= <expr><call><name>qsv_get_cpu_platform</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>uint32_t</name></type> <name>width</name> <init>= <expr><call><name>obs_encoder_get_width</name><argument_list>(<argument><expr><name>encoder</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>uint32_t</name></type> <name>height</name> <init>= <expr><call><name>obs_encoder_get_height</name><argument_list>(<argument><expr><name>encoder</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>info</name><operator>-&gt;</operator><name>height</name></name> <operator>=</operator> <name>height</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>info</name><operator>-&gt;</operator><name>width</name></name> <operator>=</operator> <name>width</name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>qsv_platform</name> <operator>&lt;=</operator> <name>QSV_CPU_PLATFORM_IVB</name></expr>)</condition> <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><name>width</name> <operator>&gt;</operator> <literal type="number">1920</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name><name>info</name><operator>-&gt;</operator><name>width</name></name> <operator>=</operator> <literal type="number">1920</literal></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>height</name> <operator>&gt;</operator> <literal type="number">1200</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name><name>info</name><operator>-&gt;</operator><name>height</name></name> <operator>=</operator> <literal type="number">1200</literal></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>obs_qsv_video_info</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>, <parameter><decl><type><name><name>struct</name> <name>video_scale_info</name></name> <modifier>*</modifier></type><name>info</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>obs_qsv</name></name> <modifier>*</modifier></type><name>obsqsv</name> <init>= <expr><name>data</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name><name>enum</name> <name>video_format</name></name></type> <name>pref_format</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>pref_format</name> <operator>=</operator> <call><name>obs_encoder_get_preferred_video_format</name><argument_list>(<argument><expr><name><name>obsqsv</name><operator>-&gt;</operator><name>encoder</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>valid_format</name><argument_list>(<argument><expr><name>pref_format</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>pref_format</name> <operator>=</operator> <ternary><condition><expr><call><name>valid_format</name><argument_list>(<argument><expr><name><name>info</name><operator>-&gt;</operator><name>format</name></name></expr></argument>)</argument_list></call></expr> ?</condition><then> <expr><name><name>info</name><operator>-&gt;</operator><name>format</name></name></expr>
+
+</then><else>: <expr><name>VIDEO_FORMAT_NV12</name></expr></else></ternary></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>info</name><operator>-&gt;</operator><name>format</name></name> <operator>=</operator> <name>pref_format</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>cap_resolution</name><argument_list>(<argument><expr><name><name>obsqsv</name><operator>-&gt;</operator><name>encoder</name></name></expr></argument>, <argument><expr><name>info</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>parse_packet</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>obs_qsv</name></name> <modifier>*</modifier></type><name>obsqsv</name></decl></parameter>, <parameter><decl><type><name><name>struct</name> <name>encoder_packet</name></name> <modifier>*</modifier></type><name>packet</name></decl></parameter>,
+
+<parameter><decl><type><name>mfxBitstream</name> <modifier>*</modifier></type><name>pBS</name></decl></parameter>, <parameter><decl><type><name>uint32_t</name></type> <name>fps_num</name></decl></parameter>,
+
+<parameter><decl><type><name>bool</name> <modifier>*</modifier></type><name>received_packet</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>uint8_t</name> <modifier>*</modifier></type><name>start</name></decl>, <decl><type ref="prev"><modifier>*</modifier></type><name>end</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>type</name></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>pBS</name> <operator>==</operator> <name>NULL</name> <operator>||</operator> <name><name>pBS</name><operator>-&gt;</operator><name>DataLength</name></name> <operator>==</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><operator>*</operator><name>received_packet</name> <operator>=</operator> <name>false</name></expr>;</expr_stmt>
+
+<return>return;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>da_resize</name><argument_list>(<argument><expr><name><name>obsqsv</name><operator>-&gt;</operator><name>packet_data</name></name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>da_push_back_array</name><argument_list>(<argument><expr><name><name>obsqsv</name><operator>-&gt;</operator><name>packet_data</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>pBS</name><operator>-&gt;</operator><name>Data</name><index>[<expr><name><name>pBS</name><operator>-&gt;</operator><name>DataOffset</name></name></expr>]</index></name></expr></argument>,
+
+<argument><expr><name><name>pBS</name><operator>-&gt;</operator><name>DataLength</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>packet</name><operator>-&gt;</operator><name>data</name></name> <operator>=</operator> <name><name>obsqsv</name><operator>-&gt;</operator><name>packet_data</name><operator>.</operator><name>array</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>packet</name><operator>-&gt;</operator><name>size</name></name> <operator>=</operator> <name><name>obsqsv</name><operator>-&gt;</operator><name>packet_data</name><operator>.</operator><name>num</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>packet</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>OBS_ENCODER_VIDEO</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>packet</name><operator>-&gt;</operator><name>pts</name></name> <operator>=</operator> <name><name>pBS</name><operator>-&gt;</operator><name>TimeStamp</name></name> <operator>*</operator> <name>fps_num</name> <operator>/</operator> <literal type="number">90000</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>packet</name><operator>-&gt;</operator><name>keyframe</name></name> <operator>=</operator> <operator>(</operator><name><name>pBS</name><operator>-&gt;</operator><name>FrameType</name></name> <operator>&amp;</operator> <name>MFX_FRAMETYPE_IDR</name><operator>)</operator></expr>;</expr_stmt>
+
+<decl_stmt><decl><type><name>uint16_t</name></type> <name>frameType</name> <init>= <expr><name><name>pBS</name><operator>-&gt;</operator><name>FrameType</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>uint8_t</name></type> <name>priority</name></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>frameType</name> <operator>&amp;</operator> <name>MFX_FRAMETYPE_I</name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name>priority</name> <operator>=</operator> <name>OBS_NAL_PRIORITY_HIGHEST</name></expr>;</expr_stmt></block_content></block></if>
+
+<if type="elseif">else if <condition>(<expr><operator>(</operator><name>frameType</name> <operator>&amp;</operator> <name>MFX_FRAMETYPE_P</name><operator>)</operator> <operator>||</operator>
+
+<operator>(</operator><name>frameType</name> <operator>&amp;</operator> <name>MFX_FRAMETYPE_REF</name><operator>)</operator></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name>priority</name> <operator>=</operator> <name>OBS_NAL_PRIORITY_HIGH</name></expr>;</expr_stmt></block_content></block></if>
+
+<else>else<block type="pseudo"><block_content>
+
+<expr_stmt><expr><name>priority</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt></block_content></block></else></if_stmt>
+
+<expr_stmt><expr><name><name>packet</name><operator>-&gt;</operator><name>priority</name></name> <operator>=</operator> <name>priority</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>start</name> <operator>=</operator> <name><name>obsqsv</name><operator>-&gt;</operator><name>packet_data</name><operator>.</operator><name>array</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>end</name> <operator>=</operator> <name>start</name> <operator>+</operator> <name><name>obsqsv</name><operator>-&gt;</operator><name>packet_data</name><operator>.</operator><name>num</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>start</name> <operator>=</operator> <operator>(</operator><name>uint8_t</name> <operator>*</operator><operator>)</operator><call><name>obs_avc_find_startcode</name><argument_list>(<argument><expr><name>start</name></expr></argument>, <argument><expr><name>end</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<while>while <condition>(<expr><name>true</name></expr>)</condition> <block>{<block_content>
+
+<while>while <condition>(<expr><name>start</name> <operator>&lt;</operator> <name>end</name> <operator>&amp;&amp;</operator> <operator>!</operator><operator>*</operator><operator>(</operator><name>start</name><operator>++</operator><operator>)</operator></expr>)</condition><block type="pseudo"><block_content>
+
+<empty_stmt>;</empty_stmt></block_content></block></while>
+
+<if_stmt><if>if <condition>(<expr><name>start</name> <operator>==</operator> <name>end</name></expr>)</condition><block type="pseudo"><block_content>
+
+<break>break;</break></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>type</name> <operator>=</operator> <name><name>start</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>&amp;</operator> <literal type="number">0x1F</literal></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>type</name> <operator>==</operator> <name>OBS_NAL_SLICE_IDR</name> <operator>||</operator> <name>type</name> <operator>==</operator> <name>OBS_NAL_SLICE</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name><name>start</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>&amp;=</operator> <operator>~</operator><operator>(</operator><literal type="number">3</literal> <operator>&lt;&lt;</operator> <literal type="number">5</literal><operator>)</operator></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>start</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>|=</operator>
+
+<name>priority</name>
+
+<operator>&lt;&lt;</operator> <literal type="number">5</literal></expr>;</expr_stmt> 
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name>start</name> <operator>=</operator> <operator>(</operator><name>uint8_t</name> <operator>*</operator><operator>)</operator><call><name>obs_avc_find_startcode</name><argument_list>(<argument><expr><name>start</name></expr></argument>, <argument><expr><name>end</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></while>
+
+<decl_stmt><decl><type><name>bool</name></type> <name>pFrame</name> <init>= <expr><name><name>pBS</name><operator>-&gt;</operator><name>FrameType</name></name> <operator>&amp;</operator> <name>MFX_FRAMETYPE_P</name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>g_pts2dtsShift</name> <operator>&gt;=</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><name>g_bFirst</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name><name>packet</name><operator>-&gt;</operator><name>dts</name></name> <operator>=</operator> <name><name>packet</name><operator>-&gt;</operator><name>pts</name></name> <operator>-</operator> <literal type="number">3</literal> <operator>*</operator> <name><name>obsqsv</name><operator>-&gt;</operator><name>params</name><operator>.</operator><name>nFpsDen</name></name></expr>;</expr_stmt>
+
+</block_content>}</block></if> <if type="elseif">else if <condition>(<expr><name>pFrame</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name><name>packet</name><operator>-&gt;</operator><name>dts</name></name> <operator>=</operator> <name><name>packet</name><operator>-&gt;</operator><name>pts</name></name> <operator>-</operator> <literal type="number">10</literal> <operator>*</operator> <name><name>obsqsv</name><operator>-&gt;</operator><name>params</name><operator>.</operator><name>nFpsDen</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>g_prevDts</name> <operator>=</operator> <name><name>packet</name><operator>-&gt;</operator><name>dts</name></name></expr>;</expr_stmt>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<expr_stmt><expr><name><name>packet</name><operator>-&gt;</operator><name>dts</name></name> <operator>=</operator> <name>g_prevDts</name> <operator>+</operator> <name><name>obsqsv</name><operator>-&gt;</operator><name>params</name><operator>.</operator><name>nFpsDen</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>g_prevDts</name> <operator>=</operator> <name><name>packet</name><operator>-&gt;</operator><name>dts</name></name></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<expr_stmt><expr><name><name>packet</name><operator>-&gt;</operator><name>dts</name></name> <operator>=</operator> <name><name>pBS</name><operator>-&gt;</operator><name>DecodeTimeStamp</name></name> <operator>*</operator> <name>fps_num</name> <operator>/</operator> <literal type="number">90000</literal></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><literal type="number">0</literal></expr></cpp:if>
+
+info("parse packet:\n"
+
+"\tFrameType: %d\n"
+
+"\tpts: %d\n"
+
+"\tdts: %d",
+
+iType, packet-&gt;pts, packet-&gt;dts);
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+<expr_stmt><expr><operator>*</operator><name>received_packet</name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>pBS</name><operator>-&gt;</operator><name>DataLength</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>g_bFirst</name> <operator>=</operator> <name>false</name></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>bool</name></type> <name>obs_qsv_encode</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>, <parameter><decl><type><name><name>struct</name> <name>encoder_frame</name></name> <modifier>*</modifier></type><name>frame</name></decl></parameter>,
+
+<parameter><decl><type><name><name>struct</name> <name>encoder_packet</name></name> <modifier>*</modifier></type><name>packet</name></decl></parameter>, <parameter><decl><type><name>bool</name> <modifier>*</modifier></type><name>received_packet</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>obs_qsv</name></name> <modifier>*</modifier></type><name>obsqsv</name> <init>= <expr><name>data</name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>frame</name> <operator>||</operator> <operator>!</operator><name>packet</name> <operator>||</operator> <operator>!</operator><name>received_packet</name></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>false</name></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>EnterCriticalSection</name><argument_list>(<argument><expr><operator>&amp;</operator><name>g_QsvCs</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<decl_stmt><decl><type><name>video_t</name> <modifier>*</modifier></type><name>video</name> <init>= <expr><call><name>obs_encoder_video</name><argument_list>(<argument><expr><name><name>obsqsv</name><operator>-&gt;</operator><name>encoder</name></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name><name>struct</name> <name>video_output_info</name></name> <modifier>*</modifier></type><name>voi</name> <init>= <expr><call><name>video_output_get_info</name><argument_list>(<argument><expr><name>video</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>mfxBitstream</name> <modifier>*</modifier></type><name>pBS</name> <init>= <expr><name>NULL</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>ret</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>mfxU64</name></type> <name>qsvPTS</name> <init>= <expr><name><name>frame</name><operator>-&gt;</operator><name>pts</name></name> <operator>*</operator> <literal type="number">90000</literal> <operator>/</operator> <name><name>voi</name><operator>-&gt;</operator><name>fps_num</name></name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>frame</name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <call><name>qsv_encoder_encode</name><argument_list>(<argument><expr><name><name>obsqsv</name><operator>-&gt;</operator><name>context</name></name></expr></argument>, <argument><expr><name>qsvPTS</name></expr></argument>,
+
+<argument><expr><name><name>frame</name><operator>-&gt;</operator><name>data</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>, <argument><expr><name><name>frame</name><operator>-&gt;</operator><name>data</name><index>[<expr><literal type="number">1</literal></expr>]</index></name></expr></argument>,
+
+<argument><expr><name><name>frame</name><operator>-&gt;</operator><name>linesize</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>, <argument><expr><name><name>frame</name><operator>-&gt;</operator><name>linesize</name><index>[<expr><literal type="number">1</literal></expr>]</index></name></expr></argument>,
+
+<argument><expr><operator>&amp;</operator><name>pBS</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if>
+
+<else>else<block type="pseudo"><block_content>
+
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <call><name>qsv_encoder_encode</name><argument_list>(<argument><expr><name><name>obsqsv</name><operator>-&gt;</operator><name>context</name></name></expr></argument>, <argument><expr><name>qsvPTS</name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>,
+
+<argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><operator>&amp;</operator><name>pBS</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></else></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>ret</name> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>warn</name><argument_list>(<argument><expr><literal type="string">"encode failed"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>LeaveCriticalSection</name><argument_list>(<argument><expr><operator>&amp;</operator><name>g_QsvCs</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>false</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>parse_packet</name><argument_list>(<argument><expr><name>obsqsv</name></expr></argument>, <argument><expr><name>packet</name></expr></argument>, <argument><expr><name>pBS</name></expr></argument>, <argument><expr><name><name>voi</name><operator>-&gt;</operator><name>fps_num</name></name></expr></argument>, <argument><expr><name>received_packet</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>LeaveCriticalSection</name><argument_list>(<argument><expr><operator>&amp;</operator><name>g_QsvCs</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>true</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>obs_encoder_info</name></name></type> <name>obs_qsv_encoder</name> <init>= <expr><block>{
+
+<expr><operator>.</operator><name>id</name> <operator>=</operator> <literal type="string">"obs_qsv11"</literal></expr>,
+
+<expr><operator>.</operator><name>type</name> <operator>=</operator> <name>OBS_ENCODER_VIDEO</name></expr>,
+
+<expr><operator>.</operator><name>codec</name> <operator>=</operator> <literal type="string">"h264"</literal></expr>,
+
+<expr><operator>.</operator><name>get_name</name> <operator>=</operator> <name>obs_qsv_getname</name></expr>,
+
+<expr><operator>.</operator><name>create</name> <operator>=</operator> <name>obs_qsv_create</name></expr>,
+
+<expr><operator>.</operator><name>destroy</name> <operator>=</operator> <name>obs_qsv_destroy</name></expr>,
+
+<expr><operator>.</operator><name>encode</name> <operator>=</operator> <name>obs_qsv_encode</name></expr>,
+
+<expr><operator>.</operator><name>update</name> <operator>=</operator> <name>obs_qsv_update</name></expr>,
+
+<expr><operator>.</operator><name>get_properties</name> <operator>=</operator> <name>obs_qsv_props</name></expr>,
+
+<expr><operator>.</operator><name>get_defaults</name> <operator>=</operator> <name>obs_qsv_defaults</name></expr>,
+
+<expr><operator>.</operator><name>get_extra_data</name> <operator>=</operator> <name>obs_qsv_extra_data</name></expr>,
+
+<expr><operator>.</operator><name>get_sei_data</name> <operator>=</operator> <name>obs_qsv_sei</name></expr>,
+
+<expr><operator>.</operator><name>get_video_info</name> <operator>=</operator> <name>obs_qsv_video_info</name></expr>,
+
+<expr><operator>.</operator><name>caps</name> <operator>=</operator> <name>OBS_ENCODER_CAP_DYN_BITRATE</name></expr>,
+
+}</block></expr></init></decl>;</decl_stmt>
+
+</unit>

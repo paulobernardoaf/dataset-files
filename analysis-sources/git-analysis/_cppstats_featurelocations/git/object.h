@@ -1,0 +1,197 @@
+#if !defined(OBJECT_H)
+#define OBJECT_H
+
+#include "cache.h"
+
+struct buffer_slab;
+
+struct parsed_object_pool {
+struct object **obj_hash;
+int nr_objs, obj_hash_size;
+
+
+struct alloc_state *blob_state;
+struct alloc_state *tree_state;
+struct alloc_state *commit_state;
+struct alloc_state *tag_state;
+struct alloc_state *object_state;
+unsigned commit_count;
+
+
+struct commit_graft **grafts;
+int grafts_alloc, grafts_nr;
+
+int is_shallow;
+struct stat_validity *shallow_stat;
+char *alternate_shallow_file;
+
+int commit_graft_prepared;
+
+struct buffer_slab *buffer_slab;
+};
+
+struct parsed_object_pool *parsed_object_pool_new(void);
+void parsed_object_pool_clear(struct parsed_object_pool *o);
+
+struct object_list {
+struct object *item;
+struct object_list *next;
+};
+
+struct object_array {
+unsigned int nr;
+unsigned int alloc;
+struct object_array_entry {
+struct object *item;
+
+
+
+
+
+
+char *name;
+char *path;
+unsigned mode;
+} *objects;
+};
+
+#define OBJECT_ARRAY_INIT { 0, 0, NULL }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#define FLAG_BITS 29
+
+
+
+
+struct object {
+unsigned parsed : 1;
+unsigned type : TYPE_BITS;
+unsigned flags : FLAG_BITS;
+struct object_id oid;
+};
+
+const char *type_name(unsigned int type);
+int type_from_string_gently(const char *str, ssize_t, int gentle);
+#define type_from_string(str) type_from_string_gently(str, -1, 0)
+
+
+
+
+unsigned int get_max_object_index(void);
+
+
+
+
+struct object *get_indexed_object(unsigned int);
+
+
+
+
+
+
+
+
+
+
+
+
+
+struct object *lookup_object(struct repository *r, const struct object_id *oid);
+
+void *create_object(struct repository *r, const struct object_id *oid, void *obj);
+
+void *object_as_type(struct repository *r, struct object *obj, enum object_type type, int quiet);
+
+
+
+
+
+
+struct object *parse_object(struct repository *r, const struct object_id *oid);
+
+
+
+
+
+
+struct object *parse_object_or_die(const struct object_id *oid, const char *name);
+
+
+
+
+
+struct object *parse_object_buffer(struct repository *r, const struct object_id *oid, enum object_type type, unsigned long size, void *buffer, int *eaten_p);
+
+
+struct object *lookup_unknown_object(const struct object_id *oid);
+
+struct object_list *object_list_insert(struct object *item,
+struct object_list **list_p);
+
+int object_list_contains(struct object_list *list, struct object *obj);
+
+void object_list_free(struct object_list **list);
+
+
+void add_object_array(struct object *obj, const char *name, struct object_array *array);
+void add_object_array_with_path(struct object *obj, const char *name, struct object_array *array, unsigned mode, const char *path);
+
+
+
+
+
+
+
+struct object *object_array_pop(struct object_array *array);
+
+typedef int (*object_array_each_func_t)(struct object_array_entry *, void *);
+
+
+
+
+
+
+void object_array_filter(struct object_array *array,
+object_array_each_func_t want, void *cb_data);
+
+
+
+
+
+void object_array_remove_duplicates(struct object_array *array);
+
+
+
+
+
+void object_array_clear(struct object_array *array);
+
+void clear_object_flags(unsigned flags);
+
+
+
+
+void clear_commit_marks_all(unsigned int flags);
+
+#endif 

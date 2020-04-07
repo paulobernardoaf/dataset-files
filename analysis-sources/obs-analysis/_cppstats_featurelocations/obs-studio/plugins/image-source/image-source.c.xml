@@ -1,0 +1,292 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" revision="1.0.0" language="C" filename="D:\Pesquisa\Projects\obs-analysis\_cppstats_featurelocations\obs-studio\plugins\image-source\image-source.c"><cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;obs-module.h&gt;</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;graphics/image-file.h&gt;</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;util/platform.h&gt;</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;util/dstr.h&gt;</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;sys/stat.h&gt;</cpp:file></cpp:include>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>blog</name><parameter_list>(<parameter><type><name>log_level</name></type></parameter>, <parameter><type><name>format</name></type></parameter>, <parameter><type><modifier>...</modifier></type></parameter>)</parameter_list></cpp:macro> <cpp:value>blog(log_level, "[image_source: '%s'] " format, obs_source_get_name(context-&gt;source), ##__VA_ARGS__)</cpp:value></cpp:define>
+
+
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>debug</name><parameter_list>(<parameter><type><name>format</name></type></parameter>, <parameter><type><modifier>...</modifier></type></parameter>)</parameter_list></cpp:macro> <cpp:value>blog(LOG_DEBUG, format, ##__VA_ARGS__)</cpp:value></cpp:define>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>info</name><parameter_list>(<parameter><type><name>format</name></type></parameter>, <parameter><type><modifier>...</modifier></type></parameter>)</parameter_list></cpp:macro> <cpp:value>blog(LOG_INFO, format, ##__VA_ARGS__)</cpp:value></cpp:define>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>warn</name><parameter_list>(<parameter><type><name>format</name></type></parameter>, <parameter><type><modifier>...</modifier></type></parameter>)</parameter_list></cpp:macro> <cpp:value>blog(LOG_WARNING, format, ##__VA_ARGS__)</cpp:value></cpp:define>
+
+<struct>struct <name>image_source</name> <block>{
+<decl_stmt><decl><type><name>obs_source_t</name> <modifier>*</modifier></type><name>source</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>char</name> <modifier>*</modifier></type><name>file</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>bool</name></type> <name>persistent</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>time_t</name></type> <name>file_timestamp</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>float</name></type> <name>update_time_elapsed</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>uint64_t</name></type> <name>last_time</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>bool</name></type> <name>active</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>gs_image_file2_t</name></type> <name>if2</name></decl>;</decl_stmt>
+}</block>;</struct>
+
+<function><type><specifier>static</specifier> <name>time_t</name></type> <name>get_modified_timestamp</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>filename</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>stat</name></name></type> <name>stats</name></decl>;</decl_stmt>
+<if_stmt><if>if <condition>(<expr><call><name>os_stat</name><argument_list>(<argument><expr><name>filename</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>stats</name></expr></argument>)</argument_list></call> <operator>!=</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><operator>-</operator><literal type="number">1</literal></expr>;</return></block_content></block></if></if_stmt>
+<return>return <expr><name><name>stats</name><operator>.</operator><name>st_mtime</name></name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>image_source_get_name</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>unused</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<expr_stmt><expr><call><name>UNUSED_PARAMETER</name><argument_list>(<argument><expr><name>unused</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><call><name>obs_module_text</name><argument_list>(<argument><expr><literal type="string">"ImageInput"</literal></expr></argument>)</argument_list></call></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>image_source_load</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>image_source</name></name> <modifier>*</modifier></type><name>context</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>char</name> <modifier>*</modifier></type><name>file</name> <init>= <expr><name><name>context</name><operator>-&gt;</operator><name>file</name></name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>obs_enter_graphics</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>gs_image_file2_free</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>context</name><operator>-&gt;</operator><name>if2</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>obs_leave_graphics</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>file</name> <operator>&amp;&amp;</operator> <operator>*</operator><name>file</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>debug</name><argument_list>(<argument><expr><literal type="string">"loading texture '%s'"</literal></expr></argument>, <argument><expr><name>file</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>context</name><operator>-&gt;</operator><name>file_timestamp</name></name> <operator>=</operator> <call><name>get_modified_timestamp</name><argument_list>(<argument><expr><name>file</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>gs_image_file2_init</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>context</name><operator>-&gt;</operator><name>if2</name></name></expr></argument>, <argument><expr><name>file</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>context</name><operator>-&gt;</operator><name>update_time_elapsed</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_enter_graphics</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>gs_image_file2_init_texture</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>context</name><operator>-&gt;</operator><name>if2</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>obs_leave_graphics</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>context</name><operator>-&gt;</operator><name>if2</name><operator>.</operator><name>image</name><operator>.</operator><name>loaded</name></name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>warn</name><argument_list>(<argument><expr><literal type="string">"failed to load texture '%s'"</literal></expr></argument>, <argument><expr><name>file</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>image_source_unload</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>image_source</name></name> <modifier>*</modifier></type><name>context</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<expr_stmt><expr><call><name>obs_enter_graphics</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>gs_image_file2_free</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>context</name><operator>-&gt;</operator><name>if2</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>obs_leave_graphics</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>image_source_update</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>, <parameter><decl><type><name>obs_data_t</name> <modifier>*</modifier></type><name>settings</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>image_source</name></name> <modifier>*</modifier></type><name>context</name> <init>= <expr><name>data</name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>file</name> <init>= <expr><call><name>obs_data_get_string</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"file"</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><specifier>const</specifier> <name>bool</name></type> <name>unload</name> <init>= <expr><call><name>obs_data_get_bool</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"unload"</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>context</name><operator>-&gt;</operator><name>file</name></name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>bfree</name><argument_list>(<argument><expr><name><name>context</name><operator>-&gt;</operator><name>file</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+<expr_stmt><expr><name><name>context</name><operator>-&gt;</operator><name>file</name></name> <operator>=</operator> <call><name>bstrdup</name><argument_list>(<argument><expr><name>file</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>context</name><operator>-&gt;</operator><name>persistent</name></name> <operator>=</operator> <operator>!</operator><name>unload</name></expr>;</expr_stmt>
+
+
+<if_stmt><if>if <condition>(<expr><name><name>context</name><operator>-&gt;</operator><name>persistent</name></name> <operator>||</operator> <call><name>obs_source_showing</name><argument_list>(<argument><expr><name><name>context</name><operator>-&gt;</operator><name>source</name></name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>image_source_load</name><argument_list>(<argument><expr><name>data</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if>
+<else>else<block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>image_source_unload</name><argument_list>(<argument><expr><name>data</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></else></if_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>image_source_defaults</name><parameter_list>(<parameter><decl><type><name>obs_data_t</name> <modifier>*</modifier></type><name>settings</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<expr_stmt><expr><call><name>obs_data_set_default_bool</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"unload"</literal></expr></argument>, <argument><expr><name>false</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>image_source_show</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>image_source</name></name> <modifier>*</modifier></type><name>context</name> <init>= <expr><name>data</name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>context</name><operator>-&gt;</operator><name>persistent</name></name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>image_source_load</name><argument_list>(<argument><expr><name>context</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>image_source_hide</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>image_source</name></name> <modifier>*</modifier></type><name>context</name> <init>= <expr><name>data</name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>context</name><operator>-&gt;</operator><name>persistent</name></name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>image_source_unload</name><argument_list>(<argument><expr><name>context</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name> <modifier>*</modifier></type><name>image_source_create</name><parameter_list>(<parameter><decl><type><name>obs_data_t</name> <modifier>*</modifier></type><name>settings</name></decl></parameter>, <parameter><decl><type><name>obs_source_t</name> <modifier>*</modifier></type><name>source</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>image_source</name></name> <modifier>*</modifier></type><name>context</name> <init>= <expr><call><name>bzalloc</name><argument_list>(<argument><expr><sizeof>sizeof<argument_list>(<argument><expr>struct <name>image_source</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><name><name>context</name><operator>-&gt;</operator><name>source</name></name> <operator>=</operator> <name>source</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>image_source_update</name><argument_list>(<argument><expr><name>context</name></expr></argument>, <argument><expr><name>settings</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>context</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>image_source_destroy</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>image_source</name></name> <modifier>*</modifier></type><name>context</name> <init>= <expr><name>data</name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>image_source_unload</name><argument_list>(<argument><expr><name>context</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>context</name><operator>-&gt;</operator><name>file</name></name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>bfree</name><argument_list>(<argument><expr><name><name>context</name><operator>-&gt;</operator><name>file</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+<expr_stmt><expr><call><name>bfree</name><argument_list>(<argument><expr><name>context</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>uint32_t</name></type> <name>image_source_getwidth</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>image_source</name></name> <modifier>*</modifier></type><name>context</name> <init>= <expr><name>data</name></expr></init></decl>;</decl_stmt>
+<return>return <expr><name><name>context</name><operator>-&gt;</operator><name>if2</name><operator>.</operator><name>image</name><operator>.</operator><name>cx</name></name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>uint32_t</name></type> <name>image_source_getheight</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>image_source</name></name> <modifier>*</modifier></type><name>context</name> <init>= <expr><name>data</name></expr></init></decl>;</decl_stmt>
+<return>return <expr><name><name>context</name><operator>-&gt;</operator><name>if2</name><operator>.</operator><name>image</name><operator>.</operator><name>cy</name></name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>image_source_render</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>, <parameter><decl><type><name>gs_effect_t</name> <modifier>*</modifier></type><name>effect</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>image_source</name></name> <modifier>*</modifier></type><name>context</name> <init>= <expr><name>data</name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>context</name><operator>-&gt;</operator><name>if2</name><operator>.</operator><name>image</name><operator>.</operator><name>texture</name></name></expr>)</condition><block type="pseudo"><block_content>
+<return>return;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>gs_effect_set_texture</name><argument_list>(<argument><expr><call><name>gs_effect_get_param_by_name</name><argument_list>(<argument><expr><name>effect</name></expr></argument>, <argument><expr><literal type="string">"image"</literal></expr></argument>)</argument_list></call></expr></argument>,
+<argument><expr><name><name>context</name><operator>-&gt;</operator><name>if2</name><operator>.</operator><name>image</name><operator>.</operator><name>texture</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>gs_draw_sprite</name><argument_list>(<argument><expr><name><name>context</name><operator>-&gt;</operator><name>if2</name><operator>.</operator><name>image</name><operator>.</operator><name>texture</name></name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><name><name>context</name><operator>-&gt;</operator><name>if2</name><operator>.</operator><name>image</name><operator>.</operator><name>cx</name></name></expr></argument>,
+<argument><expr><name><name>context</name><operator>-&gt;</operator><name>if2</name><operator>.</operator><name>image</name><operator>.</operator><name>cy</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>image_source_tick</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>, <parameter><decl><type><name>float</name></type> <name>seconds</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>image_source</name></name> <modifier>*</modifier></type><name>context</name> <init>= <expr><name>data</name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>uint64_t</name></type> <name>frame_time</name> <init>= <expr><call><name>obs_get_video_frame_time</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>context</name><operator>-&gt;</operator><name>update_time_elapsed</name></name> <operator>+=</operator> <name>seconds</name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>context</name><operator>-&gt;</operator><name>update_time_elapsed</name></name> <operator>&gt;=</operator> <literal type="number">1.0f</literal></expr>)</condition> <block>{<block_content>
+<decl_stmt><decl><type><name>time_t</name></type> <name>t</name> <init>= <expr><call><name>get_modified_timestamp</name><argument_list>(<argument><expr><name><name>context</name><operator>-&gt;</operator><name>file</name></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><name><name>context</name><operator>-&gt;</operator><name>update_time_elapsed</name></name> <operator>=</operator> <literal type="number">0.0f</literal></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>context</name><operator>-&gt;</operator><name>file_timestamp</name></name> <operator>!=</operator> <name>t</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>image_source_load</name><argument_list>(<argument><expr><name>context</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>obs_source_active</name><argument_list>(<argument><expr><name><name>context</name><operator>-&gt;</operator><name>source</name></name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>context</name><operator>-&gt;</operator><name>active</name></name></expr>)</condition> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name><name>context</name><operator>-&gt;</operator><name>if2</name><operator>.</operator><name>image</name><operator>.</operator><name>is_animated_gif</name></name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name><name>context</name><operator>-&gt;</operator><name>last_time</name></name> <operator>=</operator> <name>frame_time</name></expr>;</expr_stmt></block_content></block></if></if_stmt>
+<expr_stmt><expr><name><name>context</name><operator>-&gt;</operator><name>active</name></name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name><name>context</name><operator>-&gt;</operator><name>active</name></name></expr>)</condition> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name><name>context</name><operator>-&gt;</operator><name>if2</name><operator>.</operator><name>image</name><operator>.</operator><name>is_animated_gif</name></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name><name>context</name><operator>-&gt;</operator><name>if2</name><operator>.</operator><name>image</name><operator>.</operator><name>cur_frame</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>context</name><operator>-&gt;</operator><name>if2</name><operator>.</operator><name>image</name><operator>.</operator><name>cur_loop</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>context</name><operator>-&gt;</operator><name>if2</name><operator>.</operator><name>image</name><operator>.</operator><name>cur_time</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_enter_graphics</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>gs_image_file2_update_texture</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>context</name><operator>-&gt;</operator><name>if2</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>obs_leave_graphics</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>context</name><operator>-&gt;</operator><name>active</name></name> <operator>=</operator> <name>false</name></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+
+<return>return;</return>
+</block_content>}</block></else></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>context</name><operator>-&gt;</operator><name>last_time</name></name> <operator>&amp;&amp;</operator> <name><name>context</name><operator>-&gt;</operator><name>if2</name><operator>.</operator><name>image</name><operator>.</operator><name>is_animated_gif</name></name></expr>)</condition> <block>{<block_content>
+<decl_stmt><decl><type><name>uint64_t</name></type> <name>elapsed</name> <init>= <expr><name>frame_time</name> <operator>-</operator> <name><name>context</name><operator>-&gt;</operator><name>last_time</name></name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>bool</name></type> <name>updated</name> <init>= <expr><call><name>gs_image_file2_tick</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>context</name><operator>-&gt;</operator><name>if2</name></name></expr></argument>, <argument><expr><name>elapsed</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>updated</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>obs_enter_graphics</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>gs_image_file2_update_texture</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>context</name><operator>-&gt;</operator><name>if2</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>obs_leave_graphics</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>context</name><operator>-&gt;</operator><name>last_time</name></name> <operator>=</operator> <name>frame_time</name></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<decl_stmt><decl><type><specifier>static</specifier> <specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>image_filter</name> <init>=
+<expr><literal type="string">"All formats (*.bmp *.tga *.png *.jpeg *.jpg *.gif *.psd);;"</literal>
+<literal type="string">"BMP Files (*.bmp);;"</literal>
+<literal type="string">"Targa Files (*.tga);;"</literal>
+<literal type="string">"PNG Files (*.png);;"</literal>
+<literal type="string">"JPEG Files (*.jpeg *.jpg);;"</literal>
+<literal type="string">"GIF Files (*.gif);;"</literal>
+<literal type="string">"PSD Files (*.psd);;"</literal>
+<literal type="string">"All Files (*.*)"</literal></expr></init></decl>;</decl_stmt>
+
+<function><type><specifier>static</specifier> <name>obs_properties_t</name> <modifier>*</modifier></type><name>image_source_properties</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>image_source</name></name> <modifier>*</modifier></type><name>s</name> <init>= <expr><name>data</name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name><name>struct</name> <name>dstr</name></name></type> <name>path</name> <init>= <expr><block>{<expr><literal type="number">0</literal></expr>}</block></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>obs_properties_t</name> <modifier>*</modifier></type><name>props</name> <init>= <expr><call><name>obs_properties_create</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>s</name> <operator>&amp;&amp;</operator> <name><name>s</name><operator>-&gt;</operator><name>file</name></name> <operator>&amp;&amp;</operator> <operator>*</operator><name><name>s</name><operator>-&gt;</operator><name>file</name></name></expr>)</condition> <block>{<block_content>
+<decl_stmt><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>slash</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>dstr_copy</name><argument_list>(<argument><expr><operator>&amp;</operator><name>path</name></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>file</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>dstr_replace</name><argument_list>(<argument><expr><operator>&amp;</operator><name>path</name></expr></argument>, <argument><expr><literal type="string">"\\"</literal></expr></argument>, <argument><expr><literal type="string">"/"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>slash</name> <operator>=</operator> <call><name>strrchr</name><argument_list>(<argument><expr><name><name>path</name><operator>.</operator><name>array</name></name></expr></argument>, <argument><expr><literal type="char">'/'</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name>slash</name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>dstr_resize</name><argument_list>(<argument><expr><operator>&amp;</operator><name>path</name></expr></argument>, <argument><expr><name>slash</name> <operator>-</operator> <name><name>path</name><operator>.</operator><name>array</name></name> <operator>+</operator> <literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>obs_properties_add_path</name><argument_list>(<argument><expr><name>props</name></expr></argument>, <argument><expr><literal type="string">"file"</literal></expr></argument>, <argument><expr><call><name>obs_module_text</name><argument_list>(<argument><expr><literal type="string">"File"</literal></expr></argument>)</argument_list></call></expr></argument>,
+<argument><expr><name>OBS_PATH_FILE</name></expr></argument>, <argument><expr><name>image_filter</name></expr></argument>, <argument><expr><name><name>path</name><operator>.</operator><name>array</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>obs_properties_add_bool</name><argument_list>(<argument><expr><name>props</name></expr></argument>, <argument><expr><literal type="string">"unload"</literal></expr></argument>,
+<argument><expr><call><name>obs_module_text</name><argument_list>(<argument><expr><literal type="string">"UnloadWhenNotShowing"</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>dstr_free</name><argument_list>(<argument><expr><operator>&amp;</operator><name>path</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>props</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><name>uint64_t</name></type> <name>image_source_get_memory_usage</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>image_source</name></name> <modifier>*</modifier></type><name>s</name> <init>= <expr><name>data</name></expr></init></decl>;</decl_stmt>
+<return>return <expr><name><name>s</name><operator>-&gt;</operator><name>if2</name><operator>.</operator><name>mem_usage</name></name></expr>;</return>
+</block_content>}</block></function>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name><name>struct</name> <name>obs_source_info</name></name></type> <name>image_source_info</name> <init>= <expr><block>{
+<expr><operator>.</operator><name>id</name> <operator>=</operator> <literal type="string">"image_source"</literal></expr>,
+<expr><operator>.</operator><name>type</name> <operator>=</operator> <name>OBS_SOURCE_TYPE_INPUT</name></expr>,
+<expr><operator>.</operator><name>output_flags</name> <operator>=</operator> <name>OBS_SOURCE_VIDEO</name></expr>,
+<expr><operator>.</operator><name>get_name</name> <operator>=</operator> <name>image_source_get_name</name></expr>,
+<expr><operator>.</operator><name>create</name> <operator>=</operator> <name>image_source_create</name></expr>,
+<expr><operator>.</operator><name>destroy</name> <operator>=</operator> <name>image_source_destroy</name></expr>,
+<expr><operator>.</operator><name>update</name> <operator>=</operator> <name>image_source_update</name></expr>,
+<expr><operator>.</operator><name>get_defaults</name> <operator>=</operator> <name>image_source_defaults</name></expr>,
+<expr><operator>.</operator><name>show</name> <operator>=</operator> <name>image_source_show</name></expr>,
+<expr><operator>.</operator><name>hide</name> <operator>=</operator> <name>image_source_hide</name></expr>,
+<expr><operator>.</operator><name>get_width</name> <operator>=</operator> <name>image_source_getwidth</name></expr>,
+<expr><operator>.</operator><name>get_height</name> <operator>=</operator> <name>image_source_getheight</name></expr>,
+<expr><operator>.</operator><name>video_render</name> <operator>=</operator> <name>image_source_render</name></expr>,
+<expr><operator>.</operator><name>video_tick</name> <operator>=</operator> <name>image_source_tick</name></expr>,
+<expr><operator>.</operator><name>get_properties</name> <operator>=</operator> <name>image_source_properties</name></expr>,
+<expr><operator>.</operator><name>icon_type</name> <operator>=</operator> <name>OBS_ICON_TYPE_IMAGE</name></expr>,
+}</block></expr></init></decl>;</decl_stmt>
+
+<macro><name>OBS_DECLARE_MODULE</name><argument_list>()</argument_list></macro>
+<macro><name>OBS_MODULE_USE_DEFAULT_LOCALE</name><argument_list>(<argument><literal type="string">"image-source"</literal></argument>, <argument><literal type="string">"en-US"</literal></argument>)</argument_list></macro>
+<function><type><name>MODULE_EXPORT</name> <specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>obs_module_description</name><parameter_list>(<parameter><decl><type><name>void</name></type></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<return>return <expr><literal type="string">"Image/color/slideshow sources"</literal></expr>;</return>
+</block_content>}</block></function>
+
+<decl_stmt><decl><type><specifier>extern</specifier> <name><name>struct</name> <name>obs_source_info</name></name></type> <name>slideshow_info</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><specifier>extern</specifier> <name><name>struct</name> <name>obs_source_info</name></name></type> <name>color_source_info_v1</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><specifier>extern</specifier> <name><name>struct</name> <name>obs_source_info</name></name></type> <name>color_source_info_v2</name></decl>;</decl_stmt>
+
+<function><type><name>bool</name></type> <name>obs_module_load</name><parameter_list>(<parameter><decl><type><name>void</name></type></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<expr_stmt><expr><call><name>obs_register_source</name><argument_list>(<argument><expr><operator>&amp;</operator><name>image_source_info</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>obs_register_source</name><argument_list>(<argument><expr><operator>&amp;</operator><name>color_source_info_v1</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>obs_register_source</name><argument_list>(<argument><expr><operator>&amp;</operator><name>color_source_info_v2</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>obs_register_source</name><argument_list>(<argument><expr><operator>&amp;</operator><name>slideshow_info</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>true</name></expr>;</return>
+</block_content>}</block></function>
+</unit>

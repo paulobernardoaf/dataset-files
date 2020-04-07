@@ -1,0 +1,147 @@
+#if defined(__cplusplus)
+extern "C" {
+#endif
+#include <stdbool.h>
+#include "../lv_font/lv_font.h"
+#include "../lv_misc/lv_color.h"
+#include "../lv_misc/lv_area.h"
+#include "../lv_misc/lv_anim.h"
+#define LV_RADIUS_CIRCLE (LV_COORD_MAX) 
+#define LV_STYLE_DEGUG_SENTINEL_VALUE 0x12345678
+LV_EXPORT_CONST_INT(LV_RADIUS_CIRCLE);
+enum {
+LV_BORDER_NONE = 0x00,
+LV_BORDER_BOTTOM = 0x01,
+LV_BORDER_TOP = 0x02,
+LV_BORDER_LEFT = 0x04,
+LV_BORDER_RIGHT = 0x08,
+LV_BORDER_FULL = 0x0F,
+LV_BORDER_INTERNAL = 0x10, 
+};
+typedef uint8_t lv_border_part_t;
+enum {
+LV_SHADOW_BOTTOM = 0, 
+LV_SHADOW_FULL, 
+};
+typedef uint8_t lv_shadow_type_t;
+typedef struct
+{
+uint8_t glass : 1; 
+struct
+{
+lv_color_t main_color; 
+lv_color_t grad_color; 
+lv_coord_t radius; 
+lv_opa_t opa; 
+struct
+{
+lv_color_t color; 
+lv_coord_t width; 
+lv_border_part_t part; 
+lv_opa_t opa; 
+} border;
+struct
+{
+lv_color_t color;
+lv_coord_t width;
+lv_shadow_type_t type; 
+} shadow;
+struct
+{
+lv_coord_t top;
+lv_coord_t bottom;
+lv_coord_t left;
+lv_coord_t right;
+lv_coord_t inner;
+} padding;
+} body;
+struct
+{
+lv_color_t color; 
+lv_color_t sel_color; 
+const lv_font_t * font;
+lv_coord_t letter_space; 
+lv_coord_t line_space; 
+lv_opa_t opa; 
+} text;
+struct
+{
+lv_color_t color; 
+lv_opa_t intense; 
+lv_opa_t opa; 
+} image;
+struct
+{
+lv_color_t color;
+lv_coord_t width;
+lv_opa_t opa;
+uint8_t rounded : 1; 
+} line;
+#if LV_USE_DEBUG
+#if LV_USE_ASSERT_STYLE
+uint32_t debug_sentinel; 
+#endif
+#endif
+} lv_style_t;
+#if LV_USE_ANIMATION
+typedef struct
+{
+lv_style_t style_start; 
+lv_style_t style_end;
+lv_style_t * style_anim;
+lv_anim_ready_cb_t ready_cb;
+} lv_style_anim_dsc_t;
+#endif
+void lv_style_init(void);
+void lv_style_copy(lv_style_t * dest, const lv_style_t * src);
+void lv_style_mix(const lv_style_t * start, const lv_style_t * end, lv_style_t * res, uint16_t ratio);
+#if LV_USE_ANIMATION
+void lv_style_anim_init(lv_anim_t * a);
+void lv_style_anim_set_styles(lv_anim_t * a, lv_style_t * to_anim, const lv_style_t * start, const lv_style_t * end);
+static inline void lv_style_anim_set_time(lv_anim_t * a, uint16_t duration, int16_t delay)
+{
+lv_anim_set_time(a, duration, delay);
+}
+static inline void lv_style_anim_set_ready_cb(lv_anim_t * a, lv_anim_ready_cb_t ready_cb)
+{
+lv_style_anim_dsc_t * dsc = (lv_style_anim_dsc_t *)a->var;
+dsc->ready_cb = ready_cb;
+}
+static inline void lv_style_anim_set_playback(lv_anim_t * a, uint16_t wait_time)
+{
+lv_anim_set_playback(a, wait_time);
+}
+static inline void lv_style_anim_clear_playback(lv_anim_t * a)
+{
+lv_anim_clear_playback(a);
+}
+static inline void lv_style_anim_set_repeat(lv_anim_t * a, uint16_t wait_time)
+{
+lv_anim_set_repeat(a, wait_time);
+}
+static inline void lv_style_anim_clear_repeat(lv_anim_t * a)
+{
+lv_anim_clear_repeat(a);
+}
+static inline void lv_style_anim_create(lv_anim_t * a)
+{
+lv_anim_create(a);
+}
+#endif
+extern lv_style_t lv_style_scr;
+extern lv_style_t lv_style_transp;
+extern lv_style_t lv_style_transp_fit;
+extern lv_style_t lv_style_transp_tight;
+extern lv_style_t lv_style_plain;
+extern lv_style_t lv_style_plain_color;
+extern lv_style_t lv_style_pretty;
+extern lv_style_t lv_style_pretty_color;
+extern lv_style_t lv_style_btn_rel;
+extern lv_style_t lv_style_btn_pr;
+extern lv_style_t lv_style_btn_tgl_rel;
+extern lv_style_t lv_style_btn_tgl_pr;
+extern lv_style_t lv_style_btn_ina;
+#define LV_STYLE_CREATE(name, copy_p) static lv_style_t name; lv_style_copy(&name, copy_p == NULL ? &lv_style_plain : copy_p);
+#if defined(__cplusplus)
+} 
+#endif

@@ -1,0 +1,698 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" revision="1.0.0" language="C" filename="D:\Pesquisa\Projects\ffmpeg-analysis\_cppstats\FFmpeg\libavfilter\vf_thumbnail_cuda.c"><cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"libavutil/hwcontext.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"libavutil/hwcontext_cuda_internal.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"libavutil/cuda_check.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"libavutil/opt.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"libavutil/pixdesc.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"avfilter.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"internal.h"</cpp:file></cpp:include>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>CHECK_CU</name><parameter_list>(<parameter><type><name>x</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>FF_CUDA_CHECK_DL(ctx, s-&gt;hwctx-&gt;internal-&gt;cuda_dl, x)</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>HIST_SIZE</name></cpp:macro> <cpp:value>(3*256)</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>DIV_UP</name><parameter_list>(<parameter><type><name>a</name></type></parameter>, <parameter><type><name>b</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>( ((a) + (b) - 1) / (b) )</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>BLOCKX</name></cpp:macro> <cpp:value>32</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>BLOCKY</name></cpp:macro> <cpp:value>16</cpp:value></cpp:define>
+
+<decl_stmt><decl><type><specifier>static</specifier> <specifier>const</specifier> <name><name>enum</name> <name>AVPixelFormat</name></name></type> <name><name>supported_formats</name><index>[]</index></name> <init>= <expr><block>{
+
+<expr><name>AV_PIX_FMT_NV12</name></expr>,
+
+<expr><name>AV_PIX_FMT_YUV420P</name></expr>,
+
+<expr><name>AV_PIX_FMT_YUV444P</name></expr>,
+
+<expr><name>AV_PIX_FMT_P010</name></expr>,
+
+<expr><name>AV_PIX_FMT_P016</name></expr>,
+
+<expr><name>AV_PIX_FMT_YUV444P16</name></expr>,
+
+}</block></expr></init></decl>;</decl_stmt>
+
+<struct>struct <name>thumb_frame</name> <block>{
+
+<decl_stmt><decl><type><name>AVFrame</name> <modifier>*</modifier></type><name>buf</name></decl>;</decl_stmt> 
+
+<decl_stmt><decl><type><name>int</name></type> <name><name>histogram</name><index>[<expr><name>HIST_SIZE</name></expr>]</index></name></decl>;</decl_stmt> 
+
+}</block>;</struct>
+
+<typedef>typedef <type><struct>struct <name>ThumbnailCudaContext</name> <block>{
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>AVClass</name> <modifier>*</modifier></type><name>class</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>n</name></decl>;</decl_stmt> 
+
+<decl_stmt><decl><type><name>int</name></type> <name>n_frames</name></decl>;</decl_stmt> 
+
+<decl_stmt><decl><type><name><name>struct</name> <name>thumb_frame</name></name> <modifier>*</modifier></type><name>frames</name></decl>;</decl_stmt> 
+
+<decl_stmt><decl><type><name>AVRational</name></type> <name>tb</name></decl>;</decl_stmt> 
+
+<decl_stmt><decl><type><name>AVBufferRef</name> <modifier>*</modifier></type><name>hw_frames_ctx</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>AVCUDADeviceContext</name> <modifier>*</modifier></type><name>hwctx</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>CUmodule</name></type> <name>cu_module</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>CUfunction</name></type> <name>cu_func_uchar</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>CUfunction</name></type> <name>cu_func_uchar2</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>CUfunction</name></type> <name>cu_func_ushort</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>CUfunction</name></type> <name>cu_func_ushort2</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>CUstream</name></type> <name>cu_stream</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>CUdeviceptr</name></type> <name>data</name></decl>;</decl_stmt>
+
+}</block></struct></type> <name>ThumbnailCudaContext</name>;</typedef>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>OFFSET</name><parameter_list>(<parameter><type><name>x</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>offsetof(ThumbnailCudaContext, x)</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>FLAGS</name></cpp:macro> <cpp:value>AV_OPT_FLAG_VIDEO_PARAM|AV_OPT_FLAG_FILTERING_PARAM</cpp:value></cpp:define>
+
+<decl_stmt><decl><type><specifier>static</specifier> <specifier>const</specifier> <name>AVOption</name></type> <name><name>thumbnail_cuda_options</name><index>[]</index></name> <init>= <expr><block>{
+
+<expr><block>{ <expr><literal type="string">"n"</literal></expr>, <expr><literal type="string">"set the frames batch size"</literal></expr>, <expr><call><name>OFFSET</name><argument_list>(<argument><expr><name>n_frames</name></expr></argument>)</argument_list></call></expr>, <expr><name>AV_OPT_TYPE_INT</name></expr>, <expr><block>{<expr><operator>.</operator><name>i64</name><operator>=</operator><literal type="number">100</literal></expr>}</block></expr>, <expr><literal type="number">2</literal></expr>, <expr><name>INT_MAX</name></expr>, <expr><name>FLAGS</name></expr> }</block></expr>,
+
+<expr><block>{ <expr><name>NULL</name></expr> }</block></expr>
+
+}</block></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>AVFILTER_DEFINE_CLASS</name><argument_list>(<argument><expr><name>thumbnail_cuda</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<function><type><specifier>static</specifier> <name>av_cold</name> <name>int</name></type> <name>init</name><parameter_list>(<parameter><decl><type><name>AVFilterContext</name> <modifier>*</modifier></type><name>ctx</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>ThumbnailCudaContext</name> <modifier>*</modifier></type><name>s</name> <init>= <expr><name><name>ctx</name><operator>-&gt;</operator><name>priv</name></name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>frames</name></name> <operator>=</operator> <call><name>av_calloc</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>n_frames</name></name></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr><operator>*</operator><name><name>s</name><operator>-&gt;</operator><name>frames</name></name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>s</name><operator>-&gt;</operator><name>frames</name></name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>av_log</name><argument_list>(<argument><expr><name>ctx</name></expr></argument>, <argument><expr><name>AV_LOG_ERROR</name></expr></argument>,
+
+<argument><expr><literal type="string">"Allocation failure, try to lower the number of frames\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><call><name>AVERROR</name><argument_list>(<argument><expr><name>ENOMEM</name></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>av_log</name><argument_list>(<argument><expr><name>ctx</name></expr></argument>, <argument><expr><name>AV_LOG_VERBOSE</name></expr></argument>, <argument><expr><literal type="string">"batch size: %d frames\n"</literal></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>n_frames</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>double</name></type> <name>frame_sum_square_err</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name>int</name> <modifier>*</modifier></type><name>hist</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>double</name> <modifier>*</modifier></type><name>median</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>int</name></type> <name>i</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>double</name></type> <name>err</name></decl>, <decl><type ref="prev"/><name>sum_sq_err</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>HIST_SIZE</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+
+<expr_stmt><expr><name>err</name> <operator>=</operator> <name><name>median</name><index>[<expr><name>i</name></expr>]</index></name> <operator>-</operator> <operator>(</operator><name>double</name><operator>)</operator><name><name>hist</name><index>[<expr><name>i</name></expr>]</index></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>sum_sq_err</name> <operator>+=</operator> <name>err</name><operator>*</operator><name>err</name></expr>;</expr_stmt>
+
+</block_content>}</block></for>
+
+<return>return <expr><name>sum_sq_err</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>AVFrame</name> <modifier>*</modifier></type><name>get_best_frame</name><parameter_list>(<parameter><decl><type><name>AVFilterContext</name> <modifier>*</modifier></type><name>ctx</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>AVFrame</name> <modifier>*</modifier></type><name>picref</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>ThumbnailCudaContext</name> <modifier>*</modifier></type><name>s</name> <init>= <expr><name><name>ctx</name><operator>-&gt;</operator><name>priv</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>i</name></decl>, <decl><type ref="prev"/><name>j</name></decl>, <decl><type ref="prev"/><name>best_frame_idx</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>nb_frames</name> <init>= <expr><name><name>s</name><operator>-&gt;</operator><name>n</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>double</name></type> <name><name>avg_hist</name><index>[<expr><name>HIST_SIZE</name></expr>]</index></name> <init>= <expr><block>{<expr><literal type="number">0</literal></expr>}</block></expr></init></decl>, <decl><type ref="prev"/><name>sq_err</name></decl>, <decl><type ref="prev"/><name>min_sq_err</name> <init>= <expr><operator>-</operator><literal type="number">1</literal></expr></init></decl>;</decl_stmt>
+
+<for>for <control>(<init><expr><name>j</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>j</name> <operator>&lt;</operator> <call><name>FF_ARRAY_ELEMS</name><argument_list>(<argument><expr><name>avg_hist</name></expr></argument>)</argument_list></call></expr>;</condition> <incr><expr><name>j</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>nb_frames</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name><name>avg_hist</name><index>[<expr><name>j</name></expr>]</index></name> <operator>+=</operator> <operator>(</operator><name>double</name><operator>)</operator><name><name>s</name><operator>-&gt;</operator><name>frames</name><index>[<expr><name>i</name></expr>]</index></name><operator>.</operator><name><name>histogram</name><index>[<expr><name>j</name></expr>]</index></name></expr>;</expr_stmt></block_content></block></for>
+
+<expr_stmt><expr><name><name>avg_hist</name><index>[<expr><name>j</name></expr>]</index></name> <operator>/=</operator> <name>nb_frames</name></expr>;</expr_stmt>
+
+</block_content>}</block></for>
+
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>nb_frames</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+
+<expr_stmt><expr><name>sq_err</name> <operator>=</operator> <call><name>frame_sum_square_err</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>frames</name><index>[<expr><name>i</name></expr>]</index></name><operator>.</operator><name>histogram</name></expr></argument>, <argument><expr><name>avg_hist</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>i</name> <operator>==</operator> <literal type="number">0</literal> <operator>||</operator> <name>sq_err</name> <operator>&lt;</operator> <name>min_sq_err</name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name>best_frame_idx</name> <operator>=</operator> <name>i</name></expr><operator>,</operator> <expr><name>min_sq_err</name> <operator>=</operator> <name>sq_err</name></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+</block_content>}</block></for>
+
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>nb_frames</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+
+<expr_stmt><expr><call><name>memset</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>frames</name><index>[<expr><name>i</name></expr>]</index></name><operator>.</operator><name>histogram</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>frames</name><index>[<expr><name>i</name></expr>]</index></name><operator>.</operator><name>histogram</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>i</name> <operator>!=</operator> <name>best_frame_idx</name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>av_frame_free</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>frames</name><index>[<expr><name>i</name></expr>]</index></name><operator>.</operator><name>buf</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+</block_content>}</block></for>
+
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>n</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>picref</name> <operator>=</operator> <name><name>s</name><operator>-&gt;</operator><name>frames</name><index>[<expr><name>best_frame_idx</name></expr>]</index></name><operator>.</operator><name>buf</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>av_log</name><argument_list>(<argument><expr><name>ctx</name></expr></argument>, <argument><expr><name>AV_LOG_INFO</name></expr></argument>, <argument><expr><literal type="string">"frame id #%d (pts_time=%f) selected "</literal>
+
+<literal type="string">"from a set of %d images\n"</literal></expr></argument>, <argument><expr><name>best_frame_idx</name></expr></argument>,
+
+<argument><expr><name><name>picref</name><operator>-&gt;</operator><name>pts</name></name> <operator>*</operator> <call><name>av_q2d</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>tb</name></name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name>nb_frames</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>frames</name><index>[<expr><name>best_frame_idx</name></expr>]</index></name><operator>.</operator><name>buf</name> <operator>=</operator> <name>NULL</name></expr>;</expr_stmt>
+
+<return>return <expr><name>picref</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>thumbnail_kernel</name><parameter_list>(<parameter><decl><type><name>AVFilterContext</name> <modifier>*</modifier></type><name>ctx</name></decl></parameter>, <parameter><decl><type><name>CUfunction</name></type> <name>func</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>channels</name></decl></parameter>,
+
+<parameter><decl><type><name>int</name> <modifier>*</modifier></type><name>histogram</name></decl></parameter>, <parameter><decl><type><name>uint8_t</name> <modifier>*</modifier></type><name>src_dptr</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>src_width</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>src_height</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>src_pitch</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>pixel_size</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>int</name></type> <name>ret</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>ThumbnailCudaContext</name> <modifier>*</modifier></type><name>s</name> <init>= <expr><name><name>ctx</name><operator>-&gt;</operator><name>priv</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>CudaFunctions</name> <modifier>*</modifier></type><name>cu</name> <init>= <expr><name><name>s</name><operator>-&gt;</operator><name>hwctx</name><operator>-&gt;</operator><name>internal</name><operator>-&gt;</operator><name>cuda_dl</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>CUtexObject</name></type> <name>tex</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>void</name> <modifier>*</modifier></type><name><name>args</name><index>[]</index></name> <init>= <expr><block>{ <expr><operator>&amp;</operator><name>tex</name></expr>, <expr><operator>&amp;</operator><name>histogram</name></expr>, <expr><operator>&amp;</operator><name>src_width</name></expr>, <expr><operator>&amp;</operator><name>src_height</name></expr> }</block></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>CUDA_TEXTURE_DESC</name></type> <name>tex_desc</name> <init>= <expr><block>{
+
+<expr><operator>.</operator><name>filterMode</name> <operator>=</operator> <name>CU_TR_FILTER_MODE_LINEAR</name></expr>,
+
+<expr><operator>.</operator><name>flags</name> <operator>=</operator> <name>CU_TRSF_READ_AS_INTEGER</name></expr>,
+
+}</block></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>CUDA_RESOURCE_DESC</name></type> <name>res_desc</name> <init>= <expr><block>{
+
+<expr><operator>.</operator><name>resType</name> <operator>=</operator> <name>CU_RESOURCE_TYPE_PITCH2D</name></expr>,
+
+<expr><operator>.</operator><name><name>res</name><operator>.</operator><name>pitch2D</name><operator>.</operator><name>format</name></name> <operator>=</operator> <name>pixel_size</name> <operator>==</operator> <literal type="number">1</literal> <operator>?</operator>
+
+<name>CU_AD_FORMAT_UNSIGNED_INT8</name> <operator>:</operator>
+
+<name>CU_AD_FORMAT_UNSIGNED_INT16</name></expr>,
+
+<expr><operator>.</operator><name><name>res</name><operator>.</operator><name>pitch2D</name><operator>.</operator><name>numChannels</name></name> <operator>=</operator> <name>channels</name></expr>,
+
+<expr><operator>.</operator><name><name>res</name><operator>.</operator><name>pitch2D</name><operator>.</operator><name>width</name></name> <operator>=</operator> <name>src_width</name></expr>,
+
+<expr><operator>.</operator><name><name>res</name><operator>.</operator><name>pitch2D</name><operator>.</operator><name>height</name></name> <operator>=</operator> <name>src_height</name></expr>,
+
+<expr><operator>.</operator><name><name>res</name><operator>.</operator><name>pitch2D</name><operator>.</operator><name>pitchInBytes</name></name> <operator>=</operator> <name>src_pitch</name></expr>,
+
+<expr><operator>.</operator><name><name>res</name><operator>.</operator><name>pitch2D</name><operator>.</operator><name>devPtr</name></name> <operator>=</operator> <operator>(</operator><name>CUdeviceptr</name><operator>)</operator><name>src_dptr</name></expr>,
+
+}</block></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <call><name>CHECK_CU</name><argument_list>(<argument><expr><call><name><name>cu</name><operator>-&gt;</operator><name>cuTexObjectCreate</name></name><argument_list>(<argument><expr><operator>&amp;</operator><name>tex</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>res_desc</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>tex_desc</name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>ret</name> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+
+<goto>goto <name>exit</name>;</goto></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <call><name>CHECK_CU</name><argument_list>(<argument><expr><call><name><name>cu</name><operator>-&gt;</operator><name>cuLaunchKernel</name></name><argument_list>(<argument><expr><name>func</name></expr></argument>,
+
+<argument><expr><call><name>DIV_UP</name><argument_list>(<argument><expr><name>src_width</name></expr></argument>, <argument><expr><name>BLOCKX</name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>DIV_UP</name><argument_list>(<argument><expr><name>src_height</name></expr></argument>, <argument><expr><name>BLOCKY</name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>,
+
+<argument><expr><name>BLOCKX</name></expr></argument>, <argument><expr><name>BLOCKY</name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>cu_stream</name></name></expr></argument>, <argument><expr><name>args</name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<label><name>exit</name>:</label>
+
+<if_stmt><if>if <condition>(<expr><name>tex</name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>CHECK_CU</name><argument_list>(<argument><expr><call><name><name>cu</name><operator>-&gt;</operator><name>cuTexObjectDestroy</name></name><argument_list>(<argument><expr><name>tex</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<return>return <expr><name>ret</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>thumbnail</name><parameter_list>(<parameter><decl><type><name>AVFilterContext</name> <modifier>*</modifier></type><name>ctx</name></decl></parameter>, <parameter><decl><type><name>int</name> <modifier>*</modifier></type><name>histogram</name></decl></parameter>, <parameter><decl><type><name>AVFrame</name> <modifier>*</modifier></type><name>in</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>AVHWFramesContext</name> <modifier>*</modifier></type><name>in_frames_ctx</name> <init>= <expr><operator>(</operator><name>AVHWFramesContext</name><operator>*</operator><operator>)</operator><name><name>in</name><operator>-&gt;</operator><name>hw_frames_ctx</name><operator>-&gt;</operator><name>data</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>ThumbnailCudaContext</name> <modifier>*</modifier></type><name>s</name> <init>= <expr><name><name>ctx</name><operator>-&gt;</operator><name>priv</name></name></expr></init></decl>;</decl_stmt>
+
+<switch>switch <condition>(<expr><name><name>in_frames_ctx</name><operator>-&gt;</operator><name>sw_format</name></name></expr>)</condition> <block>{<block_content>
+
+<case>case <expr><name>AV_PIX_FMT_NV12</name></expr>:</case>
+
+<expr_stmt><expr><call><name>thumbnail_kernel</name><argument_list>(<argument><expr><name>ctx</name></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>cu_func_uchar</name></name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>,
+
+<argument><expr><name>histogram</name></expr></argument>, <argument><expr><name><name>in</name><operator>-&gt;</operator><name>data</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>, <argument><expr><name><name>in</name><operator>-&gt;</operator><name>width</name></name></expr></argument>, <argument><expr><name><name>in</name><operator>-&gt;</operator><name>height</name></name></expr></argument>, <argument><expr><name><name>in</name><operator>-&gt;</operator><name>linesize</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>thumbnail_kernel</name><argument_list>(<argument><expr><name>ctx</name></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>cu_func_uchar2</name></name></expr></argument>, <argument><expr><literal type="number">2</literal></expr></argument>,
+
+<argument><expr><name>histogram</name> <operator>+</operator> <literal type="number">256</literal></expr></argument>, <argument><expr><name><name>in</name><operator>-&gt;</operator><name>data</name><index>[<expr><literal type="number">1</literal></expr>]</index></name></expr></argument>, <argument><expr><name><name>in</name><operator>-&gt;</operator><name>width</name></name> <operator>/</operator> <literal type="number">2</literal></expr></argument>, <argument><expr><name><name>in</name><operator>-&gt;</operator><name>height</name></name> <operator>/</operator> <literal type="number">2</literal></expr></argument>, <argument><expr><name><name>in</name><operator>-&gt;</operator><name>linesize</name><index>[<expr><literal type="number">1</literal></expr>]</index></name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<break>break;</break>
+
+<case>case <expr><name>AV_PIX_FMT_YUV420P</name></expr>:</case>
+
+<expr_stmt><expr><call><name>thumbnail_kernel</name><argument_list>(<argument><expr><name>ctx</name></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>cu_func_uchar</name></name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>,
+
+<argument><expr><name>histogram</name></expr></argument>, <argument><expr><name><name>in</name><operator>-&gt;</operator><name>data</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>, <argument><expr><name><name>in</name><operator>-&gt;</operator><name>width</name></name></expr></argument>, <argument><expr><name><name>in</name><operator>-&gt;</operator><name>height</name></name></expr></argument>, <argument><expr><name><name>in</name><operator>-&gt;</operator><name>linesize</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>thumbnail_kernel</name><argument_list>(<argument><expr><name>ctx</name></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>cu_func_uchar</name></name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>,
+
+<argument><expr><name>histogram</name> <operator>+</operator> <literal type="number">256</literal></expr></argument>, <argument><expr><name><name>in</name><operator>-&gt;</operator><name>data</name><index>[<expr><literal type="number">1</literal></expr>]</index></name></expr></argument>, <argument><expr><name><name>in</name><operator>-&gt;</operator><name>width</name></name> <operator>/</operator> <literal type="number">2</literal></expr></argument>, <argument><expr><name><name>in</name><operator>-&gt;</operator><name>height</name></name> <operator>/</operator> <literal type="number">2</literal></expr></argument>, <argument><expr><name><name>in</name><operator>-&gt;</operator><name>linesize</name><index>[<expr><literal type="number">1</literal></expr>]</index></name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>thumbnail_kernel</name><argument_list>(<argument><expr><name>ctx</name></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>cu_func_uchar</name></name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>,
+
+<argument><expr><name>histogram</name> <operator>+</operator> <literal type="number">512</literal></expr></argument>, <argument><expr><name><name>in</name><operator>-&gt;</operator><name>data</name><index>[<expr><literal type="number">2</literal></expr>]</index></name></expr></argument>, <argument><expr><name><name>in</name><operator>-&gt;</operator><name>width</name></name> <operator>/</operator> <literal type="number">2</literal></expr></argument>, <argument><expr><name><name>in</name><operator>-&gt;</operator><name>height</name></name> <operator>/</operator> <literal type="number">2</literal></expr></argument>, <argument><expr><name><name>in</name><operator>-&gt;</operator><name>linesize</name><index>[<expr><literal type="number">2</literal></expr>]</index></name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<break>break;</break>
+
+<case>case <expr><name>AV_PIX_FMT_YUV444P</name></expr>:</case>
+
+<expr_stmt><expr><call><name>thumbnail_kernel</name><argument_list>(<argument><expr><name>ctx</name></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>cu_func_uchar</name></name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>,
+
+<argument><expr><name>histogram</name></expr></argument>, <argument><expr><name><name>in</name><operator>-&gt;</operator><name>data</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>, <argument><expr><name><name>in</name><operator>-&gt;</operator><name>width</name></name></expr></argument>, <argument><expr><name><name>in</name><operator>-&gt;</operator><name>height</name></name></expr></argument>, <argument><expr><name><name>in</name><operator>-&gt;</operator><name>linesize</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>thumbnail_kernel</name><argument_list>(<argument><expr><name>ctx</name></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>cu_func_uchar</name></name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>,
+
+<argument><expr><name>histogram</name> <operator>+</operator> <literal type="number">256</literal></expr></argument>, <argument><expr><name><name>in</name><operator>-&gt;</operator><name>data</name><index>[<expr><literal type="number">1</literal></expr>]</index></name></expr></argument>, <argument><expr><name><name>in</name><operator>-&gt;</operator><name>width</name></name></expr></argument>, <argument><expr><name><name>in</name><operator>-&gt;</operator><name>height</name></name></expr></argument>, <argument><expr><name><name>in</name><operator>-&gt;</operator><name>linesize</name><index>[<expr><literal type="number">1</literal></expr>]</index></name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>thumbnail_kernel</name><argument_list>(<argument><expr><name>ctx</name></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>cu_func_uchar</name></name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>,
+
+<argument><expr><name>histogram</name> <operator>+</operator> <literal type="number">512</literal></expr></argument>, <argument><expr><name><name>in</name><operator>-&gt;</operator><name>data</name><index>[<expr><literal type="number">2</literal></expr>]</index></name></expr></argument>, <argument><expr><name><name>in</name><operator>-&gt;</operator><name>width</name></name></expr></argument>, <argument><expr><name><name>in</name><operator>-&gt;</operator><name>height</name></name></expr></argument>, <argument><expr><name><name>in</name><operator>-&gt;</operator><name>linesize</name><index>[<expr><literal type="number">2</literal></expr>]</index></name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<break>break;</break>
+
+<case>case <expr><name>AV_PIX_FMT_P010LE</name></expr>:</case>
+
+<case>case <expr><name>AV_PIX_FMT_P016LE</name></expr>:</case>
+
+<expr_stmt><expr><call><name>thumbnail_kernel</name><argument_list>(<argument><expr><name>ctx</name></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>cu_func_ushort</name></name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>,
+
+<argument><expr><name>histogram</name></expr></argument>, <argument><expr><name><name>in</name><operator>-&gt;</operator><name>data</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>, <argument><expr><name><name>in</name><operator>-&gt;</operator><name>width</name></name></expr></argument>, <argument><expr><name><name>in</name><operator>-&gt;</operator><name>height</name></name></expr></argument>, <argument><expr><name><name>in</name><operator>-&gt;</operator><name>linesize</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>, <argument><expr><literal type="number">2</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>thumbnail_kernel</name><argument_list>(<argument><expr><name>ctx</name></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>cu_func_ushort2</name></name></expr></argument>, <argument><expr><literal type="number">2</literal></expr></argument>,
+
+<argument><expr><name>histogram</name> <operator>+</operator> <literal type="number">256</literal></expr></argument>, <argument><expr><name><name>in</name><operator>-&gt;</operator><name>data</name><index>[<expr><literal type="number">1</literal></expr>]</index></name></expr></argument>, <argument><expr><name><name>in</name><operator>-&gt;</operator><name>width</name></name> <operator>/</operator> <literal type="number">2</literal></expr></argument>, <argument><expr><name><name>in</name><operator>-&gt;</operator><name>height</name></name> <operator>/</operator> <literal type="number">2</literal></expr></argument>, <argument><expr><name><name>in</name><operator>-&gt;</operator><name>linesize</name><index>[<expr><literal type="number">1</literal></expr>]</index></name></expr></argument>, <argument><expr><literal type="number">2</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<break>break;</break>
+
+<case>case <expr><name>AV_PIX_FMT_YUV444P16</name></expr>:</case>
+
+<expr_stmt><expr><call><name>thumbnail_kernel</name><argument_list>(<argument><expr><name>ctx</name></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>cu_func_ushort2</name></name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>,
+
+<argument><expr><name>histogram</name></expr></argument>, <argument><expr><name><name>in</name><operator>-&gt;</operator><name>data</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>, <argument><expr><name><name>in</name><operator>-&gt;</operator><name>width</name></name></expr></argument>, <argument><expr><name><name>in</name><operator>-&gt;</operator><name>height</name></name></expr></argument>, <argument><expr><name><name>in</name><operator>-&gt;</operator><name>linesize</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>, <argument><expr><literal type="number">2</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>thumbnail_kernel</name><argument_list>(<argument><expr><name>ctx</name></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>cu_func_ushort2</name></name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>,
+
+<argument><expr><name>histogram</name> <operator>+</operator> <literal type="number">256</literal></expr></argument>, <argument><expr><name><name>in</name><operator>-&gt;</operator><name>data</name><index>[<expr><literal type="number">1</literal></expr>]</index></name></expr></argument>, <argument><expr><name><name>in</name><operator>-&gt;</operator><name>width</name></name></expr></argument>, <argument><expr><name><name>in</name><operator>-&gt;</operator><name>height</name></name></expr></argument>, <argument><expr><name><name>in</name><operator>-&gt;</operator><name>linesize</name><index>[<expr><literal type="number">1</literal></expr>]</index></name></expr></argument>, <argument><expr><literal type="number">2</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>thumbnail_kernel</name><argument_list>(<argument><expr><name>ctx</name></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>cu_func_ushort2</name></name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>,
+
+<argument><expr><name>histogram</name> <operator>+</operator> <literal type="number">512</literal></expr></argument>, <argument><expr><name><name>in</name><operator>-&gt;</operator><name>data</name><index>[<expr><literal type="number">2</literal></expr>]</index></name></expr></argument>, <argument><expr><name><name>in</name><operator>-&gt;</operator><name>width</name></name></expr></argument>, <argument><expr><name><name>in</name><operator>-&gt;</operator><name>height</name></name></expr></argument>, <argument><expr><name><name>in</name><operator>-&gt;</operator><name>linesize</name><index>[<expr><literal type="number">2</literal></expr>]</index></name></expr></argument>, <argument><expr><literal type="number">2</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<break>break;</break>
+
+<default>default:</default>
+
+<return>return <expr><name>AVERROR_BUG</name></expr>;</return>
+
+</block_content>}</block></switch>
+
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>filter_frame</name><parameter_list>(<parameter><decl><type><name>AVFilterLink</name> <modifier>*</modifier></type><name>inlink</name></decl></parameter>, <parameter><decl><type><name>AVFrame</name> <modifier>*</modifier></type><name>frame</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>AVFilterContext</name> <modifier>*</modifier></type><name>ctx</name> <init>= <expr><name><name>inlink</name><operator>-&gt;</operator><name>dst</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>ThumbnailCudaContext</name> <modifier>*</modifier></type><name>s</name> <init>= <expr><name><name>ctx</name><operator>-&gt;</operator><name>priv</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>CudaFunctions</name> <modifier>*</modifier></type><name>cu</name> <init>= <expr><name><name>s</name><operator>-&gt;</operator><name>hwctx</name><operator>-&gt;</operator><name>internal</name><operator>-&gt;</operator><name>cuda_dl</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>AVFilterLink</name> <modifier>*</modifier></type><name>outlink</name> <init>= <expr><name><name>ctx</name><operator>-&gt;</operator><name>outputs</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name> <modifier>*</modifier></type><name>hist</name> <init>= <expr><name><name>s</name><operator>-&gt;</operator><name>frames</name><index>[<expr><name><name>s</name><operator>-&gt;</operator><name>n</name></name></expr>]</index></name><operator>.</operator><name>histogram</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>AVHWFramesContext</name> <modifier>*</modifier></type><name>hw_frames_ctx</name> <init>= <expr><operator>(</operator><name>AVHWFramesContext</name><operator>*</operator><operator>)</operator><name><name>s</name><operator>-&gt;</operator><name>hw_frames_ctx</name><operator>-&gt;</operator><name>data</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>CUcontext</name></type> <name>dummy</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>CUDA_MEMCPY2D</name></type> <name>cpy</name> <init>= <expr><block>{ <expr><literal type="number">0</literal></expr> }</block></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>ret</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>frames</name><index>[<expr><name><name>s</name><operator>-&gt;</operator><name>n</name></name></expr>]</index></name><operator>.</operator><name>buf</name> <operator>=</operator> <name>frame</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <call><name>CHECK_CU</name><argument_list>(<argument><expr><call><name><name>cu</name><operator>-&gt;</operator><name>cuCtxPushCurrent</name></name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>hwctx</name><operator>-&gt;</operator><name>cuda_ctx</name></name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>ret</name> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>ret</name></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>CHECK_CU</name><argument_list>(<argument><expr><call><name><name>cu</name><operator>-&gt;</operator><name>cuMemsetD8Async</name></name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>data</name></name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><name>HIST_SIZE</name> <operator>*</operator> <sizeof>sizeof<argument_list>(<argument><expr><name>int</name></expr></argument>)</argument_list></sizeof></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>cu_stream</name></name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>thumbnail</name><argument_list>(<argument><expr><name>ctx</name></expr></argument>, <argument><expr><operator>(</operator><name>int</name><operator>*</operator><operator>)</operator><name><name>s</name><operator>-&gt;</operator><name>data</name></name></expr></argument>, <argument><expr><name>frame</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>cpy</name><operator>.</operator><name>srcMemoryType</name></name> <operator>=</operator> <name>CU_MEMORYTYPE_DEVICE</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>cpy</name><operator>.</operator><name>dstMemoryType</name></name> <operator>=</operator> <name>CU_MEMORYTYPE_HOST</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>cpy</name><operator>.</operator><name>srcDevice</name></name> <operator>=</operator> <name><name>s</name><operator>-&gt;</operator><name>data</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>cpy</name><operator>.</operator><name>dstHost</name></name> <operator>=</operator> <name>hist</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>cpy</name><operator>.</operator><name>srcPitch</name></name> <operator>=</operator> <name>HIST_SIZE</name> <operator>*</operator> <sizeof>sizeof<argument_list>(<argument><expr><name>int</name></expr></argument>)</argument_list></sizeof></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>cpy</name><operator>.</operator><name>dstPitch</name></name> <operator>=</operator> <name>HIST_SIZE</name> <operator>*</operator> <sizeof>sizeof<argument_list>(<argument><expr><name>int</name></expr></argument>)</argument_list></sizeof></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>cpy</name><operator>.</operator><name>WidthInBytes</name></name> <operator>=</operator> <name>HIST_SIZE</name> <operator>*</operator> <sizeof>sizeof<argument_list>(<argument><expr><name>int</name></expr></argument>)</argument_list></sizeof></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>cpy</name><operator>.</operator><name>Height</name></name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <call><name>CHECK_CU</name><argument_list>(<argument><expr><call><name><name>cu</name><operator>-&gt;</operator><name>cuMemcpy2DAsync</name></name><argument_list>(<argument><expr><operator>&amp;</operator><name>cpy</name></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>cu_stream</name></name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>ret</name> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>ret</name></expr>;</return></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>hw_frames_ctx</name><operator>-&gt;</operator><name>sw_format</name></name> <operator>==</operator> <name>AV_PIX_FMT_NV12</name> <operator>||</operator> <name><name>hw_frames_ctx</name><operator>-&gt;</operator><name>sw_format</name></name> <operator>==</operator> <name>AV_PIX_FMT_YUV420P</name> <operator>||</operator>
+
+<name><name>hw_frames_ctx</name><operator>-&gt;</operator><name>sw_format</name></name> <operator>==</operator> <name>AV_PIX_FMT_P010LE</name> <operator>||</operator> <name><name>hw_frames_ctx</name><operator>-&gt;</operator><name>sw_format</name></name> <operator>==</operator> <name>AV_PIX_FMT_P016LE</name></expr>)</condition>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>int</name></type> <name>i</name></decl>;</decl_stmt>
+
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">256</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>HIST_SIZE</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name><name>hist</name><index>[<expr><name>i</name></expr>]</index></name> <operator>=</operator> <literal type="number">4</literal> <operator>*</operator> <name><name>hist</name><index>[<expr><name>i</name></expr>]</index></name></expr>;</expr_stmt></block_content></block></for>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>CHECK_CU</name><argument_list>(<argument><expr><call><name><name>cu</name><operator>-&gt;</operator><name>cuCtxPopCurrent</name></name><argument_list>(<argument><expr><operator>&amp;</operator><name>dummy</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>ret</name> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>ret</name></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>n</name></name><operator>++</operator></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>s</name><operator>-&gt;</operator><name>n</name></name> <operator>&lt;</operator> <name><name>s</name><operator>-&gt;</operator><name>n_frames</name></name></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><literal type="number">0</literal></expr>;</return></block_content></block></if></if_stmt>
+
+<return>return <expr><call><name>ff_filter_frame</name><argument_list>(<argument><expr><name>outlink</name></expr></argument>, <argument><expr><call><name>get_best_frame</name><argument_list>(<argument><expr><name>ctx</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>av_cold</name> <name>void</name></type> <name>uninit</name><parameter_list>(<parameter><decl><type><name>AVFilterContext</name> <modifier>*</modifier></type><name>ctx</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>int</name></type> <name>i</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>ThumbnailCudaContext</name> <modifier>*</modifier></type><name>s</name> <init>= <expr><name><name>ctx</name><operator>-&gt;</operator><name>priv</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>CudaFunctions</name> <modifier>*</modifier></type><name>cu</name> <init>= <expr><name><name>s</name><operator>-&gt;</operator><name>hwctx</name><operator>-&gt;</operator><name>internal</name><operator>-&gt;</operator><name>cuda_dl</name></name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>s</name><operator>-&gt;</operator><name>data</name></name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>CHECK_CU</name><argument_list>(<argument><expr><call><name><name>cu</name><operator>-&gt;</operator><name>cuMemFree</name></name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>data</name></name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>data</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>s</name><operator>-&gt;</operator><name>cu_module</name></name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>CHECK_CU</name><argument_list>(<argument><expr><call><name><name>cu</name><operator>-&gt;</operator><name>cuModuleUnload</name></name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>cu_module</name></name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>cu_module</name></name> <operator>=</operator> <name>NULL</name></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name><name>s</name><operator>-&gt;</operator><name>n_frames</name></name> <operator>&amp;&amp;</operator> <name><name>s</name><operator>-&gt;</operator><name>frames</name><index>[<expr><name>i</name></expr>]</index></name><operator>.</operator><name>buf</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>av_frame_free</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>frames</name><index>[<expr><name>i</name></expr>]</index></name><operator>.</operator><name>buf</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></for>
+
+<expr_stmt><expr><call><name>av_freep</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>frames</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>request_frame</name><parameter_list>(<parameter><decl><type><name>AVFilterLink</name> <modifier>*</modifier></type><name>link</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>AVFilterContext</name> <modifier>*</modifier></type><name>ctx</name> <init>= <expr><name><name>link</name><operator>-&gt;</operator><name>src</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>ThumbnailCudaContext</name> <modifier>*</modifier></type><name>s</name> <init>= <expr><name><name>ctx</name><operator>-&gt;</operator><name>priv</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>ret</name> <init>= <expr><call><name>ff_request_frame</name><argument_list>(<argument><expr><name><name>ctx</name><operator>-&gt;</operator><name>inputs</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>ret</name> <operator>==</operator> <name>AVERROR_EOF</name> <operator>&amp;&amp;</operator> <name><name>s</name><operator>-&gt;</operator><name>n</name></name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <call><name>ff_filter_frame</name><argument_list>(<argument><expr><name>link</name></expr></argument>, <argument><expr><call><name>get_best_frame</name><argument_list>(<argument><expr><name>ctx</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>ret</name> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>ret</name></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <name>AVERROR_EOF</name></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>ret</name> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>ret</name></expr>;</return></block_content></block></if></if_stmt>
+
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>format_is_supported</name><parameter_list>(<parameter><decl><type><name><name>enum</name> <name>AVPixelFormat</name></name></type> <name>fmt</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>int</name></type> <name>i</name></decl>;</decl_stmt>
+
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <call><name>FF_ARRAY_ELEMS</name><argument_list>(<argument><expr><name>supported_formats</name></expr></argument>)</argument_list></call></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control><block type="pseudo"><block_content>
+
+<if_stmt><if>if <condition>(<expr><name><name>supported_formats</name><index>[<expr><name>i</name></expr>]</index></name> <operator>==</operator> <name>fmt</name></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><literal type="number">1</literal></expr>;</return></block_content></block></if></if_stmt></block_content></block></for>
+
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>config_props</name><parameter_list>(<parameter><decl><type><name>AVFilterLink</name> <modifier>*</modifier></type><name>inlink</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>AVFilterContext</name> <modifier>*</modifier></type><name>ctx</name> <init>= <expr><name><name>inlink</name><operator>-&gt;</operator><name>dst</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>ThumbnailCudaContext</name> <modifier>*</modifier></type><name>s</name> <init>= <expr><name><name>ctx</name><operator>-&gt;</operator><name>priv</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>AVHWFramesContext</name> <modifier>*</modifier></type><name>hw_frames_ctx</name> <init>= <expr><operator>(</operator><name>AVHWFramesContext</name><operator>*</operator><operator>)</operator><name><name>inlink</name><operator>-&gt;</operator><name>hw_frames_ctx</name><operator>-&gt;</operator><name>data</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>AVCUDADeviceContext</name> <modifier>*</modifier></type><name>device_hwctx</name> <init>= <expr><name><name>hw_frames_ctx</name><operator>-&gt;</operator><name>device_ctx</name><operator>-&gt;</operator><name>hwctx</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>CUcontext</name></type> <name>dummy</name></decl>, <decl><type ref="prev"/><name>cuda_ctx</name> <init>= <expr><name><name>device_hwctx</name><operator>-&gt;</operator><name>cuda_ctx</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>CudaFunctions</name> <modifier>*</modifier></type><name>cu</name> <init>= <expr><name><name>device_hwctx</name><operator>-&gt;</operator><name>internal</name><operator>-&gt;</operator><name>cuda_dl</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>ret</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>extern</specifier> <name>char</name></type> <name><name>vf_thumbnail_cuda_ptx</name><index>[]</index></name></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>hwctx</name></name> <operator>=</operator> <name>device_hwctx</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>cu_stream</name></name> <operator>=</operator> <name><name>s</name><operator>-&gt;</operator><name>hwctx</name><operator>-&gt;</operator><name>stream</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <call><name>CHECK_CU</name><argument_list>(<argument><expr><call><name><name>cu</name><operator>-&gt;</operator><name>cuCtxPushCurrent</name></name><argument_list>(<argument><expr><name>cuda_ctx</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>ret</name> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>ret</name></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <call><name>CHECK_CU</name><argument_list>(<argument><expr><call><name><name>cu</name><operator>-&gt;</operator><name>cuModuleLoadData</name></name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>cu_module</name></name></expr></argument>, <argument><expr><name>vf_thumbnail_cuda_ptx</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>ret</name> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>ret</name></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <call><name>CHECK_CU</name><argument_list>(<argument><expr><call><name><name>cu</name><operator>-&gt;</operator><name>cuModuleGetFunction</name></name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>cu_func_uchar</name></name></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>cu_module</name></name></expr></argument>, <argument><expr><literal type="string">"Thumbnail_uchar"</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>ret</name> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>ret</name></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <call><name>CHECK_CU</name><argument_list>(<argument><expr><call><name><name>cu</name><operator>-&gt;</operator><name>cuModuleGetFunction</name></name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>cu_func_uchar2</name></name></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>cu_module</name></name></expr></argument>, <argument><expr><literal type="string">"Thumbnail_uchar2"</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>ret</name> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>ret</name></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <call><name>CHECK_CU</name><argument_list>(<argument><expr><call><name><name>cu</name><operator>-&gt;</operator><name>cuModuleGetFunction</name></name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>cu_func_ushort</name></name></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>cu_module</name></name></expr></argument>, <argument><expr><literal type="string">"Thumbnail_ushort"</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>ret</name> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>ret</name></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <call><name>CHECK_CU</name><argument_list>(<argument><expr><call><name><name>cu</name><operator>-&gt;</operator><name>cuModuleGetFunction</name></name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>cu_func_ushort2</name></name></expr></argument>, <argument><expr><name><name>s</name><operator>-&gt;</operator><name>cu_module</name></name></expr></argument>, <argument><expr><literal type="string">"Thumbnail_ushort2"</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>ret</name> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>ret</name></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <call><name>CHECK_CU</name><argument_list>(<argument><expr><call><name><name>cu</name><operator>-&gt;</operator><name>cuMemAlloc</name></name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>s</name><operator>-&gt;</operator><name>data</name></name></expr></argument>, <argument><expr><name>HIST_SIZE</name> <operator>*</operator> <sizeof>sizeof<argument_list>(<argument><expr><name>int</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>ret</name> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>ret</name></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>CHECK_CU</name><argument_list>(<argument><expr><call><name><name>cu</name><operator>-&gt;</operator><name>cuCtxPopCurrent</name></name><argument_list>(<argument><expr><operator>&amp;</operator><name>dummy</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>hw_frames_ctx</name></name> <operator>=</operator> <name><name>ctx</name><operator>-&gt;</operator><name>inputs</name><index>[<expr><literal type="number">0</literal></expr>]</index></name><operator>-&gt;</operator><name>hw_frames_ctx</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>ctx</name><operator>-&gt;</operator><name>outputs</name><index>[<expr><literal type="number">0</literal></expr>]</index></name><operator>-&gt;</operator><name>hw_frames_ctx</name> <operator>=</operator> <call><name>av_buffer_ref</name><argument_list>(<argument><expr><name><name>s</name><operator>-&gt;</operator><name>hw_frames_ctx</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>ctx</name><operator>-&gt;</operator><name>outputs</name><index>[<expr><literal type="number">0</literal></expr>]</index></name><operator>-&gt;</operator><name>hw_frames_ctx</name></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><call><name>AVERROR</name><argument_list>(<argument><expr><name>ENOMEM</name></expr></argument>)</argument_list></call></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name><name>s</name><operator>-&gt;</operator><name>tb</name></name> <operator>=</operator> <name><name>inlink</name><operator>-&gt;</operator><name>time_base</name></name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>format_is_supported</name><argument_list>(<argument><expr><name><name>hw_frames_ctx</name><operator>-&gt;</operator><name>sw_format</name></name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>av_log</name><argument_list>(<argument><expr><name>ctx</name></expr></argument>, <argument><expr><name>AV_LOG_ERROR</name></expr></argument>, <argument><expr><literal type="string">"Unsupported input format: %s\n"</literal></expr></argument>, <argument><expr><call><name>av_get_pix_fmt_name</name><argument_list>(<argument><expr><name><name>hw_frames_ctx</name><operator>-&gt;</operator><name>sw_format</name></name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><call><name>AVERROR</name><argument_list>(<argument><expr><name>ENOSYS</name></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>query_formats</name><parameter_list>(<parameter><decl><type><name>AVFilterContext</name> <modifier>*</modifier></type><name>ctx</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><specifier>static</specifier> <specifier>const</specifier> <name><name>enum</name> <name>AVPixelFormat</name></name></type> <name><name>pix_fmts</name><index>[]</index></name> <init>= <expr><block>{
+
+<expr><name>AV_PIX_FMT_CUDA</name></expr>,
+
+<expr><name>AV_PIX_FMT_NONE</name></expr>
+
+}</block></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>AVFilterFormats</name> <modifier>*</modifier></type><name>fmts_list</name> <init>= <expr><call><name>ff_make_format_list</name><argument_list>(<argument><expr><name>pix_fmts</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>fmts_list</name></expr>)</condition><block type="pseudo"><block_content>
+
+<return>return <expr><call><name>AVERROR</name><argument_list>(<argument><expr><name>ENOMEM</name></expr></argument>)</argument_list></call></expr>;</return></block_content></block></if></if_stmt>
+
+<return>return <expr><call><name>ff_set_common_formats</name><argument_list>(<argument><expr><name>ctx</name></expr></argument>, <argument><expr><name>fmts_list</name></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<decl_stmt><decl><type><specifier>static</specifier> <specifier>const</specifier> <name>AVFilterPad</name></type> <name><name>thumbnail_cuda_inputs</name><index>[]</index></name> <init>= <expr><block>{
+
+<expr><block>{
+
+<expr><operator>.</operator><name>name</name> <operator>=</operator> <literal type="string">"default"</literal></expr>,
+
+<expr><operator>.</operator><name>type</name> <operator>=</operator> <name>AVMEDIA_TYPE_VIDEO</name></expr>,
+
+<expr><operator>.</operator><name>config_props</name> <operator>=</operator> <name>config_props</name></expr>,
+
+<expr><operator>.</operator><name>filter_frame</name> <operator>=</operator> <name>filter_frame</name></expr>,
+
+}</block></expr>,
+
+<expr><block>{ <expr><name>NULL</name></expr> }</block></expr>
+
+}</block></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <specifier>const</specifier> <name>AVFilterPad</name></type> <name><name>thumbnail_cuda_outputs</name><index>[]</index></name> <init>= <expr><block>{
+
+<expr><block>{
+
+<expr><operator>.</operator><name>name</name> <operator>=</operator> <literal type="string">"default"</literal></expr>,
+
+<expr><operator>.</operator><name>type</name> <operator>=</operator> <name>AVMEDIA_TYPE_VIDEO</name></expr>,
+
+<expr><operator>.</operator><name>request_frame</name> <operator>=</operator> <name>request_frame</name></expr>,
+
+}</block></expr>,
+
+<expr><block>{ <expr><name>NULL</name></expr> }</block></expr>
+
+}</block></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>AVFilter</name></type> <name>ff_vf_thumbnail_cuda</name> <init>= <expr><block>{
+
+<expr><operator>.</operator><name>name</name> <operator>=</operator> <literal type="string">"thumbnail_cuda"</literal></expr>,
+
+<expr><operator>.</operator><name>description</name> <operator>=</operator> <call><name>NULL_IF_CONFIG_SMALL</name><argument_list>(<argument><expr><literal type="string">"Select the most representative frame in a given sequence of consecutive frames."</literal></expr></argument>)</argument_list></call></expr>,
+
+<expr><operator>.</operator><name>priv_size</name> <operator>=</operator> <sizeof>sizeof<argument_list>(<argument><expr><name>ThumbnailCudaContext</name></expr></argument>)</argument_list></sizeof></expr>,
+
+<expr><operator>.</operator><name>init</name> <operator>=</operator> <name>init</name></expr>,
+
+<expr><operator>.</operator><name>uninit</name> <operator>=</operator> <name>uninit</name></expr>,
+
+<expr><operator>.</operator><name>query_formats</name> <operator>=</operator> <name>query_formats</name></expr>,
+
+<expr><operator>.</operator><name>inputs</name> <operator>=</operator> <name>thumbnail_cuda_inputs</name></expr>,
+
+<expr><operator>.</operator><name>outputs</name> <operator>=</operator> <name>thumbnail_cuda_outputs</name></expr>,
+
+<expr><operator>.</operator><name>priv_class</name> <operator>=</operator> <operator>&amp;</operator><name>thumbnail_cuda_class</name></expr>,
+
+<expr><operator>.</operator><name>flags_internal</name> <operator>=</operator> <name>FF_FILTER_FLAG_HWFRAME_AWARE</name></expr>,
+
+}</block></expr></init></decl>;</decl_stmt>
+
+</unit>

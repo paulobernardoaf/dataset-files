@@ -1,0 +1,57 @@
+#if defined(__cplusplus)
+extern "C" {
+#endif
+#if defined(LV_CONF_INCLUDE_SIMPLE)
+#include "lv_conf.h"
+#else
+#include "../../../lv_conf.h"
+#endif
+#if LV_USE_PRELOAD != 0
+#if LV_USE_ARC == 0
+#error "lv_preload: lv_arc is required. Enable it in lv_conf.h (LV_USE_ARC 1) "
+#endif
+#if LV_USE_ANIMATION == 0
+#error "lv_preload: animations are required. Enable it in lv_conf.h (LV_USE_ANIMATION 1) "
+#endif
+#include "../lv_core/lv_obj.h"
+#include "../lv_misc/lv_anim.h"
+#include "lv_arc.h"
+enum {
+LV_PRELOAD_TYPE_SPINNING_ARC,
+LV_PRELOAD_TYPE_FILLSPIN_ARC,
+LV_PRELOAD_TYPE_CONSTANT_ARC,
+};
+typedef uint8_t lv_preload_type_t;
+enum {
+LV_PRELOAD_DIR_FORWARD,
+LV_PRELOAD_DIR_BACKWARD,
+};
+typedef uint8_t lv_preload_dir_t;
+typedef struct
+{
+lv_arc_ext_t arc; 
+lv_anim_value_t arc_length; 
+uint16_t time; 
+lv_preload_type_t anim_type : 2; 
+lv_preload_dir_t anim_dir : 1; 
+} lv_preload_ext_t;
+enum {
+LV_PRELOAD_STYLE_MAIN,
+};
+typedef uint8_t lv_preload_style_t;
+lv_obj_t * lv_preload_create(lv_obj_t * par, const lv_obj_t * copy);
+void lv_preload_set_arc_length(lv_obj_t * preload, lv_anim_value_t deg);
+void lv_preload_set_spin_time(lv_obj_t * preload, uint16_t time);
+void lv_preload_set_style(lv_obj_t * preload, lv_preload_style_t type, const lv_style_t * style);
+void lv_preload_set_type(lv_obj_t * preload, lv_preload_type_t type);
+void lv_preload_set_dir(lv_obj_t * preload, lv_preload_dir_t dir);
+lv_anim_value_t lv_preload_get_arc_length(const lv_obj_t * preload);
+uint16_t lv_preload_get_spin_time(const lv_obj_t * preload);
+const lv_style_t * lv_preload_get_style(const lv_obj_t * preload, lv_preload_style_t type);
+lv_preload_type_t lv_preload_get_type(lv_obj_t * preload);
+lv_preload_dir_t lv_preload_get_dir(lv_obj_t * preload);
+void lv_preload_spinner_anim(void * ptr, lv_anim_value_t val);
+#endif 
+#if defined(__cplusplus)
+} 
+#endif

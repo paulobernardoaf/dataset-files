@@ -1,0 +1,231 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#include <stdio.h>
+#include <string.h>
+
+
+#include <sys/time.h>
+#include <unistd.h>
+
+
+#include <curl/curl.h>
+
+typedef char bool;
+#define TRUE 1
+
+static
+void dump(const char *text,
+FILE *stream, unsigned char *ptr, size_t size,
+bool nohex)
+{
+size_t i;
+size_t c;
+
+unsigned int width = 0x10;
+
+if(nohex)
+
+width = 0x40;
+
+fprintf(stream, "%s, %10.10lu bytes (0x%8.8lx)\n",
+text, (unsigned long)size, (unsigned long)size);
+
+for(i = 0; i<size; i += width) {
+
+fprintf(stream, "%4.4lx: ", (unsigned long)i);
+
+if(!nohex) {
+
+for(c = 0; c < width; c++)
+if(i + c < size)
+fprintf(stream, "%02x ", ptr[i + c]);
+else
+fputs(" ", stream);
+}
+
+for(c = 0; (c < width) && (i + c < size); c++) {
+
+if(nohex && (i + c + 1 < size) && ptr[i + c] == 0x0D &&
+ptr[i + c + 1] == 0x0A) {
+i += (c + 2 - width);
+break;
+}
+fprintf(stream, "%c",
+(ptr[i + c] >= 0x20) && (ptr[i + c]<0x80)?ptr[i + c]:'.');
+
+if(nohex && (i + c + 2 < size) && ptr[i + c + 1] == 0x0D &&
+ptr[i + c + 2] == 0x0A) {
+i += (c + 3 - width);
+break;
+}
+}
+fputc('\n', stream); 
+}
+fflush(stream);
+}
+
+static
+int my_trace(CURL *handle, curl_infotype type,
+unsigned char *data, size_t size,
+void *userp)
+{
+const char *text;
+
+(void)userp;
+(void)handle; 
+
+switch(type) {
+case CURLINFO_TEXT:
+fprintf(stderr, "== Info: %s", data);
+
+default: 
+return 0;
+
+case CURLINFO_HEADER_OUT:
+text = "=> Send header";
+break;
+case CURLINFO_DATA_OUT:
+text = "=> Send data";
+break;
+case CURLINFO_HEADER_IN:
+text = "<= Recv header";
+break;
+case CURLINFO_DATA_IN:
+text = "<= Recv data";
+break;
+}
+
+dump(text, stderr, data, size, TRUE);
+return 0;
+}
+
+
+
+
+int main(void)
+{
+CURL *http_handle;
+CURLM *multi_handle;
+
+int still_running = 0; 
+
+http_handle = curl_easy_init();
+
+
+curl_easy_setopt(http_handle, CURLOPT_URL, "https://www.example.com/");
+
+curl_easy_setopt(http_handle, CURLOPT_DEBUGFUNCTION, my_trace);
+curl_easy_setopt(http_handle, CURLOPT_VERBOSE, 1L);
+
+
+multi_handle = curl_multi_init();
+
+
+curl_multi_add_handle(multi_handle, http_handle);
+
+
+curl_multi_perform(multi_handle, &still_running);
+
+while(still_running) {
+struct timeval timeout;
+int rc; 
+CURLMcode mc; 
+
+fd_set fdread;
+fd_set fdwrite;
+fd_set fdexcep;
+int maxfd = -1;
+
+long curl_timeo = -1;
+
+FD_ZERO(&fdread);
+FD_ZERO(&fdwrite);
+FD_ZERO(&fdexcep);
+
+
+timeout.tv_sec = 1;
+timeout.tv_usec = 0;
+
+curl_multi_timeout(multi_handle, &curl_timeo);
+if(curl_timeo >= 0) {
+timeout.tv_sec = curl_timeo / 1000;
+if(timeout.tv_sec > 1)
+timeout.tv_sec = 1;
+else
+timeout.tv_usec = (curl_timeo % 1000) * 1000;
+}
+
+
+mc = curl_multi_fdset(multi_handle, &fdread, &fdwrite, &fdexcep, &maxfd);
+
+if(mc != CURLM_OK) {
+fprintf(stderr, "curl_multi_fdset() failed, code %d.\n", mc);
+break;
+}
+
+
+
+
+
+
+
+if(maxfd == -1) {
+#if defined(_WIN32)
+Sleep(100);
+rc = 0;
+#else
+
+struct timeval wait = { 0, 100 * 1000 }; 
+rc = select(0, NULL, NULL, NULL, &wait);
+#endif
+}
+else {
+
+
+rc = select(maxfd + 1, &fdread, &fdwrite, &fdexcep, &timeout);
+}
+
+switch(rc) {
+case -1:
+
+still_running = 0;
+printf("select() returns error, this is badness\n");
+break;
+case 0:
+default:
+
+curl_multi_perform(multi_handle, &still_running);
+break;
+}
+}
+
+curl_multi_cleanup(multi_handle);
+
+curl_easy_cleanup(http_handle);
+
+return 0;
+}

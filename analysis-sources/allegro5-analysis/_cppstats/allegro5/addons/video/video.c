@@ -1,0 +1,196 @@
+#include "allegro5/allegro5.h"
+#include "allegro5/allegro_video.h"
+#include "allegro5/internal/aintern_video.h"
+#include "allegro5/internal/aintern_video_cfg.h"
+#include "allegro5/internal/aintern_exitfunc.h"
+ALLEGRO_DEBUG_CHANNEL("video")
+static bool video_inited = false;
+typedef struct VideoHandler {
+struct VideoHandler *next;
+const char *extension;
+ALLEGRO_VIDEO_INTERFACE *vtable;
+} VideoHandler;
+static VideoHandler *handlers;
+static ALLEGRO_VIDEO_INTERFACE *find_handler(const char *extension)
+{
+VideoHandler *v = handlers;
+while (v) {
+if (!strcmp(extension, v->extension)) {
+return v->vtable;
+}
+v = v->next;
+}
+return NULL;
+}
+static void add_handler(const char *extension, ALLEGRO_VIDEO_INTERFACE *vtable)
+{
+VideoHandler *v;
+if (handlers == NULL) {
+handlers = al_calloc(1, sizeof(VideoHandler));
+v = handlers;
+}
+else {
+v = handlers;
+while (v->next) {
+v = v->next;
+}
+v->next = al_calloc(1, sizeof(VideoHandler));
+v = v->next;
+}
+v->extension = extension;
+v->vtable = vtable;
+}
+ALLEGRO_VIDEO *al_open_video(char const *filename)
+{
+ALLEGRO_VIDEO *video;
+const char *extension = filename + strlen(filename) - 1;
+while ((extension >= filename) && (*extension != '.'))
+extension--;
+video = al_calloc(1, sizeof *video);
+video->vtable = find_handler(extension);
+if (video->vtable == NULL) {
+ALLEGRO_ERROR("No handler for video extension %s - "
+"therefore not trying to load %s.\n", extension, filename);
+al_free(video);
+return NULL;
+}
+video->filename = al_create_path(filename);
+video->playing = true;
+if (!video->vtable->open_video(video)) {
+ALLEGRO_ERROR("Could not open %s.\n", filename);
+al_destroy_path(video->filename);
+al_free(video);
+return NULL;
+}
+al_init_user_event_source(&video->es);
+video->es_inited = true;
+return video;
+}
+void al_close_video(ALLEGRO_VIDEO *video)
+{
+if (video) {
+video->vtable->close_video(video);
+if (video->es_inited) {
+al_destroy_user_event_source(&video->es);
+}
+al_destroy_path(video->filename);
+al_free(video);
+}
+}
+ALLEGRO_EVENT_SOURCE *al_get_video_event_source(ALLEGRO_VIDEO *video)
+{
+ASSERT(video);
+return &video->es;
+}
+void al_start_video(ALLEGRO_VIDEO *video, ALLEGRO_MIXER *mixer)
+{
+ASSERT(video);
+video->mixer = mixer;
+video->vtable->start_video(video);
+}
+void al_start_video_with_voice(ALLEGRO_VIDEO *video, ALLEGRO_VOICE *voice)
+{
+ASSERT(video);
+video->voice = voice;
+video->vtable->start_video(video);
+}
+void al_set_video_playing(ALLEGRO_VIDEO *video, bool play)
+{
+ASSERT(video);
+if (play != video->playing) {
+video->playing = play;
+video->vtable->set_video_playing(video);
+}
+}
+bool al_is_video_playing(ALLEGRO_VIDEO *video)
+{
+ASSERT(video);
+return video->playing;
+}
+ALLEGRO_BITMAP *al_get_video_frame(ALLEGRO_VIDEO *video)
+{
+ASSERT(video);
+video->vtable->update_video(video);
+return video->current_frame;
+}
+double al_get_video_position(ALLEGRO_VIDEO *video, ALLEGRO_VIDEO_POSITION_TYPE which)
+{
+ASSERT(video);
+if (which == ALLEGRO_VIDEO_POSITION_VIDEO_DECODE)
+return video->video_position;
+if (which == ALLEGRO_VIDEO_POSITION_AUDIO_DECODE)
+return video->audio_position;
+return video->position;
+}
+bool al_seek_video(ALLEGRO_VIDEO *video, double pos_in_seconds)
+{
+ASSERT(video);
+return video->vtable->seek_video(video, pos_in_seconds);
+}
+double al_get_video_audio_rate(ALLEGRO_VIDEO *video)
+{
+ASSERT(video);
+return video->audio_rate;
+}
+double al_get_video_fps(ALLEGRO_VIDEO *video)
+{
+ASSERT(video);
+return video->fps;
+}
+float al_get_video_scaled_width(ALLEGRO_VIDEO *video)
+{
+ASSERT(video);
+return video->scaled_width;
+}
+float al_get_video_scaled_height(ALLEGRO_VIDEO *video)
+{
+ASSERT(video);
+return video->scaled_height;
+}
+bool al_init_video_addon(void)
+{
+if (video_inited)
+return true;
+#if defined(ALLEGRO_CFG_VIDEO_HAVE_OGV)
+add_handler(".ogv", _al_video_ogv_vtable());
+#endif
+if (handlers == NULL) {
+ALLEGRO_WARN("No video handlers available!\n");
+return false;
+}
+_al_add_exit_func(al_shutdown_video_addon, "al_shutdown_video_addon");
+return true;
+}
+bool al_is_video_addon_initialized(void)
+{
+return video_inited;
+}
+void al_shutdown_video_addon(void)
+{
+if (!video_inited)
+return;
+VideoHandler *v = handlers;
+while (v) {
+VideoHandler *next = v->next;
+al_free(v);
+v = next;
+}
+video_inited = false;
+handlers = NULL;
+}
+uint32_t al_get_allegro_video_version(void)
+{
+return ALLEGRO_VERSION_INT;
+}
+void _al_compute_scaled_dimensions(int frame_w, int frame_h, float aspect_ratio,
+float *scaled_w, float *scaled_h)
+{
+if (aspect_ratio > 1.0) {
+*scaled_w = frame_h * aspect_ratio;
+*scaled_h = frame_h;
+}
+else {
+*scaled_w = frame_w;
+*scaled_h = frame_w / aspect_ratio;
+}
+}

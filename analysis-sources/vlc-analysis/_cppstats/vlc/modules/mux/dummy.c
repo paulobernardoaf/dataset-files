@@ -1,0 +1,104 @@
+#if defined(HAVE_CONFIG_H)
+#include "config.h"
+#endif
+#include <vlc_common.h>
+#include <vlc_plugin.h>
+#include <vlc_sout.h>
+#include <vlc_block.h>
+static int Open ( vlc_object_t * );
+static void Close ( vlc_object_t * );
+vlc_module_begin ()
+set_description( N_("Dummy/Raw muxer") )
+set_capability( "sout mux", 5 )
+set_category( CAT_SOUT )
+set_subcategory( SUBCAT_SOUT_MUX )
+add_shortcut( "dummy", "raw", "es" )
+set_callbacks( Open, Close )
+vlc_module_end ()
+static int Control( sout_mux_t *, int, va_list );
+static int AddStream( sout_mux_t *, sout_input_t * );
+static void DelStream( sout_mux_t *, sout_input_t * );
+static int Mux ( sout_mux_t * );
+typedef struct
+{
+bool b_header;
+} sout_mux_sys_t;
+static int Open( vlc_object_t *p_this )
+{
+sout_mux_t *p_mux = (sout_mux_t*)p_this;
+sout_mux_sys_t *p_sys;
+msg_Dbg( p_mux, "Dummy/Raw muxer opened" );
+msg_Info( p_mux, "Open" );
+p_mux->pf_control = Control;
+p_mux->pf_addstream = AddStream;
+p_mux->pf_delstream = DelStream;
+p_mux->pf_mux = Mux;
+p_mux->p_sys = p_sys = malloc( sizeof( sout_mux_sys_t ) );
+if( !p_sys )
+return VLC_ENOMEM;
+p_sys->b_header = true;
+return VLC_SUCCESS;
+}
+static void Close( vlc_object_t * p_this )
+{
+sout_mux_t *p_mux = (sout_mux_t*)p_this;
+sout_mux_sys_t *p_sys = p_mux->p_sys;
+msg_Dbg( p_mux, "Dummy/Raw muxer closed" );
+free( p_sys );
+}
+static int Control( sout_mux_t *p_mux, int i_query, va_list args )
+{
+VLC_UNUSED(p_mux);
+bool *pb_bool;
+switch( i_query )
+{
+case MUX_CAN_ADD_STREAM_WHILE_MUXING:
+pb_bool = va_arg( args, bool * );
+*pb_bool = true;
+return VLC_SUCCESS;
+case MUX_GET_MIME: 
+default:
+return VLC_EGENERIC;
+}
+}
+static int AddStream( sout_mux_t *p_mux, sout_input_t *p_input )
+{
+VLC_UNUSED(p_input);
+msg_Dbg( p_mux, "adding input" );
+return VLC_SUCCESS;
+}
+static void DelStream( sout_mux_t *p_mux, sout_input_t *p_input )
+{
+VLC_UNUSED(p_input);
+msg_Dbg( p_mux, "removing input" );
+}
+static int Mux( sout_mux_t *p_mux )
+{
+sout_mux_sys_t *p_sys = p_mux->p_sys;
+int i;
+for( i = 0; i < p_mux->i_nb_inputs; i++ )
+{
+block_fifo_t *p_fifo;
+int i_count;
+if( p_sys->b_header && p_mux->pp_inputs[i]->p_fmt->i_extra )
+{
+block_t *p_data;
+p_data = block_Alloc( p_mux->pp_inputs[i]->p_fmt->i_extra );
+memcpy( p_data->p_buffer, p_mux->pp_inputs[i]->p_fmt->p_extra,
+p_mux->pp_inputs[i]->p_fmt->i_extra );
+p_data->i_flags |= BLOCK_FLAG_HEADER;
+msg_Dbg( p_mux, "writing header data" );
+sout_AccessOutWrite( p_mux->p_access, p_data );
+}
+p_fifo = p_mux->pp_inputs[i]->p_fifo;
+i_count = block_FifoCount( p_fifo );
+while( i_count > 0 )
+{
+block_t *p_data = block_FifoGet( p_fifo );
+sout_AccessOutWrite( p_mux->p_access, p_data );
+i_count--;
+}
+}
+p_sys->b_header = false;
+return VLC_SUCCESS;
+}

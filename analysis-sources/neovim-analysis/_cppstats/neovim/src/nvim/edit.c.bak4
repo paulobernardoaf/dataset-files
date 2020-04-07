@@ -1,0 +1,9094 @@
+
+
+
+
+
+
+
+#include <assert.h>
+#include <string.h>
+#include <inttypes.h>
+#include <stdbool.h>
+
+#include "nvim/vim.h"
+#include "nvim/ascii.h"
+#include "nvim/edit.h"
+#include "nvim/buffer.h"
+#include "nvim/change.h"
+#include "nvim/charset.h"
+#include "nvim/cursor.h"
+#include "nvim/digraph.h"
+#include "nvim/eval.h"
+#include "nvim/eval/typval.h"
+#include "nvim/ex_docmd.h"
+#include "nvim/ex_getln.h"
+#include "nvim/fileio.h"
+#include "nvim/fold.h"
+#include "nvim/getchar.h"
+#include "nvim/indent.h"
+#include "nvim/indent_c.h"
+#include "nvim/main.h"
+#include "nvim/extmark.h"
+#include "nvim/mbyte.h"
+#include "nvim/memline.h"
+#include "nvim/memory.h"
+#include "nvim/message.h"
+#include "nvim/misc1.h"
+#include "nvim/keymap.h"
+#include "nvim/move.h"
+#include "nvim/normal.h"
+#include "nvim/ops.h"
+#include "nvim/option.h"
+#include "nvim/path.h"
+#include "nvim/popupmnu.h"
+#include "nvim/quickfix.h"
+#include "nvim/regexp.h"
+#include "nvim/screen.h"
+#include "nvim/search.h"
+#include "nvim/spell.h"
+#include "nvim/strings.h"
+#include "nvim/state.h"
+#include "nvim/syntax.h"
+#include "nvim/tag.h"
+#include "nvim/ui.h"
+#include "nvim/mouse.h"
+#include "nvim/terminal.h"
+#include "nvim/undo.h"
+#include "nvim/window.h"
+#include "nvim/event/loop.h"
+#include "nvim/mark.h"
+#include "nvim/os/input.h"
+#include "nvim/os/time.h"
+
+
+
+
+
+#define CTRL_X_WANT_IDENT 0x100
+
+#define CTRL_X_NORMAL 0 
+#define CTRL_X_NOT_DEFINED_YET 1
+#define CTRL_X_SCROLL 2
+#define CTRL_X_WHOLE_LINE 3
+#define CTRL_X_FILES 4
+#define CTRL_X_TAGS (5 + CTRL_X_WANT_IDENT)
+#define CTRL_X_PATH_PATTERNS (6 + CTRL_X_WANT_IDENT)
+#define CTRL_X_PATH_DEFINES (7 + CTRL_X_WANT_IDENT)
+#define CTRL_X_FINISHED 8
+#define CTRL_X_DICTIONARY (9 + CTRL_X_WANT_IDENT)
+#define CTRL_X_THESAURUS (10 + CTRL_X_WANT_IDENT)
+#define CTRL_X_CMDLINE 11
+#define CTRL_X_FUNCTION 12
+#define CTRL_X_OMNI 13
+#define CTRL_X_SPELL 14
+#define CTRL_X_LOCAL_MSG 15 
+#define CTRL_X_EVAL 16 
+
+#define CTRL_X_MSG(i) ctrl_x_msgs[(i) & ~CTRL_X_WANT_IDENT]
+#define CTRL_X_MODE_LINE_OR_EVAL(m) ((m) == CTRL_X_WHOLE_LINE || (m) == CTRL_X_EVAL)
+
+
+
+static char *ctrl_x_msgs[] =
+{
+N_(" Keyword completion (^N^P)"), 
+N_(" ^X mode (^]^D^E^F^I^K^L^N^O^Ps^U^V^Y)"),
+NULL, 
+N_(" Whole line completion (^L^N^P)"),
+N_(" File name completion (^F^N^P)"),
+N_(" Tag completion (^]^N^P)"),
+N_(" Path pattern completion (^N^P)"),
+N_(" Definition completion (^D^N^P)"),
+NULL, 
+N_(" Dictionary completion (^K^N^P)"),
+N_(" Thesaurus completion (^T^N^P)"),
+N_(" Command-line completion (^V^N^P)"),
+N_(" User defined completion (^U^N^P)"),
+N_(" Omni completion (^O^N^P)"),
+N_(" Spelling suggestion (s^N^P)"),
+N_(" Keyword Local completion (^N^P)"),
+NULL, 
+};
+
+static char *ctrl_x_mode_names[] = {
+"keyword",
+"ctrl_x",
+"unknown", 
+"whole_line",
+"files",
+"tags",
+"path_patterns",
+"path_defines",
+"unknown", 
+"dictionary",
+"thesaurus",
+"cmdline",
+"function",
+"omni",
+"spell",
+NULL, 
+"eval"
+};
+
+static char e_hitend[] = N_("Hit end of paragraph");
+static char e_complwin[] = N_("E839: Completion function changed window");
+static char e_compldel[] = N_("E840: Completion function deleted text");
+
+
+
+
+typedef struct compl_S compl_T;
+struct compl_S {
+compl_T *cp_next;
+compl_T *cp_prev;
+char_u *cp_str; 
+char_u *(cp_text[CPT_COUNT]); 
+char_u *cp_fname; 
+
+int cp_flags; 
+int cp_number; 
+};
+
+
+
+
+
+
+
+
+static compl_T *compl_first_match = NULL;
+static compl_T *compl_curr_match = NULL;
+static compl_T *compl_shown_match = NULL;
+static compl_T *compl_old_match = NULL;
+
+
+
+static int compl_enter_selects = FALSE;
+
+
+
+static char_u *compl_leader = NULL;
+
+static int compl_get_longest = FALSE; 
+
+
+static int compl_no_insert = FALSE; 
+
+static int compl_no_select = FALSE; 
+
+
+static bool compl_used_match; 
+
+
+
+static int compl_was_interrupted = FALSE; 
+
+
+static int compl_restarting = FALSE; 
+
+
+
+static bool compl_started = false;
+
+
+static int ctrl_x_mode = CTRL_X_NORMAL;
+
+static int compl_matches = 0;
+static char_u *compl_pattern = NULL;
+static int compl_direction = FORWARD;
+static int compl_shows_dir = FORWARD;
+static int compl_pending = 0; 
+static pos_T compl_startpos;
+static colnr_T compl_col = 0; 
+
+static char_u *compl_orig_text = NULL; 
+
+static int compl_cont_mode = 0;
+static expand_T compl_xp;
+
+static int compl_opt_refresh_always = FALSE;
+
+static int pum_selected_item = -1;
+
+
+struct {
+bool active;
+int item;
+bool insert;
+bool finish;
+} pum_want;
+
+typedef struct insert_state {
+VimState state;
+cmdarg_T *ca;
+int mincol;
+int cmdchar;
+int startln;
+long count;
+int c;
+int lastc;
+int i;
+bool did_backspace; 
+bool line_is_white; 
+linenr_T old_topline; 
+int old_topfill;
+int inserted_space; 
+int replaceState;
+int did_restart_edit; 
+
+bool nomove;
+char_u *ptr;
+} InsertState;
+
+
+#if defined(INCLUDE_GENERATED_DECLARATIONS)
+#include "edit.c.generated.h"
+#endif
+#define BACKSPACE_CHAR 1
+#define BACKSPACE_WORD 2
+#define BACKSPACE_WORD_NOT_SPACE 3
+#define BACKSPACE_LINE 4
+
+static size_t spell_bad_len = 0; 
+
+static colnr_T Insstart_textlen; 
+static colnr_T Insstart_blank_vcol; 
+static bool update_Insstart_orig = true; 
+
+static char_u *last_insert = NULL; 
+
+static int last_insert_skip; 
+static int new_insert_skip; 
+static int did_restart_edit; 
+
+static bool can_cindent; 
+
+static int old_indent = 0; 
+
+static int revins_on; 
+static int revins_chars; 
+static int revins_legal; 
+static int revins_scol; 
+
+static int ins_need_undo; 
+
+
+
+static bool did_add_space = false; 
+
+static TriState dont_sync_undo = kFalse; 
+
+
+static linenr_T o_lnum = 0;
+
+static void insert_enter(InsertState *s)
+{
+s->did_backspace = true;
+s->old_topfill = -1;
+s->replaceState = REPLACE;
+
+did_restart_edit = restart_edit;
+
+
+check_for_delay(true);
+
+update_Insstart_orig = true;
+
+ins_compl_clear(); 
+
+
+if (s->cmdchar != 'r' && s->cmdchar != 'v') {
+pos_T save_cursor = curwin->w_cursor;
+
+if (s->cmdchar == 'R') {
+s->ptr = (char_u *)"r";
+} else if (s->cmdchar == 'V') {
+s->ptr = (char_u *)"v";
+} else {
+s->ptr = (char_u *)"i";
+}
+
+set_vim_var_string(VV_INSERTMODE, (char *) s->ptr, 1);
+set_vim_var_string(VV_CHAR, NULL, -1);
+ins_apply_autocmds(EVENT_INSERTENTER);
+
+
+
+
+
+
+
+if (!equalpos(curwin->w_cursor, save_cursor)
+&& *get_vim_var_str(VV_CHAR) == NUL
+&& save_cursor.lnum <= curbuf->b_ml.ml_line_count) {
+int save_state = State;
+
+curwin->w_cursor = save_cursor;
+State = INSERT;
+check_cursor_col();
+State = save_state;
+}
+}
+
+
+
+if (where_paste_started.lnum != 0) {
+Insstart = where_paste_started;
+} else {
+Insstart = curwin->w_cursor;
+if (s->startln) {
+Insstart.col = 0;
+}
+}
+
+Insstart_textlen = (colnr_T)linetabsize(get_cursor_line_ptr());
+Insstart_blank_vcol = MAXCOL;
+
+if (!did_ai) {
+ai_col = 0;
+}
+
+if (s->cmdchar != NUL && restart_edit == 0) {
+ResetRedobuff();
+AppendNumberToRedobuff(s->count);
+if (s->cmdchar == 'V' || s->cmdchar == 'v') {
+
+AppendCharToRedobuff('g');
+AppendCharToRedobuff((s->cmdchar == 'v') ? 'r' : 'R');
+} else {
+AppendCharToRedobuff(s->cmdchar);
+if (s->cmdchar == 'g') { 
+AppendCharToRedobuff('I');
+} else if (s->cmdchar == 'r') { 
+s->count = 1; 
+}
+}
+}
+
+if (s->cmdchar == 'R') {
+State = REPLACE;
+} else if (s->cmdchar == 'V' || s->cmdchar == 'v') {
+State = VREPLACE;
+s->replaceState = VREPLACE;
+orig_line_count = curbuf->b_ml.ml_line_count;
+vr_lines_changed = 1;
+} else {
+State = INSERT;
+}
+
+stop_insert_mode = false;
+
+
+
+curs_columns(true);
+
+
+
+
+
+if (curbuf->b_p_iminsert == B_IMODE_LMAP) {
+State |= LANGMAP;
+}
+
+setmouse();
+clear_showcmd();
+
+revins_on = (State == INSERT && p_ri);
+if (revins_on) {
+undisplay_dollar();
+}
+revins_chars = 0;
+revins_legal = 0;
+revins_scol = -1;
+
+
+
+
+if (restart_edit != 0 && stuff_empty()) {
+
+
+if (where_paste_started.lnum) {
+arrow_used = false;
+} else {
+arrow_used = true;
+}
+restart_edit = 0;
+
+
+
+
+
+
+validate_virtcol();
+update_curswant();
+if (((ins_at_eol && curwin->w_cursor.lnum == o_lnum)
+|| curwin->w_curswant > curwin->w_virtcol)
+&& *(s->ptr = get_cursor_line_ptr() + curwin->w_cursor.col) != NUL) {
+if (s->ptr[1] == NUL) {
+++curwin->w_cursor.col;
+} else if (has_mbyte) {
+s->i = (*mb_ptr2len)(s->ptr);
+if (s->ptr[s->i] == NUL) {
+curwin->w_cursor.col += s->i;
+}
+}
+}
+ins_at_eol = false;
+} else {
+arrow_used = false;
+}
+
+
+need_start_insertmode = false;
+
+
+ins_need_undo = true;
+
+where_paste_started.lnum = 0;
+can_cindent = true;
+
+
+if (!p_im && did_restart_edit == 0) {
+foldOpenCursor();
+}
+
+
+
+
+s->i = 0;
+if (p_smd && msg_silent == 0) {
+s->i = showmode();
+}
+
+if (!p_im && did_restart_edit == 0) {
+change_warning(s->i == 0 ? 0 : s->i + 1);
+}
+
+ui_cursor_shape(); 
+do_digraph(-1); 
+
+
+
+s->ptr = get_inserted();
+if (s->ptr == NULL) {
+new_insert_skip = 0;
+} else {
+new_insert_skip = (int)STRLEN(s->ptr);
+xfree(s->ptr);
+}
+
+old_indent = 0;
+
+do {
+state_enter(&s->state);
+
+
+} while (!ins_esc(&s->count, s->cmdchar, s->nomove));
+
+
+
+if (ins_at_eol) {
+o_lnum = curwin->w_cursor.lnum;
+}
+
+pum_check_clear();
+
+foldUpdateAfterInsert();
+
+
+
+if (s->cmdchar != 'r' && s->cmdchar != 'v' && s->c != Ctrl_C) {
+ins_apply_autocmds(EVENT_INSERTLEAVE);
+}
+did_cursorhold = false;
+}
+
+static int insert_check(VimState *state)
+{
+InsertState *s = (InsertState *)state;
+
+
+if (s->c != K_EVENT
+
+&& ctrl_x_mode == CTRL_X_NORMAL) {
+did_cursorhold = false;
+}
+
+
+if (arrow_used) {
+s->inserted_space = false;
+}
+
+if (can_cindent
+&& cindent_on()
+&& ctrl_x_mode == CTRL_X_NORMAL
+&& !compl_started) {
+insert_do_cindent(s);
+}
+
+if (!revins_legal) {
+revins_scol = -1; 
+} else {
+revins_legal = 0;
+}
+
+if (arrow_used) { 
+s->count = 0;
+}
+
+if (update_Insstart_orig) {
+Insstart_orig = Insstart;
+}
+
+if (stop_insert_mode && !pum_visible()) {
+
+s->count = 0;
+return 0; 
+}
+
+
+if (!arrow_used) {
+curwin->w_set_curswant = true;
+}
+
+
+
+if (stuff_empty()) {
+did_check_timestamps = false;
+if (need_check_timestamps) {
+check_timestamps(false);
+}
+}
+
+
+msg_scroll = false;
+
+
+
+if (fdo_flags & FDO_INSERT) {
+foldOpenCursor();
+}
+
+
+if (!char_avail()) {
+foldCheckClose();
+}
+
+if (bt_prompt(curbuf)) {
+init_prompt(s->cmdchar);
+}
+
+
+
+
+
+
+if (curbuf->b_mod_set
+&& curwin->w_p_wrap
+&& !s->did_backspace
+&& curwin->w_topline == s->old_topline
+&& curwin->w_topfill == s->old_topfill) {
+s->mincol = curwin->w_wcol;
+validate_cursor_col();
+
+if (curwin->w_wcol < s->mincol - curbuf->b_p_ts
+&& curwin->w_wrow == curwin->w_winrow
++ curwin->w_height_inner - 1 - get_scrolloff_value()
+&& (curwin->w_cursor.lnum != curwin->w_topline
+|| curwin->w_topfill > 0)) {
+if (curwin->w_topfill > 0) {
+--curwin->w_topfill;
+} else if (hasFolding(curwin->w_topline, NULL, &s->old_topline)) {
+set_topline(curwin, s->old_topline + 1);
+} else {
+set_topline(curwin, curwin->w_topline + 1);
+}
+}
+}
+
+
+update_topline();
+
+s->did_backspace = false;
+
+validate_cursor(); 
+
+
+
+ins_redraw(true);
+
+if (curwin->w_p_scb) {
+do_check_scrollbind(true);
+}
+
+if (curwin->w_p_crb) {
+do_check_cursorbind();
+}
+
+update_curswant();
+s->old_topline = curwin->w_topline;
+s->old_topfill = curwin->w_topfill;
+s->lastc = s->c; 
+
+
+if (dont_sync_undo == kNone) {
+dont_sync_undo = kTrue;
+} else {
+dont_sync_undo = kFalse;
+}
+
+return 1;
+}
+
+static int insert_execute(VimState *state, int key)
+{
+if (key == K_IGNORE || key == K_NOP) {
+return -1; 
+}
+InsertState *s = (InsertState *)state;
+s->c = key;
+
+
+if (key != K_EVENT) {
+did_cursorhold = true;
+}
+
+if (p_hkmap && KeyTyped) {
+s->c = hkmap(s->c); 
+}
+
+
+
+
+if (compl_started
+&& pum_wanted()
+&& curwin->w_cursor.col >= compl_col
+&& (compl_shown_match == NULL
+|| compl_shown_match != compl_shown_match->cp_next)) {
+
+if ((s->c == K_BS || s->c == Ctrl_H)
+&& curwin->w_cursor.col > compl_col
+&& (s->c = ins_compl_bs()) == NUL) {
+return 1; 
+}
+
+
+if (!compl_used_match) {
+
+
+
+if (s->c == Ctrl_L
+&& (!CTRL_X_MODE_LINE_OR_EVAL(ctrl_x_mode)
+|| (compl_shown_match != NULL
+&& compl_shown_match->cp_str != NULL
+&& (int)STRLEN(compl_shown_match->cp_str)
+> curwin->w_cursor.col - compl_col))) {
+ins_compl_addfrommatch();
+return 1; 
+}
+
+
+
+if (ins_compl_accept_char(s->c)) {
+
+char_u *str = do_insert_char_pre(s->c);
+char_u *p;
+
+if (str != NULL) {
+for (p = str; *p != NUL; MB_PTR_ADV(p)) {
+ins_compl_addleader(PTR2CHAR(p));
+}
+xfree(str);
+} else {
+ins_compl_addleader(s->c);
+}
+return 1; 
+}
+
+
+
+if ((s->c == Ctrl_Y
+|| (compl_enter_selects
+&& (s->c == CAR || s->c == K_KENTER || s->c == NL)))
+&& stop_arrow() == OK) {
+ins_compl_delete();
+ins_compl_insert(false);
+}
+}
+}
+
+
+
+compl_get_longest = false;
+if (ins_compl_prep(s->c)) {
+return 1; 
+}
+
+
+
+
+if (s->c == Ctrl_BSL) {
+
+ins_redraw(false);
+no_mapping++;
+s->c = plain_vgetc();
+no_mapping--;
+if (s->c != Ctrl_N && s->c != Ctrl_G && s->c != Ctrl_O) {
+
+vungetc(s->c);
+s->c = Ctrl_BSL;
+} else if (s->c == Ctrl_G && p_im) {
+return 1; 
+} else {
+if (s->c == Ctrl_O) {
+ins_ctrl_o();
+ins_at_eol = false; 
+s->nomove = true;
+}
+s->count = 0;
+return 0;
+}
+}
+
+s->c = do_digraph(s->c);
+
+if ((s->c == Ctrl_V || s->c == Ctrl_Q) && ctrl_x_mode == CTRL_X_CMDLINE) {
+insert_do_complete(s);
+return 1;
+}
+
+if (s->c == Ctrl_V || s->c == Ctrl_Q) {
+ins_ctrl_v();
+s->c = Ctrl_V; 
+return 1; 
+}
+
+if (cindent_on()
+&& ctrl_x_mode == 0) {
+
+
+
+
+s->line_is_white = inindent(0);
+if (in_cinkeys(s->c, '!', s->line_is_white)) {
+insert_do_cindent(s);
+return 1; 
+}
+
+if (can_cindent && in_cinkeys(s->c, '*', s->line_is_white)
+&& stop_arrow() == OK) {
+do_c_expr_indent();
+}
+}
+
+if (curwin->w_p_rl)
+switch (s->c) {
+case K_LEFT: s->c = K_RIGHT; break;
+case K_S_LEFT: s->c = K_S_RIGHT; break;
+case K_C_LEFT: s->c = K_C_RIGHT; break;
+case K_RIGHT: s->c = K_LEFT; break;
+case K_S_RIGHT: s->c = K_S_LEFT; break;
+case K_C_RIGHT: s->c = K_C_LEFT; break;
+}
+
+
+
+
+if (ins_start_select(s->c)) {
+return 1; 
+}
+
+return insert_handle_key(s);
+}
+
+static int insert_handle_key(InsertState *s)
+{
+
+
+
+switch (s->c) {
+case ESC: 
+if (echeck_abbr(ESC + ABBR_OFF)) {
+break;
+}
+FALLTHROUGH;
+
+case Ctrl_C: 
+if (s->c == Ctrl_C && cmdwin_type != 0) {
+
+cmdwin_result = K_IGNORE;
+got_int = false; 
+s->nomove = true;
+return 0; 
+}
+if (s->c == Ctrl_C && bt_prompt(curbuf)) {
+if (invoke_prompt_interrupt()) {
+if (!bt_prompt(curbuf)) {
+
+
+return 0;
+}
+break;
+}
+}
+
+
+
+if (goto_im()) {
+if (got_int) {
+(void)vgetc(); 
+got_int = false;
+} else {
+vim_beep(BO_IM);
+}
+break;
+}
+return 0; 
+
+case Ctrl_Z: 
+if (!p_im) {
+goto normalchar; 
+}
+do_cmdline_cmd("stop");
+ui_cursor_shape(); 
+break;
+
+case Ctrl_O: 
+if (ctrl_x_mode == CTRL_X_OMNI) {
+insert_do_complete(s);
+break;
+}
+
+if (echeck_abbr(Ctrl_O + ABBR_OFF)) {
+break;
+}
+
+ins_ctrl_o();
+
+
+if (ve_flags & VE_ONEMORE) {
+ins_at_eol = false;
+s->nomove = true;
+}
+
+s->count = 0;
+return 0; 
+
+case K_INS: 
+case K_KINS:
+ins_insert(s->replaceState);
+break;
+
+case K_SELECT: 
+break;
+
+
+case K_HELP: 
+case K_F1:
+case K_XF1:
+stuffcharReadbuff(K_HELP);
+if (p_im) {
+need_start_insertmode = true;
+}
+return 0; 
+
+
+case ' ':
+if (mod_mask != MOD_MASK_CTRL) {
+goto normalchar;
+}
+FALLTHROUGH;
+case K_ZERO: 
+case NUL:
+case Ctrl_A:
+
+
+if (stuff_inserted(NUL, 1L, (s->c == Ctrl_A)) == FAIL
+&& s->c != Ctrl_A && !p_im) {
+return 0; 
+}
+s->inserted_space = false;
+break;
+
+case Ctrl_R: 
+ins_reg();
+auto_format(false, true);
+s->inserted_space = false;
+break;
+
+case Ctrl_G: 
+ins_ctrl_g();
+break;
+
+case Ctrl_HAT: 
+ins_ctrl_hat();
+break;
+
+case Ctrl__: 
+if (!p_ari) {
+goto normalchar;
+}
+ins_ctrl_();
+break;
+
+case Ctrl_D: 
+if (ctrl_x_mode == CTRL_X_PATH_DEFINES) {
+insert_do_complete(s);
+break;
+}
+FALLTHROUGH;
+
+case Ctrl_T: 
+if (s->c == Ctrl_T && ctrl_x_mode == CTRL_X_THESAURUS) {
+if (check_compl_option(false)) {
+insert_do_complete(s);
+}
+break;
+}
+ins_shift(s->c, s->lastc);
+auto_format(false, true);
+s->inserted_space = false;
+break;
+
+case K_DEL: 
+case K_KDEL:
+ins_del();
+auto_format(false, true);
+break;
+
+case K_BS: 
+case Ctrl_H:
+s->did_backspace = ins_bs(s->c, BACKSPACE_CHAR, &s->inserted_space);
+auto_format(false, true);
+break;
+
+case Ctrl_W: 
+s->did_backspace = ins_bs(s->c, BACKSPACE_WORD, &s->inserted_space);
+auto_format(false, true);
+break;
+
+case Ctrl_U: 
+
+if (ctrl_x_mode == CTRL_X_FUNCTION) {
+insert_do_complete(s);
+} else {
+s->did_backspace = ins_bs(s->c, BACKSPACE_LINE, &s->inserted_space);
+auto_format(false, true);
+s->inserted_space = false;
+}
+break;
+
+case K_LEFTMOUSE: 
+case K_LEFTMOUSE_NM:
+case K_LEFTDRAG:
+case K_LEFTRELEASE:
+case K_LEFTRELEASE_NM:
+case K_MIDDLEMOUSE:
+case K_MIDDLEDRAG:
+case K_MIDDLERELEASE:
+case K_RIGHTMOUSE:
+case K_RIGHTDRAG:
+case K_RIGHTRELEASE:
+case K_X1MOUSE:
+case K_X1DRAG:
+case K_X1RELEASE:
+case K_X2MOUSE:
+case K_X2DRAG:
+case K_X2RELEASE:
+ins_mouse(s->c);
+break;
+
+case K_MOUSEDOWN: 
+ins_mousescroll(MSCR_DOWN);
+break;
+
+case K_MOUSEUP: 
+ins_mousescroll(MSCR_UP);
+break;
+
+case K_MOUSELEFT: 
+ins_mousescroll(MSCR_LEFT);
+break;
+
+case K_MOUSERIGHT: 
+ins_mousescroll(MSCR_RIGHT);
+break;
+
+case K_IGNORE: 
+break;
+
+case K_EVENT: 
+multiqueue_process_events(main_loop.events);
+goto check_pum;
+
+case K_COMMAND: 
+do_cmdline(NULL, getcmdkeycmd, NULL, 0);
+
+check_pum:
+
+
+
+if (pum_want.active) {
+if (pum_visible()) {
+insert_do_complete(s);
+if (pum_want.finish) {
+
+ins_compl_prep(Ctrl_Y);
+}
+}
+pum_want.active = false;
+}
+break;
+
+case K_HOME: 
+case K_KHOME:
+case K_S_HOME:
+case K_C_HOME:
+ins_home(s->c);
+break;
+
+case K_END: 
+case K_KEND:
+case K_S_END:
+case K_C_END:
+ins_end(s->c);
+break;
+
+case K_LEFT: 
+if (mod_mask & (MOD_MASK_SHIFT|MOD_MASK_CTRL)) {
+ins_s_left();
+} else {
+ins_left();
+}
+break;
+
+case K_S_LEFT: 
+case K_C_LEFT:
+ins_s_left();
+break;
+
+case K_RIGHT: 
+if (mod_mask & (MOD_MASK_SHIFT|MOD_MASK_CTRL)) {
+ins_s_right();
+} else {
+ins_right();
+}
+break;
+
+case K_S_RIGHT: 
+case K_C_RIGHT:
+ins_s_right();
+break;
+
+case K_UP: 
+if (pum_visible()) {
+insert_do_complete(s);
+} else if (mod_mask & MOD_MASK_SHIFT) {
+ins_pageup();
+} else {
+ins_up(false);
+}
+break;
+
+case K_S_UP: 
+case K_PAGEUP:
+case K_KPAGEUP:
+if (pum_visible()) {
+insert_do_complete(s);
+} else {
+ins_pageup();
+}
+break;
+
+case K_DOWN: 
+if (pum_visible()) {
+insert_do_complete(s);
+} else if (mod_mask & MOD_MASK_SHIFT) {
+ins_pagedown();
+} else {
+ins_down(false);
+}
+break;
+
+case K_S_DOWN: 
+case K_PAGEDOWN:
+case K_KPAGEDOWN:
+if (pum_visible()) {
+insert_do_complete(s);
+} else {
+ins_pagedown();
+}
+break;
+
+
+case K_S_TAB: 
+s->c = TAB;
+FALLTHROUGH;
+
+case TAB: 
+if (ctrl_x_mode == CTRL_X_PATH_PATTERNS) {
+insert_do_complete(s);
+break;
+}
+s->inserted_space = false;
+if (ins_tab()) {
+goto normalchar; 
+}
+auto_format(false, true);
+break;
+
+case K_KENTER: 
+s->c = CAR;
+FALLTHROUGH;
+case CAR:
+case NL:
+
+
+if (bt_quickfix(curbuf) && s->c == CAR) {
+if (curwin->w_llist_ref == NULL) { 
+do_cmdline_cmd(".cc");
+} else { 
+do_cmdline_cmd(".ll");
+}
+break;
+}
+if (cmdwin_type != 0) {
+
+cmdwin_result = CAR;
+return 0;
+}
+if (bt_prompt(curbuf)) {
+invoke_prompt_callback();
+if (!bt_prompt(curbuf)) {
+
+
+return 0;
+}
+break;
+}
+if (!ins_eol(s->c) && !p_im) {
+return 0; 
+}
+auto_format(false, false);
+s->inserted_space = false;
+break;
+
+case Ctrl_K: 
+if (ctrl_x_mode == CTRL_X_DICTIONARY) {
+if (check_compl_option(true)) {
+insert_do_complete(s);
+}
+break;
+}
+
+s->c = ins_digraph();
+if (s->c == NUL) {
+break;
+}
+goto normalchar;
+
+case Ctrl_X: 
+ins_ctrl_x();
+break;
+
+case Ctrl_RSB: 
+if (ctrl_x_mode != CTRL_X_TAGS) {
+goto normalchar;
+} else {
+insert_do_complete(s);
+}
+break;
+
+case Ctrl_F: 
+if (ctrl_x_mode != CTRL_X_FILES) {
+goto normalchar;
+} else {
+insert_do_complete(s);
+}
+break;
+
+case 's': 
+case Ctrl_S:
+if (ctrl_x_mode != CTRL_X_SPELL) {
+goto normalchar;
+} else {
+insert_do_complete(s);
+}
+break;
+
+case Ctrl_L: 
+if (ctrl_x_mode != CTRL_X_WHOLE_LINE) {
+
+if (p_im) {
+if (echeck_abbr(Ctrl_L + ABBR_OFF)) {
+break;
+}
+return 0; 
+}
+goto normalchar;
+}
+FALLTHROUGH;
+
+case Ctrl_P: 
+case Ctrl_N:
+
+
+if (*curbuf->b_p_cpt == NUL
+&& (ctrl_x_mode == CTRL_X_NORMAL
+|| ctrl_x_mode == CTRL_X_WHOLE_LINE)
+&& !(compl_cont_status & CONT_LOCAL)) {
+goto normalchar;
+}
+
+insert_do_complete(s);
+break;
+
+case Ctrl_Y: 
+case Ctrl_E: 
+s->c = ins_ctrl_ey(s->c);
+break;
+
+default:
+
+normalchar:
+
+
+if (mod_mask == MOD_MASK_ALT || mod_mask == MOD_MASK_META) {
+
+stuffcharReadbuff(ESC);
+stuffcharReadbuff(s->c);
+u_sync(false);
+break;
+}
+
+if (!p_paste) {
+
+char_u *str = do_insert_char_pre(s->c);
+char_u *p;
+
+if (str != NULL) {
+if (*str != NUL && stop_arrow() != FAIL) {
+
+for (p = str; *p != NUL; MB_PTR_ADV(p)) {
+s->c = PTR2CHAR(p);
+if (s->c == CAR || s->c == K_KENTER || s->c == NL) {
+ins_eol(s->c);
+} else {
+ins_char(s->c);
+}
+}
+AppendToRedobuffLit(str, -1);
+}
+xfree(str);
+s->c = NUL;
+}
+
+
+
+if (s->c == NUL)
+break;
+}
+
+ins_try_si(s->c);
+
+if (s->c == ' ') {
+s->inserted_space = true;
+if (inindent(0)) {
+can_cindent = false;
+}
+if (Insstart_blank_vcol == MAXCOL
+&& curwin->w_cursor.lnum == Insstart.lnum) {
+Insstart_blank_vcol = get_nolist_virtcol();
+}
+}
+
+
+
+
+if (vim_iswordc(s->c)
+|| (!echeck_abbr(
+
+
+(has_mbyte && s->c >= 0x100) ? (s->c + ABBR_OFF) : s->c)
+&& s->c != Ctrl_RSB)) {
+insert_special(s->c, false, false);
+revins_legal++;
+revins_chars++;
+}
+
+auto_format(false, true);
+
+
+
+foldOpenCursor();
+break;
+} 
+
+return 1; 
+}
+
+static void insert_do_complete(InsertState *s)
+{
+compl_busy = true;
+if (ins_complete(s->c, true) == FAIL) {
+compl_cont_status = 0;
+}
+compl_busy = false;
+}
+
+static void insert_do_cindent(InsertState *s)
+{
+
+if (in_cinkeys(s->c, ' ', s->line_is_white)) {
+if (stop_arrow() == OK) {
+
+do_c_expr_indent();
+}
+}
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+bool edit(int cmdchar, bool startln, long count)
+{
+if (curbuf->terminal) {
+if (ex_normal_busy) {
+
+
+
+restart_edit = 'i';
+force_restart_edit = true;
+} else {
+terminal_enter();
+}
+return false;
+}
+
+
+if (sandbox != 0) {
+EMSG(_(e_sandbox));
+return false;
+}
+
+
+
+if (textlock != 0) {
+EMSG(_(e_secure));
+return false;
+}
+
+
+if (compl_started || compl_busy || pum_visible()) {
+EMSG(_(e_secure));
+return false;
+}
+
+InsertState state, *s = &state;
+memset(s, 0, sizeof(InsertState));
+s->state.execute = insert_execute;
+s->state.check = insert_check;
+s->cmdchar = cmdchar;
+s->startln = startln;
+s->count = count;
+insert_enter(s);
+return s->c == Ctrl_O;
+}
+
+
+
+
+
+
+
+
+static void
+ins_redraw (
+int ready 
+)
+{
+bool conceal_cursor_moved = false;
+
+if (char_avail())
+return;
+
+
+
+if (ready && (has_event(EVENT_CURSORMOVEDI) || curwin->w_p_cole > 0)
+&& !equalpos(curwin->w_last_cursormoved, curwin->w_cursor)
+&& !pum_visible()) {
+
+
+
+
+if (syntax_present(curwin) && must_redraw) {
+update_screen(0);
+}
+if (has_event(EVENT_CURSORMOVEDI)) {
+
+
+update_curswant();
+ins_apply_autocmds(EVENT_CURSORMOVEDI);
+}
+conceal_cursor_moved = true;
+curwin->w_last_cursormoved = curwin->w_cursor;
+}
+
+
+if (ready && has_event(EVENT_TEXTCHANGEDI)
+&& curbuf->b_last_changedtick != buf_get_changedtick(curbuf)
+&& !pum_visible()) {
+aco_save_T aco;
+varnumber_T tick = buf_get_changedtick(curbuf);
+
+
+aucmd_prepbuf(&aco, curbuf);
+apply_autocmds(EVENT_TEXTCHANGEDI, NULL, NULL, false, curbuf);
+aucmd_restbuf(&aco);
+curbuf->b_last_changedtick = buf_get_changedtick(curbuf);
+if (tick != buf_get_changedtick(curbuf)) { 
+u_save(curwin->w_cursor.lnum,
+(linenr_T)(curwin->w_cursor.lnum + 1));
+}
+}
+
+
+
+
+if (ready && has_event(EVENT_TEXTCHANGEDP)
+&& curbuf->b_last_changedtick_pum != buf_get_changedtick(curbuf)
+&& pum_visible()) {
+aco_save_T aco;
+varnumber_T tick = buf_get_changedtick(curbuf);
+
+
+aucmd_prepbuf(&aco, curbuf);
+apply_autocmds(EVENT_TEXTCHANGEDP, NULL, NULL, false, curbuf);
+aucmd_restbuf(&aco);
+curbuf->b_last_changedtick_pum = buf_get_changedtick(curbuf);
+if (tick != buf_get_changedtick(curbuf)) { 
+u_save(curwin->w_cursor.lnum,
+(linenr_T)(curwin->w_cursor.lnum + 1));
+}
+}
+
+if (curwin->w_p_cole > 0 && conceal_cursor_line(curwin)
+&& conceal_cursor_moved) {
+redrawWinline(curwin, curwin->w_cursor.lnum);
+}
+
+pum_check_clear();
+if (must_redraw) {
+update_screen(0);
+} else if (clear_cmdline || redraw_cmdline) {
+showmode(); 
+}
+showruler(false);
+setcursor();
+emsg_on_display = FALSE; 
+}
+
+
+
+
+static void ins_ctrl_v(void)
+{
+int c;
+int did_putchar = FALSE;
+
+
+ins_redraw(FALSE);
+
+if (redrawing() && !char_avail()) {
+edit_putchar('^', TRUE);
+did_putchar = TRUE;
+}
+AppendToRedobuff(CTRL_V_STR);
+
+add_to_showcmd_c(Ctrl_V);
+
+c = get_literal();
+if (did_putchar)
+
+
+edit_unputchar();
+clear_showcmd();
+insert_special(c, true, true);
+revins_chars++;
+revins_legal++;
+}
+
+
+
+
+
+static int pc_status;
+#define PC_STATUS_UNSET 0 
+#define PC_STATUS_RIGHT 1 
+#define PC_STATUS_LEFT 2 
+#define PC_STATUS_SET 3 
+static char_u pc_bytes[MB_MAXBYTES + 1]; 
+static int pc_attr;
+static int pc_row;
+static int pc_col;
+
+void edit_putchar(int c, int highlight)
+{
+int attr;
+
+if (curwin->w_grid.chars != NULL || default_grid.chars != NULL) {
+update_topline(); 
+validate_cursor();
+if (highlight) {
+attr = HL_ATTR(HLF_8);
+} else {
+attr = 0;
+}
+pc_row = curwin->w_wrow;
+pc_col = 0;
+pc_status = PC_STATUS_UNSET;
+if (curwin->w_p_rl) {
+pc_col += curwin->w_grid.Columns - 1 - curwin->w_wcol;
+if (has_mbyte) {
+int fix_col = grid_fix_col(&curwin->w_grid, pc_col, pc_row);
+
+if (fix_col != pc_col) {
+grid_putchar(&curwin->w_grid, ' ', pc_row, fix_col, attr);
+curwin->w_wcol--;
+pc_status = PC_STATUS_RIGHT;
+}
+}
+} else {
+pc_col += curwin->w_wcol;
+if (grid_lefthalve(&curwin->w_grid, pc_row, pc_col)) {
+pc_status = PC_STATUS_LEFT;
+}
+}
+
+
+if (pc_status == PC_STATUS_UNSET) {
+grid_getbytes(&curwin->w_grid, pc_row, pc_col, pc_bytes, &pc_attr);
+pc_status = PC_STATUS_SET;
+}
+grid_putchar(&curwin->w_grid, c, pc_row, pc_col, attr);
+}
+}
+
+
+char_u *prompt_text(void)
+{
+if (curbuf->b_prompt_text == NULL) {
+return (char_u *)"% ";
+}
+return curbuf->b_prompt_text;
+}
+
+
+
+static void init_prompt(int cmdchar_todo)
+{
+char_u *prompt = prompt_text();
+char_u *text;
+
+curwin->w_cursor.lnum = curbuf->b_ml.ml_line_count;
+text = get_cursor_line_ptr();
+if (STRNCMP(text, prompt, STRLEN(prompt)) != 0) {
+
+if (*text == NUL) {
+ml_replace(curbuf->b_ml.ml_line_count, prompt, true);
+} else {
+ml_append(curbuf->b_ml.ml_line_count, prompt, 0, false);
+}
+curwin->w_cursor.lnum = curbuf->b_ml.ml_line_count;
+coladvance((colnr_T)MAXCOL);
+changed_bytes(curbuf->b_ml.ml_line_count, 0);
+}
+if (cmdchar_todo == 'A') {
+coladvance((colnr_T)MAXCOL);
+}
+if (cmdchar_todo == 'I' || curwin->w_cursor.col <= (int)STRLEN(prompt)) {
+curwin->w_cursor.col = STRLEN(prompt);
+}
+
+check_cursor();
+}
+
+
+int prompt_curpos_editable(void)
+{
+return curwin->w_cursor.lnum == curbuf->b_ml.ml_line_count
+&& curwin->w_cursor.col >= (int)STRLEN(prompt_text());
+}
+
+
+
+
+void edit_unputchar(void)
+{
+if (pc_status != PC_STATUS_UNSET && pc_row >= msg_scrolled) {
+if (pc_status == PC_STATUS_RIGHT) {
+curwin->w_wcol++;
+}
+if (pc_status == PC_STATUS_RIGHT || pc_status == PC_STATUS_LEFT) {
+redrawWinline(curwin, curwin->w_cursor.lnum);
+} else {
+grid_puts(&curwin->w_grid, pc_bytes, pc_row - msg_scrolled, pc_col,
+pc_attr);
+}
+}
+}
+
+
+
+
+
+void display_dollar(colnr_T col)
+{
+colnr_T save_col;
+
+if (!redrawing())
+return;
+
+save_col = curwin->w_cursor.col;
+curwin->w_cursor.col = col;
+
+
+char_u *p = get_cursor_line_ptr();
+curwin->w_cursor.col -= utf_head_off(p, p + col);
+curs_columns(false); 
+if (curwin->w_wcol < curwin->w_grid.Columns) {
+edit_putchar('$', false);
+dollar_vcol = curwin->w_virtcol;
+}
+curwin->w_cursor.col = save_col;
+}
+
+
+
+
+
+static void undisplay_dollar(void)
+{
+if (dollar_vcol >= 0) {
+dollar_vcol = -1;
+redrawWinline(curwin, curwin->w_cursor.lnum);
+}
+}
+
+
+
+
+
+
+
+
+
+void
+change_indent (
+int type,
+int amount,
+int round,
+int replaced, 
+int call_changed_bytes 
+)
+{
+int vcol;
+int last_vcol;
+int insstart_less; 
+int new_cursor_col;
+int i;
+char_u *ptr;
+int save_p_list;
+int start_col;
+colnr_T vc;
+colnr_T orig_col = 0; 
+char_u *new_line, *orig_line = NULL; 
+
+
+if (State & VREPLACE_FLAG) {
+orig_line = vim_strsave(get_cursor_line_ptr()); 
+orig_col = curwin->w_cursor.col;
+}
+
+
+save_p_list = curwin->w_p_list;
+curwin->w_p_list = FALSE;
+vc = getvcol_nolist(&curwin->w_cursor);
+vcol = vc;
+
+
+
+
+
+
+start_col = curwin->w_cursor.col;
+
+
+new_cursor_col = curwin->w_cursor.col;
+beginline(BL_WHITE);
+new_cursor_col -= curwin->w_cursor.col;
+
+insstart_less = curwin->w_cursor.col;
+
+
+
+
+
+if (new_cursor_col < 0)
+vcol = get_indent() - vcol;
+
+if (new_cursor_col > 0) 
+start_col = -1;
+
+
+
+
+if (type == INDENT_SET)
+(void)set_indent(amount, call_changed_bytes ? SIN_CHANGED : 0);
+else {
+int save_State = State;
+
+
+if (State & VREPLACE_FLAG)
+State = INSERT;
+shift_line(type == INDENT_DEC, round, 1, call_changed_bytes);
+State = save_State;
+}
+insstart_less -= curwin->w_cursor.col;
+
+
+
+
+
+
+
+
+
+
+if (new_cursor_col >= 0) {
+
+
+
+
+if (new_cursor_col == 0)
+insstart_less = MAXCOL;
+new_cursor_col += curwin->w_cursor.col;
+} else if (!(State & INSERT))
+new_cursor_col = curwin->w_cursor.col;
+else {
+
+
+
+vcol = get_indent() - vcol;
+curwin->w_virtcol = (colnr_T)((vcol < 0) ? 0 : vcol);
+
+
+
+
+vcol = last_vcol = 0;
+new_cursor_col = -1;
+ptr = get_cursor_line_ptr();
+while (vcol <= (int)curwin->w_virtcol) {
+last_vcol = vcol;
+if (has_mbyte && new_cursor_col >= 0)
+new_cursor_col += (*mb_ptr2len)(ptr + new_cursor_col);
+else
+++new_cursor_col;
+vcol += lbr_chartabsize(ptr, ptr + new_cursor_col, (colnr_T)vcol);
+}
+vcol = last_vcol;
+
+
+
+
+
+if (vcol != (int)curwin->w_virtcol) {
+curwin->w_cursor.col = (colnr_T)new_cursor_col;
+i = (int)curwin->w_virtcol - vcol;
+ptr = xmallocz(i);
+memset(ptr, ' ', i);
+new_cursor_col += i;
+ins_str(ptr);
+xfree(ptr);
+}
+
+
+
+
+
+insstart_less = MAXCOL;
+}
+
+curwin->w_p_list = save_p_list;
+
+if (new_cursor_col <= 0)
+curwin->w_cursor.col = 0;
+else
+curwin->w_cursor.col = (colnr_T)new_cursor_col;
+curwin->w_set_curswant = TRUE;
+changed_cline_bef_curs();
+
+
+
+
+if (State & INSERT) {
+if (curwin->w_cursor.lnum == Insstart.lnum && Insstart.col != 0) {
+if ((int)Insstart.col <= insstart_less)
+Insstart.col = 0;
+else
+Insstart.col -= insstart_less;
+}
+if ((int)ai_col <= insstart_less)
+ai_col = 0;
+else
+ai_col -= insstart_less;
+}
+
+
+
+
+
+
+
+
+if (REPLACE_NORMAL(State) && start_col >= 0) {
+while (start_col > (int)curwin->w_cursor.col) {
+replace_join(0); 
+--start_col;
+}
+while (start_col < (int)curwin->w_cursor.col || replaced) {
+replace_push(NUL);
+if (replaced) {
+replace_push(replaced);
+replaced = NUL;
+}
+++start_col;
+}
+}
+
+
+
+
+
+
+if (State & VREPLACE_FLAG) {
+
+new_line = vim_strsave(get_cursor_line_ptr());
+
+
+new_line[curwin->w_cursor.col] = NUL;
+int new_col = curwin->w_cursor.col;
+
+
+ml_replace(curwin->w_cursor.lnum, orig_line, false);
+curwin->w_cursor.col = orig_col;
+
+curbuf_splice_pending++;
+
+
+backspace_until_column(0);
+
+
+ins_bytes(new_line);
+
+xfree(new_line);
+
+curbuf_splice_pending--;
+
+
+
+int delta = orig_col - new_col;
+extmark_splice(curbuf, curwin->w_cursor.lnum-1, new_col,
+0, delta < 0 ? -delta : 0,
+0, delta > 0 ? delta : 0,
+kExtmarkUndo);
+}
+}
+
+
+
+
+
+
+void truncate_spaces(char_u *line)
+{
+int i;
+
+
+for (i = (int)STRLEN(line) - 1; i >= 0 && ascii_iswhite(line[i]); i--) {
+if (State & REPLACE_FLAG)
+replace_join(0); 
+}
+line[i + 1] = NUL;
+}
+
+
+
+
+
+
+
+void backspace_until_column(int col)
+{
+while ((int)curwin->w_cursor.col > col) {
+curwin->w_cursor.col--;
+if (State & REPLACE_FLAG)
+replace_do_bs(col);
+else if (!del_char_after_col(col))
+break;
+}
+}
+
+
+
+
+
+
+
+static bool del_char_after_col(int limit_col)
+{
+if (enc_utf8 && limit_col >= 0) {
+colnr_T ecol = curwin->w_cursor.col + 1;
+
+
+
+
+mb_adjust_cursor();
+while (curwin->w_cursor.col < (colnr_T)limit_col) {
+int l = utf_ptr2len(get_cursor_pos_ptr());
+
+if (l == 0) { 
+break;
+}
+curwin->w_cursor.col += l;
+}
+if (*get_cursor_pos_ptr() == NUL || curwin->w_cursor.col == ecol) {
+return false;
+}
+del_bytes(ecol - curwin->w_cursor.col, false, true);
+} else {
+del_char(false);
+}
+return true;
+}
+
+
+
+
+static void ins_ctrl_x(void)
+{
+
+
+if (ctrl_x_mode != CTRL_X_CMDLINE) {
+
+
+if (compl_cont_status & CONT_N_ADDS)
+compl_cont_status |= CONT_INTRPT;
+else
+compl_cont_status = 0;
+
+ctrl_x_mode = CTRL_X_NOT_DEFINED_YET;
+edit_submode = (char_u *)_(CTRL_X_MSG(ctrl_x_mode));
+edit_submode_pre = NULL;
+showmode();
+}
+}
+
+
+bool ctrl_x_mode_not_default(void)
+{
+return ctrl_x_mode != CTRL_X_NORMAL;
+}
+
+
+bool ctrl_x_mode_not_defined_yet(void)
+{
+return ctrl_x_mode == CTRL_X_NOT_DEFINED_YET;
+}
+
+
+
+
+
+static bool check_compl_option(bool dict_opt)
+{
+if (dict_opt
+? (*curbuf->b_p_dict == NUL && *p_dict == NUL && !curwin->w_p_spell)
+: (*curbuf->b_p_tsr == NUL && *p_tsr == NUL)) {
+ctrl_x_mode = CTRL_X_NORMAL;
+edit_submode = NULL;
+msg_attr((dict_opt
+? _("'dictionary' option is empty")
+: _("'thesaurus' option is empty")), HL_ATTR(HLF_E));
+if (emsg_silent == 0) {
+vim_beep(BO_COMPL);
+setcursor();
+ui_flush();
+os_delay(2000L, false);
+}
+return false;
+}
+return true;
+}
+
+
+
+
+
+bool vim_is_ctrl_x_key(int c)
+FUNC_ATTR_WARN_UNUSED_RESULT
+{
+
+if (c == Ctrl_R) {
+return true;
+}
+
+
+if (ins_compl_pum_key(c)) {
+return true;
+}
+
+switch (ctrl_x_mode) {
+case 0: 
+return c == Ctrl_N || c == Ctrl_P || c == Ctrl_X;
+case CTRL_X_NOT_DEFINED_YET:
+return c == Ctrl_X || c == Ctrl_Y || c == Ctrl_E
+|| c == Ctrl_L || c == Ctrl_F || c == Ctrl_RSB
+|| c == Ctrl_I || c == Ctrl_D || c == Ctrl_P
+|| c == Ctrl_N || c == Ctrl_T || c == Ctrl_V
+|| c == Ctrl_Q || c == Ctrl_U || c == Ctrl_O
+|| c == Ctrl_S || c == Ctrl_K || c == 's';
+case CTRL_X_SCROLL:
+return c == Ctrl_Y || c == Ctrl_E;
+case CTRL_X_WHOLE_LINE:
+return c == Ctrl_L || c == Ctrl_P || c == Ctrl_N;
+case CTRL_X_FILES:
+return c == Ctrl_F || c == Ctrl_P || c == Ctrl_N;
+case CTRL_X_DICTIONARY:
+return c == Ctrl_K || c == Ctrl_P || c == Ctrl_N;
+case CTRL_X_THESAURUS:
+return c == Ctrl_T || c == Ctrl_P || c == Ctrl_N;
+case CTRL_X_TAGS:
+return c == Ctrl_RSB || c == Ctrl_P || c == Ctrl_N;
+case CTRL_X_PATH_PATTERNS:
+return c == Ctrl_P || c == Ctrl_N;
+case CTRL_X_PATH_DEFINES:
+return c == Ctrl_D || c == Ctrl_P || c == Ctrl_N;
+case CTRL_X_CMDLINE:
+return c == Ctrl_V || c == Ctrl_Q || c == Ctrl_P || c == Ctrl_N
+|| c == Ctrl_X;
+case CTRL_X_FUNCTION:
+return c == Ctrl_U || c == Ctrl_P || c == Ctrl_N;
+case CTRL_X_OMNI:
+return c == Ctrl_O || c == Ctrl_P || c == Ctrl_N;
+case CTRL_X_SPELL:
+return c == Ctrl_S || c == Ctrl_P || c == Ctrl_N;
+case CTRL_X_EVAL:
+return (c == Ctrl_P || c == Ctrl_N);
+}
+internal_error("vim_is_ctrl_x_key()");
+return false;
+}
+
+
+
+
+
+
+static bool ins_compl_accept_char(int c)
+FUNC_ATTR_PURE FUNC_ATTR_WARN_UNUSED_RESULT
+{
+if (ctrl_x_mode & CTRL_X_WANT_IDENT) {
+
+return vim_isIDc(c);
+}
+
+switch (ctrl_x_mode) {
+case CTRL_X_FILES:
+
+
+
+return vim_isfilec(c) && !vim_ispathsep(c);
+
+case CTRL_X_CMDLINE:
+case CTRL_X_OMNI:
+
+
+return vim_isprintc(c) && !ascii_iswhite(c);
+
+case CTRL_X_WHOLE_LINE:
+
+return vim_isprintc(c);
+}
+return vim_iswordc(c);
+}
+
+
+
+
+
+
+
+int ins_compl_add_infercase(char_u *str_arg, int len, bool icase, char_u *fname,
+int dir, bool cont_s_ipos)
+FUNC_ATTR_NONNULL_ARG(1)
+{
+char_u *str = str_arg;
+int i, c;
+int actual_len; 
+int actual_compl_length; 
+int min_len;
+bool has_lower = false;
+bool was_letter = false;
+int flags = 0;
+
+if (p_ic && curbuf->b_p_inf && len > 0) {
+
+
+
+if (has_mbyte) {
+const char_u *p = str;
+actual_len = 0;
+while (*p != NUL) {
+MB_PTR_ADV(p);
+actual_len++;
+}
+} else
+actual_len = len;
+
+
+if (has_mbyte) {
+const char_u *p = compl_orig_text;
+actual_compl_length = 0;
+while (*p != NUL) {
+MB_PTR_ADV(p);
+actual_compl_length++;
+}
+} else
+actual_compl_length = compl_length;
+
+
+
+min_len = actual_len < actual_compl_length
+? actual_len : actual_compl_length;
+
+
+int *const wca = xmalloc(actual_len * sizeof(*wca));
+{
+const char_u *p = str;
+for (i = 0; i < actual_len; i++) {
+if (has_mbyte) {
+wca[i] = mb_ptr2char_adv(&p);
+} else {
+wca[i] = *(p++);
+}
+}
+}
+
+
+{
+const char_u *p = compl_orig_text;
+for (i = 0; i < min_len; i++) {
+if (has_mbyte) {
+c = mb_ptr2char_adv(&p);
+} else {
+c = *(p++);
+}
+if (mb_islower(c)) {
+has_lower = true;
+if (mb_isupper(wca[i])) {
+
+for (i = actual_compl_length; i < actual_len; i++) {
+wca[i] = mb_tolower(wca[i]);
+}
+break;
+}
+}
+}
+}
+
+
+
+
+
+if (!has_lower) {
+const char_u *p = compl_orig_text;
+for (i = 0; i < min_len; i++) {
+if (has_mbyte) {
+c = mb_ptr2char_adv(&p);
+} else {
+c = *(p++);
+}
+if (was_letter && mb_isupper(c) && mb_islower(wca[i])) {
+
+for (i = actual_compl_length; i < actual_len; i++) {
+wca[i] = mb_toupper(wca[i]);
+}
+break;
+}
+was_letter = mb_islower(c) || mb_isupper(c);
+}
+}
+
+
+{
+const char_u *p = compl_orig_text;
+for (i = 0; i < min_len; i++) {
+if (has_mbyte) {
+c = mb_ptr2char_adv(&p);
+} else {
+c = *(p++);
+}
+if (mb_islower(c)) {
+wca[i] = mb_tolower(wca[i]);
+} else if (mb_isupper(c)) {
+wca[i] = mb_toupper(wca[i]);
+}
+}
+}
+
+
+
+
+
+{
+char_u *p = IObuff;
+i = 0;
+while (i < actual_len && (p - IObuff + 6) < IOSIZE) {
+p += utf_char2bytes(wca[i++], p);
+}
+*p = NUL;
+}
+
+xfree(wca);
+
+str = IObuff;
+}
+if (cont_s_ipos) {
+flags |= CP_CONT_S_IPOS;
+}
+if (icase) {
+flags |= CP_ICASE;
+}
+
+return ins_compl_add(str, len, fname, NULL, false, dir, flags, false);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+static int ins_compl_add(char_u *const str, int len,
+char_u *const fname,
+char_u *const *const cptext,
+const bool cptext_allocated,
+const Direction cdir, int flags_arg, const bool adup)
+FUNC_ATTR_NONNULL_ARG(1)
+{
+compl_T *match;
+int dir = (cdir == kDirectionNotSet ? compl_direction : cdir);
+int flags = flags_arg;
+
+os_breakcheck();
+#define FREE_CPTEXT(cptext, cptext_allocated) do { if (cptext != NULL && cptext_allocated) { for (size_t i = 0; i < CPT_COUNT; i++) { xfree(cptext[i]); } } } while (0)
+
+
+
+
+
+
+
+if (got_int) {
+FREE_CPTEXT(cptext, cptext_allocated);
+return FAIL;
+}
+if (len < 0) {
+len = (int)STRLEN(str);
+}
+
+
+
+
+if (compl_first_match != NULL && !adup) {
+match = compl_first_match;
+do {
+if (!(match->cp_flags & CP_ORIGINAL_TEXT)
+&& STRNCMP(match->cp_str, str, len) == 0
+&& match->cp_str[len] == NUL) {
+FREE_CPTEXT(cptext, cptext_allocated);
+return NOTDONE;
+}
+match = match->cp_next;
+} while (match != NULL && match != compl_first_match);
+}
+
+
+ins_compl_del_pum();
+
+
+
+
+
+match = xcalloc(1, sizeof(compl_T));
+match->cp_number = -1;
+if (flags & CP_ORIGINAL_TEXT) {
+match->cp_number = 0;
+}
+match->cp_str = vim_strnsave(str, len);
+
+
+
+
+
+if (fname != NULL
+&& compl_curr_match != NULL
+&& compl_curr_match->cp_fname != NULL
+&& STRCMP(fname, compl_curr_match->cp_fname) == 0) {
+match->cp_fname = compl_curr_match->cp_fname;
+} else if (fname != NULL) {
+match->cp_fname = vim_strsave(fname);
+flags |= CP_FREE_FNAME;
+} else {
+match->cp_fname = NULL;
+}
+match->cp_flags = flags;
+
+if (cptext != NULL) {
+int i;
+
+for (i = 0; i < CPT_COUNT; i++) {
+if (cptext[i] == NULL) {
+continue;
+}
+if (*cptext[i] != NUL) {
+match->cp_text[i] = (cptext_allocated
+? cptext[i]
+: (char_u *)xstrdup((char *)cptext[i]));
+} else if (cptext_allocated) {
+xfree(cptext[i]);
+}
+}
+}
+
+
+
+
+if (compl_first_match == NULL)
+match->cp_next = match->cp_prev = NULL;
+else if (dir == FORWARD) {
+match->cp_next = compl_curr_match->cp_next;
+match->cp_prev = compl_curr_match;
+} else { 
+match->cp_next = compl_curr_match;
+match->cp_prev = compl_curr_match->cp_prev;
+}
+if (match->cp_next)
+match->cp_next->cp_prev = match;
+if (match->cp_prev)
+match->cp_prev->cp_next = match;
+else 
+compl_first_match = match;
+compl_curr_match = match;
+
+
+
+
+if (compl_get_longest && (flags & CP_ORIGINAL_TEXT) == 0) {
+ins_compl_longest_match(match);
+}
+
+return OK;
+}
+
+
+
+
+
+
+
+static bool ins_compl_equal(compl_T *match, char_u *str, size_t len)
+FUNC_ATTR_PURE FUNC_ATTR_WARN_UNUSED_RESULT FUNC_ATTR_NONNULL_ALL
+{
+if (match->cp_flags & CP_EQUAL) {
+return true;
+}
+if (match->cp_flags & CP_ICASE) {
+return STRNICMP(match->cp_str, str, len) == 0;
+}
+return STRNCMP(match->cp_str, str, len) == 0;
+}
+
+
+
+
+static void ins_compl_longest_match(compl_T *match)
+{
+char_u *p, *s;
+int c1, c2;
+int had_match;
+
+if (compl_leader == NULL) {
+
+compl_leader = vim_strsave(match->cp_str);
+had_match = (curwin->w_cursor.col > compl_col);
+ins_compl_delete();
+ins_bytes(compl_leader + ins_compl_len());
+ins_redraw(FALSE);
+
+
+
+if (!had_match)
+ins_compl_delete();
+compl_used_match = false;
+} else {
+
+p = compl_leader;
+s = match->cp_str;
+while (*p != NUL) {
+c1 = utf_ptr2char(p);
+c2 = utf_ptr2char(s);
+
+if ((match->cp_flags & CP_ICASE)
+? (mb_tolower(c1) != mb_tolower(c2))
+: (c1 != c2)) {
+break;
+}
+MB_PTR_ADV(p);
+MB_PTR_ADV(s);
+}
+
+if (*p != NUL) {
+
+*p = NUL;
+had_match = (curwin->w_cursor.col > compl_col);
+ins_compl_delete();
+ins_bytes(compl_leader + ins_compl_len());
+ins_redraw(FALSE);
+
+
+
+if (!had_match)
+ins_compl_delete();
+}
+
+compl_used_match = false;
+}
+}
+
+
+
+
+
+static void ins_compl_add_matches(int num_matches, char_u **matches, int icase)
+FUNC_ATTR_NONNULL_ALL
+{
+int add_r = OK;
+int dir = compl_direction;
+
+for (int i = 0; i < num_matches && add_r != FAIL; i++) {
+if ((add_r = ins_compl_add(matches[i], -1, NULL, NULL, false, dir,
+icase ? CP_ICASE : 0, false)) == OK) {
+
+dir = FORWARD;
+}
+}
+FreeWild(num_matches, matches);
+}
+
+
+
+
+static int ins_compl_make_cyclic(void)
+{
+compl_T *match;
+int count = 0;
+
+if (compl_first_match != NULL) {
+
+
+
+match = compl_first_match;
+
+while (match->cp_next != NULL && match->cp_next != compl_first_match) {
+match = match->cp_next;
+++count;
+}
+match->cp_next = compl_first_match;
+compl_first_match->cp_prev = match;
+}
+return count;
+}
+
+
+
+void completeopt_was_set(void)
+{
+compl_no_insert = false;
+compl_no_select = false;
+if (strstr((char *)p_cot, "noselect") != NULL) {
+compl_no_select = true;
+}
+if (strstr((char *)p_cot, "noinsert") != NULL) {
+compl_no_insert = true;
+}
+}
+
+
+
+
+
+
+
+void set_completion(colnr_T startcol, list_T *list)
+{
+int flags = CP_ORIGINAL_TEXT;
+
+
+if (ctrl_x_mode != CTRL_X_NORMAL) {
+ins_compl_prep(' ');
+}
+ins_compl_clear();
+ins_compl_free();
+
+compl_direction = FORWARD;
+if (startcol > curwin->w_cursor.col)
+startcol = curwin->w_cursor.col;
+compl_col = startcol;
+compl_length = (int)curwin->w_cursor.col - (int)startcol;
+
+compl_orig_text = vim_strnsave(get_cursor_line_ptr() + compl_col,
+compl_length);
+if (p_ic) {
+flags |= CP_ICASE;
+}
+if (ins_compl_add(compl_orig_text, -1, NULL, NULL, false, 0,
+flags, false) != OK) {
+return;
+}
+
+ctrl_x_mode = CTRL_X_EVAL;
+
+ins_compl_add_list(list);
+compl_matches = ins_compl_make_cyclic();
+compl_started = true;
+compl_used_match = true;
+compl_cont_status = 0;
+int save_w_wrow = curwin->w_wrow;
+int save_w_leftcol = curwin->w_leftcol;
+
+compl_curr_match = compl_first_match;
+if (compl_no_insert || compl_no_select) {
+ins_complete(K_DOWN, false);
+if (compl_no_select) {
+ins_complete(K_UP, false);
+}
+} else {
+ins_complete(Ctrl_N, false);
+}
+compl_enter_selects = compl_no_insert;
+
+
+if (!compl_interrupted) {
+show_pum(save_w_wrow, save_w_leftcol);
+}
+
+ui_flush();
+}
+
+
+
+
+static pumitem_T *compl_match_array = NULL;
+static int compl_match_arraysize;
+
+
+
+
+
+static void ins_compl_del_pum(void)
+{
+if (compl_match_array != NULL) {
+pum_undisplay(false);
+XFREE_CLEAR(compl_match_array);
+}
+}
+
+
+static bool pum_wanted(void)
+FUNC_ATTR_PURE FUNC_ATTR_WARN_UNUSED_RESULT
+{
+
+return vim_strchr(p_cot, 'm') != NULL;
+}
+
+
+
+static bool pum_enough_matches(void)
+FUNC_ATTR_PURE FUNC_ATTR_WARN_UNUSED_RESULT
+{
+
+
+compl_T *comp = compl_first_match;
+int i = 0;
+do {
+if (comp == NULL
+|| ((comp->cp_flags & CP_ORIGINAL_TEXT) == 0 && ++i == 2)) {
+break;
+}
+comp = comp->cp_next;
+} while (comp != compl_first_match);
+
+if (strstr((char *)p_cot, "menuone") != NULL) {
+return i >= 1;
+}
+return i >= 2;
+}
+
+static void trigger_complete_changed_event(int cur)
+{
+static bool recursive = false;
+
+if (recursive) {
+return;
+}
+
+dict_T *v_event = get_vim_var_dict(VV_EVENT);
+if (cur < 0) {
+tv_dict_add_dict(v_event, S_LEN("completed_item"), tv_dict_alloc());
+} else {
+dict_T *item = ins_compl_dict_alloc(compl_curr_match);
+tv_dict_add_dict(v_event, S_LEN("completed_item"), item);
+}
+pum_set_event_info(v_event);
+tv_dict_set_keys_readonly(v_event);
+
+recursive = true;
+textlock++;
+apply_autocmds(EVENT_COMPLETECHANGED, NULL, NULL, false, curbuf);
+textlock--;
+recursive = false;
+
+tv_dict_clear(v_event);
+}
+
+
+
+void ins_compl_show_pum(void)
+{
+compl_T *compl;
+compl_T *shown_compl = NULL;
+bool did_find_shown_match = false;
+bool shown_match_ok = false;
+int i;
+int cur = -1;
+colnr_T col;
+int lead_len = 0;
+bool array_changed = false;
+
+if (!pum_wanted() || !pum_enough_matches())
+return;
+
+
+do_cmdline_cmd("if exists('g:loaded_matchparen')|3match none|endif");
+
+
+update_screen(0);
+
+if (compl_match_array == NULL) {
+array_changed = true;
+
+compl_match_arraysize = 0;
+compl = compl_first_match;
+
+
+
+
+if (ins_compl_need_restart()) {
+XFREE_CLEAR(compl_leader);
+}
+if (compl_leader != NULL) {
+lead_len = (int)STRLEN(compl_leader);
+}
+do {
+if ((compl->cp_flags & CP_ORIGINAL_TEXT) == 0
+&& (compl_leader == NULL
+|| ins_compl_equal(compl, compl_leader, lead_len))) {
+compl_match_arraysize++;
+}
+compl = compl->cp_next;
+} while (compl != NULL && compl != compl_first_match);
+if (compl_match_arraysize == 0)
+return;
+
+assert(compl_match_arraysize >= 0);
+compl_match_array = xcalloc(compl_match_arraysize, sizeof(pumitem_T));
+
+
+if (compl_shown_match->cp_flags & CP_ORIGINAL_TEXT) {
+shown_match_ok = true;
+}
+
+i = 0;
+compl = compl_first_match;
+do {
+if ((compl->cp_flags & CP_ORIGINAL_TEXT) == 0
+&& (compl_leader == NULL
+|| ins_compl_equal(compl, compl_leader, lead_len))) {
+if (!shown_match_ok) {
+if (compl == compl_shown_match || did_find_shown_match) {
+
+
+compl_shown_match = compl;
+did_find_shown_match = true;
+shown_match_ok = true;
+} else {
+
+
+shown_compl = compl;
+}
+cur = i;
+}
+
+if (compl->cp_text[CPT_ABBR] != NULL)
+compl_match_array[i].pum_text =
+compl->cp_text[CPT_ABBR];
+else
+compl_match_array[i].pum_text = compl->cp_str;
+compl_match_array[i].pum_kind = compl->cp_text[CPT_KIND];
+compl_match_array[i].pum_info = compl->cp_text[CPT_INFO];
+if (compl->cp_text[CPT_MENU] != NULL)
+compl_match_array[i++].pum_extra =
+compl->cp_text[CPT_MENU];
+else
+compl_match_array[i++].pum_extra = compl->cp_fname;
+}
+
+if (compl == compl_shown_match) {
+did_find_shown_match = true;
+
+
+
+if (compl->cp_flags & CP_ORIGINAL_TEXT) {
+shown_match_ok = true;
+}
+
+if (!shown_match_ok && shown_compl != NULL) {
+
+
+compl_shown_match = shown_compl;
+shown_match_ok = true;
+}
+}
+compl = compl->cp_next;
+} while (compl != NULL && compl != compl_first_match);
+
+if (!shown_match_ok) 
+cur = -1;
+} else {
+
+for (i = 0; i < compl_match_arraysize; ++i)
+if (compl_match_array[i].pum_text == compl_shown_match->cp_str
+|| compl_match_array[i].pum_text
+== compl_shown_match->cp_text[CPT_ABBR]) {
+cur = i;
+break;
+}
+}
+
+
+
+dollar_vcol = -1;
+
+
+
+col = curwin->w_cursor.col;
+curwin->w_cursor.col = compl_col;
+pum_selected_item = cur;
+pum_display(compl_match_array, compl_match_arraysize, cur, array_changed, 0);
+curwin->w_cursor.col = col;
+
+if (has_event(EVENT_COMPLETECHANGED)) {
+trigger_complete_changed_event(cur);
+}
+}
+
+#define DICT_FIRST (1) 
+#define DICT_EXACT (2) 
+
+
+
+
+
+static void
+ins_compl_dictionaries (
+char_u *dict_start,
+char_u *pat,
+int flags, 
+int thesaurus 
+)
+{
+char_u *dict = dict_start;
+char_u *ptr;
+char_u *buf;
+regmatch_T regmatch;
+char_u **files;
+int count;
+int save_p_scs;
+int dir = compl_direction;
+
+if (*dict == NUL) {
+
+
+if (!thesaurus && curwin->w_p_spell)
+dict = (char_u *)"spell";
+else
+return;
+}
+
+buf = xmalloc(LSIZE);
+regmatch.regprog = NULL; 
+
+
+save_p_scs = p_scs;
+if (curbuf->b_p_inf)
+p_scs = FALSE;
+
+
+
+
+if (CTRL_X_MODE_LINE_OR_EVAL(ctrl_x_mode)) {
+char_u *pat_esc = vim_strsave_escaped(pat, (char_u *)"\\");
+
+size_t len = STRLEN(pat_esc) + 10;
+ptr = xmalloc(len);
+vim_snprintf((char *)ptr, len, "^\\s*\\zs\\V%s", pat_esc);
+regmatch.regprog = vim_regcomp(ptr, RE_MAGIC);
+xfree(pat_esc);
+xfree(ptr);
+} else {
+regmatch.regprog = vim_regcomp(pat, p_magic ? RE_MAGIC : 0);
+if (regmatch.regprog == NULL)
+goto theend;
+}
+
+
+regmatch.rm_ic = ignorecase(pat);
+while (*dict != NUL && !got_int && !compl_interrupted) {
+
+if (flags == DICT_EXACT) {
+count = 1;
+files = &dict;
+} else {
+
+
+
+copy_option_part(&dict, buf, LSIZE, ",");
+if (!thesaurus && STRCMP(buf, "spell") == 0)
+count = -1;
+else if (vim_strchr(buf, '`') != NULL
+|| expand_wildcards(1, &buf, &count, &files,
+EW_FILE|EW_SILENT) != OK)
+count = 0;
+}
+
+if (count == -1) {
+
+
+if (pat[0] == '\\' && pat[1] == '<')
+ptr = pat + 2;
+else
+ptr = pat;
+spell_dump_compl(ptr, regmatch.rm_ic, &dir, 0);
+} else if (count > 0) { 
+ins_compl_files(count, files, thesaurus, flags,
+&regmatch, buf, &dir);
+if (flags != DICT_EXACT)
+FreeWild(count, files);
+}
+if (flags != 0)
+break;
+}
+
+theend:
+p_scs = save_p_scs;
+vim_regfree(regmatch.regprog);
+xfree(buf);
+}
+
+static void ins_compl_files(int count, char_u **files, int thesaurus, int flags, regmatch_T *regmatch, char_u *buf, int *dir)
+{
+char_u *ptr;
+int i;
+FILE *fp;
+int add_r;
+
+for (i = 0; i < count && !got_int && !compl_interrupted; i++) {
+fp = os_fopen((char *)files[i], "r"); 
+if (flags != DICT_EXACT) {
+vim_snprintf((char *)IObuff, IOSIZE,
+_("Scanning dictionary: %s"), (char *)files[i]);
+(void)msg_trunc_attr(IObuff, true, HL_ATTR(HLF_R));
+}
+
+if (fp == NULL) {
+continue;
+}
+
+
+
+
+while (!got_int && !compl_interrupted
+&& !vim_fgets(buf, LSIZE, fp)) {
+ptr = buf;
+while (vim_regexec(regmatch, buf, (colnr_T)(ptr - buf))) {
+ptr = regmatch->startp[0];
+if (CTRL_X_MODE_LINE_OR_EVAL(ctrl_x_mode)) {
+ptr = find_line_end(ptr);
+} else {
+ptr = find_word_end(ptr);
+}
+add_r = ins_compl_add_infercase(regmatch->startp[0],
+(int)(ptr - regmatch->startp[0]),
+p_ic, files[i], *dir, false);
+if (thesaurus) {
+char_u *wstart;
+
+
+
+
+ptr = buf;
+while (!got_int) {
+
+
+ptr = find_word_start(ptr);
+if (*ptr == NUL || *ptr == NL)
+break;
+wstart = ptr;
+
+
+if (has_mbyte)
+
+
+
+while (*ptr != NUL) {
+int l = (*mb_ptr2len)(ptr);
+
+if (l < 2 && !vim_iswordc(*ptr))
+break;
+ptr += l;
+}
+else
+ptr = find_word_end(ptr);
+
+
+if (wstart != regmatch->startp[0]) {
+add_r = ins_compl_add_infercase(wstart, (int)(ptr - wstart),
+p_ic, files[i], *dir, false);
+}
+}
+}
+if (add_r == OK)
+
+*dir = FORWARD;
+else if (add_r == FAIL)
+break;
+
+
+if (*ptr == '\n' || got_int)
+break;
+}
+line_breakcheck();
+ins_compl_check_keys(50, false);
+}
+fclose(fp);
+}
+}
+
+
+
+
+
+char_u *find_word_start(char_u *ptr)
+{
+if (has_mbyte)
+while (*ptr != NUL && *ptr != '\n' && mb_get_class(ptr) <= 1)
+ptr += (*mb_ptr2len)(ptr);
+else
+while (*ptr != NUL && *ptr != '\n' && !vim_iswordc(*ptr))
+++ptr;
+return ptr;
+}
+
+
+
+
+
+char_u *find_word_end(char_u *ptr)
+{
+int start_class;
+
+if (has_mbyte) {
+start_class = mb_get_class(ptr);
+if (start_class > 1)
+while (*ptr != NUL) {
+ptr += (*mb_ptr2len)(ptr);
+if (mb_get_class(ptr) != start_class)
+break;
+}
+} else
+while (vim_iswordc(*ptr))
+++ptr;
+return ptr;
+}
+
+
+
+
+
+static char_u *find_line_end(char_u *ptr)
+{
+char_u *s;
+
+s = ptr + STRLEN(ptr);
+while (s > ptr && (s[-1] == CAR || s[-1] == NL))
+--s;
+return s;
+}
+
+
+
+
+static void ins_compl_free(void)
+{
+compl_T *match;
+
+XFREE_CLEAR(compl_pattern);
+XFREE_CLEAR(compl_leader);
+
+if (compl_first_match == NULL)
+return;
+
+ins_compl_del_pum();
+pum_clear();
+
+compl_curr_match = compl_first_match;
+do {
+match = compl_curr_match;
+compl_curr_match = compl_curr_match->cp_next;
+xfree(match->cp_str);
+
+if (match->cp_flags & CP_FREE_FNAME) {
+xfree(match->cp_fname);
+}
+for (int i = 0; i < CPT_COUNT; i++) {
+xfree(match->cp_text[i]);
+}
+xfree(match);
+} while (compl_curr_match != NULL && compl_curr_match != compl_first_match);
+compl_first_match = compl_curr_match = NULL;
+compl_shown_match = NULL;
+compl_old_match = NULL;
+}
+
+static void ins_compl_clear(void)
+{
+compl_cont_status = 0;
+compl_started = false;
+compl_matches = 0;
+XFREE_CLEAR(compl_pattern);
+XFREE_CLEAR(compl_leader);
+edit_submode_extra = NULL;
+XFREE_CLEAR(compl_orig_text);
+compl_enter_selects = false;
+
+dict_T *const d = tv_dict_alloc();
+d->dv_lock = VAR_FIXED;
+set_vim_var_dict(VV_COMPLETED_ITEM, d);
+}
+
+
+bool ins_compl_active(void)
+FUNC_ATTR_PURE
+{
+return compl_started;
+}
+
+
+void get_complete_info(list_T *what_list, dict_T *retdict)
+{
+#define CI_WHAT_MODE 0x01
+#define CI_WHAT_PUM_VISIBLE 0x02
+#define CI_WHAT_ITEMS 0x04
+#define CI_WHAT_SELECTED 0x08
+#define CI_WHAT_INSERTED 0x10
+#define CI_WHAT_ALL 0xff
+int what_flag;
+
+if (what_list == NULL) {
+what_flag = CI_WHAT_ALL;
+} else {
+what_flag = 0;
+for (listitem_T *item = tv_list_first(what_list)
+; item != NULL
+; item = TV_LIST_ITEM_NEXT(what_list, item)) {
+const char *what = tv_get_string(TV_LIST_ITEM_TV(item));
+
+if (STRCMP(what, "mode") == 0) {
+what_flag |= CI_WHAT_MODE;
+} else if (STRCMP(what, "pum_visible") == 0) {
+what_flag |= CI_WHAT_PUM_VISIBLE;
+} else if (STRCMP(what, "items") == 0) {
+what_flag |= CI_WHAT_ITEMS;
+} else if (STRCMP(what, "selected") == 0) {
+what_flag |= CI_WHAT_SELECTED;
+} else if (STRCMP(what, "inserted") == 0) {
+what_flag |= CI_WHAT_INSERTED;
+}
+}
+}
+
+int ret = OK;
+if (what_flag & CI_WHAT_MODE) {
+ret = tv_dict_add_str(retdict, S_LEN("mode"),
+(char *)ins_compl_mode());
+}
+
+if (ret == OK && (what_flag & CI_WHAT_PUM_VISIBLE)) {
+ret = tv_dict_add_nr(retdict, S_LEN("pum_visible"), pum_visible());
+}
+
+if (ret == OK && (what_flag & CI_WHAT_ITEMS)) {
+list_T *li = tv_list_alloc(ins_compl_len());
+
+ret = tv_dict_add_list(retdict, S_LEN("items"), li);
+if (ret == OK && compl_first_match != NULL) {
+compl_T *match = compl_first_match;
+do {
+if (!(match->cp_flags & CP_ORIGINAL_TEXT)) {
+dict_T *di = tv_dict_alloc();
+
+tv_list_append_dict(li, di);
+tv_dict_add_str(di, S_LEN("word"),
+(char *)EMPTY_IF_NULL(match->cp_str));
+tv_dict_add_str(di, S_LEN("abbr"),
+(char *)EMPTY_IF_NULL(match->cp_text[CPT_ABBR]));
+tv_dict_add_str(di, S_LEN("menu"),
+(char *)EMPTY_IF_NULL(match->cp_text[CPT_MENU]));
+tv_dict_add_str(di, S_LEN("kind"),
+(char *)EMPTY_IF_NULL(match->cp_text[CPT_KIND]));
+tv_dict_add_str(di, S_LEN("info"),
+(char *)EMPTY_IF_NULL(match->cp_text[CPT_INFO]));
+tv_dict_add_str(di, S_LEN("user_data"),
+(char *)EMPTY_IF_NULL(match->cp_text[CPT_USER_DATA]));
+}
+match = match->cp_next;
+} while (match != NULL && match != compl_first_match);
+}
+}
+
+if (ret == OK && (what_flag & CI_WHAT_SELECTED)) {
+ret = tv_dict_add_nr(retdict, S_LEN("selected"),
+(compl_curr_match != NULL)
+? compl_curr_match->cp_number - 1 : -1);
+}
+
+(void)ret;
+
+
+}
+
+
+static char_u * ins_compl_mode(void)
+{
+if (ctrl_x_mode == CTRL_X_NOT_DEFINED_YET || compl_started) {
+return (char_u *)ctrl_x_mode_names[ctrl_x_mode & ~CTRL_X_WANT_IDENT];
+}
+return (char_u *)"";
+}
+
+
+
+
+
+
+
+
+static int ins_compl_bs(void)
+{
+char_u *line;
+char_u *p;
+
+line = get_cursor_line_ptr();
+p = line + curwin->w_cursor.col;
+MB_PTR_BACK(line, p);
+
+
+
+
+if ((int)(p - line) - (int)compl_col < 0
+|| ((int)(p - line) - (int)compl_col == 0
+&& ctrl_x_mode != CTRL_X_OMNI) || ctrl_x_mode == CTRL_X_EVAL
+|| (!can_bs(BS_START) && (int)(p - line) - (int)compl_col
+- compl_length < 0)) {
+return K_BS;
+}
+
+
+
+if (curwin->w_cursor.col <= compl_col + compl_length
+|| ins_compl_need_restart())
+ins_compl_restart();
+
+xfree(compl_leader);
+compl_leader = vim_strnsave(line + compl_col, (int)(p - line) - compl_col);
+ins_compl_new_leader();
+if (compl_shown_match != NULL)
+
+compl_curr_match = compl_shown_match;
+
+return NUL;
+}
+
+
+
+static bool ins_compl_need_restart(void)
+FUNC_ATTR_PURE
+{
+
+
+return compl_was_interrupted
+|| ((ctrl_x_mode == CTRL_X_FUNCTION || ctrl_x_mode == CTRL_X_OMNI)
+&& compl_opt_refresh_always);
+}
+
+
+
+
+
+
+static void ins_compl_new_leader(void)
+{
+ins_compl_del_pum();
+ins_compl_delete();
+ins_bytes(compl_leader + ins_compl_len());
+compl_used_match = false;
+
+if (compl_started) {
+ins_compl_set_original_text(compl_leader);
+} else {
+spell_bad_len = 0; 
+
+
+compl_restarting = true;
+if (ins_complete(Ctrl_N, true) == FAIL) {
+compl_cont_status = 0;
+}
+compl_restarting = false;
+}
+
+compl_enter_selects = !compl_used_match;
+
+
+ins_compl_show_pum();
+
+
+
+if (compl_match_array == NULL || ins_compl_need_restart())
+compl_enter_selects = FALSE;
+}
+
+
+
+
+
+static int ins_compl_len(void)
+{
+int off = (int)curwin->w_cursor.col - (int)compl_col;
+
+if (off < 0)
+return 0;
+return off;
+}
+
+
+
+
+
+static void ins_compl_addleader(int c)
+{
+int cc;
+
+if (stop_arrow() == FAIL) {
+return;
+}
+if ((cc = utf_char2len(c)) > 1) {
+char_u buf[MB_MAXBYTES + 1];
+
+utf_char2bytes(c, buf);
+buf[cc] = NUL;
+ins_char_bytes(buf, cc);
+} else {
+ins_char(c);
+}
+
+
+if (ins_compl_need_restart())
+ins_compl_restart();
+
+xfree(compl_leader);
+compl_leader = vim_strnsave(get_cursor_line_ptr() + compl_col,
+(int)(curwin->w_cursor.col - compl_col));
+ins_compl_new_leader();
+}
+
+
+
+
+
+static void ins_compl_restart(void)
+{
+
+
+
+update_screen(0);
+ins_compl_free();
+compl_started = false;
+compl_matches = 0;
+compl_cont_status = 0;
+compl_cont_mode = 0;
+}
+
+
+
+
+static void ins_compl_set_original_text(char_u *str)
+FUNC_ATTR_NONNULL_ALL
+{
+
+
+
+if (compl_first_match->cp_flags & CP_ORIGINAL_TEXT) { 
+xfree(compl_first_match->cp_str);
+compl_first_match->cp_str = vim_strsave(str);
+} else if (compl_first_match->cp_prev != NULL
+&& (compl_first_match->cp_prev->cp_flags & CP_ORIGINAL_TEXT)) {
+xfree(compl_first_match->cp_prev->cp_str);
+compl_first_match->cp_prev->cp_str = vim_strsave(str);
+}
+}
+
+
+
+
+
+static void ins_compl_addfrommatch(void)
+{
+char_u *p;
+int len = (int)curwin->w_cursor.col - (int)compl_col;
+int c;
+compl_T *cp;
+assert(compl_shown_match != NULL);
+p = compl_shown_match->cp_str;
+if ((int)STRLEN(p) <= len) { 
+
+
+if (compl_shown_match->cp_flags & CP_ORIGINAL_TEXT) {
+p = NULL;
+for (cp = compl_shown_match->cp_next; cp != NULL
+&& cp != compl_first_match; cp = cp->cp_next) {
+if (compl_leader == NULL
+|| ins_compl_equal(cp, compl_leader,
+(int)STRLEN(compl_leader))) {
+p = cp->cp_str;
+break;
+}
+}
+if (p == NULL || (int)STRLEN(p) <= len)
+return;
+} else
+return;
+}
+p += len;
+c = PTR2CHAR(p);
+ins_compl_addleader(c);
+}
+
+
+
+
+
+
+
+static bool ins_compl_prep(int c)
+{
+char_u *ptr;
+bool retval = false;
+const int prev_mode = ctrl_x_mode;
+
+
+
+
+if (c != Ctrl_R && vim_is_ctrl_x_key(c))
+edit_submode_extra = NULL;
+
+
+if (c == K_SELECT || c == K_MOUSEDOWN || c == K_MOUSEUP
+|| c == K_MOUSELEFT || c == K_MOUSERIGHT || c == K_EVENT
+|| c == K_COMMAND) {
+return retval;
+}
+
+
+if (ctrl_x_mode == CTRL_X_NOT_DEFINED_YET
+|| (ctrl_x_mode == CTRL_X_NORMAL && !compl_started)) {
+compl_get_longest = (strstr((char *)p_cot, "longest") != NULL);
+compl_used_match = true;
+}
+
+if (ctrl_x_mode == CTRL_X_NOT_DEFINED_YET) {
+
+
+
+
+switch (c) {
+case Ctrl_E:
+case Ctrl_Y:
+ctrl_x_mode = CTRL_X_SCROLL;
+if (!(State & REPLACE_FLAG))
+edit_submode = (char_u *)_(" (insert) Scroll (^E/^Y)");
+else
+edit_submode = (char_u *)_(" (replace) Scroll (^E/^Y)");
+edit_submode_pre = NULL;
+showmode();
+break;
+case Ctrl_L:
+ctrl_x_mode = CTRL_X_WHOLE_LINE;
+break;
+case Ctrl_F:
+ctrl_x_mode = CTRL_X_FILES;
+break;
+case Ctrl_K:
+ctrl_x_mode = CTRL_X_DICTIONARY;
+break;
+case Ctrl_R:
+
+break;
+case Ctrl_T:
+ctrl_x_mode = CTRL_X_THESAURUS;
+break;
+case Ctrl_U:
+ctrl_x_mode = CTRL_X_FUNCTION;
+break;
+case Ctrl_O:
+ctrl_x_mode = CTRL_X_OMNI;
+break;
+case 's':
+case Ctrl_S:
+ctrl_x_mode = CTRL_X_SPELL;
+++emsg_off; 
+spell_back_to_badword();
+--emsg_off;
+break;
+case Ctrl_RSB:
+ctrl_x_mode = CTRL_X_TAGS;
+break;
+case Ctrl_I:
+case K_S_TAB:
+ctrl_x_mode = CTRL_X_PATH_PATTERNS;
+break;
+case Ctrl_D:
+ctrl_x_mode = CTRL_X_PATH_DEFINES;
+break;
+case Ctrl_V:
+case Ctrl_Q:
+ctrl_x_mode = CTRL_X_CMDLINE;
+break;
+case Ctrl_P:
+case Ctrl_N:
+
+
+
+
+
+
+
+if (!(compl_cont_status & CONT_INTRPT))
+compl_cont_status |= CONT_LOCAL;
+else if (compl_cont_mode != 0)
+compl_cont_status &= ~CONT_LOCAL;
+FALLTHROUGH;
+default:
+
+
+
+
+
+
+
+
+
+
+if (c == Ctrl_X) {
+if (compl_cont_mode != 0)
+compl_cont_status = 0;
+else
+compl_cont_mode = CTRL_X_NOT_DEFINED_YET;
+}
+ctrl_x_mode = CTRL_X_NORMAL;
+edit_submode = NULL;
+showmode();
+break;
+}
+} else if (ctrl_x_mode != CTRL_X_NORMAL) {
+
+if (!vim_is_ctrl_x_key(c)) {
+if (ctrl_x_mode == CTRL_X_SCROLL) {
+ctrl_x_mode = CTRL_X_NORMAL;
+} else {
+ctrl_x_mode = CTRL_X_FINISHED;
+}
+edit_submode = NULL;
+}
+showmode();
+}
+
+if (compl_started || ctrl_x_mode == CTRL_X_FINISHED) {
+
+
+
+showmode();
+if ((ctrl_x_mode == CTRL_X_NORMAL
+&& c != Ctrl_N
+&& c != Ctrl_P
+&& c != Ctrl_R
+&& !ins_compl_pum_key(c))
+|| ctrl_x_mode == CTRL_X_FINISHED) {
+
+
+
+if (compl_curr_match != NULL || compl_leader != NULL || c == Ctrl_E) {
+
+
+
+
+
+
+
+
+if (compl_curr_match != NULL && compl_used_match && c != Ctrl_E)
+ptr = compl_curr_match->cp_str;
+else
+ptr = NULL;
+ins_compl_fixRedoBufForLeader(ptr);
+}
+
+bool want_cindent = (can_cindent && cindent_on());
+
+
+if (compl_cont_mode == CTRL_X_WHOLE_LINE) {
+
+if (want_cindent) {
+do_c_expr_indent();
+want_cindent = FALSE; 
+}
+} else {
+int prev_col = curwin->w_cursor.col;
+
+
+if (prev_col > 0) {
+dec_cursor();
+}
+
+if (!arrow_used && !ins_need_undo && c != Ctrl_E) {
+insertchar(NUL, 0, -1);
+}
+
+if (prev_col > 0
+&& get_cursor_line_ptr()[curwin->w_cursor.col] != NUL) {
+inc_cursor();
+}
+}
+
+
+
+
+if ((c == Ctrl_Y || (compl_enter_selects
+&& (c == CAR || c == K_KENTER || c == NL)))
+&& pum_visible()) {
+retval = true;
+}
+
+
+
+if (c == Ctrl_E) {
+ins_compl_delete();
+if (compl_leader != NULL) {
+ins_bytes(compl_leader + ins_compl_len());
+} else if (compl_first_match != NULL) {
+ins_bytes(compl_orig_text + ins_compl_len());
+}
+retval = true;
+}
+
+auto_format(FALSE, TRUE);
+
+
+
+
+ctrl_x_mode = prev_mode;
+ins_apply_autocmds(EVENT_COMPLETEDONEPRE);
+
+ins_compl_free();
+compl_started = false;
+compl_matches = 0;
+if (!shortmess(SHM_COMPLETIONMENU)) {
+msg_clr_cmdline(); 
+}
+ctrl_x_mode = CTRL_X_NORMAL;
+compl_enter_selects = false;
+if (edit_submode != NULL) {
+edit_submode = NULL;
+showmode();
+}
+
+
+
+if (c == Ctrl_C && cmdwin_type != 0) {
+update_screen(0);
+}
+
+
+
+
+if (want_cindent && in_cinkeys(KEY_COMPLETE, ' ', inindent(0)))
+do_c_expr_indent();
+
+
+ins_apply_autocmds(EVENT_COMPLETEDONE);
+}
+} else if (ctrl_x_mode == CTRL_X_LOCAL_MSG)
+
+
+ins_apply_autocmds(EVENT_COMPLETEDONE);
+
+
+
+if (!vim_is_ctrl_x_key(c)) {
+compl_cont_status = 0;
+compl_cont_mode = 0;
+}
+
+return retval;
+}
+
+
+
+
+
+
+static void ins_compl_fixRedoBufForLeader(char_u *ptr_arg)
+{
+int len;
+char_u *p;
+char_u *ptr = ptr_arg;
+
+if (ptr == NULL) {
+if (compl_leader != NULL)
+ptr = compl_leader;
+else
+return; 
+}
+if (compl_orig_text != NULL) {
+p = compl_orig_text;
+for (len = 0; p[len] != NUL && p[len] == ptr[len]; len++) {}
+if (len > 0) {
+len -= utf_head_off(p, p + len);
+}
+for (p += len; *p != NUL; MB_PTR_ADV(p)) {
+AppendCharToRedobuff(K_BS);
+}
+} else {
+len = 0;
+}
+AppendToRedobuffLit(ptr + len, -1);
+}
+
+
+
+
+
+
+
+
+
+static buf_T *ins_compl_next_buf(buf_T *buf, int flag)
+{
+static win_T *wp;
+
+if (flag == 'w') { 
+if (buf == curbuf) 
+wp = curwin;
+assert(wp);
+while ((wp = (wp->w_next != NULL ? wp->w_next : firstwin)) != curwin
+&& wp->w_buffer->b_scanned)
+;
+buf = wp->w_buffer;
+} else
+
+
+
+while ((buf = (buf->b_next != NULL ? buf->b_next : firstbuf)) != curbuf
+&& ((flag == 'U'
+? buf->b_p_bl
+: (!buf->b_p_bl
+|| (buf->b_ml.ml_mfp == NULL) != (flag == 'u')))
+|| buf->b_scanned))
+;
+return buf;
+}
+
+
+
+
+static void
+expand_by_function(
+int type, 
+char_u *base
+)
+{
+list_T *matchlist = NULL;
+dict_T *matchdict = NULL;
+char_u *funcname;
+pos_T pos;
+win_T *curwin_save;
+buf_T *curbuf_save;
+typval_T rettv;
+const int save_State = State;
+
+assert(curbuf != NULL);
+funcname = (type == CTRL_X_FUNCTION) ? curbuf->b_p_cfu : curbuf->b_p_ofu;
+if (*funcname == NUL) {
+return;
+}
+
+
+typval_T args[3];
+args[0].v_type = VAR_NUMBER;
+args[1].v_type = VAR_STRING;
+args[2].v_type = VAR_UNKNOWN;
+args[0].vval.v_number = 0;
+args[1].vval.v_string = base != NULL ? base : (char_u *)"";
+
+pos = curwin->w_cursor;
+curwin_save = curwin;
+curbuf_save = curbuf;
+
+
+if (call_vim_function(funcname, 2, args, &rettv) == OK) {
+switch (rettv.v_type) {
+case VAR_LIST:
+matchlist = rettv.vval.v_list;
+break;
+case VAR_DICT:
+matchdict = rettv.vval.v_dict;
+break;
+case VAR_SPECIAL:
+FALLTHROUGH;
+default:
+
+tv_clear(&rettv);
+break;
+}
+}
+
+if (curwin_save != curwin || curbuf_save != curbuf) {
+EMSG(_(e_complwin));
+goto theend;
+}
+curwin->w_cursor = pos; 
+validate_cursor();
+if (!equalpos(curwin->w_cursor, pos)) {
+EMSG(_(e_compldel));
+goto theend;
+}
+
+if (matchlist != NULL)
+ins_compl_add_list(matchlist);
+else if (matchdict != NULL)
+ins_compl_add_dict(matchdict);
+
+theend:
+
+State = save_State;
+
+if (matchdict != NULL) {
+tv_dict_unref(matchdict);
+}
+if (matchlist != NULL) {
+tv_list_unref(matchlist);
+}
+}
+
+
+
+
+static void ins_compl_add_list(list_T *const list)
+{
+int dir = compl_direction;
+
+
+TV_LIST_ITER(list, li, {
+if (ins_compl_add_tv(TV_LIST_ITEM_TV(li), dir) == OK) {
+
+dir = FORWARD;
+} else if (did_emsg) {
+break;
+}
+});
+}
+
+
+
+
+static void ins_compl_add_dict(dict_T *dict)
+{
+dictitem_T *di_refresh;
+dictitem_T *di_words;
+
+
+compl_opt_refresh_always = false;
+di_refresh = tv_dict_find(dict, S_LEN("refresh"));
+if (di_refresh != NULL && di_refresh->di_tv.v_type == VAR_STRING) {
+const char *v = (const char *)di_refresh->di_tv.vval.v_string;
+
+if (v != NULL && strcmp(v, "always") == 0) {
+compl_opt_refresh_always = true;
+}
+}
+
+
+di_words = tv_dict_find(dict, S_LEN("words"));
+if (di_words != NULL && di_words->di_tv.v_type == VAR_LIST) {
+ins_compl_add_list(di_words->di_tv.vval.v_list);
+}
+}
+
+
+
+
+
+
+
+
+
+int ins_compl_add_tv(typval_T *const tv, const Direction dir)
+FUNC_ATTR_NONNULL_ALL
+{
+const char *word;
+bool dup = false;
+bool empty = false;
+int flags = 0;
+char *(cptext[CPT_COUNT]);
+
+if (tv->v_type == VAR_DICT && tv->vval.v_dict != NULL) {
+word = tv_dict_get_string(tv->vval.v_dict, "word", false);
+cptext[CPT_ABBR] = tv_dict_get_string(tv->vval.v_dict, "abbr", true);
+cptext[CPT_MENU] = tv_dict_get_string(tv->vval.v_dict, "menu", true);
+cptext[CPT_KIND] = tv_dict_get_string(tv->vval.v_dict, "kind", true);
+cptext[CPT_INFO] = tv_dict_get_string(tv->vval.v_dict, "info", true);
+cptext[CPT_USER_DATA] = tv_dict_get_string(tv->vval.v_dict,
+"user_data", true);
+
+if (tv_dict_get_number(tv->vval.v_dict, "icase")) {
+flags |= CP_ICASE;
+}
+dup = (bool)tv_dict_get_number(tv->vval.v_dict, "dup");
+empty = (bool)tv_dict_get_number(tv->vval.v_dict, "empty");
+if (tv_dict_get_string(tv->vval.v_dict, "equal", false) != NULL
+&& tv_dict_get_number(tv->vval.v_dict, "equal")) {
+flags |= CP_EQUAL;
+}
+} else {
+word = (const char *)tv_get_string_chk(tv);
+memset(cptext, 0, sizeof(cptext));
+}
+if (word == NULL || (!empty && *word == NUL)) {
+for (size_t i = 0; i < CPT_COUNT; i++) {
+xfree(cptext[i]);
+}
+return FAIL;
+}
+return ins_compl_add((char_u *)word, -1, NULL,
+(char_u **)cptext, true, dir, flags, dup);
+}
+
+
+
+
+
+
+
+
+static int ins_compl_get_exp(pos_T *ini)
+{
+static pos_T first_match_pos;
+static pos_T last_match_pos;
+static char_u *e_cpt = (char_u *)""; 
+static int found_all = false; 
+
+static buf_T *ins_buf = NULL; 
+
+pos_T *pos;
+char_u **matches;
+int save_p_scs;
+bool save_p_ws;
+int save_p_ic;
+int i;
+int num_matches;
+int len;
+int found_new_match;
+int type = ctrl_x_mode;
+char_u *ptr;
+char_u *dict = NULL;
+int dict_f = 0;
+int set_match_pos;
+int l_ctrl_x_mode = ctrl_x_mode;
+
+assert(curbuf != NULL);
+
+if (!compl_started) {
+FOR_ALL_BUFFERS(buf) {
+buf->b_scanned = false;
+}
+found_all = FALSE;
+ins_buf = curbuf;
+e_cpt = (compl_cont_status & CONT_LOCAL)
+? (char_u *)"." : curbuf->b_p_cpt;
+last_match_pos = first_match_pos = *ini;
+} else if (ins_buf != curbuf && !buf_valid(ins_buf)) {
+ins_buf = curbuf; 
+}
+
+compl_old_match = compl_curr_match; 
+pos = (compl_direction == FORWARD) ? &last_match_pos : &first_match_pos;
+
+
+for (;; ) {
+found_new_match = FAIL;
+set_match_pos = FALSE;
+
+assert(l_ctrl_x_mode == ctrl_x_mode);
+
+
+
+
+if ((l_ctrl_x_mode == CTRL_X_NORMAL
+|| CTRL_X_MODE_LINE_OR_EVAL(l_ctrl_x_mode))
+&& (!compl_started || found_all)) {
+found_all = FALSE;
+while (*e_cpt == ',' || *e_cpt == ' ')
+e_cpt++;
+if (*e_cpt == '.' && !curbuf->b_scanned) {
+ins_buf = curbuf;
+first_match_pos = *ini;
+
+
+if (ctrl_x_mode == CTRL_X_NORMAL && dec(&first_match_pos) < 0) {
+
+
+
+first_match_pos.lnum = ins_buf->b_ml.ml_line_count;
+first_match_pos.col = (colnr_T)STRLEN(ml_get(first_match_pos.lnum));
+}
+last_match_pos = first_match_pos;
+type = 0;
+
+
+
+set_match_pos = true;
+} else if (vim_strchr((char_u *)"buwU", *e_cpt) != NULL
+&& (ins_buf =
+ins_compl_next_buf(ins_buf, *e_cpt)) != curbuf) {
+
+if (ins_buf->b_ml.ml_mfp != NULL) { 
+compl_started = true;
+first_match_pos.col = last_match_pos.col = 0;
+first_match_pos.lnum = ins_buf->b_ml.ml_line_count + 1;
+last_match_pos.lnum = 0;
+type = 0;
+} else { 
+found_all = true;
+if (ins_buf->b_fname == NULL) {
+continue;
+}
+type = CTRL_X_DICTIONARY;
+dict = ins_buf->b_fname;
+dict_f = DICT_EXACT;
+}
+vim_snprintf((char *)IObuff, IOSIZE, _("Scanning: %s"),
+ins_buf->b_fname == NULL
+? buf_spname(ins_buf)
+: ins_buf->b_sfname == NULL
+? ins_buf->b_fname
+: ins_buf->b_sfname);
+(void)msg_trunc_attr(IObuff, true, HL_ATTR(HLF_R));
+} else if (*e_cpt == NUL) {
+break;
+} else {
+if (CTRL_X_MODE_LINE_OR_EVAL(l_ctrl_x_mode)) {
+type = -1;
+} else if (*e_cpt == 'k' || *e_cpt == 's') {
+if (*e_cpt == 'k')
+type = CTRL_X_DICTIONARY;
+else
+type = CTRL_X_THESAURUS;
+if (*++e_cpt != ',' && *e_cpt != NUL) {
+dict = e_cpt;
+dict_f = DICT_FIRST;
+}
+} else if (*e_cpt == 'i')
+type = CTRL_X_PATH_PATTERNS;
+else if (*e_cpt == 'd')
+type = CTRL_X_PATH_DEFINES;
+else if (*e_cpt == ']' || *e_cpt == 't') {
+type = CTRL_X_TAGS;
+vim_snprintf((char *)IObuff, IOSIZE, "%s", _("Scanning tags."));
+(void)msg_trunc_attr(IObuff, true, HL_ATTR(HLF_R));
+} else {
+type = -1;
+}
+
+
+(void)copy_option_part(&e_cpt, IObuff, IOSIZE, ",");
+
+found_all = TRUE;
+if (type == -1)
+continue;
+}
+}
+
+
+
+if (compl_pattern == NULL) {
+break;
+}
+
+switch (type) {
+case -1:
+break;
+case CTRL_X_PATH_PATTERNS:
+case CTRL_X_PATH_DEFINES:
+find_pattern_in_path(compl_pattern, compl_direction,
+STRLEN(compl_pattern), FALSE, FALSE,
+((type == CTRL_X_PATH_DEFINES
+&& !(compl_cont_status & CONT_SOL))
+? FIND_DEFINE
+: FIND_ANY),
+1L, ACTION_EXPAND, 1, MAXLNUM);
+break;
+
+case CTRL_X_DICTIONARY:
+case CTRL_X_THESAURUS:
+ins_compl_dictionaries(
+dict != NULL ? dict
+: (type == CTRL_X_THESAURUS
+? (*curbuf->b_p_tsr == NUL
+? p_tsr
+: curbuf->b_p_tsr)
+: (*curbuf->b_p_dict == NUL
+? p_dict
+: curbuf->b_p_dict)),
+compl_pattern,
+dict != NULL ? dict_f
+: 0, type == CTRL_X_THESAURUS);
+dict = NULL;
+break;
+
+case CTRL_X_TAGS:
+
+save_p_ic = p_ic;
+p_ic = ignorecase(compl_pattern);
+
+
+
+g_tag_at_cursor = true;
+if (find_tags(compl_pattern, &num_matches, &matches,
+TAG_REGEXP | TAG_NAMES | TAG_NOIC | TAG_INS_COMP
+| (l_ctrl_x_mode != CTRL_X_NORMAL ? TAG_VERBOSE : 0),
+TAG_MANY, curbuf->b_ffname) == OK && num_matches > 0) {
+ins_compl_add_matches(num_matches, matches, p_ic);
+}
+g_tag_at_cursor = false;
+p_ic = save_p_ic;
+break;
+
+case CTRL_X_FILES:
+if (expand_wildcards(1, &compl_pattern, &num_matches, &matches,
+EW_FILE|EW_DIR|EW_ADDSLASH|EW_SILENT) == OK) {
+
+tilde_replace(compl_pattern, num_matches, matches);
+ins_compl_add_matches(num_matches, matches, p_fic || p_wic);
+}
+break;
+
+case CTRL_X_CMDLINE:
+if (expand_cmdline(&compl_xp, compl_pattern,
+(int)STRLEN(compl_pattern),
+&num_matches, &matches) == EXPAND_OK)
+ins_compl_add_matches(num_matches, matches, FALSE);
+break;
+
+case CTRL_X_FUNCTION:
+case CTRL_X_OMNI:
+expand_by_function(type, compl_pattern);
+break;
+
+case CTRL_X_SPELL:
+num_matches = expand_spelling(first_match_pos.lnum,
+compl_pattern, &matches);
+if (num_matches > 0)
+ins_compl_add_matches(num_matches, matches, p_ic);
+break;
+
+default: 
+
+save_p_scs = p_scs;
+assert(ins_buf);
+if (ins_buf->b_p_inf)
+p_scs = FALSE;
+
+
+
+
+
+save_p_ws = p_ws;
+if (ins_buf != curbuf)
+p_ws = false;
+else if (*e_cpt == '.')
+p_ws = true;
+for (;; ) {
+bool cont_s_ipos = false;
+
+msg_silent++; 
+
+
+if (CTRL_X_MODE_LINE_OR_EVAL(l_ctrl_x_mode)
+|| (compl_cont_status & CONT_SOL)) {
+found_new_match = search_for_exact_line(ins_buf, pos,
+compl_direction,
+compl_pattern);
+} else {
+found_new_match = searchit(NULL, ins_buf, pos, NULL,
+compl_direction,
+compl_pattern, 1L,
+SEARCH_KEEP + SEARCH_NFMSG,
+RE_LAST, NULL);
+}
+msg_silent--;
+if (!compl_started || set_match_pos) {
+
+compl_started = true;
+first_match_pos = *pos;
+last_match_pos = *pos;
+set_match_pos = false;
+} else if (first_match_pos.lnum == last_match_pos.lnum
+&& first_match_pos.col == last_match_pos.col) {
+found_new_match = FAIL;
+}
+if (found_new_match == FAIL) {
+if (ins_buf == curbuf)
+found_all = TRUE;
+break;
+}
+
+
+if ((compl_cont_status & CONT_ADDING) && ins_buf == curbuf
+&& ini->lnum == pos->lnum
+&& ini->col == pos->col) {
+continue;
+}
+ptr = ml_get_buf(ins_buf, pos->lnum, false) + pos->col;
+if (CTRL_X_MODE_LINE_OR_EVAL(l_ctrl_x_mode)) {
+if (compl_cont_status & CONT_ADDING) {
+if (pos->lnum >= ins_buf->b_ml.ml_line_count) {
+continue;
+}
+ptr = ml_get_buf(ins_buf, pos->lnum + 1, false);
+if (!p_paste) {
+ptr = skipwhite(ptr);
+}
+}
+len = (int)STRLEN(ptr);
+} else {
+char_u *tmp_ptr = ptr;
+
+if (compl_cont_status & CONT_ADDING) {
+tmp_ptr += compl_length;
+
+if (vim_iswordp(tmp_ptr)) {
+continue;
+}
+
+tmp_ptr = find_word_start(tmp_ptr);
+}
+
+tmp_ptr = find_word_end(tmp_ptr);
+len = (int)(tmp_ptr - ptr);
+
+if ((compl_cont_status & CONT_ADDING)
+&& len == compl_length) {
+if (pos->lnum < ins_buf->b_ml.ml_line_count) {
+
+
+
+STRNCPY(IObuff, ptr, len);
+ptr = ml_get_buf(ins_buf, pos->lnum + 1, false);
+tmp_ptr = ptr = skipwhite(ptr);
+
+tmp_ptr = find_word_start(tmp_ptr);
+
+tmp_ptr = find_word_end(tmp_ptr);
+if (tmp_ptr > ptr) {
+if (*ptr != ')' && IObuff[len - 1] != TAB) {
+if (IObuff[len - 1] != ' ') {
+IObuff[len++] = ' ';
+}
+
+if (p_js
+&& (IObuff[len - 2] == '.'
+|| IObuff[len - 2] == '?'
+|| IObuff[len - 2] == '!')) {
+IObuff[len++] = ' ';
+}
+}
+
+if (tmp_ptr - ptr >= IOSIZE - len) {
+tmp_ptr = ptr + IOSIZE - len - 1;
+}
+STRLCPY(IObuff + len, ptr, IOSIZE - len);
+len += (int)(tmp_ptr - ptr);
+cont_s_ipos = true;
+}
+IObuff[len] = NUL;
+ptr = IObuff;
+}
+if (len == compl_length)
+continue;
+}
+}
+if (ins_compl_add_infercase(
+ptr, len, p_ic, ins_buf == curbuf ? NULL : ins_buf->b_sfname,
+0, cont_s_ipos) != NOTDONE) {
+found_new_match = OK;
+break;
+}
+}
+p_scs = save_p_scs;
+p_ws = save_p_ws;
+}
+
+
+
+if (type != 0 && compl_curr_match != compl_old_match) {
+found_new_match = OK;
+}
+
+
+
+if ((l_ctrl_x_mode != CTRL_X_NORMAL
+&& !CTRL_X_MODE_LINE_OR_EVAL(l_ctrl_x_mode))
+|| found_new_match != FAIL) {
+if (got_int)
+break;
+
+if (type != -1) {
+ins_compl_check_keys(0, false);
+}
+
+if ((l_ctrl_x_mode != CTRL_X_NORMAL
+&& !CTRL_X_MODE_LINE_OR_EVAL(l_ctrl_x_mode))
+|| compl_interrupted) {
+break;
+}
+compl_started = true;
+} else {
+
+if (type == 0 || type == CTRL_X_PATH_PATTERNS) {
+assert(ins_buf);
+ins_buf->b_scanned = true;
+}
+
+compl_started = false;
+}
+}
+compl_started = true;
+
+if ((l_ctrl_x_mode == CTRL_X_NORMAL
+|| CTRL_X_MODE_LINE_OR_EVAL(l_ctrl_x_mode))
+&& *e_cpt == NUL) { 
+found_new_match = FAIL;
+}
+
+i = -1; 
+if (found_new_match == FAIL
+|| (l_ctrl_x_mode != CTRL_X_NORMAL
+&& !CTRL_X_MODE_LINE_OR_EVAL(l_ctrl_x_mode))) {
+i = ins_compl_make_cyclic();
+}
+
+if (compl_old_match != NULL) {
+
+
+
+compl_curr_match = compl_direction == FORWARD
+? compl_old_match->cp_next
+: compl_old_match->cp_prev;
+if (compl_curr_match == NULL) {
+compl_curr_match = compl_old_match;
+}
+}
+return i;
+}
+
+
+static void ins_compl_delete(void)
+{
+int col;
+
+
+
+col = compl_col + (compl_cont_status & CONT_ADDING ? compl_length : 0);
+if ((int)curwin->w_cursor.col > col) {
+if (stop_arrow() == FAIL) {
+return;
+}
+backspace_until_column(col);
+}
+
+
+
+changed_cline_bef_curs();
+
+dict_T *const d = tv_dict_alloc();
+d->dv_lock = VAR_FIXED;
+set_vim_var_dict(VV_COMPLETED_ITEM, d);
+}
+
+
+
+static void ins_compl_insert(int in_compl_func)
+{
+ins_bytes(compl_shown_match->cp_str + ins_compl_len());
+compl_used_match = !(compl_shown_match->cp_flags & CP_ORIGINAL_TEXT);
+
+dict_T *dict = ins_compl_dict_alloc(compl_shown_match);
+set_vim_var_dict(VV_COMPLETED_ITEM, dict);
+if (!in_compl_func) {
+compl_curr_match = compl_shown_match;
+}
+}
+
+
+static dict_T *ins_compl_dict_alloc(compl_T *match)
+{
+
+dict_T *dict = tv_dict_alloc();
+dict->dv_lock = VAR_FIXED;
+tv_dict_add_str(
+dict, S_LEN("word"),
+(const char *)EMPTY_IF_NULL(match->cp_str));
+tv_dict_add_str(
+dict, S_LEN("abbr"),
+(const char *)EMPTY_IF_NULL(match->cp_text[CPT_ABBR]));
+tv_dict_add_str(
+dict, S_LEN("menu"),
+(const char *)EMPTY_IF_NULL(match->cp_text[CPT_MENU]));
+tv_dict_add_str(
+dict, S_LEN("kind"),
+(const char *)EMPTY_IF_NULL(match->cp_text[CPT_KIND]));
+tv_dict_add_str(
+dict, S_LEN("info"),
+(const char *)EMPTY_IF_NULL(match->cp_text[CPT_INFO]));
+tv_dict_add_str(
+dict, S_LEN("user_data"),
+(const char *)EMPTY_IF_NULL(match->cp_text[CPT_USER_DATA]));
+return dict;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+static int
+ins_compl_next (
+int allow_get_expansion,
+int count, 
+
+int insert_match, 
+int in_compl_func 
+)
+{
+int num_matches = -1;
+int todo = count;
+compl_T *found_compl = NULL;
+int found_end = FALSE;
+int advance;
+const bool started = compl_started;
+
+
+
+if (compl_shown_match == NULL)
+return -1;
+
+if (compl_leader != NULL
+&& (compl_shown_match->cp_flags & CP_ORIGINAL_TEXT) == 0) {
+
+
+while (!ins_compl_equal(compl_shown_match,
+compl_leader, STRLEN(compl_leader))
+&& compl_shown_match->cp_next != NULL
+&& compl_shown_match->cp_next != compl_first_match) {
+compl_shown_match = compl_shown_match->cp_next;
+}
+
+
+
+if (compl_shows_dir == BACKWARD
+&& !ins_compl_equal(compl_shown_match,
+compl_leader, (int)STRLEN(compl_leader))
+&& (compl_shown_match->cp_next == NULL
+|| compl_shown_match->cp_next == compl_first_match)) {
+while (!ins_compl_equal(compl_shown_match,
+compl_leader, (int)STRLEN(compl_leader))
+&& compl_shown_match->cp_prev != NULL
+&& compl_shown_match->cp_prev != compl_first_match)
+compl_shown_match = compl_shown_match->cp_prev;
+}
+}
+
+if (allow_get_expansion && insert_match
+&& (!(compl_get_longest || compl_restarting) || compl_used_match))
+
+ins_compl_delete();
+
+
+
+advance = count != 1 || !allow_get_expansion || !compl_get_longest;
+
+
+if (compl_restarting) {
+advance = FALSE;
+compl_restarting = FALSE;
+}
+
+
+
+while (--todo >= 0) {
+if (compl_shows_dir == FORWARD && compl_shown_match->cp_next != NULL) {
+compl_shown_match = compl_shown_match->cp_next;
+found_end = (compl_first_match != NULL
+&& (compl_shown_match->cp_next == compl_first_match
+|| compl_shown_match == compl_first_match));
+} else if (compl_shows_dir == BACKWARD
+&& compl_shown_match->cp_prev != NULL) {
+found_end = (compl_shown_match == compl_first_match);
+compl_shown_match = compl_shown_match->cp_prev;
+found_end |= (compl_shown_match == compl_first_match);
+} else {
+if (!allow_get_expansion) {
+if (advance) {
+if (compl_shows_dir == BACKWARD)
+compl_pending -= todo + 1;
+else
+compl_pending += todo + 1;
+}
+return -1;
+}
+
+if (!compl_no_select && advance) {
+if (compl_shows_dir == BACKWARD)
+--compl_pending;
+else
+++compl_pending;
+}
+
+
+num_matches = ins_compl_get_exp(&compl_startpos);
+
+
+while (compl_pending != 0 && compl_direction == compl_shows_dir
+&& advance) {
+if (compl_pending > 0 && compl_shown_match->cp_next != NULL) {
+compl_shown_match = compl_shown_match->cp_next;
+--compl_pending;
+}
+if (compl_pending < 0 && compl_shown_match->cp_prev != NULL) {
+compl_shown_match = compl_shown_match->cp_prev;
+++compl_pending;
+} else
+break;
+}
+found_end = FALSE;
+}
+if ((compl_shown_match->cp_flags & CP_ORIGINAL_TEXT) == 0
+&& compl_leader != NULL
+&& !ins_compl_equal(compl_shown_match,
+compl_leader, STRLEN(compl_leader))) {
+todo++;
+} else {
+
+found_compl = compl_shown_match;
+}
+
+
+if (found_end) {
+if (found_compl != NULL) {
+compl_shown_match = found_compl;
+break;
+}
+todo = 1; 
+}
+}
+
+
+if (compl_no_insert && !started) {
+ins_bytes(compl_orig_text + ins_compl_len());
+compl_used_match = false;
+} else if (insert_match) {
+if (!compl_get_longest || compl_used_match) {
+ins_compl_insert(in_compl_func);
+} else {
+ins_bytes(compl_leader + ins_compl_len());
+}
+} else {
+compl_used_match = false;
+}
+
+if (!allow_get_expansion) {
+
+update_screen(0);
+
+
+ins_compl_show_pum();
+
+
+
+ins_compl_delete();
+}
+
+
+
+if (compl_no_insert && !started) {
+compl_enter_selects = TRUE;
+} else {
+compl_enter_selects = !insert_match && compl_match_array != NULL;
+}
+
+
+
+
+
+if (compl_shown_match->cp_fname != NULL) {
+char *lead = _("match in file");
+int space = sc_col - vim_strsize((char_u *)lead) - 2;
+char_u *s;
+char_u *e;
+
+if (space > 0) {
+
+
+
+for (s = e = compl_shown_match->cp_fname; *e != NUL; MB_PTR_ADV(e)) {
+space -= ptr2cells(e);
+while (space < 0) {
+space += ptr2cells(s);
+MB_PTR_ADV(s);
+}
+}
+vim_snprintf((char *)IObuff, IOSIZE, "%s %s%s", lead,
+s > compl_shown_match->cp_fname ? "<" : "", s);
+msg(IObuff);
+redraw_cmdline = false; 
+}
+}
+
+return num_matches;
+}
+
+void pum_ext_select_item(int item, bool insert, bool finish)
+{
+if (!pum_visible() || item < -1 || item >= compl_match_arraysize) {
+return;
+}
+pum_want.active = true;
+pum_want.item = item;
+pum_want.insert = insert;
+pum_want.finish = finish;
+}
+
+
+
+
+
+
+
+
+void ins_compl_check_keys(int frequency, int in_compl_func)
+{
+static int count = 0;
+
+
+
+
+if (!in_compl_func && (using_script() || ex_normal_busy)) {
+return;
+}
+
+
+if (++count < frequency)
+return;
+count = 0;
+
+
+
+int c = vpeekc_any();
+if (c != NUL) {
+if (vim_is_ctrl_x_key(c) && c != Ctrl_X && c != Ctrl_R) {
+c = safe_vgetc(); 
+compl_shows_dir = ins_compl_key2dir(c);
+(void)ins_compl_next(false, ins_compl_key2count(c),
+c != K_UP && c != K_DOWN, in_compl_func);
+} else {
+
+
+c = safe_vgetc();
+if (c != K_IGNORE) {
+
+
+if (c != Ctrl_R && KeyTyped)
+compl_interrupted = TRUE;
+
+vungetc(c);
+}
+}
+}
+if (compl_pending != 0 && !got_int && !compl_no_insert) {
+int todo = compl_pending > 0 ? compl_pending : -compl_pending;
+
+compl_pending = 0;
+(void)ins_compl_next(false, todo, true, in_compl_func);
+}
+}
+
+
+
+
+
+static int ins_compl_key2dir(int c)
+{
+if (c == K_EVENT || c == K_COMMAND) {
+return pum_want.item < pum_selected_item ? BACKWARD : FORWARD;
+}
+if (c == Ctrl_P || c == Ctrl_L
+|| c == K_PAGEUP || c == K_KPAGEUP
+|| c == K_S_UP || c == K_UP) {
+return BACKWARD;
+}
+return FORWARD;
+}
+
+
+
+
+static bool ins_compl_pum_key(int c)
+FUNC_ATTR_PURE FUNC_ATTR_WARN_UNUSED_RESULT
+{
+return pum_visible() && (c == K_PAGEUP || c == K_KPAGEUP || c == K_S_UP
+|| c == K_PAGEDOWN || c == K_KPAGEDOWN
+|| c == K_S_DOWN || c == K_UP || c == K_DOWN);
+}
+
+
+
+
+
+static int ins_compl_key2count(int c)
+{
+int h;
+
+if (c == K_EVENT || c == K_COMMAND) {
+int offset = pum_want.item - pum_selected_item;
+return abs(offset);
+}
+
+if (ins_compl_pum_key(c) && c != K_UP && c != K_DOWN) {
+h = pum_get_height();
+if (h > 3)
+h -= 2; 
+return h;
+}
+return 1;
+}
+
+
+
+
+
+static bool ins_compl_use_match(int c)
+FUNC_ATTR_CONST FUNC_ATTR_WARN_UNUSED_RESULT
+{
+switch (c) {
+case K_UP:
+case K_DOWN:
+case K_PAGEDOWN:
+case K_KPAGEDOWN:
+case K_S_DOWN:
+case K_PAGEUP:
+case K_KPAGEUP:
+case K_S_UP:
+return false;
+case K_EVENT:
+case K_COMMAND:
+return pum_want.active && pum_want.insert;
+}
+return true;
+}
+
+
+
+
+
+
+static int ins_complete(int c, bool enable_pum)
+{
+char_u *line;
+int startcol = 0; 
+colnr_T curs_col; 
+int n;
+int save_w_wrow;
+int save_w_leftcol;
+int insert_match;
+const bool save_did_ai = did_ai;
+int flags = CP_ORIGINAL_TEXT;
+
+compl_direction = ins_compl_key2dir(c);
+insert_match = ins_compl_use_match(c);
+
+if (!compl_started) {
+
+
+did_ai = false;
+did_si = false;
+can_si = false;
+can_si_back = false;
+if (stop_arrow() == FAIL) {
+return FAIL;
+}
+
+line = ml_get(curwin->w_cursor.lnum);
+curs_col = curwin->w_cursor.col;
+compl_pending = 0;
+
+
+
+
+
+
+
+
+if ((compl_cont_status & CONT_INTRPT) == CONT_INTRPT
+&& compl_cont_mode == ctrl_x_mode) {
+
+
+
+compl_cont_status &= ~CONT_INTRPT; 
+if (ctrl_x_mode == CTRL_X_NORMAL
+|| ctrl_x_mode == CTRL_X_PATH_PATTERNS
+|| ctrl_x_mode == CTRL_X_PATH_DEFINES) {
+if (compl_startpos.lnum != curwin->w_cursor.lnum) {
+
+
+
+
+compl_col = (colnr_T)getwhitecols(line);
+compl_startpos.col = compl_col;
+compl_startpos.lnum = curwin->w_cursor.lnum;
+compl_cont_status &= ~CONT_SOL; 
+} else {
+
+
+
+if (compl_cont_status & CONT_S_IPOS) {
+compl_cont_status |= CONT_SOL;
+compl_startpos.col = (colnr_T)(skipwhite(
+line + compl_length
++ compl_startpos.col) - line);
+}
+compl_col = compl_startpos.col;
+}
+compl_length = curwin->w_cursor.col - (int)compl_col;
+
+
+#define MIN_SPACE 75
+if (compl_length > (IOSIZE - MIN_SPACE)) {
+compl_cont_status &= ~CONT_SOL;
+compl_length = (IOSIZE - MIN_SPACE);
+compl_col = curwin->w_cursor.col - compl_length;
+}
+compl_cont_status |= CONT_ADDING | CONT_N_ADDS;
+if (compl_length < 1)
+compl_cont_status &= CONT_LOCAL;
+} else if (CTRL_X_MODE_LINE_OR_EVAL(ctrl_x_mode)) {
+compl_cont_status = CONT_ADDING | CONT_N_ADDS;
+} else
+compl_cont_status = 0;
+} else
+compl_cont_status &= CONT_LOCAL;
+
+if (!(compl_cont_status & CONT_ADDING)) { 
+compl_cont_mode = ctrl_x_mode;
+if (ctrl_x_mode != CTRL_X_NORMAL) {
+
+compl_cont_status = 0;
+}
+compl_cont_status |= CONT_N_ADDS;
+compl_startpos = curwin->w_cursor;
+startcol = (int)curs_col;
+compl_col = 0;
+}
+
+
+if (ctrl_x_mode == CTRL_X_NORMAL || (ctrl_x_mode & CTRL_X_WANT_IDENT)) {
+if ((compl_cont_status & CONT_SOL)
+|| ctrl_x_mode == CTRL_X_PATH_DEFINES) {
+if (!(compl_cont_status & CONT_ADDING)) {
+while (--startcol >= 0 && vim_isIDc(line[startcol]))
+;
+compl_col += ++startcol;
+compl_length = curs_col - startcol;
+}
+if (p_ic)
+compl_pattern = str_foldcase(line + compl_col, compl_length, NULL, 0);
+else
+compl_pattern = vim_strnsave(line + compl_col, compl_length);
+} else if (compl_cont_status & CONT_ADDING) {
+char_u *prefix = (char_u *)"\\<";
+
+
+compl_pattern = xmalloc(quote_meta(NULL, line + compl_col,
+compl_length) + 2);
+if (!vim_iswordp(line + compl_col)
+|| (compl_col > 0
+&& (
+vim_iswordp(mb_prevptr(line, line + compl_col))
+)))
+prefix = (char_u *)"";
+STRCPY((char *)compl_pattern, prefix);
+(void)quote_meta(compl_pattern + STRLEN(prefix),
+line + compl_col, compl_length);
+} else if (--startcol < 0
+|| !vim_iswordp(mb_prevptr(line, line + startcol + 1))) {
+
+compl_pattern = vim_strsave((char_u *)"\\<\\k\\k");
+compl_col += curs_col;
+compl_length = 0;
+} else {
+
+
+startcol -= utf_head_off(line, line + startcol);
+int base_class = mb_get_class(line + startcol);
+while (--startcol >= 0) {
+int head_off = utf_head_off(line, line + startcol);
+if (base_class != mb_get_class(line + startcol - head_off)) {
+break;
+}
+startcol -= head_off;
+}
+compl_col += ++startcol;
+compl_length = (int)curs_col - startcol;
+if (compl_length == 1) {
+
+
+
+
+compl_pattern = xmalloc(7);
+STRCPY((char *)compl_pattern, "\\<");
+(void)quote_meta(compl_pattern + 2, line + compl_col, 1);
+STRCAT((char *)compl_pattern, "\\k");
+} else {
+compl_pattern = xmalloc(quote_meta(NULL, line + compl_col,
+compl_length) + 2);
+STRCPY((char *)compl_pattern, "\\<");
+(void)quote_meta(compl_pattern + 2, line + compl_col,
+compl_length);
+}
+}
+} else if (CTRL_X_MODE_LINE_OR_EVAL(ctrl_x_mode)) {
+compl_col = (colnr_T)getwhitecols(line);
+compl_length = (int)curs_col - (int)compl_col;
+if (compl_length < 0) 
+compl_length = 0;
+if (p_ic)
+compl_pattern = str_foldcase(line + compl_col, compl_length, NULL, 0);
+else
+compl_pattern = vim_strnsave(line + compl_col, compl_length);
+} else if (ctrl_x_mode == CTRL_X_FILES) {
+
+if (startcol > 0) {
+char_u *p = line + startcol;
+
+MB_PTR_BACK(line, p);
+while (p > line && vim_isfilec(PTR2CHAR(p))) {
+MB_PTR_BACK(line, p);
+}
+if (p == line && vim_isfilec(PTR2CHAR(p))) {
+startcol = 0;
+} else {
+startcol = (int)(p - line) + 1;
+}
+}
+
+compl_col += startcol;
+compl_length = (int)curs_col - startcol;
+compl_pattern = addstar(line + compl_col, compl_length, EXPAND_FILES);
+} else if (ctrl_x_mode == CTRL_X_CMDLINE) {
+compl_pattern = vim_strnsave(line, curs_col);
+set_cmd_context(&compl_xp, compl_pattern,
+(int)STRLEN(compl_pattern), curs_col, false);
+if (compl_xp.xp_context == EXPAND_UNSUCCESSFUL
+|| compl_xp.xp_context == EXPAND_NOTHING) {
+
+
+compl_col = curs_col;
+} else {
+compl_col = (int)(compl_xp.xp_pattern - compl_pattern);
+}
+compl_length = curs_col - compl_col;
+} else if (ctrl_x_mode == CTRL_X_FUNCTION || ctrl_x_mode ==
+CTRL_X_OMNI) {
+
+
+
+
+char_u *funcname;
+pos_T pos;
+win_T *curwin_save;
+buf_T *curbuf_save;
+const int save_State = State;
+
+
+
+funcname = ctrl_x_mode == CTRL_X_FUNCTION
+? curbuf->b_p_cfu : curbuf->b_p_ofu;
+if (*funcname == NUL) {
+EMSG2(_(e_notset), ctrl_x_mode == CTRL_X_FUNCTION
+? "completefunc" : "omnifunc");
+
+did_ai = save_did_ai;
+return FAIL;
+}
+
+typval_T args[3];
+args[0].v_type = VAR_NUMBER;
+args[1].v_type = VAR_STRING;
+args[2].v_type = VAR_UNKNOWN;
+args[0].vval.v_number = 1;
+args[1].vval.v_string = (char_u *)"";
+
+pos = curwin->w_cursor;
+curwin_save = curwin;
+curbuf_save = curbuf;
+int col = call_func_retnr(funcname, 2, args);
+
+State = save_State;
+if (curwin_save != curwin || curbuf_save != curbuf) {
+EMSG(_(e_complwin));
+return FAIL;
+}
+curwin->w_cursor = pos; 
+validate_cursor();
+if (!equalpos(curwin->w_cursor, pos)) {
+EMSG(_(e_compldel));
+return FAIL;
+}
+
+
+
+
+if (col == -2)
+return FAIL;
+if (col == -3) {
+ctrl_x_mode = CTRL_X_NORMAL;
+edit_submode = NULL;
+if (!shortmess(SHM_COMPLETIONMENU)) {
+msg_clr_cmdline();
+}
+return FAIL;
+}
+
+
+
+
+
+compl_opt_refresh_always = FALSE;
+
+if (col < 0)
+col = curs_col;
+compl_col = col;
+if (compl_col > curs_col)
+compl_col = curs_col;
+
+
+
+line = ml_get(curwin->w_cursor.lnum);
+compl_length = curs_col - compl_col;
+compl_pattern = vim_strnsave(line + compl_col, compl_length);
+} else if (ctrl_x_mode == CTRL_X_SPELL) {
+if (spell_bad_len > 0) {
+assert(spell_bad_len <= INT_MAX);
+compl_col = curs_col - (int)spell_bad_len;
+}
+else
+compl_col = spell_word_start(startcol);
+if (compl_col >= (colnr_T)startcol) {
+compl_length = 0;
+compl_col = curs_col;
+} else {
+spell_expand_check_cap(compl_col);
+compl_length = (int)curs_col - compl_col;
+}
+
+line = ml_get(curwin->w_cursor.lnum);
+compl_pattern = vim_strnsave(line + compl_col, compl_length);
+} else {
+internal_error("ins_complete()");
+return FAIL;
+}
+
+if (compl_cont_status & CONT_ADDING) {
+edit_submode_pre = (char_u *)_(" Adding");
+if (CTRL_X_MODE_LINE_OR_EVAL(ctrl_x_mode)) {
+
+char_u *old = curbuf->b_p_com;
+
+curbuf->b_p_com = (char_u *)"";
+compl_startpos.lnum = curwin->w_cursor.lnum;
+compl_startpos.col = compl_col;
+ins_eol('\r');
+curbuf->b_p_com = old;
+compl_length = 0;
+compl_col = curwin->w_cursor.col;
+}
+} else {
+edit_submode_pre = NULL;
+compl_startpos.col = compl_col;
+}
+
+if (compl_cont_status & CONT_LOCAL)
+edit_submode = (char_u *)_(ctrl_x_msgs[CTRL_X_LOCAL_MSG]);
+else
+edit_submode = (char_u *)_(CTRL_X_MSG(ctrl_x_mode));
+
+
+
+ins_compl_fixRedoBufForLeader(NULL);
+
+
+xfree(compl_orig_text);
+compl_orig_text = vim_strnsave(line + compl_col, compl_length);
+if (p_ic) {
+flags |= CP_ICASE;
+}
+if (ins_compl_add(compl_orig_text, -1, NULL, NULL, false, 0,
+flags, false) != OK) {
+XFREE_CLEAR(compl_pattern);
+XFREE_CLEAR(compl_orig_text);
+return FAIL;
+}
+
+
+
+
+
+edit_submode_extra = (char_u *)_("-- Searching...");
+edit_submode_highl = HLF_COUNT;
+showmode();
+edit_submode_extra = NULL;
+ui_flush();
+} else if (insert_match && stop_arrow() == FAIL) {
+return FAIL;
+}
+
+compl_shown_match = compl_curr_match;
+compl_shows_dir = compl_direction;
+
+
+
+
+save_w_wrow = curwin->w_wrow;
+save_w_leftcol = curwin->w_leftcol;
+n = ins_compl_next(true, ins_compl_key2count(c), insert_match, false);
+
+
+if (n > 1) 
+compl_matches = n;
+compl_curr_match = compl_shown_match;
+compl_direction = compl_shows_dir;
+
+
+
+if (got_int && !global_busy) {
+(void)vgetc();
+got_int = FALSE;
+}
+
+
+if (compl_first_match == compl_first_match->cp_next) {
+edit_submode_extra = (compl_cont_status & CONT_ADDING)
+&& compl_length > 1
+? (char_u *)_(e_hitend) : (char_u *)_(e_patnotf);
+edit_submode_highl = HLF_E;
+
+
+
+
+if (compl_length > 1
+|| (compl_cont_status & CONT_ADDING)
+|| (ctrl_x_mode != CTRL_X_NORMAL
+&& ctrl_x_mode != CTRL_X_PATH_PATTERNS
+&& ctrl_x_mode != CTRL_X_PATH_DEFINES)) {
+compl_cont_status &= ~CONT_N_ADDS;
+}
+}
+
+if (compl_curr_match->cp_flags & CP_CONT_S_IPOS) {
+compl_cont_status |= CONT_S_IPOS;
+} else {
+compl_cont_status &= ~CONT_S_IPOS;
+}
+
+if (edit_submode_extra == NULL) {
+if (compl_curr_match->cp_flags & CP_ORIGINAL_TEXT) {
+edit_submode_extra = (char_u *)_("Back at original");
+edit_submode_highl = HLF_W;
+} else if (compl_cont_status & CONT_S_IPOS) {
+edit_submode_extra = (char_u *)_("Word from other line");
+edit_submode_highl = HLF_COUNT;
+} else if (compl_curr_match->cp_next == compl_curr_match->cp_prev) {
+edit_submode_extra = (char_u *)_("The only match");
+edit_submode_highl = HLF_COUNT;
+} else {
+
+if (compl_curr_match->cp_number == -1) {
+int number = 0;
+compl_T *match;
+
+if (compl_direction == FORWARD) {
+
+
+
+for (match = compl_curr_match->cp_prev; match != NULL
+&& match != compl_first_match;
+match = match->cp_prev)
+if (match->cp_number != -1) {
+number = match->cp_number;
+break;
+}
+if (match != NULL)
+
+
+for (match = match->cp_next;
+match != NULL && match->cp_number == -1;
+match = match->cp_next)
+match->cp_number = ++number;
+} else { 
+
+
+
+for (match = compl_curr_match->cp_next; match != NULL
+&& match != compl_first_match;
+match = match->cp_next)
+if (match->cp_number != -1) {
+number = match->cp_number;
+break;
+}
+if (match != NULL)
+
+
+for (match = match->cp_prev; match
+&& match->cp_number == -1;
+match = match->cp_prev)
+match->cp_number = ++number;
+}
+}
+
+
+
+if (compl_curr_match->cp_number != -1) {
+
+
+static char_u match_ref[81];
+
+if (compl_matches > 0)
+vim_snprintf((char *)match_ref, sizeof(match_ref),
+_("match %d of %d"),
+compl_curr_match->cp_number, compl_matches);
+else
+vim_snprintf((char *)match_ref, sizeof(match_ref),
+_("match %d"),
+compl_curr_match->cp_number);
+edit_submode_extra = match_ref;
+edit_submode_highl = HLF_R;
+if (dollar_vcol >= 0)
+curs_columns(FALSE);
+}
+}
+}
+
+
+showmode();
+if (!shortmess(SHM_COMPLETIONMENU)) {
+if (edit_submode_extra != NULL) {
+if (!p_smd) {
+msg_attr((const char *)edit_submode_extra,
+(edit_submode_highl < HLF_COUNT
+? HL_ATTR(edit_submode_highl) : 0));
+}
+} else {
+msg_clr_cmdline(); 
+}
+}
+
+
+if (enable_pum && !compl_interrupted) {
+show_pum(save_w_wrow, save_w_leftcol);
+}
+compl_was_interrupted = compl_interrupted;
+compl_interrupted = FALSE;
+
+return OK;
+}
+
+
+
+
+
+
+
+static unsigned quote_meta(char_u *dest, char_u *src, int len)
+{
+unsigned m = (unsigned)len + 1; 
+
+for (; --len >= 0; src++) {
+switch (*src) {
+case '.':
+case '*':
+case '[':
+if (ctrl_x_mode == CTRL_X_DICTIONARY
+|| ctrl_x_mode == CTRL_X_THESAURUS)
+break;
+FALLTHROUGH;
+case '~':
+if (!p_magic) 
+break;
+FALLTHROUGH;
+case '\\':
+if (ctrl_x_mode == CTRL_X_DICTIONARY
+|| ctrl_x_mode == CTRL_X_THESAURUS)
+break;
+FALLTHROUGH;
+case '^': 
+case '$':
+m++;
+if (dest != NULL)
+*dest++ = '\\';
+break;
+}
+if (dest != NULL)
+*dest++ = *src;
+
+if (has_mbyte) {
+int i, mb_len;
+
+mb_len = (*mb_ptr2len)(src) - 1;
+if (mb_len > 0 && len >= mb_len)
+for (i = 0; i < mb_len; ++i) {
+--len;
+++src;
+if (dest != NULL)
+*dest++ = *src;
+}
+}
+}
+if (dest != NULL)
+*dest = NUL;
+
+return m;
+}
+
+
+
+
+
+
+
+int get_literal(void)
+{
+int cc;
+int nc;
+int i;
+int hex = FALSE;
+int octal = FALSE;
+int unicode = 0;
+
+if (got_int)
+return Ctrl_C;
+
+++no_mapping; 
+cc = 0;
+i = 0;
+for (;; ) {
+nc = plain_vgetc();
+if (!(State & CMDLINE)
+&& MB_BYTE2LEN_CHECK(nc) == 1
+)
+add_to_showcmd(nc);
+if (nc == 'x' || nc == 'X')
+hex = TRUE;
+else if (nc == 'o' || nc == 'O')
+octal = TRUE;
+else if (nc == 'u' || nc == 'U')
+unicode = nc;
+else {
+if (hex
+|| unicode != 0
+) {
+if (!ascii_isxdigit(nc))
+break;
+cc = cc * 16 + hex2nr(nc);
+} else if (octal) {
+if (nc < '0' || nc > '7')
+break;
+cc = cc * 8 + nc - '0';
+} else {
+if (!ascii_isdigit(nc))
+break;
+cc = cc * 10 + nc - '0';
+}
+
+++i;
+}
+
+if (cc > 255
+&& unicode == 0
+)
+cc = 255; 
+nc = 0;
+
+if (hex) { 
+if (i >= 2)
+break;
+} else if (unicode) { 
+if ((unicode == 'u' && i >= 4) || (unicode == 'U' && i >= 8))
+break;
+} else if (i >= 3) 
+break;
+}
+if (i == 0) { 
+if (nc == K_ZERO) { 
+cc = '\n';
+nc = 0;
+} else {
+cc = nc;
+nc = 0;
+}
+}
+
+if (cc == 0) { 
+cc = '\n';
+}
+
+--no_mapping;
+if (nc)
+vungetc(nc);
+got_int = FALSE; 
+return cc;
+}
+
+
+
+
+static void insert_special(int c, int allow_modmask, int ctrlv)
+{
+char_u *p;
+int len;
+
+
+
+
+
+
+if (mod_mask & MOD_MASK_CMD) { 
+allow_modmask = true;
+}
+if (IS_SPECIAL(c) || (mod_mask && allow_modmask)) {
+p = get_special_key_name(c, mod_mask);
+len = (int)STRLEN(p);
+c = p[len - 1];
+if (len > 2) {
+if (stop_arrow() == FAIL)
+return;
+p[len - 1] = NUL;
+ins_str(p);
+AppendToRedobuffLit(p, -1);
+ctrlv = FALSE;
+}
+}
+if (stop_arrow() == OK)
+insertchar(c, ctrlv ? INSCHAR_CTRLV : 0, -1);
+}
+
+
+
+
+
+
+
+
+
+
+#define ISSPECIAL(c) ((c) < ' ' || (c) >= DEL || (c) == '0' || (c) == '^')
+
+#define WHITECHAR(cc) (ascii_iswhite(cc) && (!enc_utf8 || !utf_iscomposing( utf_ptr2char(get_cursor_pos_ptr() + 1))))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+void
+insertchar (
+int c, 
+int flags, 
+int second_indent 
+)
+{
+int textwidth;
+char_u *p;
+int fo_ins_blank;
+int force_format = flags & INSCHAR_FORMAT;
+
+textwidth = comp_textwidth(force_format);
+fo_ins_blank = has_format_option(FO_INS_BLANK);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+if (textwidth > 0
+&& (force_format
+|| (!ascii_iswhite(c)
+&& !((State & REPLACE_FLAG)
+&& !(State & VREPLACE_FLAG)
+&& *get_cursor_pos_ptr() != NUL)
+&& (curwin->w_cursor.lnum != Insstart.lnum
+|| ((!has_format_option(FO_INS_LONG)
+|| Insstart_textlen <= (colnr_T)textwidth)
+&& (!fo_ins_blank
+|| Insstart_blank_vcol <= (colnr_T)textwidth
+)))))) {
+
+
+int do_internal = TRUE;
+colnr_T virtcol = get_nolist_virtcol()
++ char2cells(c != NUL ? c : gchar_cursor());
+
+if (*curbuf->b_p_fex != NUL && (flags & INSCHAR_NO_FEX) == 0
+&& (force_format || virtcol > (colnr_T)textwidth)) {
+do_internal = (fex_format(curwin->w_cursor.lnum, 1L, c) != 0);
+
+
+ins_need_undo = TRUE;
+}
+if (do_internal)
+internal_format(textwidth, second_indent, flags, c == NUL, c);
+}
+
+if (c == NUL) 
+return;
+
+
+if (did_ai && c == end_comment_pending) {
+char_u *line;
+char_u lead_end[COM_MAX_LEN]; 
+int middle_len, end_len;
+int i;
+
+
+
+
+
+i = get_leader_len(line = get_cursor_line_ptr(), &p, false, true);
+if (i > 0 && vim_strchr(p, COM_MIDDLE) != NULL) { 
+
+while (*p && p[-1] != ':') { 
+p++;
+}
+middle_len = copy_option_part(&p, lead_end, COM_MAX_LEN, ",");
+
+while (middle_len > 0 && ascii_iswhite(lead_end[middle_len - 1])) {
+middle_len--;
+}
+
+
+while (*p && p[-1] != ':') { 
+p++;
+}
+end_len = copy_option_part(&p, lead_end, COM_MAX_LEN, ",");
+
+
+i = curwin->w_cursor.col;
+while (--i >= 0 && ascii_iswhite(line[i]))
+;
+i++;
+
+
+i -= middle_len;
+
+
+if (i >= 0 && lead_end[end_len - 1] == end_comment_pending) {
+
+backspace_until_column(i);
+
+
+
+ins_bytes_len(lead_end, end_len - 1);
+}
+}
+}
+end_comment_pending = NUL;
+
+did_ai = false;
+did_si = false;
+can_si = false;
+can_si_back = false;
+
+
+
+
+
+
+
+
+
+
+if (!ISSPECIAL(c)
+&& (!has_mbyte || (*mb_char2len)(c) == 1)
+&& !has_event(EVENT_INSERTCHARPRE)
+&& vpeekc() != NUL
+&& !(State & REPLACE_FLAG)
+&& !cindent_on()
+&& !p_ri) {
+#define INPUT_BUFLEN 100
+char_u buf[INPUT_BUFLEN + 1];
+int i;
+colnr_T virtcol = 0;
+
+buf[0] = c;
+i = 1;
+if (textwidth > 0) {
+virtcol = get_nolist_virtcol();
+}
+
+
+
+
+
+
+while ((c = vpeekc()) != NUL
+&& !ISSPECIAL(c)
+&& MB_BYTE2LEN(c) == 1
+&& i < INPUT_BUFLEN
+&& (textwidth == 0
+|| (virtcol += byte2cells(buf[i - 1])) < (colnr_T)textwidth)
+&& !(!no_abbr && !vim_iswordc(c) && vim_iswordc(buf[i - 1]))) {
+c = vgetc();
+if (p_hkmap && KeyTyped) {
+c = hkmap(c); 
+}
+buf[i++] = c;
+}
+
+do_digraph(-1); 
+do_digraph(buf[i-1]); 
+buf[i] = NUL;
+ins_str(buf);
+if (flags & INSCHAR_CTRLV) {
+redo_literal(*buf);
+i = 1;
+} else
+i = 0;
+if (buf[i] != NUL)
+AppendToRedobuffLit(buf + i, -1);
+} else {
+int cc;
+
+if ((cc = utf_char2len(c)) > 1) {
+char_u buf[MB_MAXBYTES + 1];
+
+utf_char2bytes(c, buf);
+buf[cc] = NUL;
+ins_char_bytes(buf, cc);
+AppendCharToRedobuff(c);
+} else {
+ins_char(c);
+if (flags & INSCHAR_CTRLV) {
+redo_literal(c);
+} else {
+AppendCharToRedobuff(c);
+}
+}
+}
+}
+
+
+
+
+
+
+
+static void
+internal_format (
+int textwidth,
+int second_indent,
+int flags,
+int format_only,
+int c 
+)
+{
+int cc;
+int save_char = NUL;
+bool haveto_redraw = false;
+int fo_ins_blank = has_format_option(FO_INS_BLANK);
+int fo_multibyte = has_format_option(FO_MBYTE_BREAK);
+int fo_white_par = has_format_option(FO_WHITE_PAR);
+int first_line = TRUE;
+colnr_T leader_len;
+int no_leader = FALSE;
+int do_comments = (flags & INSCHAR_DO_COM);
+int has_lbr = curwin->w_p_lbr;
+
+
+curwin->w_p_lbr = false;
+
+
+
+
+
+if (!curbuf->b_p_ai
+&& !(State & VREPLACE_FLAG)
+) {
+cc = gchar_cursor();
+if (ascii_iswhite(cc)) {
+save_char = cc;
+pchar_cursor('x');
+}
+}
+
+
+
+
+while (!got_int) {
+int startcol; 
+int wantcol; 
+int foundcol; 
+int end_foundcol = 0; 
+colnr_T len;
+colnr_T virtcol;
+int orig_col = 0;
+char_u *saved_text = NULL;
+colnr_T col;
+colnr_T end_col;
+
+virtcol = get_nolist_virtcol()
++ char2cells(c != NUL ? c : gchar_cursor());
+if (virtcol <= (colnr_T)textwidth)
+break;
+
+if (no_leader)
+do_comments = FALSE;
+else if (!(flags & INSCHAR_FORMAT)
+&& has_format_option(FO_WRAP_COMS))
+do_comments = TRUE;
+
+
+if (do_comments)
+leader_len = get_leader_len(get_cursor_line_ptr(), NULL, FALSE, TRUE);
+else
+leader_len = 0;
+
+
+
+
+
+if (leader_len == 0)
+no_leader = TRUE;
+if (!(flags & INSCHAR_FORMAT)
+&& leader_len == 0
+&& !has_format_option(FO_WRAP))
+
+break;
+if ((startcol = curwin->w_cursor.col) == 0)
+break;
+
+
+coladvance((colnr_T)textwidth);
+wantcol = curwin->w_cursor.col;
+
+curwin->w_cursor.col = startcol;
+foundcol = 0;
+
+
+
+
+
+while ((!fo_ins_blank && !has_format_option(FO_INS_VI))
+|| (flags & INSCHAR_FORMAT)
+|| curwin->w_cursor.lnum != Insstart.lnum
+|| curwin->w_cursor.col >= Insstart.col) {
+if (curwin->w_cursor.col == startcol && c != NUL)
+cc = c;
+else
+cc = gchar_cursor();
+if (WHITECHAR(cc)) {
+
+end_col = curwin->w_cursor.col;
+
+
+int wcc = 0; 
+while (curwin->w_cursor.col > 0 && WHITECHAR(cc)) {
+dec_cursor();
+cc = gchar_cursor();
+
+
+
+if (wcc < 2) {
+wcc++;
+}
+}
+if (curwin->w_cursor.col == 0 && WHITECHAR(cc)) {
+break; 
+}
+
+
+
+if (has_format_option(FO_PERIOD_ABBR) && cc == '.' && wcc < 2) {
+continue;
+}
+
+
+if (curwin->w_cursor.col < leader_len) {
+break;
+}
+
+if (has_format_option(FO_ONE_LETTER)) {
+
+if (curwin->w_cursor.col == 0)
+break; 
+
+if (curwin->w_cursor.col <= leader_len)
+break;
+col = curwin->w_cursor.col;
+dec_cursor();
+cc = gchar_cursor();
+
+if (WHITECHAR(cc))
+continue; 
+curwin->w_cursor.col = col;
+}
+
+inc_cursor();
+
+end_foundcol = end_col + 1;
+foundcol = curwin->w_cursor.col;
+if (curwin->w_cursor.col <= (colnr_T)wantcol)
+break;
+} else if (cc >= 0x100 && fo_multibyte) {
+
+if (curwin->w_cursor.col != startcol) {
+
+if (curwin->w_cursor.col < leader_len)
+break;
+col = curwin->w_cursor.col;
+inc_cursor();
+
+if (foundcol != curwin->w_cursor.col) {
+foundcol = curwin->w_cursor.col;
+end_foundcol = foundcol;
+if (curwin->w_cursor.col <= (colnr_T)wantcol)
+break;
+}
+curwin->w_cursor.col = col;
+}
+
+if (curwin->w_cursor.col == 0)
+break;
+
+col = curwin->w_cursor.col;
+
+dec_cursor();
+cc = gchar_cursor();
+
+if (WHITECHAR(cc))
+continue; 
+
+if (curwin->w_cursor.col < leader_len)
+break;
+
+curwin->w_cursor.col = col;
+
+foundcol = curwin->w_cursor.col;
+end_foundcol = foundcol;
+if (curwin->w_cursor.col <= (colnr_T)wantcol)
+break;
+}
+if (curwin->w_cursor.col == 0)
+break;
+dec_cursor();
+}
+
+if (foundcol == 0) { 
+curwin->w_cursor.col = startcol;
+break;
+}
+
+
+undisplay_dollar();
+
+
+
+
+
+
+if (State & VREPLACE_FLAG)
+orig_col = startcol; 
+else
+replace_offset = startcol - end_foundcol;
+
+
+
+
+
+curwin->w_cursor.col = foundcol;
+while ((cc = gchar_cursor(), WHITECHAR(cc))
+&& (!fo_white_par || curwin->w_cursor.col < startcol))
+inc_cursor();
+startcol -= curwin->w_cursor.col;
+if (startcol < 0)
+startcol = 0;
+
+if (State & VREPLACE_FLAG) {
+
+
+
+
+saved_text = vim_strsave(get_cursor_pos_ptr());
+curwin->w_cursor.col = orig_col;
+saved_text[startcol] = NUL;
+
+
+if (!fo_white_par)
+backspace_until_column(foundcol);
+} else {
+
+if (!fo_white_par)
+curwin->w_cursor.col = foundcol;
+}
+
+
+
+
+
+open_line(FORWARD, OPENLINE_DELSPACES + OPENLINE_MARKFIX
++ (fo_white_par ? OPENLINE_KEEPTRAIL : 0)
++ (do_comments ? OPENLINE_DO_COM : 0)
++ ((flags & INSCHAR_COM_LIST) ? OPENLINE_COM_LIST : 0)
+, ((flags & INSCHAR_COM_LIST) ? second_indent : old_indent));
+if (!(flags & INSCHAR_COM_LIST))
+old_indent = 0;
+
+replace_offset = 0;
+if (first_line) {
+if (!(flags & INSCHAR_COM_LIST)) {
+
+
+
+
+
+
+
+if (second_indent < 0 && has_format_option(FO_Q_NUMBER))
+second_indent =
+get_number_indent(curwin->w_cursor.lnum - 1);
+if (second_indent >= 0) {
+if (State & VREPLACE_FLAG)
+change_indent(INDENT_SET, second_indent,
+FALSE, NUL, TRUE);
+else if (leader_len > 0 && second_indent - leader_len > 0) {
+int i;
+int padding = second_indent - leader_len;
+
+
+
+
+
+
+
+for (i = 0; i < padding; i++)
+ins_str((char_u *)" ");
+changed_bytes(curwin->w_cursor.lnum, leader_len);
+} else {
+(void)set_indent(second_indent, SIN_CHANGED);
+}
+}
+}
+first_line = FALSE;
+}
+
+if (State & VREPLACE_FLAG) {
+
+
+
+
+ins_bytes(saved_text);
+xfree(saved_text);
+} else {
+
+
+
+
+curwin->w_cursor.col += startcol;
+len = (colnr_T)STRLEN(get_cursor_line_ptr());
+if (curwin->w_cursor.col > len)
+curwin->w_cursor.col = len;
+}
+
+haveto_redraw = true;
+can_cindent = true;
+
+did_ai = false;
+did_si = false;
+can_si = false;
+can_si_back = false;
+line_breakcheck();
+}
+
+if (save_char != NUL) 
+pchar_cursor(save_char);
+
+curwin->w_p_lbr = has_lbr;
+
+if (!format_only && haveto_redraw) {
+update_topline();
+redraw_curbuf_later(VALID);
+}
+}
+
+
+
+
+
+
+
+
+void
+auto_format (
+int trailblank, 
+int prev_line 
+)
+{
+pos_T pos;
+colnr_T len;
+char_u *old;
+char_u *new, *pnew;
+int wasatend;
+int cc;
+
+if (!has_format_option(FO_AUTO))
+return;
+
+pos = curwin->w_cursor;
+old = get_cursor_line_ptr();
+
+
+check_auto_format(false);
+
+
+
+
+
+
+wasatend = (pos.col == (colnr_T)STRLEN(old));
+if (*old != NUL && !trailblank && wasatend) {
+dec_cursor();
+cc = gchar_cursor();
+if (!WHITECHAR(cc) && curwin->w_cursor.col > 0
+&& has_format_option(FO_ONE_LETTER))
+dec_cursor();
+cc = gchar_cursor();
+if (WHITECHAR(cc)) {
+curwin->w_cursor = pos;
+return;
+}
+curwin->w_cursor = pos;
+}
+
+
+
+if (has_format_option(FO_WRAP_COMS) && !has_format_option(FO_WRAP)
+&& get_leader_len(old, NULL, FALSE, TRUE) == 0)
+return;
+
+
+
+
+
+
+if (prev_line && !paragraph_start(curwin->w_cursor.lnum)) {
+--curwin->w_cursor.lnum;
+if (u_save_cursor() == FAIL)
+return;
+}
+
+
+
+
+
+saved_cursor = pos;
+format_lines((linenr_T)-1, FALSE);
+curwin->w_cursor = saved_cursor;
+saved_cursor.lnum = 0;
+
+if (curwin->w_cursor.lnum > curbuf->b_ml.ml_line_count) {
+
+curwin->w_cursor.lnum = curbuf->b_ml.ml_line_count;
+coladvance((colnr_T)MAXCOL);
+} else
+check_cursor_col();
+
+
+
+
+
+if (!wasatend && has_format_option(FO_WHITE_PAR)) {
+new = get_cursor_line_ptr();
+len = (colnr_T)STRLEN(new);
+if (curwin->w_cursor.col == len) {
+pnew = vim_strnsave(new, len + 2);
+pnew[len] = ' ';
+pnew[len + 1] = NUL;
+ml_replace(curwin->w_cursor.lnum, pnew, false);
+
+did_add_space = true;
+} else {
+
+check_auto_format(false);
+}
+}
+
+check_cursor();
+}
+
+
+
+
+
+
+static void check_auto_format(
+bool end_insert 
+)
+{
+int c = ' ';
+int cc;
+
+if (did_add_space) {
+cc = gchar_cursor();
+if (!WHITECHAR(cc)) {
+
+did_add_space = false;
+} else {
+if (!end_insert) {
+inc_cursor();
+c = gchar_cursor();
+dec_cursor();
+}
+if (c != NUL) {
+
+del_char(false);
+did_add_space = false;
+}
+}
+}
+}
+
+
+
+
+
+
+
+
+int
+comp_textwidth (
+int ff 
+)
+{
+int textwidth;
+
+textwidth = curbuf->b_p_tw;
+if (textwidth == 0 && curbuf->b_p_wm) {
+
+
+textwidth = curwin->w_width_inner - curbuf->b_p_wm;
+if (cmdwin_type != 0) {
+textwidth -= 1;
+}
+textwidth -= win_fdccol_count(curwin);
+textwidth -= win_signcol_count(curwin);
+
+if (curwin->w_p_nu || curwin->w_p_rnu)
+textwidth -= 8;
+}
+if (textwidth < 0)
+textwidth = 0;
+if (ff && textwidth == 0) {
+textwidth = curwin->w_width_inner - 1;
+if (textwidth > 79) {
+textwidth = 79;
+}
+}
+return textwidth;
+}
+
+
+
+
+static void redo_literal(int c)
+{
+char buf[10];
+
+
+
+if (ascii_isdigit(c)) {
+vim_snprintf(buf, sizeof(buf), "%03d", c);
+AppendToRedobuff(buf);
+} else {
+AppendCharToRedobuff(c);
+}
+}
+
+
+
+static void start_arrow(pos_T *end_insert_pos )
+{
+start_arrow_common(end_insert_pos, true);
+}
+
+
+
+
+
+static void start_arrow_with_change(pos_T *end_insert_pos, bool end_change)
+{
+start_arrow_common(end_insert_pos, end_change);
+if (!end_change) {
+AppendCharToRedobuff(Ctrl_G);
+AppendCharToRedobuff('U');
+}
+}
+
+
+
+static void start_arrow_common(pos_T *end_insert_pos, bool end_change)
+{
+if (!arrow_used && end_change) { 
+AppendToRedobuff(ESC_STR);
+stop_insert(end_insert_pos, false, false);
+arrow_used = true; 
+}
+check_spell_redraw();
+}
+
+
+
+
+
+static void check_spell_redraw(void)
+{
+if (spell_redraw_lnum != 0) {
+linenr_T lnum = spell_redraw_lnum;
+
+spell_redraw_lnum = 0;
+redrawWinline(curwin, lnum);
+}
+}
+
+
+
+
+
+static void spell_back_to_badword(void)
+{
+pos_T tpos = curwin->w_cursor;
+spell_bad_len = spell_move_to(curwin, BACKWARD, TRUE, TRUE, NULL);
+if (curwin->w_cursor.col != tpos.col)
+start_arrow(&tpos);
+}
+
+
+
+
+
+
+int stop_arrow(void)
+{
+if (arrow_used) {
+Insstart = curwin->w_cursor; 
+if (Insstart.col > Insstart_orig.col && !ins_need_undo) {
+
+
+update_Insstart_orig = FALSE;
+}
+Insstart_textlen = (colnr_T)linetabsize(get_cursor_line_ptr());
+
+if (u_save_cursor() == OK) {
+arrow_used = FALSE;
+ins_need_undo = FALSE;
+}
+ai_col = 0;
+if (State & VREPLACE_FLAG) {
+orig_line_count = curbuf->b_ml.ml_line_count;
+vr_lines_changed = 1;
+}
+ResetRedobuff();
+AppendToRedobuff("1i"); 
+new_insert_skip = 2;
+} else if (ins_need_undo) {
+if (u_save_cursor() == OK)
+ins_need_undo = FALSE;
+}
+
+
+foldOpenCursor();
+
+return arrow_used || ins_need_undo ? FAIL : OK;
+}
+
+
+
+
+
+
+static void
+stop_insert (
+pos_T *end_insert_pos,
+int esc, 
+int nomove 
+)
+{
+int cc;
+char_u *ptr;
+
+stop_redo_ins();
+replace_flush(); 
+
+
+
+
+
+
+ptr = get_inserted();
+if (did_restart_edit == 0 || (ptr != NULL
+&& (int)STRLEN(ptr) > new_insert_skip)) {
+xfree(last_insert);
+last_insert = ptr;
+last_insert_skip = new_insert_skip;
+} else
+xfree(ptr);
+
+if (!arrow_used && end_insert_pos != NULL) {
+
+
+
+
+if (!ins_need_undo && has_format_option(FO_AUTO)) {
+pos_T tpos = curwin->w_cursor;
+
+
+
+
+cc = 'x';
+if (curwin->w_cursor.col > 0 && gchar_cursor() == NUL) {
+dec_cursor();
+cc = gchar_cursor();
+if (!ascii_iswhite(cc))
+curwin->w_cursor = tpos;
+}
+
+auto_format(TRUE, FALSE);
+
+if (ascii_iswhite(cc)) {
+if (gchar_cursor() != NUL)
+inc_cursor();
+
+
+if (gchar_cursor() == NUL
+&& curwin->w_cursor.lnum == tpos.lnum
+&& curwin->w_cursor.col == tpos.col)
+curwin->w_cursor.coladd = tpos.coladd;
+}
+}
+
+
+check_auto_format(true);
+
+
+
+
+
+
+if (!nomove && did_ai && (esc || (vim_strchr(p_cpo, CPO_INDENT) == NULL
+&& curwin->w_cursor.lnum !=
+end_insert_pos->lnum))
+&& end_insert_pos->lnum <= curbuf->b_ml.ml_line_count) {
+pos_T tpos = curwin->w_cursor;
+
+curwin->w_cursor = *end_insert_pos;
+check_cursor_col(); 
+for (;; ) {
+if (gchar_cursor() == NUL && curwin->w_cursor.col > 0)
+--curwin->w_cursor.col;
+cc = gchar_cursor();
+if (!ascii_iswhite(cc)) {
+break;
+}
+if (del_char(true) == FAIL) {
+break; 
+}
+}
+if (curwin->w_cursor.lnum != tpos.lnum)
+curwin->w_cursor = tpos;
+else {
+
+tpos = curwin->w_cursor;
+tpos.col++;
+if (cc != NUL && gchar_pos(&tpos) == NUL) {
+++curwin->w_cursor.col; 
+}
+}
+
+
+
+if (VIsual_active && VIsual.lnum == curwin->w_cursor.lnum) {
+int len = (int)STRLEN(get_cursor_line_ptr());
+
+if (VIsual.col > len) {
+VIsual.col = len;
+VIsual.coladd = 0;
+}
+}
+}
+}
+did_ai = false;
+did_si = false;
+can_si = false;
+can_si_back = false;
+
+
+
+if (end_insert_pos != NULL) {
+curbuf->b_op_start = Insstart;
+curbuf->b_op_start_orig = Insstart_orig;
+curbuf->b_op_end = *end_insert_pos;
+}
+}
+
+
+
+
+
+void set_last_insert(int c)
+{
+char_u *s;
+
+xfree(last_insert);
+last_insert = xmalloc(MB_MAXBYTES * 3 + 5);
+s = last_insert;
+
+if (c < ' ' || c == DEL)
+*s++ = Ctrl_V;
+s = add_char2buf(c, s);
+*s++ = ESC;
+*s++ = NUL;
+last_insert_skip = 0;
+}
+
+#if defined(EXITFREE)
+void free_last_insert(void)
+{
+XFREE_CLEAR(last_insert);
+XFREE_CLEAR(compl_orig_text);
+}
+
+#endif
+
+
+
+
+
+
+
+
+
+
+char_u *add_char2buf(int c, char_u *s)
+FUNC_ATTR_NONNULL_ALL FUNC_ATTR_WARN_UNUSED_RESULT
+{
+char_u temp[MB_MAXBYTES + 1];
+const int len = utf_char2bytes(c, temp);
+for (int i = 0; i < len; i++) {
+c = temp[i];
+
+if (c == K_SPECIAL) {
+*s++ = K_SPECIAL;
+*s++ = KS_SPECIAL;
+*s++ = KE_FILLER;
+} else {
+*s++ = c;
+}
+}
+return s;
+}
+
+
+
+
+
+
+
+
+void beginline(int flags)
+{
+if ((flags & BL_SOL) && !p_sol)
+coladvance(curwin->w_curswant);
+else {
+curwin->w_cursor.col = 0;
+curwin->w_cursor.coladd = 0;
+
+if (flags & (BL_WHITE | BL_SOL)) {
+char_u *ptr;
+
+for (ptr = get_cursor_line_ptr(); ascii_iswhite(*ptr)
+&& !((flags & BL_FIX) && ptr[1] == NUL); ++ptr)
+++curwin->w_cursor.col;
+}
+curwin->w_set_curswant = TRUE;
+}
+}
+
+
+
+
+
+
+
+
+
+int oneright(void)
+{
+char_u *ptr;
+int l;
+
+if (virtual_active()) {
+pos_T prevpos = curwin->w_cursor;
+
+
+ptr = get_cursor_pos_ptr();
+coladvance(getviscol() + ((*ptr != TAB && vim_isprintc(utf_ptr2char(ptr))) ?
+ptr2cells(ptr) : 1));
+curwin->w_set_curswant = true;
+
+return (prevpos.col != curwin->w_cursor.col
+|| prevpos.coladd != curwin->w_cursor.coladd) ? OK : FAIL;
+}
+
+ptr = get_cursor_pos_ptr();
+if (*ptr == NUL)
+return FAIL; 
+
+if (has_mbyte)
+l = (*mb_ptr2len)(ptr);
+else
+l = 1;
+
+
+
+if (ptr[l] == NUL
+&& (ve_flags & VE_ONEMORE) == 0
+)
+return FAIL;
+curwin->w_cursor.col += l;
+
+curwin->w_set_curswant = TRUE;
+return OK;
+}
+
+int oneleft(void)
+{
+if (virtual_active()) {
+int width;
+int v = getviscol();
+
+if (v == 0)
+return FAIL;
+
+
+width = 1;
+for (;; ) {
+coladvance(v - width);
+
+
+
+if ((*p_sbr == NUL
+&& !curwin->w_p_bri
+&& !has_mbyte
+) || getviscol() < v)
+break;
+++width;
+}
+
+if (curwin->w_cursor.coladd == 1) {
+char_u *ptr;
+
+
+ptr = get_cursor_pos_ptr();
+if (*ptr != TAB && vim_isprintc(utf_ptr2char(ptr))
+&& ptr2cells(ptr) > 1) {
+curwin->w_cursor.coladd = 0;
+}
+}
+
+curwin->w_set_curswant = TRUE;
+return OK;
+}
+
+if (curwin->w_cursor.col == 0)
+return FAIL;
+
+curwin->w_set_curswant = TRUE;
+--curwin->w_cursor.col;
+
+
+
+if (has_mbyte)
+mb_adjust_cursor();
+return OK;
+}
+
+int
+cursor_up (
+long n,
+int upd_topline 
+)
+{
+linenr_T lnum;
+
+if (n > 0) {
+lnum = curwin->w_cursor.lnum;
+
+
+if (lnum <= 1) {
+return FAIL;
+}
+if (n >= lnum)
+lnum = 1;
+else if (hasAnyFolding(curwin)) {
+
+
+
+
+(void)hasFolding(lnum, &lnum, NULL);
+
+while (n--) {
+
+--lnum;
+if (lnum <= 1)
+break;
+
+
+
+if (n > 0 || !((State & INSERT) || (fdo_flags & FDO_ALL)))
+(void)hasFolding(lnum, &lnum, NULL);
+}
+if (lnum < 1)
+lnum = 1;
+} else
+lnum -= n;
+curwin->w_cursor.lnum = lnum;
+}
+
+
+coladvance(curwin->w_curswant);
+
+if (upd_topline)
+update_topline(); 
+
+return OK;
+}
+
+
+
+
+int
+cursor_down (
+long n,
+int upd_topline 
+)
+{
+linenr_T lnum;
+
+if (n > 0) {
+lnum = curwin->w_cursor.lnum;
+
+(void)hasFolding(lnum, NULL, &lnum);
+
+
+if (lnum >= curbuf->b_ml.ml_line_count) {
+return FAIL;
+}
+if (lnum + n >= curbuf->b_ml.ml_line_count)
+lnum = curbuf->b_ml.ml_line_count;
+else if (hasAnyFolding(curwin)) {
+linenr_T last;
+
+
+while (n--) {
+if (hasFolding(lnum, NULL, &last))
+lnum = last + 1;
+else
+++lnum;
+if (lnum >= curbuf->b_ml.ml_line_count)
+break;
+}
+if (lnum > curbuf->b_ml.ml_line_count)
+lnum = curbuf->b_ml.ml_line_count;
+} else
+lnum += n;
+curwin->w_cursor.lnum = lnum;
+}
+
+
+coladvance(curwin->w_curswant);
+
+if (upd_topline)
+update_topline(); 
+
+return OK;
+}
+
+
+
+
+
+
+int
+stuff_inserted (
+int c, 
+long count, 
+int no_esc 
+)
+{
+char_u *esc_ptr;
+char_u *ptr;
+char_u *last_ptr;
+char_u last = NUL;
+
+ptr = get_last_insert();
+if (ptr == NULL) {
+EMSG(_(e_noinstext));
+return FAIL;
+}
+
+
+if (c != NUL)
+stuffcharReadbuff(c);
+if ((esc_ptr = STRRCHR(ptr, ESC)) != NULL) {
+
+*esc_ptr = NUL;
+}
+
+
+
+
+
+last_ptr = (esc_ptr ? esc_ptr : ptr + STRLEN(ptr)) - 1;
+if (last_ptr >= ptr && (*last_ptr == '0' || *last_ptr == '^')
+&& (no_esc || (*ptr == Ctrl_D && count > 1))) {
+last = *last_ptr;
+*last_ptr = NUL;
+}
+
+do {
+stuffReadbuff((const char *)ptr);
+
+if (last) {
+stuffReadbuff((last == '0'
+? "\026\060\064\070"
+: "\026^"));
+}
+} while (--count > 0);
+
+if (last)
+*last_ptr = last;
+
+if (esc_ptr != NULL)
+*esc_ptr = ESC; 
+
+
+if (!no_esc)
+stuffcharReadbuff(ESC);
+
+return OK;
+}
+
+char_u *get_last_insert(void)
+{
+if (last_insert == NULL)
+return NULL;
+return last_insert + last_insert_skip;
+}
+
+
+
+
+
+char_u *get_last_insert_save(void)
+{
+char_u *s;
+int len;
+
+if (last_insert == NULL)
+return NULL;
+s = vim_strsave(last_insert + last_insert_skip);
+len = (int)STRLEN(s);
+if (len > 0 && s[len - 1] == ESC) 
+s[len - 1] = NUL;
+
+return s;
+}
+
+
+
+
+
+
+
+
+
+static bool echeck_abbr(int c)
+FUNC_ATTR_PURE FUNC_ATTR_WARN_UNUSED_RESULT
+{
+
+
+if (p_paste || no_abbr || arrow_used) {
+return false;
+}
+
+return check_abbr(c, get_cursor_line_ptr(), curwin->w_cursor.col,
+curwin->w_cursor.lnum == Insstart.lnum ? Insstart.col : 0);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+static char_u *replace_stack = NULL;
+static ssize_t replace_stack_nr = 0; 
+static ssize_t replace_stack_len = 0; 
+
+
+
+
+
+
+
+
+void replace_push(int c)
+{
+if (replace_stack_nr < replace_offset) { 
+return;
+}
+
+if (replace_stack_len <= replace_stack_nr) {
+replace_stack_len += 50;
+replace_stack = xrealloc(replace_stack, replace_stack_len);
+}
+char_u *p = replace_stack + replace_stack_nr - replace_offset;
+if (replace_offset) {
+memmove(p + 1, p, replace_offset);
+}
+*p = (char_u)c;
+++replace_stack_nr;
+}
+
+
+
+
+
+
+int replace_push_mb(char_u *p)
+{
+int l = (*mb_ptr2len)(p);
+int j;
+
+for (j = l - 1; j >= 0; --j)
+replace_push(p[j]);
+return l;
+}
+
+
+
+
+static int replace_pop(void)
+{
+return (replace_stack_nr == 0) ? -1 : (int)replace_stack[--replace_stack_nr];
+}
+
+
+
+
+
+static void
+replace_join (
+int off 
+)
+{
+int i;
+
+for (i = replace_stack_nr; --i >= 0; )
+if (replace_stack[i] == NUL && off-- <= 0) {
+--replace_stack_nr;
+memmove(replace_stack + i, replace_stack + i + 1,
+(size_t)(replace_stack_nr - i));
+return;
+}
+}
+
+
+
+
+
+static void replace_pop_ins(void)
+{
+int cc;
+int oldState = State;
+
+State = NORMAL; 
+while ((cc = replace_pop()) > 0) {
+mb_replace_pop_ins(cc);
+dec_cursor();
+}
+State = oldState;
+}
+
+
+
+
+
+static void mb_replace_pop_ins(int cc)
+{
+int n;
+char_u buf[MB_MAXBYTES + 1];
+int i;
+int c;
+
+if (has_mbyte && (n = MB_BYTE2LEN(cc)) > 1) {
+buf[0] = cc;
+for (i = 1; i < n; ++i)
+buf[i] = replace_pop();
+ins_bytes_len(buf, n);
+} else {
+ins_char(cc);
+}
+
+if (enc_utf8)
+
+for (;; ) {
+c = replace_pop();
+if (c == -1) 
+break;
+if ((n = MB_BYTE2LEN(c)) == 1) {
+
+replace_push(c);
+break;
+} else {
+buf[0] = c;
+assert(n > 1);
+for (i = 1; i < n; ++i)
+buf[i] = replace_pop();
+if (utf_iscomposing(utf_ptr2char(buf)))
+ins_bytes_len(buf, n);
+else {
+
+for (i = n - 1; i >= 0; --i)
+replace_push(buf[i]);
+break;
+}
+}
+}
+}
+
+
+
+
+
+static void replace_flush(void)
+{
+XFREE_CLEAR(replace_stack);
+replace_stack_len = 0;
+replace_stack_nr = 0;
+}
+
+
+
+
+
+
+
+
+
+
+static void replace_do_bs(int limit_col)
+{
+int cc;
+int orig_len = 0;
+int ins_len;
+int orig_vcols = 0;
+colnr_T start_vcol;
+char_u *p;
+int i;
+int vcol;
+const int l_State = State;
+
+cc = replace_pop();
+if (cc > 0) {
+if (l_State & VREPLACE_FLAG) {
+
+
+getvcol(curwin, &curwin->w_cursor, NULL, &start_vcol, NULL);
+orig_vcols = chartabsize(get_cursor_pos_ptr(), start_vcol);
+}
+if (has_mbyte) {
+(void)del_char_after_col(limit_col);
+if (l_State & VREPLACE_FLAG)
+orig_len = (int)STRLEN(get_cursor_pos_ptr());
+replace_push(cc);
+} else {
+pchar_cursor(cc);
+if (l_State & VREPLACE_FLAG)
+orig_len = (int)STRLEN(get_cursor_pos_ptr()) - 1;
+}
+replace_pop_ins();
+
+if (l_State & VREPLACE_FLAG) {
+
+p = get_cursor_pos_ptr();
+ins_len = (int)STRLEN(p) - orig_len;
+vcol = start_vcol;
+for (i = 0; i < ins_len; ++i) {
+vcol += chartabsize(p + i, vcol);
+i += (*mb_ptr2len)(p) - 1;
+}
+vcol -= start_vcol;
+
+
+
+curwin->w_cursor.col += ins_len;
+while (vcol > orig_vcols && gchar_cursor() == ' ') {
+del_char(false);
+orig_vcols++;
+}
+curwin->w_cursor.col -= ins_len;
+}
+
+
+changed_bytes(curwin->w_cursor.lnum, curwin->w_cursor.col);
+} else if (cc == 0)
+(void)del_char_after_col(limit_col);
+}
+
+
+static bool cindent_on(void)
+FUNC_ATTR_PURE FUNC_ATTR_WARN_UNUSED_RESULT
+{
+return !p_paste && (curbuf->b_p_cin || *curbuf->b_p_inde != NUL);
+}
+
+
+
+
+
+
+
+void fixthisline(IndentGetter get_the_indent)
+{
+int amount = get_the_indent();
+
+if (amount >= 0) {
+change_indent(INDENT_SET, amount, false, 0, true);
+if (linewhite(curwin->w_cursor.lnum)) {
+did_ai = true; 
+}
+}
+}
+
+void fix_indent(void) {
+if (p_paste)
+return;
+if (curbuf->b_p_lisp && curbuf->b_p_ai)
+fixthisline(get_lisp_indent);
+else if (cindent_on())
+do_c_expr_indent();
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+bool in_cinkeys(int keytyped, int when, bool line_is_empty)
+{
+char_u *look;
+int try_match;
+int try_match_word;
+char_u *p;
+char_u *line;
+int icase;
+int i;
+
+if (keytyped == NUL) {
+
+return false;
+}
+
+if (*curbuf->b_p_inde != NUL)
+look = curbuf->b_p_indk; 
+else
+look = curbuf->b_p_cink; 
+while (*look) {
+
+
+
+
+switch (when) {
+case '*': try_match = (*look == '*'); break;
+case '!': try_match = (*look == '!'); break;
+default: try_match = (*look != '*'); break;
+}
+if (*look == '*' || *look == '!') {
+look++;
+}
+
+
+
+if (*look == '0') {
+try_match_word = try_match;
+if (!line_is_empty) {
+try_match = false;
+}
+look++;
+} else {
+try_match_word = false;
+}
+
+
+if (*look == '^' && look[1] >= '?' && look[1] <= '_') {
+if (try_match && keytyped == Ctrl_chr(look[1])) {
+return true;
+}
+look += 2;
+
+
+
+} else if (*look == 'o') {
+if (try_match && keytyped == KEY_OPEN_FORW) {
+return true;
+}
+look++;
+} else if (*look == 'O') {
+if (try_match && keytyped == KEY_OPEN_BACK) {
+return true;
+}
+look++;
+
+
+
+} else if (*look == 'e') {
+if (try_match && keytyped == 'e' && curwin->w_cursor.col >= 4) {
+p = get_cursor_line_ptr();
+if (skipwhite(p) == p + curwin->w_cursor.col - 4
+&& STRNCMP(p + curwin->w_cursor.col - 4, "else", 4) == 0) {
+return true;
+}
+}
+look++;
+
+
+
+
+} else if (*look == ':') {
+if (try_match && keytyped == ':') {
+p = get_cursor_line_ptr();
+if (cin_iscase(p, false) || cin_isscopedecl(p) || cin_islabel()) {
+return true;
+}
+
+p = get_cursor_line_ptr();
+if (curwin->w_cursor.col > 2
+&& p[curwin->w_cursor.col - 1] == ':'
+&& p[curwin->w_cursor.col - 2] == ':') {
+p[curwin->w_cursor.col - 1] = ' ';
+i = (cin_iscase(p, FALSE) || cin_isscopedecl(p)
+|| cin_islabel());
+p = get_cursor_line_ptr();
+p[curwin->w_cursor.col - 1] = ':';
+if (i) {
+return true;
+}
+}
+}
+look++;
+
+
+} else if (*look == '<') {
+if (try_match) {
+
+
+
+if (vim_strchr((char_u *)"<>!*oOe0:", look[1]) != NULL
+&& keytyped == look[1]) {
+return true;
+}
+
+if (keytyped == get_special_key_code(look + 1)) {
+return true;
+}
+}
+while (*look && *look != '>')
+look++;
+while (*look == '>')
+look++;
+}
+
+
+
+else if (*look == '=' && look[1] != ',' && look[1] != NUL) {
+++look;
+if (*look == '~') {
+icase = TRUE;
+++look;
+} else
+icase = FALSE;
+p = vim_strchr(look, ',');
+if (p == NULL)
+p = look + STRLEN(look);
+if ((try_match || try_match_word)
+&& curwin->w_cursor.col >= (colnr_T)(p - look)) {
+bool match = false;
+
+if (keytyped == KEY_COMPLETE) {
+char_u *s;
+
+
+
+line = get_cursor_line_ptr();
+if (has_mbyte) {
+char_u *n;
+
+for (s = line + curwin->w_cursor.col; s > line; s = n) {
+n = mb_prevptr(line, s);
+if (!vim_iswordp(n))
+break;
+}
+} else
+for (s = line + curwin->w_cursor.col; s > line; --s)
+if (!vim_iswordc(s[-1]))
+break;
+assert(p >= look && (uintmax_t)(p - look) <= SIZE_MAX);
+if (s + (p - look) <= line + curwin->w_cursor.col
+&& (icase
+? mb_strnicmp(s, look, (size_t)(p - look))
+: STRNCMP(s, look, p - look)) == 0)
+match = true;
+} else {
+
+if (keytyped == (int)p[-1]
+|| (icase && keytyped < 256
+&& TOLOWER_LOC(keytyped) == TOLOWER_LOC((int)p[-1]))) {
+line = get_cursor_pos_ptr();
+assert(p >= look && (uintmax_t)(p - look) <= SIZE_MAX);
+if ((curwin->w_cursor.col == (colnr_T)(p - look)
+|| !vim_iswordc(line[-(p - look) - 1]))
+&& (icase
+? mb_strnicmp(line - (p - look), look, (size_t)(p - look))
+: STRNCMP(line - (p - look), look, p - look)) == 0) {
+match = true;
+}
+}
+}
+if (match && try_match_word && !try_match) {
+
+
+if (getwhitecols_curline() !=
+(int)(curwin->w_cursor.col - (p - look))) {
+match = false;
+}
+}
+if (match) {
+return true;
+}
+}
+look = p;
+
+
+} else {
+if (try_match && *look == keytyped) {
+return true;
+}
+if (*look != NUL) {
+look++;
+}
+}
+
+
+
+
+look = skip_to_option_part(look);
+}
+return false;
+}
+
+
+
+
+int hkmap(int c)
+{
+if (p_hkmapp) { 
+enum {hALEF=0, BET, GIMEL, DALET, HEI, VAV, ZAIN, HET, TET, IUD,
+KAFsofit, hKAF, LAMED, MEMsofit, MEM, NUNsofit, NUN, SAMEH, AIN,
+PEIsofit, PEI, ZADIsofit, ZADI, KOF, RESH, hSHIN, TAV};
+static char_u map[26] =
+{(char_u)hALEF , (char_u)BET , (char_u)hKAF ,
+(char_u)DALET , (char_u)-1 , (char_u)PEIsofit ,
+(char_u)GIMEL , (char_u)HEI , (char_u)IUD ,
+(char_u)HET , (char_u)KOF , (char_u)LAMED ,
+(char_u)MEM , (char_u)NUN , (char_u)SAMEH ,
+(char_u)PEI , (char_u)-1 , (char_u)RESH ,
+(char_u)ZAIN , (char_u)TAV , (char_u)TET ,
+(char_u)VAV , (char_u)hSHIN , (char_u)-1 ,
+(char_u)AIN , (char_u)ZADI };
+
+if (c == 'N' || c == 'M' || c == 'P' || c == 'C' || c == 'Z')
+return (int)(map[CharOrd(c)] - 1 + p_aleph);
+
+else if (c == 'x')
+return 'X';
+else if (c == 'q')
+return '\''; 
+else if (c == 246)
+return ' '; 
+else if (c == 228)
+return ' '; 
+else if (c == 252)
+return ' '; 
+
+
+
+
+
+else if (c >= 'a' && c <= 'z')
+return (int)(map[CharOrdLow(c)] + p_aleph);
+else
+return c;
+} else {
+switch (c) {
+case '`': return ';';
+case '/': return '.';
+case '\'': return ',';
+case 'q': return '/';
+case 'w': return '\'';
+
+
+case ',': c = '{'; break;
+case '.': c = 'v'; break;
+case ';': c = 't'; break;
+default: {
+static char str[] = "zqbcxlsjphmkwonu ydafe rig";
+
+if (c < 'a' || c > 'z')
+return c;
+c = str[CharOrdLow(c)];
+break;
+}
+}
+
+return (int)(CharOrdLow(c) + p_aleph);
+}
+}
+
+static void ins_reg(void)
+{
+int need_redraw = FALSE;
+int regname;
+int literally = 0;
+int vis_active = VIsual_active;
+
+
+
+
+pc_status = PC_STATUS_UNSET;
+if (redrawing() && !char_avail()) {
+
+ins_redraw(FALSE);
+
+edit_putchar('"', TRUE);
+add_to_showcmd_c(Ctrl_R);
+}
+
+
+
+
+
+
+++no_mapping;
+regname = plain_vgetc();
+LANGMAP_ADJUST(regname, TRUE);
+if (regname == Ctrl_R || regname == Ctrl_O || regname == Ctrl_P) {
+
+literally = regname;
+add_to_showcmd_c(literally);
+regname = plain_vgetc();
+LANGMAP_ADJUST(regname, TRUE);
+}
+--no_mapping;
+
+
+
+++no_u_sync;
+if (regname == '=') {
+pos_T curpos = curwin->w_cursor;
+
+
+
+u_sync_once = 2;
+
+regname = get_expr_register();
+
+
+curwin->w_cursor = curpos;
+check_cursor();
+}
+if (regname == NUL || !valid_yank_reg(regname, false)) {
+vim_beep(BO_REG);
+need_redraw = true; 
+} else {
+if (literally == Ctrl_O || literally == Ctrl_P) {
+
+AppendCharToRedobuff(Ctrl_R);
+AppendCharToRedobuff(literally);
+AppendCharToRedobuff(regname);
+
+do_put(regname, NULL, BACKWARD, 1,
+(literally == Ctrl_P ? PUT_FIXINDENT : 0) | PUT_CURSEND);
+} else if (insert_reg(regname, literally) == FAIL) {
+vim_beep(BO_REG);
+need_redraw = true; 
+} else if (stop_insert_mode) {
+
+
+
+need_redraw = true;
+}
+}
+--no_u_sync;
+if (u_sync_once == 1)
+ins_need_undo = TRUE;
+u_sync_once = 0;
+clear_showcmd();
+
+
+if (need_redraw || stuff_empty())
+edit_unputchar();
+
+
+if (!vis_active && VIsual_active)
+end_visual_mode();
+}
+
+
+
+
+static void ins_ctrl_g(void)
+{
+int c;
+
+
+setcursor();
+
+
+
+
+
+++no_mapping;
+c = plain_vgetc();
+--no_mapping;
+switch (c) {
+
+case K_UP:
+case Ctrl_K:
+case 'k': ins_up(TRUE);
+break;
+
+
+case K_DOWN:
+case Ctrl_J:
+case 'j': ins_down(TRUE);
+break;
+
+
+case 'u': u_sync(TRUE);
+ins_need_undo = TRUE;
+
+
+
+update_Insstart_orig = false;
+Insstart = curwin->w_cursor;
+break;
+
+
+case 'U':
+
+
+dont_sync_undo = kNone;
+break;
+
+
+default: vim_beep(BO_CTRLG);
+}
+}
+
+
+
+
+static void ins_ctrl_hat(void)
+{
+if (map_to_exists_mode("", LANGMAP, false)) {
+
+if (State & LANGMAP) {
+curbuf->b_p_iminsert = B_IMODE_NONE;
+State &= ~LANGMAP;
+} else {
+curbuf->b_p_iminsert = B_IMODE_LMAP;
+State |= LANGMAP;
+}
+}
+set_iminsert_global();
+showmode();
+
+status_redraw_curbuf();
+}
+
+
+
+
+
+
+
+
+static bool ins_esc(long *count, int cmdchar, bool nomove)
+FUNC_ATTR_NONNULL_ARG(1)
+{
+static bool disabled_redraw = false;
+
+check_spell_redraw();
+
+int temp = curwin->w_cursor.col;
+if (disabled_redraw) {
+RedrawingDisabled--;
+disabled_redraw = false;
+}
+if (!arrow_used) {
+
+
+
+if (cmdchar != 'r' && cmdchar != 'v') {
+AppendToRedobuff(p_im ? "\014" : ESC_STR);
+}
+
+
+
+
+
+if (*count > 0) {
+line_breakcheck();
+if (got_int)
+*count = 0;
+}
+
+if (--*count > 0) { 
+
+if (vim_strchr(p_cpo, CPO_REPLCNT) != NULL)
+State &= ~REPLACE_FLAG;
+
+(void)start_redo_ins();
+if (cmdchar == 'r' || cmdchar == 'v') {
+stuffRedoReadbuff(ESC_STR); 
+}
+RedrawingDisabled++;
+disabled_redraw = true;
+
+return false;
+}
+stop_insert(&curwin->w_cursor, TRUE, nomove);
+undisplay_dollar();
+}
+
+
+
+if (restart_edit == NUL && (colnr_T)temp == curwin->w_cursor.col)
+curwin->w_set_curswant = TRUE;
+
+
+if (!cmdmod.keepjumps) {
+RESET_FMARK(&curbuf->b_last_insert, curwin->w_cursor, curbuf->b_fnum);
+}
+
+
+
+
+
+if (!nomove
+&& (curwin->w_cursor.col != 0
+|| curwin->w_cursor.coladd > 0
+)
+&& (restart_edit == NUL
+|| (gchar_cursor() == NUL
+&& !VIsual_active
+))
+&& !revins_on
+) {
+if (curwin->w_cursor.coladd > 0 || ve_flags == VE_ALL) {
+oneleft();
+if (restart_edit != NUL)
+++curwin->w_cursor.coladd;
+} else {
+--curwin->w_cursor.col;
+
+if (has_mbyte)
+mb_adjust_cursor();
+}
+}
+
+
+State = NORMAL;
+
+changed_cline_bef_curs();
+
+setmouse();
+ui_cursor_shape(); 
+
+
+
+if (reg_recording != 0 || restart_edit != NUL) {
+showmode();
+} else if (p_smd) {
+MSG("");
+}
+
+return true;
+}
+
+
+
+
+
+static void ins_ctrl_(void)
+{
+if (revins_on && revins_chars && revins_scol >= 0) {
+while (gchar_cursor() != NUL && revins_chars--)
+++curwin->w_cursor.col;
+}
+p_ri = !p_ri;
+revins_on = (State == INSERT && p_ri);
+if (revins_on) {
+revins_scol = curwin->w_cursor.col;
+revins_legal++;
+revins_chars = 0;
+undisplay_dollar();
+} else
+revins_scol = -1;
+p_hkmap = curwin->w_p_rl ^ p_ri; 
+showmode();
+}
+
+
+
+
+
+
+static bool ins_start_select(int c)
+FUNC_ATTR_WARN_UNUSED_RESULT
+{
+if (!km_startsel) {
+return false;
+}
+switch (c) {
+case K_KHOME:
+case K_KEND:
+case K_PAGEUP:
+case K_KPAGEUP:
+case K_PAGEDOWN:
+case K_KPAGEDOWN:
+if (!(mod_mask & MOD_MASK_SHIFT))
+break;
+FALLTHROUGH;
+case K_S_LEFT:
+case K_S_RIGHT:
+case K_S_UP:
+case K_S_DOWN:
+case K_S_END:
+case K_S_HOME:
+
+
+start_selection();
+
+
+stuffcharReadbuff(Ctrl_O);
+if (mod_mask) {
+const char buf[] = { (char)K_SPECIAL, (char)KS_MODIFIER,
+(char)(uint8_t)mod_mask, NUL };
+stuffReadbuff(buf);
+}
+stuffcharReadbuff(c);
+return true;
+}
+return false;
+}
+
+
+
+
+static void ins_insert(int replaceState)
+{
+set_vim_var_string(VV_INSERTMODE, ((State & REPLACE_FLAG) ? "i" :
+replaceState == VREPLACE ? "v" :
+"r"), 1);
+ins_apply_autocmds(EVENT_INSERTCHANGE);
+if (State & REPLACE_FLAG) {
+State = INSERT | (State & LANGMAP);
+} else {
+State = replaceState | (State & LANGMAP);
+}
+AppendCharToRedobuff(K_INS);
+showmode();
+ui_cursor_shape(); 
+}
+
+
+
+
+static void ins_ctrl_o(void)
+{
+if (State & VREPLACE_FLAG)
+restart_edit = 'V';
+else if (State & REPLACE_FLAG)
+restart_edit = 'R';
+else
+restart_edit = 'I';
+if (virtual_active())
+ins_at_eol = FALSE; 
+else
+ins_at_eol = (gchar_cursor() == NUL);
+}
+
+
+
+
+
+
+
+
+static void ins_shift(int c, int lastc)
+{
+if (stop_arrow() == FAIL)
+return;
+AppendCharToRedobuff(c);
+
+
+
+
+if (c == Ctrl_D && (lastc == '0' || lastc == '^')
+&& curwin->w_cursor.col > 0) {
+curwin->w_cursor.col--;
+(void)del_char(false); 
+
+if (State & REPLACE_FLAG) {
+replace_pop_ins();
+}
+if (lastc == '^') {
+old_indent = get_indent(); 
+}
+change_indent(INDENT_SET, 0, TRUE, 0, TRUE);
+} else
+change_indent(c == Ctrl_D ? INDENT_DEC : INDENT_INC, 0, TRUE, 0, TRUE);
+
+if (did_ai && *skipwhite(get_cursor_line_ptr()) != NUL) {
+did_ai = false;
+}
+did_si = false;
+can_si = false;
+can_si_back = false;
+can_cindent = false; 
+}
+
+static void ins_del(void)
+{
+if (stop_arrow() == FAIL) {
+return;
+}
+if (gchar_cursor() == NUL) { 
+const int temp = curwin->w_cursor.col;
+if (!can_bs(BS_EOL) 
+|| do_join(2, false, true, false, false) == FAIL) {
+vim_beep(BO_BS);
+} else {
+curwin->w_cursor.col = temp;
+
+
+
+if (State & VREPLACE_FLAG
+&& orig_line_count > curbuf->b_ml.ml_line_count) {
+orig_line_count = curbuf->b_ml.ml_line_count;
+}
+}
+} else if (del_char(false) == FAIL) { 
+vim_beep(BO_BS);
+}
+did_ai = false;
+did_si = false;
+can_si = false;
+can_si_back = false;
+AppendCharToRedobuff(K_DEL);
+}
+
+
+
+
+
+static void ins_bs_one(colnr_T *vcolp)
+{
+dec_cursor();
+getvcol(curwin, &curwin->w_cursor, vcolp, NULL, NULL);
+if (State & REPLACE_FLAG) {
+
+
+if (curwin->w_cursor.lnum != Insstart.lnum
+|| curwin->w_cursor.col >= Insstart.col)
+replace_do_bs(-1);
+} else {
+(void)del_char(false);
+}
+}
+
+
+
+
+
+
+
+
+
+static bool ins_bs(int c, int mode, int *inserted_space_p)
+FUNC_ATTR_NONNULL_ARG(3)
+{
+linenr_T lnum;
+int cc;
+int temp = 0; 
+colnr_T save_col;
+colnr_T mincol;
+bool did_backspace = false;
+int in_indent;
+int oldState;
+int cpc[MAX_MCO]; 
+
+
+
+
+
+if (BUFEMPTY()
+|| (!revins_on
+&& ((curwin->w_cursor.lnum == 1 && curwin->w_cursor.col == 0)
+|| (!can_bs(BS_START)
+&& (arrow_used
+|| (curwin->w_cursor.lnum == Insstart_orig.lnum
+&& curwin->w_cursor.col <= Insstart_orig.col)))
+|| (!can_bs(BS_INDENT) && !arrow_used && ai_col > 0
+&& curwin->w_cursor.col <= ai_col)
+|| (!can_bs(BS_EOL) && curwin->w_cursor.col == 0)))) {
+vim_beep(BO_BS);
+return false;
+}
+
+if (stop_arrow() == FAIL) {
+return false;
+}
+in_indent = inindent(0);
+if (in_indent) {
+can_cindent = false;
+}
+end_comment_pending = NUL; 
+if (revins_on) { 
+inc_cursor();
+}
+
+
+
+
+if (curwin->w_cursor.coladd > 0) {
+if (mode == BACKSPACE_CHAR) {
+curwin->w_cursor.coladd--;
+return true;
+}
+if (mode == BACKSPACE_WORD) {
+curwin->w_cursor.coladd = 0;
+return true;
+}
+curwin->w_cursor.coladd = 0;
+}
+
+
+if (curwin->w_cursor.col == 0) {
+lnum = Insstart.lnum;
+if (curwin->w_cursor.lnum == lnum || revins_on) {
+if (u_save((linenr_T)(curwin->w_cursor.lnum - 2),
+(linenr_T)(curwin->w_cursor.lnum + 1)) == FAIL) {
+return false;
+}
+Insstart.lnum--;
+Insstart.col = (colnr_T)STRLEN(ml_get(Insstart.lnum));
+}
+
+
+
+
+
+cc = -1;
+if (State & REPLACE_FLAG)
+cc = replace_pop(); 
+
+
+
+
+if ((State & REPLACE_FLAG) && curwin->w_cursor.lnum <= lnum) {
+dec_cursor();
+} else {
+if (!(State & VREPLACE_FLAG)
+|| curwin->w_cursor.lnum > orig_line_count) {
+temp = gchar_cursor(); 
+--curwin->w_cursor.lnum;
+
+
+
+
+if (has_format_option(FO_AUTO)
+&& has_format_option(FO_WHITE_PAR)) {
+char_u *ptr = ml_get_buf(curbuf, curwin->w_cursor.lnum,
+TRUE);
+int len;
+
+len = (int)STRLEN(ptr);
+if (len > 0 && ptr[len - 1] == ' ')
+ptr[len - 1] = NUL;
+}
+
+do_join(2, FALSE, FALSE, FALSE, false);
+if (temp == NUL && gchar_cursor() != NUL)
+inc_cursor();
+} else
+dec_cursor();
+
+
+
+
+
+
+
+if (State & REPLACE_FLAG) {
+
+
+
+
+
+oldState = State;
+State = NORMAL;
+
+
+
+while (cc > 0) {
+save_col = curwin->w_cursor.col;
+mb_replace_pop_ins(cc);
+curwin->w_cursor.col = save_col;
+cc = replace_pop();
+}
+
+replace_pop_ins();
+State = oldState;
+}
+}
+did_ai = false;
+} else {
+
+
+
+if (revins_on) 
+dec_cursor();
+mincol = 0;
+
+if (mode == BACKSPACE_LINE
+&& (curbuf->b_p_ai
+|| cindent_on()
+)
+&& !revins_on
+) {
+save_col = curwin->w_cursor.col;
+beginline(BL_WHITE);
+if (curwin->w_cursor.col < save_col)
+mincol = curwin->w_cursor.col;
+curwin->w_cursor.col = save_col;
+}
+
+
+
+
+if ( mode == BACKSPACE_CHAR
+&& ((p_sta && in_indent)
+|| (get_sts_value() != 0
+&& curwin->w_cursor.col > 0
+&& (*(get_cursor_pos_ptr() - 1) == TAB
+|| (*(get_cursor_pos_ptr() - 1) == ' '
+&& (!*inserted_space_p
+|| arrow_used)))))) {
+int ts;
+colnr_T vcol;
+colnr_T want_vcol;
+colnr_T start_vcol;
+
+*inserted_space_p = FALSE;
+if (p_sta && in_indent)
+ts = get_sw_value(curbuf);
+else
+ts = get_sts_value();
+
+
+
+getvcol(curwin, &curwin->w_cursor, &vcol, NULL, NULL);
+start_vcol = vcol;
+dec_cursor();
+getvcol(curwin, &curwin->w_cursor, NULL, NULL, &want_vcol);
+inc_cursor();
+want_vcol = (want_vcol / ts) * ts;
+
+
+while (vcol > want_vcol
+&& (cc = *(get_cursor_pos_ptr() - 1), ascii_iswhite(cc)))
+ins_bs_one(&vcol);
+
+
+while (vcol < want_vcol) {
+
+if (curwin->w_cursor.lnum == Insstart_orig.lnum
+&& curwin->w_cursor.col < Insstart_orig.col) {
+Insstart_orig.col = curwin->w_cursor.col;
+}
+
+if (State & VREPLACE_FLAG) {
+ins_char(' ');
+} else {
+ins_str((char_u *)" ");
+if ((State & REPLACE_FLAG))
+replace_push(NUL);
+}
+getvcol(curwin, &curwin->w_cursor, &vcol, NULL, NULL);
+}
+
+
+
+if (vcol >= start_vcol)
+ins_bs_one(&vcol);
+
+
+} else {
+int cclass = 0, prev_cclass = 0;
+
+if (has_mbyte) {
+cclass = mb_get_class(get_cursor_pos_ptr());
+}
+do {
+if (!revins_on) { 
+dec_cursor();
+}
+cc = gchar_cursor();
+
+if (has_mbyte) {
+prev_cclass = cclass;
+cclass = mb_get_class(get_cursor_pos_ptr());
+}
+if (mode == BACKSPACE_WORD && !ascii_isspace(cc)) { 
+mode = BACKSPACE_WORD_NOT_SPACE;
+temp = vim_iswordc(cc);
+} else if (mode == BACKSPACE_WORD_NOT_SPACE
+&& ((ascii_isspace(cc) || vim_iswordc(cc) != temp)
+|| prev_cclass != cclass)) { 
+if (!revins_on) {
+inc_cursor();
+} else if (State & REPLACE_FLAG) {
+dec_cursor();
+}
+break;
+}
+if (State & REPLACE_FLAG)
+replace_do_bs(-1);
+else {
+const bool l_enc_utf8 = enc_utf8;
+const int l_p_deco = p_deco;
+if (l_enc_utf8 && l_p_deco) {
+(void)utfc_ptr2char(get_cursor_pos_ptr(), cpc);
+}
+(void)del_char(false);
+
+
+
+if (l_enc_utf8 && l_p_deco && cpc[0] != NUL) {
+inc_cursor();
+}
+if (revins_chars) {
+revins_chars--;
+revins_legal++;
+}
+if (revins_on && gchar_cursor() == NUL)
+break;
+}
+
+if (mode == BACKSPACE_CHAR) {
+break;
+}
+} while (revins_on
+|| (curwin->w_cursor.col > mincol
+&& (curwin->w_cursor.lnum != Insstart_orig.lnum
+|| curwin->w_cursor.col != Insstart_orig.col)));
+}
+did_backspace = true;
+}
+did_si = false;
+can_si = false;
+can_si_back = false;
+if (curwin->w_cursor.col <= 1) {
+did_ai = false;
+}
+
+
+
+AppendCharToRedobuff(c);
+
+
+if (curwin->w_cursor.lnum == Insstart_orig.lnum
+&& curwin->w_cursor.col < Insstart_orig.col) {
+Insstart_orig.col = curwin->w_cursor.col;
+}
+
+
+
+
+
+
+
+
+if (vim_strchr(p_cpo, CPO_BACKSPACE) != NULL && dollar_vcol == -1)
+dollar_vcol = curwin->w_virtcol;
+
+
+
+
+if (did_backspace) {
+foldOpenCursor();
+}
+return did_backspace;
+}
+
+static void ins_mouse(int c)
+{
+pos_T tpos;
+win_T *old_curwin = curwin;
+
+if (!mouse_has(MOUSE_INSERT))
+return;
+
+undisplay_dollar();
+tpos = curwin->w_cursor;
+if (do_mouse(NULL, c, BACKWARD, 1, 0)) {
+win_T *new_curwin = curwin;
+
+if (curwin != old_curwin && win_valid(old_curwin)) {
+
+
+curwin = old_curwin;
+curbuf = curwin->w_buffer;
+if (bt_prompt(curbuf)) {
+
+curbuf->b_prompt_insert = 'A';
+}
+}
+start_arrow(curwin == old_curwin ? &tpos : NULL);
+if (curwin != new_curwin && win_valid(new_curwin)) {
+curwin = new_curwin;
+curbuf = curwin->w_buffer;
+}
+can_cindent = true;
+}
+
+
+redraw_statuslines();
+}
+
+static void ins_mousescroll(int dir)
+{
+win_T *const old_curwin = curwin;
+pos_T tpos = curwin->w_cursor;
+
+if (mouse_row >= 0 && mouse_col >= 0) {
+int row = mouse_row, col = mouse_col, grid = mouse_grid;
+
+
+win_T *wp = mouse_find_win(&grid, &row, &col);
+if (wp == NULL) {
+return;
+}
+curwin = wp;
+curbuf = curwin->w_buffer;
+}
+if (curwin == old_curwin)
+undisplay_dollar();
+
+
+if (!pum_visible()
+|| curwin != old_curwin
+) {
+if (dir == MSCR_DOWN || dir == MSCR_UP) {
+if (mod_mask & (MOD_MASK_SHIFT | MOD_MASK_CTRL))
+scroll_redraw(dir,
+(long)(curwin->w_botline - curwin->w_topline));
+else
+scroll_redraw(dir, 3L);
+} else {
+mouse_scroll_horiz(dir);
+}
+}
+
+curwin->w_redr_status = TRUE;
+
+curwin = old_curwin;
+curbuf = curwin->w_buffer;
+
+if (!equalpos(curwin->w_cursor, tpos)) {
+start_arrow(&tpos);
+can_cindent = true;
+}
+}
+
+
+
+static void ins_left(void)
+{
+pos_T tpos;
+const bool end_change = dont_sync_undo == kFalse; 
+
+if ((fdo_flags & FDO_HOR) && KeyTyped)
+foldOpenCursor();
+undisplay_dollar();
+tpos = curwin->w_cursor;
+if (oneleft() == OK) {
+start_arrow_with_change(&tpos, end_change);
+if (!end_change) {
+AppendCharToRedobuff(K_LEFT);
+}
+
+if (revins_scol != -1 && (int)curwin->w_cursor.col >= revins_scol)
+revins_legal++;
+revins_chars++;
+} else if (vim_strchr(p_ww, '[') != NULL && curwin->w_cursor.lnum > 1) {
+
+
+start_arrow(&tpos);
+--(curwin->w_cursor.lnum);
+coladvance((colnr_T)MAXCOL);
+curwin->w_set_curswant = true; 
+} else {
+vim_beep(BO_CRSR);
+}
+dont_sync_undo = kFalse;
+}
+
+static void ins_home(int c)
+{
+pos_T tpos;
+
+if ((fdo_flags & FDO_HOR) && KeyTyped)
+foldOpenCursor();
+undisplay_dollar();
+tpos = curwin->w_cursor;
+if (c == K_C_HOME)
+curwin->w_cursor.lnum = 1;
+curwin->w_cursor.col = 0;
+curwin->w_cursor.coladd = 0;
+curwin->w_curswant = 0;
+start_arrow(&tpos);
+}
+
+static void ins_end(int c)
+{
+pos_T tpos;
+
+if ((fdo_flags & FDO_HOR) && KeyTyped)
+foldOpenCursor();
+undisplay_dollar();
+tpos = curwin->w_cursor;
+if (c == K_C_END)
+curwin->w_cursor.lnum = curbuf->b_ml.ml_line_count;
+coladvance((colnr_T)MAXCOL);
+curwin->w_curswant = MAXCOL;
+
+start_arrow(&tpos);
+}
+
+static void ins_s_left(void)
+{
+const bool end_change = dont_sync_undo == kFalse; 
+if ((fdo_flags & FDO_HOR) && KeyTyped) {
+foldOpenCursor();
+}
+undisplay_dollar();
+if (curwin->w_cursor.lnum > 1 || curwin->w_cursor.col > 0) {
+start_arrow_with_change(&curwin->w_cursor, end_change);
+if (!end_change) {
+AppendCharToRedobuff(K_S_LEFT);
+}
+(void)bck_word(1L, false, false);
+curwin->w_set_curswant = true;
+} else {
+vim_beep(BO_CRSR);
+}
+dont_sync_undo = kFalse;
+}
+
+
+static void ins_right(void)
+{
+const bool end_change = dont_sync_undo == kFalse; 
+if ((fdo_flags & FDO_HOR) && KeyTyped) {
+foldOpenCursor();
+}
+undisplay_dollar();
+if (gchar_cursor() != NUL || virtual_active()) {
+start_arrow_with_change(&curwin->w_cursor, end_change);
+if (!end_change) {
+AppendCharToRedobuff(K_RIGHT);
+}
+curwin->w_set_curswant = true;
+if (virtual_active())
+oneright();
+else {
+if (has_mbyte)
+curwin->w_cursor.col += (*mb_ptr2len)(get_cursor_pos_ptr());
+else
+++curwin->w_cursor.col;
+}
+
+revins_legal++;
+if (revins_chars)
+revins_chars--;
+}
+
+
+else if (vim_strchr(p_ww, ']') != NULL
+&& curwin->w_cursor.lnum < curbuf->b_ml.ml_line_count) {
+start_arrow(&curwin->w_cursor);
+curwin->w_set_curswant = TRUE;
+++curwin->w_cursor.lnum;
+curwin->w_cursor.col = 0;
+} else {
+vim_beep(BO_CRSR);
+}
+dont_sync_undo = kFalse;
+}
+
+static void ins_s_right(void)
+{
+const bool end_change = dont_sync_undo == kFalse; 
+if ((fdo_flags & FDO_HOR) && KeyTyped) {
+foldOpenCursor();
+}
+undisplay_dollar();
+if (curwin->w_cursor.lnum < curbuf->b_ml.ml_line_count
+|| gchar_cursor() != NUL) {
+start_arrow_with_change(&curwin->w_cursor, end_change);
+if (!end_change) {
+AppendCharToRedobuff(K_S_RIGHT);
+}
+(void)fwd_word(1L, false, 0);
+curwin->w_set_curswant = true;
+} else {
+vim_beep(BO_CRSR);
+}
+dont_sync_undo = kFalse;
+}
+
+static void
+ins_up (
+int startcol 
+)
+{
+pos_T tpos;
+linenr_T old_topline = curwin->w_topline;
+int old_topfill = curwin->w_topfill;
+
+undisplay_dollar();
+tpos = curwin->w_cursor;
+if (cursor_up(1L, TRUE) == OK) {
+if (startcol)
+coladvance(getvcol_nolist(&Insstart));
+if (old_topline != curwin->w_topline
+|| old_topfill != curwin->w_topfill
+)
+redraw_later(VALID);
+start_arrow(&tpos);
+can_cindent = true;
+} else {
+vim_beep(BO_CRSR);
+}
+}
+
+static void ins_pageup(void)
+{
+pos_T tpos;
+
+undisplay_dollar();
+
+if (mod_mask & MOD_MASK_CTRL) {
+
+if (first_tabpage->tp_next != NULL) {
+start_arrow(&curwin->w_cursor);
+goto_tabpage(-1);
+}
+return;
+}
+
+tpos = curwin->w_cursor;
+if (onepage(BACKWARD, 1L) == OK) {
+start_arrow(&tpos);
+can_cindent = true;
+} else {
+vim_beep(BO_CRSR);
+}
+}
+
+static void
+ins_down (
+int startcol 
+)
+{
+pos_T tpos;
+linenr_T old_topline = curwin->w_topline;
+int old_topfill = curwin->w_topfill;
+
+undisplay_dollar();
+tpos = curwin->w_cursor;
+if (cursor_down(1L, TRUE) == OK) {
+if (startcol)
+coladvance(getvcol_nolist(&Insstart));
+if (old_topline != curwin->w_topline
+|| old_topfill != curwin->w_topfill
+)
+redraw_later(VALID);
+start_arrow(&tpos);
+can_cindent = true;
+} else {
+vim_beep(BO_CRSR);
+}
+}
+
+static void ins_pagedown(void)
+{
+pos_T tpos;
+
+undisplay_dollar();
+
+if (mod_mask & MOD_MASK_CTRL) {
+
+if (first_tabpage->tp_next != NULL) {
+start_arrow(&curwin->w_cursor);
+goto_tabpage(0);
+}
+return;
+}
+
+tpos = curwin->w_cursor;
+if (onepage(FORWARD, 1L) == OK) {
+start_arrow(&tpos);
+can_cindent = true;
+} else {
+vim_beep(BO_CRSR);
+}
+}
+
+
+
+
+static bool ins_tab(void)
+FUNC_ATTR_WARN_UNUSED_RESULT
+{
+int i;
+int temp;
+
+if (Insstart_blank_vcol == MAXCOL && curwin->w_cursor.lnum == Insstart.lnum) {
+Insstart_blank_vcol = get_nolist_virtcol();
+}
+if (echeck_abbr(TAB + ABBR_OFF)) {
+return false;
+}
+
+int ind = inindent(0);
+if (ind) {
+can_cindent = false;
+}
+
+
+if (!curbuf->b_p_et
+&& !(p_sta && ind && curbuf->b_p_ts != get_sw_value(curbuf))
+&& get_sts_value() == 0) {
+return true;
+}
+
+if (stop_arrow() == FAIL) {
+return true;
+}
+
+did_ai = false;
+did_si = false;
+can_si = false;
+can_si_back = false;
+AppendToRedobuff("\t");
+
+if (p_sta && ind) { 
+temp = get_sw_value(curbuf);
+} else if (curbuf->b_p_sts != 0) { 
+temp = get_sts_value();
+} else { 
+temp = (int)curbuf->b_p_ts;
+}
+
+temp -= get_nolist_virtcol() % temp;
+
+
+
+
+
+
+ins_char(' ');
+while (--temp > 0) {
+if (State & VREPLACE_FLAG) {
+ins_char(' ');
+} else {
+ins_str((char_u *)" ");
+if (State & REPLACE_FLAG) { 
+replace_push(NUL);
+}
+}
+}
+
+
+
+
+if (!curbuf->b_p_et && (get_sts_value() || (p_sta && ind))) {
+char_u *ptr;
+char_u *saved_line = NULL; 
+pos_T pos;
+pos_T fpos;
+pos_T *cursor;
+colnr_T want_vcol, vcol;
+int change_col = -1;
+int save_list = curwin->w_p_list;
+
+
+
+
+
+if (State & VREPLACE_FLAG) {
+pos = curwin->w_cursor;
+cursor = &pos;
+saved_line = vim_strsave(get_cursor_line_ptr());
+ptr = saved_line + pos.col;
+} else {
+ptr = get_cursor_pos_ptr();
+cursor = &curwin->w_cursor;
+}
+
+
+if (vim_strchr(p_cpo, CPO_LISTWM) == NULL)
+curwin->w_p_list = FALSE;
+
+
+fpos = curwin->w_cursor;
+while (fpos.col > 0 && ascii_iswhite(ptr[-1])) {
+--fpos.col;
+--ptr;
+}
+
+
+if ((State & REPLACE_FLAG)
+&& fpos.lnum == Insstart.lnum
+&& fpos.col < Insstart.col) {
+ptr += Insstart.col - fpos.col;
+fpos.col = Insstart.col;
+}
+
+
+getvcol(curwin, &fpos, &vcol, NULL, NULL);
+getvcol(curwin, cursor, &want_vcol, NULL, NULL);
+
+
+
+while (ascii_iswhite(*ptr)) {
+i = lbr_chartabsize(NULL, (char_u *)"\t", vcol);
+if (vcol + i > want_vcol)
+break;
+if (*ptr != TAB) {
+*ptr = TAB;
+if (change_col < 0) {
+change_col = fpos.col; 
+
+if (fpos.lnum == Insstart.lnum && fpos.col < Insstart.col)
+Insstart.col = fpos.col;
+}
+}
+++fpos.col;
+++ptr;
+vcol += i;
+}
+
+if (change_col >= 0) {
+int repl_off = 0;
+char_u *line = ptr;
+
+
+while (vcol < want_vcol && *ptr == ' ') {
+vcol += lbr_chartabsize(line, ptr, vcol);
+++ptr;
+++repl_off;
+}
+if (vcol > want_vcol) {
+
+--ptr;
+--repl_off;
+}
+fpos.col += repl_off;
+
+
+i = cursor->col - fpos.col;
+if (i > 0) {
+STRMOVE(ptr, ptr + i);
+
+if ((State & REPLACE_FLAG)
+&& !(State & VREPLACE_FLAG)
+)
+for (temp = i; --temp >= 0; )
+replace_join(repl_off);
+}
+cursor->col -= i;
+
+
+
+
+
+
+if (State & VREPLACE_FLAG) {
+
+backspace_until_column(change_col);
+
+
+
+ins_bytes_len(saved_line + change_col,
+cursor->col - change_col);
+}
+}
+
+if (State & VREPLACE_FLAG)
+xfree(saved_line);
+curwin->w_p_list = save_list;
+}
+
+return false;
+}
+
+
+
+
+static bool ins_eol(int c)
+{
+if (echeck_abbr(c + ABBR_OFF)) {
+return true;
+}
+if (stop_arrow() == FAIL) {
+return false;
+}
+undisplay_dollar();
+
+
+
+
+
+
+if ((State & REPLACE_FLAG)
+&& !(State & VREPLACE_FLAG)
+)
+replace_push(NUL);
+
+
+
+
+
+
+
+
+
+
+if (virtual_active() && curwin->w_cursor.coladd > 0)
+coladvance(getviscol());
+
+
+if (revins_on) {
+curwin->w_cursor.col += (colnr_T)STRLEN(get_cursor_pos_ptr());
+}
+
+AppendToRedobuff(NL_STR);
+bool i = open_line(FORWARD,
+has_format_option(FO_RET_COMS) ? OPENLINE_DO_COM : 0,
+old_indent);
+old_indent = 0;
+can_cindent = true;
+
+foldOpenCursor();
+
+return i;
+}
+
+
+
+
+
+
+static int ins_digraph(void)
+{
+int c;
+int cc;
+int did_putchar = FALSE;
+
+pc_status = PC_STATUS_UNSET;
+if (redrawing() && !char_avail()) {
+
+ins_redraw(FALSE);
+
+edit_putchar('?', TRUE);
+did_putchar = TRUE;
+add_to_showcmd_c(Ctrl_K);
+}
+
+
+
+
+no_mapping++;
+c = plain_vgetc();
+no_mapping--;
+if (did_putchar) {
+
+
+edit_unputchar();
+}
+
+if (IS_SPECIAL(c) || mod_mask) { 
+clear_showcmd();
+insert_special(c, TRUE, FALSE);
+return NUL;
+}
+if (c != ESC) {
+did_putchar = FALSE;
+if (redrawing() && !char_avail()) {
+
+ins_redraw(FALSE);
+
+if (char2cells(c) == 1) {
+ins_redraw(FALSE);
+edit_putchar(c, TRUE);
+did_putchar = TRUE;
+}
+add_to_showcmd_c(c);
+}
+no_mapping++;
+cc = plain_vgetc();
+no_mapping--;
+if (did_putchar) {
+
+
+edit_unputchar();
+}
+if (cc != ESC) {
+AppendToRedobuff(CTRL_V_STR);
+c = getdigraph(c, cc, true);
+clear_showcmd();
+return c;
+}
+}
+clear_showcmd();
+return NUL;
+}
+
+
+
+
+
+int ins_copychar(linenr_T lnum)
+{
+int c;
+int temp;
+char_u *ptr, *prev_ptr;
+char_u *line;
+
+if (lnum < 1 || lnum > curbuf->b_ml.ml_line_count) {
+vim_beep(BO_COPY);
+return NUL;
+}
+
+
+temp = 0;
+line = ptr = ml_get(lnum);
+prev_ptr = ptr;
+validate_virtcol();
+while ((colnr_T)temp < curwin->w_virtcol && *ptr != NUL) {
+prev_ptr = ptr;
+temp += lbr_chartabsize_adv(line, &ptr, (colnr_T)temp);
+}
+if ((colnr_T)temp > curwin->w_virtcol)
+ptr = prev_ptr;
+
+c = utf_ptr2char(ptr);
+if (c == NUL) {
+vim_beep(BO_COPY);
+}
+return c;
+}
+
+
+
+
+static int ins_ctrl_ey(int tc)
+{
+int c = tc;
+
+if (ctrl_x_mode == CTRL_X_SCROLL) {
+if (c == Ctrl_Y)
+scrolldown_clamp();
+else
+scrollup_clamp();
+redraw_later(VALID);
+} else {
+c = ins_copychar(curwin->w_cursor.lnum + (c == Ctrl_Y ? -1 : 1));
+if (c != NUL) {
+long tw_save;
+
+
+
+
+
+if (c < 256 && !isalnum(c)) {
+AppendToRedobuff(CTRL_V_STR);
+}
+tw_save = curbuf->b_p_tw;
+curbuf->b_p_tw = -1;
+insert_special(c, TRUE, FALSE);
+curbuf->b_p_tw = tw_save;
+revins_chars++;
+revins_legal++;
+c = Ctrl_V; 
+auto_format(FALSE, TRUE);
+}
+}
+return c;
+}
+
+
+
+
+
+static void ins_try_si(int c)
+{
+pos_T *pos, old_pos;
+char_u *ptr;
+int i;
+int temp;
+
+
+
+
+if (((did_si || can_si_back) && c == '{') || (can_si && c == '}')) {
+
+
+
+if (c == '}' && (pos = findmatch(NULL, '{')) != NULL) {
+old_pos = curwin->w_cursor;
+
+
+
+
+
+
+
+ptr = ml_get(pos->lnum);
+i = pos->col;
+if (i > 0) 
+while (--i > 0 && ascii_iswhite(ptr[i]))
+;
+curwin->w_cursor.lnum = pos->lnum;
+curwin->w_cursor.col = i;
+if (ptr[i] == ')' && (pos = findmatch(NULL, '(')) != NULL)
+curwin->w_cursor = *pos;
+i = get_indent();
+curwin->w_cursor = old_pos;
+if (State & VREPLACE_FLAG)
+change_indent(INDENT_SET, i, FALSE, NUL, TRUE);
+else
+(void)set_indent(i, SIN_CHANGED);
+} else if (curwin->w_cursor.col > 0) {
+
+
+
+
+temp = TRUE;
+if (c == '{' && can_si_back && curwin->w_cursor.lnum > 1) {
+old_pos = curwin->w_cursor;
+i = get_indent();
+while (curwin->w_cursor.lnum > 1) {
+ptr = skipwhite(ml_get(--(curwin->w_cursor.lnum)));
+
+
+if (*ptr != '#' && *ptr != NUL)
+break;
+}
+if (get_indent() >= i)
+temp = FALSE;
+curwin->w_cursor = old_pos;
+}
+if (temp)
+shift_line(TRUE, FALSE, 1, TRUE);
+}
+}
+
+
+
+
+if (curwin->w_cursor.col > 0 && can_si && c == '#') {
+
+old_indent = get_indent();
+(void)set_indent(0, SIN_CHANGED);
+}
+
+
+if (ai_col > curwin->w_cursor.col)
+ai_col = curwin->w_cursor.col;
+}
+
+
+
+
+
+static colnr_T get_nolist_virtcol(void)
+{
+if (curwin->w_p_list && vim_strchr(p_cpo, CPO_LISTWM) == NULL)
+return getvcol_nolist(&curwin->w_cursor);
+validate_virtcol();
+return curwin->w_virtcol;
+}
+
+
+
+
+
+
+
+static char_u *do_insert_char_pre(int c)
+{
+char buf[MB_MAXBYTES + 1];
+const int save_State = State;
+
+
+if (!has_event(EVENT_INSERTCHARPRE)) {
+return NULL;
+}
+buf[utf_char2bytes(c, (char_u *)buf)] = NUL;
+
+
+textlock++;
+set_vim_var_string(VV_CHAR, buf, -1);
+
+char_u *res = NULL;
+if (ins_apply_autocmds(EVENT_INSERTCHARPRE)) {
+
+
+
+if (STRCMP(buf, get_vim_var_str(VV_CHAR)) != 0) {
+res = vim_strsave(get_vim_var_str(VV_CHAR));
+}
+}
+
+set_vim_var_string(VV_CHAR, NULL, -1);
+textlock--;
+
+
+State = save_State;
+
+return res;
+}
+
+
+static int ins_apply_autocmds(event_T event)
+{
+varnumber_T tick = buf_get_changedtick(curbuf);
+int r;
+
+r = apply_autocmds(event, NULL, NULL, false, curbuf);
+
+
+
+if (tick != buf_get_changedtick(curbuf)) {
+u_save(curwin->w_cursor.lnum, (linenr_T)(curwin->w_cursor.lnum + 1));
+}
+
+return r;
+}
+
+static void show_pum(int prev_w_wrow, int prev_w_leftcol)
+{
+
+int n = RedrawingDisabled;
+RedrawingDisabled = 0;
+
+
+
+setcursor();
+if (prev_w_wrow != curwin->w_wrow || prev_w_leftcol != curwin->w_leftcol) {
+ins_compl_del_pum();
+}
+
+ins_compl_show_pum();
+setcursor();
+RedrawingDisabled = n;
+}

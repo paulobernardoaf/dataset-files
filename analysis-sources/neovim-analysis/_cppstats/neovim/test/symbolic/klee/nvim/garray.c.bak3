@@ -1,0 +1,195 @@
+
+
+
+
+
+
+
+#include <string.h>
+#include <inttypes.h>
+
+#include "nvim/vim.h"
+#include "nvim/ascii.h"
+#include "nvim/log.h"
+#include "nvim/memory.h"
+#include "nvim/path.h"
+#include "nvim/garray.h"
+#include "nvim/strings.h"
+
+
+#include "nvim/memline.h"
+
+#ifdef INCLUDE_GENERATED_DECLARATIONS
+#include "garray.c.generated.h"
+#endif
+
+
+void ga_clear(garray_T *gap)
+{
+xfree(gap->ga_data);
+
+
+gap->ga_data = NULL;
+gap->ga_maxlen = 0;
+gap->ga_len = 0;
+}
+
+
+
+
+void ga_clear_strings(garray_T *gap)
+{
+GA_DEEP_CLEAR_PTR(gap);
+}
+
+
+
+
+
+
+void ga_init(garray_T *gap, int itemsize, int growsize)
+{
+gap->ga_data = NULL;
+gap->ga_maxlen = 0;
+gap->ga_len = 0;
+gap->ga_itemsize = itemsize;
+ga_set_growsize(gap, growsize);
+}
+
+
+
+
+
+void ga_set_growsize(garray_T *gap, int growsize)
+{
+if (growsize < 1) {
+WLOG("trying to set an invalid ga_growsize: %d", growsize);
+gap->ga_growsize = 1;
+} else {
+gap->ga_growsize = growsize;
+}
+}
+
+
+
+
+
+void ga_grow(garray_T *gap, int n)
+{
+if (gap->ga_maxlen - gap->ga_len >= n) {
+
+return;
+}
+
+if (gap->ga_growsize < 1) {
+WLOG("ga_growsize(%d) is less than 1", gap->ga_growsize);
+}
+
+
+if (n < gap->ga_growsize) {
+n = gap->ga_growsize;
+}
+int new_maxlen = gap->ga_len + n;
+
+size_t new_size = (size_t)(gap->ga_itemsize * new_maxlen);
+size_t old_size = (size_t)(gap->ga_itemsize * gap->ga_maxlen);
+
+
+char *pp = xrealloc(gap->ga_data, new_size);
+memset(pp + old_size, 0, new_size - old_size);
+
+gap->ga_maxlen = new_maxlen;
+gap->ga_data = pp;
+}
+
+
+
+
+
+
+
+
+char_u *ga_concat_strings_sep(const garray_T *gap, const char *sep)
+FUNC_ATTR_NONNULL_RET
+{
+const size_t nelem = (size_t) gap->ga_len;
+const char **strings = gap->ga_data;
+
+if (nelem == 0) {
+return (char_u *) xstrdup("");
+}
+
+size_t len = 0;
+for (size_t i = 0; i < nelem; i++) {
+len += strlen(strings[i]);
+}
+
+
+len += (nelem - 1) * strlen(sep);
+char *const ret = xmallocz(len);
+
+char *s = ret;
+for (size_t i = 0; i < nelem - 1; i++) {
+s = xstpcpy(s, strings[i]);
+s = xstpcpy(s, sep);
+}
+strcpy(s, strings[nelem - 1]);
+
+return (char_u *) ret;
+}
+
+
+
+
+
+
+
+char_u* ga_concat_strings(const garray_T *gap) FUNC_ATTR_NONNULL_RET
+{
+return ga_concat_strings_sep(gap, ",");
+}
+
+
+
+
+
+
+
+
+
+
+void ga_concat(garray_T *gap, const char_u *restrict s)
+{
+if (s == NULL) {
+return;
+}
+
+ga_concat_len(gap, (const char *restrict) s, strlen((char *) s));
+}
+
+
+
+
+
+
+void ga_concat_len(garray_T *const gap, const char *restrict s,
+const size_t len)
+FUNC_ATTR_NONNULL_ALL
+{
+if (len) {
+ga_grow(gap, (int) len);
+char *data = gap->ga_data;
+memcpy(data + gap->ga_len, s, len);
+gap->ga_len += (int) len;
+}
+}
+
+
+
+
+
+void ga_append(garray_T *gap, char c)
+{
+GA_APPEND(char, gap, c);
+}
+

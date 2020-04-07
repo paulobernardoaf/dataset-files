@@ -1,0 +1,138 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#include "libavutil/cpu.h"
+#include "libavutil/mem.h"
+#include "libavutil/ppc/cpu.h"
+#include "libavutil/ppc/util_altivec.h"
+
+#include "libavcodec/mpegvideodsp.h"
+
+#if HAVE_ALTIVEC
+
+
+static void gmc1_altivec(uint8_t *dst , uint8_t *src ,
+int stride, int h, int x16, int y16, int rounder)
+{
+int i;
+const DECLARE_ALIGNED(16, unsigned short, rounder_a) = rounder;
+const DECLARE_ALIGNED(16, unsigned short, ABCD)[8] = {
+(16 - x16) * (16 - y16), 
+(x16) * (16 - y16), 
+(16 - x16) * (y16), 
+(x16) * (y16), 
+0, 0, 0, 0 
+};
+register const vector unsigned char vczero =
+(const vector unsigned char) vec_splat_u8(0);
+register const vector unsigned short vcsr8 =
+(const vector unsigned short) vec_splat_u16(8);
+register vector unsigned char dstv, dstv2, srcvB, srcvC, srcvD;
+register vector unsigned short tempB, tempC, tempD;
+unsigned long dst_odd = (unsigned long) dst & 0x0000000F;
+unsigned long src_really_odd = (unsigned long) src & 0x0000000F;
+register vector unsigned short tempA =
+vec_ld(0, (const unsigned short *) ABCD);
+register vector unsigned short Av = vec_splat(tempA, 0);
+register vector unsigned short Bv = vec_splat(tempA, 1);
+register vector unsigned short Cv = vec_splat(tempA, 2);
+register vector unsigned short Dv = vec_splat(tempA, 3);
+register vector unsigned short rounderV =
+vec_splat((vec_u16) vec_lde(0, &rounder_a), 0);
+
+
+
+
+register vector unsigned char src_0 = vec_ld(0, src);
+register vector unsigned char src_1 = vec_ld(16, src);
+register vector unsigned char srcvA = vec_perm(src_0, src_1,
+vec_lvsl(0, src));
+
+if (src_really_odd != 0x0000000F)
+
+
+srcvB = vec_perm(src_0, src_1, vec_lvsl(1, src));
+else
+srcvB = src_1;
+srcvA = vec_mergeh(vczero, srcvA);
+srcvB = vec_mergeh(vczero, srcvB);
+
+for (i = 0; i < h; i++) {
+dst_odd = (unsigned long) dst & 0x0000000F;
+src_really_odd = (((unsigned long) src) + stride) & 0x0000000F;
+
+dstv = vec_ld(0, dst);
+
+
+
+
+src_0 = vec_ld(stride + 0, src);
+src_1 = vec_ld(stride + 16, src);
+srcvC = vec_perm(src_0, src_1, vec_lvsl(stride + 0, src));
+
+if (src_really_odd != 0x0000000F)
+
+
+srcvD = vec_perm(src_0, src_1, vec_lvsl(stride + 1, src));
+else
+srcvD = src_1;
+
+srcvC = vec_mergeh(vczero, srcvC);
+srcvD = vec_mergeh(vczero, srcvD);
+
+
+
+
+tempA = vec_mladd((vector unsigned short) srcvA, Av, rounderV);
+tempB = vec_mladd((vector unsigned short) srcvB, Bv, tempA);
+tempC = vec_mladd((vector unsigned short) srcvC, Cv, tempB);
+tempD = vec_mladd((vector unsigned short) srcvD, Dv, tempC);
+
+srcvA = srcvC;
+srcvB = srcvD;
+
+tempD = vec_sr(tempD, vcsr8);
+
+dstv2 = vec_pack(tempD, (vector unsigned short) vczero);
+
+if (dst_odd)
+dstv2 = vec_perm(dstv, dstv2, vcprm(0, 1, s0, s1));
+else
+dstv2 = vec_perm(dstv, dstv2, vcprm(s0, s1, 2, 3));
+
+vec_st(dstv2, 0, dst);
+
+dst += stride;
+src += stride;
+}
+}
+#endif 
+
+av_cold void ff_mpegvideodsp_init_ppc(MpegVideoDSPContext *c)
+{
+#if HAVE_ALTIVEC
+if (!PPC_ALTIVEC(av_get_cpu_flags()))
+return;
+
+c->gmc1 = gmc1_altivec;
+#endif 
+}

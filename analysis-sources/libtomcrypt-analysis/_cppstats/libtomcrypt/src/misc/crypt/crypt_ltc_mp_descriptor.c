@@ -1,0 +1,2 @@
+#include "tomcrypt_private.h"
+ltc_math_descriptor ltc_mp = { 0 };

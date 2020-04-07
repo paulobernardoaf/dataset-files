@@ -1,0 +1,2429 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#include <inttypes.h>
+#include <stdbool.h>
+#include <string.h>
+#include <wchar.h>
+#include <wctype.h>
+
+#include "nvim/vim.h"
+#include "nvim/ascii.h"
+#if defined(HAVE_LOCALE_H)
+#include <locale.h>
+#endif
+#include "nvim/eval.h"
+#include "nvim/path.h"
+#include "nvim/iconv.h"
+#include "nvim/mbyte.h"
+#include "nvim/charset.h"
+#include "nvim/cursor.h"
+#include "nvim/fileio.h"
+#include "nvim/func_attr.h"
+#include "nvim/memline.h"
+#include "nvim/message.h"
+#include "nvim/misc1.h"
+#include "nvim/memory.h"
+#include "nvim/option.h"
+#include "nvim/screen.h"
+#include "nvim/spell.h"
+#include "nvim/strings.h"
+#include "nvim/os/os.h"
+#include "nvim/arabic.h"
+#include "nvim/mark.h"
+
+typedef struct {
+int rangeStart;
+int rangeEnd;
+int step;
+int offset;
+} convertStruct;
+
+struct interval {
+long first;
+long last;
+};
+
+#if defined(INCLUDE_GENERATED_DECLARATIONS)
+#include "mbyte.c.generated.h"
+#include "unicode_tables.generated.h"
+#endif
+
+char_u e_loadlib[] = "E370: Could not load library %s";
+char_u e_loadfunc[] = "E448: Could not load library function %s";
+
+
+
+
+
+const uint8_t utf8len_tab[] = {
+
+1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 
+1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 
+1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 
+1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 
+1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 
+1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 
+1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 
+1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 
+1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 
+1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 
+1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 
+1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 
+2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 
+2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 
+3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 
+4, 4, 4, 4, 4, 4, 4, 4, 5, 5, 5, 5, 6, 6, 1, 1, 
+};
+
+
+const uint8_t utf8len_tab_zero[] = {
+
+1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 
+1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 
+1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 
+1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 
+1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 
+1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 
+1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 
+1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 
+0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
+0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
+0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
+0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
+2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 
+2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 
+3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 
+4, 4, 4, 4, 4, 4, 4, 4, 5, 5, 5, 5, 6, 6, 0, 0, 
+};
+
+
+
+
+
+static struct
+{ const char *name; int prop; int codepage; }
+enc_canon_table[] =
+{
+#define IDX_LATIN_1 0
+{"latin1", ENC_8BIT + ENC_LATIN1, 1252},
+#define IDX_ISO_2 1
+{"iso-8859-2", ENC_8BIT, 0},
+#define IDX_ISO_3 2
+{"iso-8859-3", ENC_8BIT, 0},
+#define IDX_ISO_4 3
+{"iso-8859-4", ENC_8BIT, 0},
+#define IDX_ISO_5 4
+{"iso-8859-5", ENC_8BIT, 0},
+#define IDX_ISO_6 5
+{"iso-8859-6", ENC_8BIT, 0},
+#define IDX_ISO_7 6
+{"iso-8859-7", ENC_8BIT, 0},
+#define IDX_ISO_8 7
+{"iso-8859-8", ENC_8BIT, 0},
+#define IDX_ISO_9 8
+{"iso-8859-9", ENC_8BIT, 0},
+#define IDX_ISO_10 9
+{"iso-8859-10", ENC_8BIT, 0},
+#define IDX_ISO_11 10
+{"iso-8859-11", ENC_8BIT, 0},
+#define IDX_ISO_13 11
+{"iso-8859-13", ENC_8BIT, 0},
+#define IDX_ISO_14 12
+{"iso-8859-14", ENC_8BIT, 0},
+#define IDX_ISO_15 13
+{"iso-8859-15", ENC_8BIT + ENC_LATIN9, 0},
+#define IDX_KOI8_R 14
+{"koi8-r", ENC_8BIT, 0},
+#define IDX_KOI8_U 15
+{"koi8-u", ENC_8BIT, 0},
+#define IDX_UTF8 16
+{"utf-8", ENC_UNICODE, 0},
+#define IDX_UCS2 17
+{"ucs-2", ENC_UNICODE + ENC_ENDIAN_B + ENC_2BYTE, 0},
+#define IDX_UCS2LE 18
+{"ucs-2le", ENC_UNICODE + ENC_ENDIAN_L + ENC_2BYTE, 0},
+#define IDX_UTF16 19
+{"utf-16", ENC_UNICODE + ENC_ENDIAN_B + ENC_2WORD, 0},
+#define IDX_UTF16LE 20
+{"utf-16le", ENC_UNICODE + ENC_ENDIAN_L + ENC_2WORD, 0},
+#define IDX_UCS4 21
+{"ucs-4", ENC_UNICODE + ENC_ENDIAN_B + ENC_4BYTE, 0},
+#define IDX_UCS4LE 22
+{"ucs-4le", ENC_UNICODE + ENC_ENDIAN_L + ENC_4BYTE, 0},
+
+
+#define IDX_DEBUG 23
+{"debug", ENC_DBCS, DBCS_DEBUG},
+#define IDX_EUC_JP 24
+{"euc-jp", ENC_DBCS, DBCS_JPNU},
+#define IDX_SJIS 25
+{"sjis", ENC_DBCS, DBCS_JPN},
+#define IDX_EUC_KR 26
+{"euc-kr", ENC_DBCS, DBCS_KORU},
+#define IDX_EUC_CN 27
+{"euc-cn", ENC_DBCS, DBCS_CHSU},
+#define IDX_EUC_TW 28
+{"euc-tw", ENC_DBCS, DBCS_CHTU},
+#define IDX_BIG5 29
+{"big5", ENC_DBCS, DBCS_CHT},
+
+
+
+
+#define IDX_CP437 30
+{"cp437", ENC_8BIT, 437}, 
+#define IDX_CP737 31
+{"cp737", ENC_8BIT, 737}, 
+#define IDX_CP775 32
+{"cp775", ENC_8BIT, 775}, 
+#define IDX_CP850 33
+{"cp850", ENC_8BIT, 850}, 
+#define IDX_CP852 34
+{"cp852", ENC_8BIT, 852}, 
+#define IDX_CP855 35
+{"cp855", ENC_8BIT, 855}, 
+#define IDX_CP857 36
+{"cp857", ENC_8BIT, 857}, 
+#define IDX_CP860 37
+{"cp860", ENC_8BIT, 860}, 
+#define IDX_CP861 38
+{"cp861", ENC_8BIT, 861}, 
+#define IDX_CP862 39
+{"cp862", ENC_8BIT, 862}, 
+#define IDX_CP863 40
+{"cp863", ENC_8BIT, 863}, 
+#define IDX_CP865 41
+{"cp865", ENC_8BIT, 865}, 
+#define IDX_CP866 42
+{"cp866", ENC_8BIT, 866}, 
+#define IDX_CP869 43
+{"cp869", ENC_8BIT, 869}, 
+#define IDX_CP874 44
+{"cp874", ENC_8BIT, 874}, 
+#define IDX_CP932 45
+{"cp932", ENC_DBCS, DBCS_JPN},
+#define IDX_CP936 46
+{"cp936", ENC_DBCS, DBCS_CHS},
+#define IDX_CP949 47
+{"cp949", ENC_DBCS, DBCS_KOR},
+#define IDX_CP950 48
+{"cp950", ENC_DBCS, DBCS_CHT},
+#define IDX_CP1250 49
+{"cp1250", ENC_8BIT, 1250}, 
+#define IDX_CP1251 50
+{"cp1251", ENC_8BIT, 1251}, 
+
+#define IDX_CP1253 51
+{"cp1253", ENC_8BIT, 1253}, 
+#define IDX_CP1254 52
+{"cp1254", ENC_8BIT, 1254}, 
+#define IDX_CP1255 53
+{"cp1255", ENC_8BIT, 1255}, 
+#define IDX_CP1256 54
+{"cp1256", ENC_8BIT, 1256}, 
+#define IDX_CP1257 55
+{"cp1257", ENC_8BIT, 1257}, 
+#define IDX_CP1258 56
+{"cp1258", ENC_8BIT, 1258}, 
+
+#define IDX_MACROMAN 57
+{"macroman", ENC_8BIT + ENC_MACROMAN, 0}, 
+#define IDX_HPROMAN8 58
+{"hp-roman8", ENC_8BIT, 0}, 
+#define IDX_COUNT 59
+};
+
+
+
+
+static struct
+{ const char *name; int canon; }
+enc_alias_table[] =
+{
+{ "ansi", IDX_LATIN_1 },
+{ "iso-8859-1", IDX_LATIN_1 },
+{ "latin2", IDX_ISO_2 },
+{ "latin3", IDX_ISO_3 },
+{ "latin4", IDX_ISO_4 },
+{ "cyrillic", IDX_ISO_5 },
+{ "arabic", IDX_ISO_6 },
+{ "greek", IDX_ISO_7 },
+{ "hebrew", IDX_ISO_8 },
+{ "latin5", IDX_ISO_9 },
+{ "turkish", IDX_ISO_9 }, 
+{ "latin6", IDX_ISO_10 },
+{ "nordic", IDX_ISO_10 }, 
+{ "thai", IDX_ISO_11 }, 
+{ "latin7", IDX_ISO_13 },
+{ "latin8", IDX_ISO_14 },
+{ "latin9", IDX_ISO_15 },
+{ "utf8", IDX_UTF8 },
+{ "unicode", IDX_UCS2 },
+{ "ucs2", IDX_UCS2 },
+{ "ucs2be", IDX_UCS2 },
+{ "ucs-2be", IDX_UCS2 },
+{ "ucs2le", IDX_UCS2LE },
+{ "utf16", IDX_UTF16 },
+{ "utf16be", IDX_UTF16 },
+{ "utf-16be", IDX_UTF16 },
+{ "utf16le", IDX_UTF16LE },
+{ "ucs4", IDX_UCS4 },
+{ "ucs4be", IDX_UCS4 },
+{ "ucs-4be", IDX_UCS4 },
+{ "ucs4le", IDX_UCS4LE },
+{ "utf32", IDX_UCS4 },
+{ "utf-32", IDX_UCS4 },
+{ "utf32be", IDX_UCS4 },
+{ "utf-32be", IDX_UCS4 },
+{ "utf32le", IDX_UCS4LE },
+{ "utf-32le", IDX_UCS4LE },
+{ "932", IDX_CP932 },
+{ "949", IDX_CP949 },
+{ "936", IDX_CP936 },
+{ "gbk", IDX_CP936 },
+{ "950", IDX_CP950 },
+{ "eucjp", IDX_EUC_JP },
+{ "unix-jis", IDX_EUC_JP },
+{ "ujis", IDX_EUC_JP },
+{ "shift-jis", IDX_SJIS },
+{ "pck", IDX_SJIS }, 
+{ "euckr", IDX_EUC_KR },
+{ "5601", IDX_EUC_KR }, 
+{ "euccn", IDX_EUC_CN },
+{ "gb2312", IDX_EUC_CN },
+{ "euctw", IDX_EUC_TW },
+{ "japan", IDX_EUC_JP },
+{ "korea", IDX_EUC_KR },
+{ "prc", IDX_EUC_CN },
+{ "zh-cn", IDX_EUC_CN },
+{ "chinese", IDX_EUC_CN },
+{ "zh-tw", IDX_EUC_TW },
+{ "taiwan", IDX_EUC_TW },
+{ "cp950", IDX_BIG5 },
+{ "950", IDX_BIG5 },
+{ "mac", IDX_MACROMAN },
+{ "mac-roman", IDX_MACROMAN },
+{ NULL, 0 }
+};
+
+
+
+
+
+static int enc_canon_search(const char_u *name)
+{
+int i;
+
+for (i = 0; i < IDX_COUNT; ++i)
+if (STRCMP(name, enc_canon_table[i].name) == 0)
+return i;
+return -1;
+}
+
+
+
+
+
+
+
+int enc_canon_props(const char_u *name)
+{
+int i;
+
+i = enc_canon_search(name);
+if (i >= 0)
+return enc_canon_table[i].prop;
+if (STRNCMP(name, "2byte-", 6) == 0)
+return ENC_DBCS;
+if (STRNCMP(name, "8bit-", 5) == 0 || STRNCMP(name, "iso-8859-", 9) == 0)
+return ENC_8BIT;
+return 0;
+}
+
+
+
+
+
+
+
+
+int bomb_size(void)
+{
+int n = 0;
+
+if (curbuf->b_p_bomb && !curbuf->b_p_bin) {
+if (*curbuf->b_p_fenc == NUL
+|| STRCMP(curbuf->b_p_fenc, "utf-8") == 0) {
+n = 3;
+} else if (STRNCMP(curbuf->b_p_fenc, "ucs-2", 5) == 0
+|| STRNCMP(curbuf->b_p_fenc, "utf-16", 6) == 0) {
+n = 2;
+} else if (STRNCMP(curbuf->b_p_fenc, "ucs-4", 5) == 0) {
+n = 4;
+}
+}
+return n;
+}
+
+
+
+
+void remove_bom(char_u *s)
+{
+char *p = (char *)s;
+
+while ((p = strchr(p, 0xef)) != NULL) {
+if ((uint8_t)p[1] == 0xbb && (uint8_t)p[2] == 0xbf) {
+STRMOVE(p, p + 3);
+} else {
+p++;
+}
+}
+}
+
+
+
+
+
+
+
+
+int mb_get_class(const char_u *p)
+{
+return mb_get_class_tab(p, curbuf->b_chartab);
+}
+
+int mb_get_class_tab(const char_u *p, const uint64_t *const chartab)
+{
+if (MB_BYTE2LEN(p[0]) == 1) {
+if (p[0] == NUL || ascii_iswhite(p[0])) {
+return 0;
+}
+if (vim_iswordc_tab(p[0], chartab)) {
+return 2;
+}
+return 1;
+}
+return utf_class_tab(utf_ptr2char(p), chartab);
+}
+
+
+
+
+static bool intable(const struct interval *table, size_t n_items, int c)
+{
+int mid, bot, top;
+
+
+if (c < table[0].first)
+return false;
+
+
+bot = 0;
+top = (int)(n_items - 1);
+while (top >= bot) {
+mid = (bot + top) / 2;
+if (table[mid].last < c)
+bot = mid + 1;
+else if (table[mid].first > c)
+top = mid - 1;
+else
+return true;
+}
+return false;
+}
+
+
+
+
+
+
+
+
+
+int utf_char2cells(int c)
+{
+if (c >= 0x100) {
+#if defined(USE_WCHAR_FUNCTIONS)
+
+
+
+
+int n = wcwidth(c);
+
+if (n < 0) {
+return 6; 
+}
+if (n > 1) {
+return n;
+}
+#else
+if (!utf_printable(c)) {
+return 6; 
+}
+if (intable(doublewidth, ARRAY_SIZE(doublewidth), c)) {
+return 2;
+}
+#endif
+if (p_emoji && intable(emoji_width, ARRAY_SIZE(emoji_width), c)) {
+return 2;
+}
+} else if (c >= 0x80 && !vim_isprintc(c)) {
+
+return 4; 
+}
+
+if (c >= 0x80 && *p_ambw == 'd'
+&& intable(ambiguous, ARRAY_SIZE(ambiguous), c)) {
+return 2;
+}
+
+return 1;
+}
+
+
+
+int utf_ptr2cells(const char_u *p)
+{
+int c;
+
+
+if (*p >= 0x80) {
+c = utf_ptr2char(p);
+
+if (utf_ptr2len(p) == 1 || c == NUL)
+return 4;
+
+if (c < 0x80)
+return char2cells(c);
+return utf_char2cells(c);
+}
+return 1;
+}
+
+
+
+int utf_ptr2cells_len(const char_u *p, int size)
+{
+int c;
+
+
+if (size > 0 && *p >= 0x80) {
+if (utf_ptr2len_len(p, size) < utf8len_tab[*p])
+return 1; 
+c = utf_ptr2char(p);
+
+if (utf_ptr2len(p) == 1 || c == NUL)
+return 4;
+
+if (c < 0x80)
+return char2cells(c);
+return utf_char2cells(c);
+}
+return 1;
+}
+
+
+
+
+
+
+size_t mb_string2cells(const char_u *str)
+{
+size_t clen = 0;
+
+for (const char_u *p = str; *p != NUL; p += (*mb_ptr2len)(p)) {
+clen += utf_ptr2cells(p);
+}
+
+return clen;
+}
+
+
+
+
+
+
+
+size_t mb_string2cells_len(const char_u *str, size_t size)
+{
+size_t clen = 0;
+
+for (const char_u *p = str; *p != NUL && p < str+size;
+p += utf_ptr2len_len(p, size+(p-str))) {
+clen += utf_ptr2cells(p);
+}
+
+return clen;
+}
+
+
+
+
+
+
+
+
+
+
+
+int utf_ptr2char(const char_u *const p)
+FUNC_ATTR_PURE FUNC_ATTR_WARN_UNUSED_RESULT
+{
+if (p[0] < 0x80) { 
+return p[0];
+}
+
+const uint8_t len = utf8len_tab_zero[p[0]];
+if (len > 1 && (p[1] & 0xc0) == 0x80) {
+if (len == 2) {
+return ((p[0] & 0x1f) << 6) + (p[1] & 0x3f);
+}
+if ((p[2] & 0xc0) == 0x80) {
+if (len == 3) {
+return (((p[0] & 0x0f) << 12) + ((p[1] & 0x3f) << 6)
++ (p[2] & 0x3f));
+}
+if ((p[3] & 0xc0) == 0x80) {
+if (len == 4) {
+return (((p[0] & 0x07) << 18) + ((p[1] & 0x3f) << 12)
++ ((p[2] & 0x3f) << 6) + (p[3] & 0x3f));
+}
+if ((p[4] & 0xc0) == 0x80) {
+if (len == 5) {
+return (((p[0] & 0x03) << 24) + ((p[1] & 0x3f) << 18)
++ ((p[2] & 0x3f) << 12) + ((p[3] & 0x3f) << 6)
++ (p[4] & 0x3f));
+}
+if ((p[5] & 0xc0) == 0x80 && len == 6) {
+return (((p[0] & 0x01) << 30) + ((p[1] & 0x3f) << 24)
++ ((p[2] & 0x3f) << 18) + ((p[3] & 0x3f) << 12)
++ ((p[4] & 0x3f) << 6) + (p[5] & 0x3f));
+}
+}
+}
+}
+}
+
+return p[0];
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+static int utf_safe_read_char_adv(const char_u **s, size_t *n)
+{
+int c;
+
+if (*n == 0) 
+return 0;
+
+uint8_t k = utf8len_tab_zero[**s];
+
+if (k == 1) {
+
+(*n)--;
+return *(*s)++;
+}
+
+if (k <= *n) {
+
+
+
+c = utf_ptr2char(*s);
+
+
+
+
+
+
+if (c != (int)(**s) || (c == 0xC3 && (*s)[1] == 0x83)) {
+
+*s += k;
+*n -= k;
+return c;
+}
+}
+
+
+return -1;
+}
+
+
+
+
+
+int mb_ptr2char_adv(const char_u **const pp)
+{
+int c;
+
+c = utf_ptr2char(*pp);
+*pp += (*mb_ptr2len)(*pp);
+return c;
+}
+
+
+
+
+
+int mb_cptr2char_adv(const char_u **pp)
+{
+int c;
+
+c = utf_ptr2char(*pp);
+*pp += utf_ptr2len(*pp);
+return c;
+}
+
+
+
+
+
+
+bool utf_composinglike(const char_u *p1, const char_u *p2)
+{
+int c2;
+
+c2 = utf_ptr2char(p2);
+if (utf_iscomposing(c2))
+return true;
+if (!arabic_maycombine(c2))
+return false;
+return arabic_combine(utf_ptr2char(p1), c2);
+}
+
+
+
+
+
+
+
+
+
+int utfc_ptr2char(const char_u *p, int *pcc)
+{
+int len;
+int c;
+int cc;
+int i = 0;
+
+c = utf_ptr2char(p);
+len = utf_ptr2len(p);
+
+
+if ((len > 1 || *p < 0x80)
+&& p[len] >= 0x80
+&& UTF_COMPOSINGLIKE(p, p + len)) {
+cc = utf_ptr2char(p + len);
+for (;; ) {
+pcc[i++] = cc;
+if (i == MAX_MCO)
+break;
+len += utf_ptr2len(p + len);
+if (p[len] < 0x80 || !utf_iscomposing(cc = utf_ptr2char(p + len)))
+break;
+}
+}
+
+if (i < MAX_MCO) 
+pcc[i] = 0;
+
+return c;
+}
+
+
+
+
+
+
+
+int utfc_ptr2char_len(const char_u *p, int *pcc, int maxlen)
+{
+#define IS_COMPOSING(s1, s2, s3) (i == 0 ? UTF_COMPOSINGLIKE((s1), (s2)) : utf_iscomposing((s3)))
+
+
+assert(maxlen > 0);
+
+int i = 0;
+
+int len = utf_ptr2len_len(p, maxlen);
+
+bool safe = len > 1 && len <= maxlen;
+int c = safe ? utf_ptr2char(p) : *p;
+
+
+if ((safe || c < 0x80) && len < maxlen && p[len] >= 0x80) {
+for (; i < MAX_MCO; i++) {
+int len_cc = utf_ptr2len_len(p + len, maxlen - len);
+safe = len_cc > 1 && len_cc <= maxlen - len;
+if (!safe || (pcc[i] = utf_ptr2char(p + len)) < 0x80
+|| !IS_COMPOSING(p, p + len, pcc[i])) {
+break;
+}
+len += len_cc;
+}
+}
+
+if (i < MAX_MCO) {
+
+pcc[i] = 0;
+}
+
+return c;
+#undef ISCOMPOSING
+}
+
+
+
+
+
+
+
+int utf_ptr2len(const char_u *const p)
+FUNC_ATTR_PURE FUNC_ATTR_WARN_UNUSED_RESULT FUNC_ATTR_NONNULL_ALL
+{
+if (*p == NUL) {
+return 0;
+}
+const int len = utf8len_tab[*p];
+for (int i = 1; i < len; i++) {
+if ((p[i] & 0xc0) != 0x80) {
+return 1;
+}
+}
+return len;
+}
+
+
+
+
+
+
+int utf_byte2len(int b)
+{
+return utf8len_tab[b];
+}
+
+
+
+
+
+
+
+
+
+int utf_ptr2len_len(const char_u *p, int size)
+{
+int len;
+int i;
+int m;
+
+len = utf8len_tab[*p];
+if (len == 1)
+return 1; 
+if (len > size)
+m = size; 
+else
+m = len;
+for (i = 1; i < m; ++i)
+if ((p[i] & 0xc0) != 0x80)
+return 1;
+return len;
+}
+
+
+
+
+int utfc_ptr2len(const char_u *const p)
+FUNC_ATTR_PURE FUNC_ATTR_WARN_UNUSED_RESULT FUNC_ATTR_NONNULL_ALL
+{
+uint8_t b0 = (uint8_t)(*p);
+
+if (b0 == NUL) {
+return 0;
+}
+if (b0 < 0x80 && p[1] < 0x80) { 
+return 1;
+}
+
+
+int len = utf_ptr2len(p);
+
+
+if (len == 1 && b0 >= 0x80) {
+return 1;
+}
+
+
+
+int prevlen = 0;
+for (;;) {
+if (p[len] < 0x80 || !UTF_COMPOSINGLIKE(p + prevlen, p + len)) {
+return len;
+}
+
+
+prevlen = len;
+len += utf_ptr2len(p + len);
+}
+}
+
+
+
+
+
+
+
+int utfc_ptr2len_len(const char_u *p, int size)
+{
+int len;
+int prevlen;
+
+if (size < 1 || *p == NUL)
+return 0;
+if (p[0] < 0x80 && (size == 1 || p[1] < 0x80)) 
+return 1;
+
+
+len = utf_ptr2len_len(p, size);
+
+
+if ((len == 1 && p[0] >= 0x80) || len > size)
+return 1;
+
+
+
+
+
+prevlen = 0;
+while (len < size) {
+int len_next_char;
+
+if (p[len] < 0x80)
+break;
+
+
+
+
+
+len_next_char = utf_ptr2len_len(p + len, size - len);
+if (len_next_char > size - len)
+break;
+
+if (!UTF_COMPOSINGLIKE(p + prevlen, p + len))
+break;
+
+
+prevlen = len;
+len += len_next_char;
+}
+return len;
+}
+
+
+int utf_char2len(const int c)
+{
+if (c < 0x80) {
+return 1;
+} else if (c < 0x800) {
+return 2;
+} else if (c < 0x10000) {
+return 3;
+} else if (c < 0x200000) {
+return 4;
+} else if (c < 0x4000000) {
+return 5;
+} else {
+return 6;
+}
+}
+
+
+
+
+
+
+int utf_char2bytes(const int c, char_u *const buf)
+{
+if (c < 0x80) { 
+buf[0] = c;
+return 1;
+} else if (c < 0x800) { 
+buf[0] = 0xc0 + ((unsigned)c >> 6);
+buf[1] = 0x80 + (c & 0x3f);
+return 2;
+} else if (c < 0x10000) { 
+buf[0] = 0xe0 + ((unsigned)c >> 12);
+buf[1] = 0x80 + (((unsigned)c >> 6) & 0x3f);
+buf[2] = 0x80 + (c & 0x3f);
+return 3;
+} else if (c < 0x200000) { 
+buf[0] = 0xf0 + ((unsigned)c >> 18);
+buf[1] = 0x80 + (((unsigned)c >> 12) & 0x3f);
+buf[2] = 0x80 + (((unsigned)c >> 6) & 0x3f);
+buf[3] = 0x80 + (c & 0x3f);
+return 4;
+} else if (c < 0x4000000) { 
+buf[0] = 0xf8 + ((unsigned)c >> 24);
+buf[1] = 0x80 + (((unsigned)c >> 18) & 0x3f);
+buf[2] = 0x80 + (((unsigned)c >> 12) & 0x3f);
+buf[3] = 0x80 + (((unsigned)c >> 6) & 0x3f);
+buf[4] = 0x80 + (c & 0x3f);
+return 5;
+} else { 
+buf[0] = 0xfc + ((unsigned)c >> 30);
+buf[1] = 0x80 + (((unsigned)c >> 24) & 0x3f);
+buf[2] = 0x80 + (((unsigned)c >> 18) & 0x3f);
+buf[3] = 0x80 + (((unsigned)c >> 12) & 0x3f);
+buf[4] = 0x80 + (((unsigned)c >> 6) & 0x3f);
+buf[5] = 0x80 + (c & 0x3f);
+return 6;
+}
+}
+
+
+
+
+
+
+bool utf_iscomposing(int c)
+{
+return intable(combining, ARRAY_SIZE(combining), c);
+}
+
+
+
+
+
+bool utf_printable(int c)
+{
+#if defined(USE_WCHAR_FUNCTIONS)
+
+
+
+return iswprint(c);
+#else
+
+
+static struct interval nonprint[] =
+{
+{0x070f, 0x070f}, {0x180b, 0x180e}, {0x200b, 0x200f}, {0x202a, 0x202e},
+{0x206a, 0x206f}, {0xd800, 0xdfff}, {0xfeff, 0xfeff}, {0xfff9, 0xfffb},
+{0xfffe, 0xffff}
+};
+
+return !intable(nonprint, ARRAY_SIZE(nonprint), c);
+#endif
+}
+
+
+
+
+
+
+
+int utf_class(const int c)
+{
+return utf_class_tab(c, curbuf->b_chartab);
+}
+
+int utf_class_tab(const int c, const uint64_t *const chartab)
+{
+
+static struct clinterval {
+unsigned int first;
+unsigned int last;
+unsigned int class;
+} classes[] = {
+{ 0x037e, 0x037e, 1 }, 
+{ 0x0387, 0x0387, 1 }, 
+{ 0x055a, 0x055f, 1 }, 
+{ 0x0589, 0x0589, 1 }, 
+{ 0x05be, 0x05be, 1 },
+{ 0x05c0, 0x05c0, 1 },
+{ 0x05c3, 0x05c3, 1 },
+{ 0x05f3, 0x05f4, 1 },
+{ 0x060c, 0x060c, 1 },
+{ 0x061b, 0x061b, 1 },
+{ 0x061f, 0x061f, 1 },
+{ 0x066a, 0x066d, 1 },
+{ 0x06d4, 0x06d4, 1 },
+{ 0x0700, 0x070d, 1 }, 
+{ 0x0964, 0x0965, 1 },
+{ 0x0970, 0x0970, 1 },
+{ 0x0df4, 0x0df4, 1 },
+{ 0x0e4f, 0x0e4f, 1 },
+{ 0x0e5a, 0x0e5b, 1 },
+{ 0x0f04, 0x0f12, 1 },
+{ 0x0f3a, 0x0f3d, 1 },
+{ 0x0f85, 0x0f85, 1 },
+{ 0x104a, 0x104f, 1 }, 
+{ 0x10fb, 0x10fb, 1 }, 
+{ 0x1361, 0x1368, 1 }, 
+{ 0x166d, 0x166e, 1 }, 
+{ 0x1680, 0x1680, 0 },
+{ 0x169b, 0x169c, 1 },
+{ 0x16eb, 0x16ed, 1 },
+{ 0x1735, 0x1736, 1 },
+{ 0x17d4, 0x17dc, 1 }, 
+{ 0x1800, 0x180a, 1 }, 
+{ 0x2000, 0x200b, 0 }, 
+{ 0x200c, 0x2027, 1 }, 
+{ 0x2028, 0x2029, 0 },
+{ 0x202a, 0x202e, 1 }, 
+{ 0x202f, 0x202f, 0 },
+{ 0x2030, 0x205e, 1 }, 
+{ 0x205f, 0x205f, 0 },
+{ 0x2060, 0x27ff, 1 }, 
+{ 0x2070, 0x207f, 0x2070 }, 
+{ 0x2080, 0x2094, 0x2080 }, 
+{ 0x20a0, 0x27ff, 1 }, 
+{ 0x2800, 0x28ff, 0x2800 }, 
+{ 0x2900, 0x2998, 1 }, 
+{ 0x29d8, 0x29db, 1 },
+{ 0x29fc, 0x29fd, 1 },
+{ 0x2e00, 0x2e7f, 1 }, 
+{ 0x3000, 0x3000, 0 }, 
+{ 0x3001, 0x3020, 1 }, 
+{ 0x3030, 0x3030, 1 },
+{ 0x303d, 0x303d, 1 },
+{ 0x3040, 0x309f, 0x3040 }, 
+{ 0x30a0, 0x30ff, 0x30a0 }, 
+{ 0x3300, 0x9fff, 0x4e00 }, 
+{ 0xac00, 0xd7a3, 0xac00 }, 
+{ 0xf900, 0xfaff, 0x4e00 }, 
+{ 0xfd3e, 0xfd3f, 1 },
+{ 0xfe30, 0xfe6b, 1 }, 
+{ 0xff00, 0xff0f, 1 }, 
+{ 0xff1a, 0xff20, 1 }, 
+{ 0xff3b, 0xff40, 1 }, 
+{ 0xff5b, 0xff65, 1 }, 
+{ 0x1d000, 0x1d24f, 1 }, 
+{ 0x1d400, 0x1d7ff, 1 }, 
+{ 0x1f000, 0x1f2ff, 1 }, 
+{ 0x1f300, 0x1f9ff, 1 }, 
+{ 0x20000, 0x2a6df, 0x4e00 }, 
+{ 0x2a700, 0x2b73f, 0x4e00 }, 
+{ 0x2b740, 0x2b81f, 0x4e00 }, 
+{ 0x2f800, 0x2fa1f, 0x4e00 }, 
+};
+int bot = 0;
+int top = ARRAY_SIZE(classes) - 1;
+int mid;
+
+
+if (c < 0x100) {
+if (c == ' ' || c == '\t' || c == NUL || c == 0xa0) {
+return 0; 
+}
+if (vim_iswordc_tab(c, chartab)) {
+return 2; 
+}
+return 1; 
+}
+
+
+while (top >= bot) {
+mid = (bot + top) / 2;
+if (classes[mid].last < (unsigned int)c)
+bot = mid + 1;
+else if (classes[mid].first > (unsigned int)c)
+top = mid - 1;
+else
+return (int)classes[mid].class;
+}
+
+
+if (intable(emoji_all, ARRAY_SIZE(emoji_all), c)) {
+return 3;
+}
+
+
+return 2;
+}
+
+bool utf_ambiguous_width(int c)
+{
+return c >= 0x80 && (intable(ambiguous, ARRAY_SIZE(ambiguous), c)
+|| intable(emoji_all, ARRAY_SIZE(emoji_all), c));
+}
+
+
+
+
+
+
+static int utf_convert(int a, const convertStruct *const table, size_t n_items)
+{
+size_t start, mid, end; 
+
+start = 0;
+end = n_items;
+while (start < end) {
+
+mid = (end + start) / 2;
+if (table[mid].rangeEnd < a)
+start = mid + 1;
+else
+end = mid;
+}
+if (start < n_items
+&& table[start].rangeStart <= a
+&& a <= table[start].rangeEnd
+&& (a - table[start].rangeStart) % table[start].step == 0)
+return a + table[start].offset;
+else
+return a;
+}
+
+
+
+
+
+int utf_fold(int a)
+{
+if (a < 0x80) {
+
+return a >= 0x41 && a <= 0x5a ? a + 32 : a;
+}
+return utf_convert(a, foldCase, ARRAY_SIZE(foldCase));
+}
+
+
+
+
+
+
+
+
+int mb_toupper(int a)
+{
+
+if (a < 128 && (cmp_flags & CMP_KEEPASCII))
+return TOUPPER_ASC(a);
+
+#if defined(__STDC_ISO_10646__)
+
+if (!(cmp_flags & CMP_INTERNAL))
+return towupper(a);
+#endif
+
+
+if (a < 128)
+return TOUPPER_LOC(a);
+
+
+return utf_convert(a, toUpper, ARRAY_SIZE(toUpper));
+}
+
+bool mb_islower(int a)
+{
+
+return (mb_toupper(a) != a) || a == 0xdf;
+}
+
+
+
+int mb_tolower(int a)
+{
+
+if (a < 128 && (cmp_flags & CMP_KEEPASCII))
+return TOLOWER_ASC(a);
+
+#if defined(__STDC_ISO_10646__)
+
+if (!(cmp_flags & CMP_INTERNAL))
+return towlower(a);
+#endif
+
+
+if (a < 128)
+return TOLOWER_LOC(a);
+
+
+return utf_convert(a, toLower, ARRAY_SIZE(toLower));
+}
+
+bool mb_isupper(int a)
+{
+return mb_tolower(a) != a;
+}
+
+static int utf_strnicmp(const char_u *s1, const char_u *s2, size_t n1,
+size_t n2)
+{
+int c1, c2, cdiff;
+char_u buffer[6];
+
+for (;; ) {
+c1 = utf_safe_read_char_adv(&s1, &n1);
+c2 = utf_safe_read_char_adv(&s2, &n2);
+
+if (c1 <= 0 || c2 <= 0)
+break;
+
+if (c1 == c2)
+continue;
+
+cdiff = utf_fold(c1) - utf_fold(c2);
+if (cdiff != 0)
+return cdiff;
+}
+
+
+
+if (c1 == 0 || c2 == 0) {
+
+if (c1 == 0 && c2 == 0)
+return 0;
+return c1 == 0 ? -1 : 1;
+}
+
+
+
+
+
+
+
+
+if (c1 != -1 && c2 == -1) {
+n1 = utf_char2bytes(utf_fold(c1), buffer);
+s1 = buffer;
+} else if (c2 != -1 && c1 == -1) {
+n2 = utf_char2bytes(utf_fold(c2), buffer);
+s2 = buffer;
+}
+
+while (n1 > 0 && n2 > 0 && *s1 != NUL && *s2 != NUL) {
+cdiff = (int)(*s1) - (int)(*s2);
+if (cdiff != 0)
+return cdiff;
+
+s1++;
+s2++;
+n1--;
+n2--;
+}
+
+if (n1 > 0 && *s1 == NUL)
+n1 = 0;
+if (n2 > 0 && *s2 == NUL)
+n2 = 0;
+
+if (n1 == 0 && n2 == 0)
+return 0;
+return n1 == 0 ? -1 : 1;
+}
+
+#if defined(WIN32)
+#if !defined(CP_UTF8)
+#define CP_UTF8 65001 
+#endif
+
+
+
+
+
+
+
+int utf8_to_utf16(const char *utf8, int utf8len, wchar_t **utf16)
+FUNC_ATTR_NONNULL_ALL
+{
+
+int bufsize = MultiByteToWideChar(CP_UTF8,
+0, 
+utf8, 
+utf8len,
+NULL,
+0); 
+if (bufsize == 0) {
+*utf16 = NULL;
+return uv_translate_sys_error(GetLastError());
+}
+
+
+
+
+*utf16 = xmalloc(sizeof(wchar_t) * (bufsize + 1));
+
+
+bufsize = MultiByteToWideChar(CP_UTF8, 0, utf8, utf8len, *utf16, bufsize);
+if (bufsize == 0) {
+XFREE_CLEAR(*utf16);
+return uv_translate_sys_error(GetLastError());
+}
+
+(*utf16)[bufsize] = L'\0';
+return 0;
+}
+
+
+
+
+
+
+
+int utf16_to_utf8(const wchar_t *utf16, int utf16len, char **utf8)
+FUNC_ATTR_NONNULL_ALL
+{
+
+DWORD bufsize = WideCharToMultiByte(CP_UTF8,
+0,
+utf16,
+utf16len,
+NULL,
+0,
+NULL,
+NULL);
+if (bufsize == 0) {
+*utf8 = NULL;
+return uv_translate_sys_error(GetLastError());
+}
+
+
+
+
+*utf8 = xmalloc(bufsize + 1);
+
+
+bufsize = WideCharToMultiByte(CP_UTF8,
+0,
+utf16,
+utf16len,
+*utf8,
+bufsize,
+NULL,
+NULL);
+if (bufsize == 0) {
+XFREE_CLEAR(*utf8);
+return uv_translate_sys_error(GetLastError());
+}
+
+(*utf8)[bufsize] = '\0';
+return 0;
+}
+
+#endif
+
+
+
+
+
+
+
+
+
+
+
+
+
+void mb_utflen(const char_u *s, size_t len, size_t *codepoints,
+size_t *codeunits)
+FUNC_ATTR_NONNULL_ALL
+{
+size_t count = 0, extra = 0;
+size_t clen;
+for (size_t i = 0; i < len && s[i] != NUL; i += clen) {
+clen = utf_ptr2len_len(s+i, len-i);
+
+
+int c = (clen > 1) ? utf_ptr2char(s+i) : s[i];
+count++;
+if (c > 0xFFFF) {
+extra++;
+}
+}
+*codepoints += count;
+*codeunits += count + extra;
+}
+
+ssize_t mb_utf_index_to_bytes(const char_u *s, size_t len,
+size_t index, bool use_utf16_units)
+FUNC_ATTR_NONNULL_ALL
+{
+size_t count = 0;
+size_t clen, i;
+if (index == 0) {
+return 0;
+}
+for (i = 0; i < len && s[i] != NUL; i += clen) {
+clen = utf_ptr2len_len(s+i, len-i);
+
+
+int c = (clen > 1) ? utf_ptr2char(s+i) : s[i];
+count++;
+if (use_utf16_units && c > 0xFFFF) {
+count++;
+}
+if (count >= index) {
+return i+clen;
+}
+}
+return -1;
+}
+
+
+
+
+
+
+
+
+
+
+int mb_strnicmp(const char_u *s1, const char_u *s2, const size_t nn)
+{
+return utf_strnicmp(s1, s2, nn, nn);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+int mb_stricmp(const char *s1, const char *s2)
+{
+return mb_strnicmp((const char_u *)s1, (const char_u *)s2, MAXCOL);
+}
+
+
+
+
+
+void show_utf8(void)
+{
+int len;
+int rlen = 0;
+char_u *line;
+int clen;
+int i;
+
+
+
+line = get_cursor_pos_ptr();
+len = utfc_ptr2len(line);
+if (len == 0) {
+MSG("NUL");
+return;
+}
+
+clen = 0;
+for (i = 0; i < len; ++i) {
+if (clen == 0) {
+
+if (i > 0) {
+STRCPY(IObuff + rlen, "+ ");
+rlen += 2;
+}
+clen = utf_ptr2len(line + i);
+}
+sprintf((char *)IObuff + rlen, "%02x ",
+(line[i] == NL) ? NUL : line[i]); 
+--clen;
+rlen += (int)STRLEN(IObuff + rlen);
+if (rlen > IOSIZE - 20)
+break;
+}
+
+msg(IObuff);
+}
+
+
+
+
+int utf_head_off(const char_u *base, const char_u *p)
+{
+int c;
+int len;
+
+if (*p < 0x80) 
+return 0;
+
+
+
+const char_u *q;
+for (q = p;; --q) {
+
+const char_u *s;
+for (s = q; (s[1] & 0xc0) == 0x80; ++s) {}
+
+
+while (q > base && (*q & 0xc0) == 0x80)
+--q;
+
+
+len = utf8len_tab[*q];
+if (len != (int)(s - q + 1) && len != (int)(p - q + 1))
+return 0;
+
+if (q <= base)
+break;
+
+c = utf_ptr2char(q);
+if (utf_iscomposing(c))
+continue;
+
+if (arabic_maycombine(c)) {
+
+const char_u *j = q;
+--j;
+
+while (j > base && (*j & 0xc0) == 0x80)
+--j;
+if (arabic_combine(utf_ptr2char(j), c))
+continue;
+}
+break;
+}
+
+return (int)(p - q);
+}
+
+
+
+
+
+void mb_copy_char(const char_u **const fp, char_u **const tp)
+{
+const size_t l = (size_t)utfc_ptr2len(*fp);
+
+memmove(*tp, *fp, l);
+*tp += l;
+*fp += l;
+}
+
+
+
+
+
+
+int mb_off_next(char_u *base, char_u *p)
+{
+int i;
+int j;
+
+if (*p < 0x80) { 
+return 0;
+}
+
+
+for (i = 0; (p[i] & 0xc0) == 0x80; i++) {}
+if (i > 0) {
+
+for (j = 0; p - j > base; j++) {
+if ((p[-j] & 0xc0) != 0x80) {
+break;
+}
+}
+if (utf8len_tab[p[-j]] != i + j) {
+return 0;
+}
+}
+return i;
+}
+
+
+
+
+
+int mb_tail_off(char_u *base, char_u *p)
+{
+int i;
+int j;
+
+if (*p == NUL)
+return 0;
+
+
+for (i = 0; (p[i + 1] & 0xc0) == 0x80; i++) {}
+
+
+for (j = 0; p - j > base; j++) {
+if ((p[-j] & 0xc0) != 0x80) {
+break;
+}
+}
+
+if (utf8len_tab[p[-j]] != i + j + 1) {
+return 0;
+}
+return i;
+}
+
+
+
+
+void utf_find_illegal(void)
+{
+pos_T pos = curwin->w_cursor;
+char_u *p;
+int len;
+vimconv_T vimconv;
+char_u *tofree = NULL;
+
+vimconv.vc_type = CONV_NONE;
+if (enc_canon_props(curbuf->b_p_fenc) & ENC_8BIT) {
+
+
+
+convert_setup(&vimconv, p_enc, curbuf->b_p_fenc);
+}
+
+curwin->w_cursor.coladd = 0;
+for (;; ) {
+p = get_cursor_pos_ptr();
+if (vimconv.vc_type != CONV_NONE) {
+xfree(tofree);
+tofree = string_convert(&vimconv, p, NULL);
+if (tofree == NULL)
+break;
+p = tofree;
+}
+
+while (*p != NUL) {
+
+
+len = utf_ptr2len(p);
+if (*p >= 0x80 && (len == 1
+|| utf_char2len(utf_ptr2char(p)) != len)) {
+if (vimconv.vc_type == CONV_NONE)
+curwin->w_cursor.col += (colnr_T)(p - get_cursor_pos_ptr());
+else {
+int l;
+
+len = (int)(p - tofree);
+for (p = get_cursor_pos_ptr(); *p != NUL && len-- > 0; p += l) {
+l = utf_ptr2len(p);
+curwin->w_cursor.col += l;
+}
+}
+goto theend;
+}
+p += len;
+}
+if (curwin->w_cursor.lnum == curbuf->b_ml.ml_line_count)
+break;
+++curwin->w_cursor.lnum;
+curwin->w_cursor.col = 0;
+}
+
+
+curwin->w_cursor = pos;
+beep_flush();
+
+theend:
+xfree(tofree);
+convert_setup(&vimconv, NULL, NULL);
+}
+
+
+
+
+
+void mb_adjust_cursor(void)
+{
+mark_mb_adjustpos(curbuf, &curwin->w_cursor);
+}
+
+
+
+
+
+void mb_check_adjust_col(void *win_)
+{
+win_T *win = (win_T *)win_;
+colnr_T oldcol = win->w_cursor.col;
+
+
+if (oldcol != 0) {
+char_u *p = ml_get_buf(win->w_buffer, win->w_cursor.lnum, false);
+colnr_T len = (colnr_T)STRLEN(p);
+
+
+if (len == 0 || oldcol < 0) {
+win->w_cursor.col = 0;
+} else {
+
+if (oldcol > len) {
+win->w_cursor.col = len - 1;
+}
+
+win->w_cursor.col -= utf_head_off(p, p + win->w_cursor.col);
+}
+
+
+
+if (win->w_cursor.coladd == 1 && p[win->w_cursor.col] != TAB
+&& vim_isprintc(utf_ptr2char(p + win->w_cursor.col))
+&& ptr2cells(p + win->w_cursor.col) > 1) {
+win->w_cursor.coladd = 0;
+}
+}
+}
+
+
+
+
+char_u * mb_prevptr(
+char_u *line, 
+char_u *p
+)
+{
+if (p > line) {
+MB_PTR_BACK(line, p);
+}
+return p;
+}
+
+
+
+
+
+int mb_charlen(char_u *str)
+{
+char_u *p = str;
+int count;
+
+if (p == NULL)
+return 0;
+
+for (count = 0; *p != NUL; count++)
+p += (*mb_ptr2len)(p);
+
+return count;
+}
+
+
+
+
+int mb_charlen_len(char_u *str, int len)
+{
+char_u *p = str;
+int count;
+
+for (count = 0; *p != NUL && p < str + len; count++)
+p += (*mb_ptr2len)(p);
+
+return count;
+}
+
+
+
+
+
+
+
+
+
+
+
+const char *mb_unescape(const char **const pp)
+FUNC_ATTR_WARN_UNUSED_RESULT FUNC_ATTR_NONNULL_ALL
+{
+static char buf[6];
+size_t buf_idx = 0;
+uint8_t *str = (uint8_t *)(*pp);
+
+
+
+
+for (size_t str_idx = 0; str[str_idx] != NUL && buf_idx < 4; str_idx++) {
+if (str[str_idx] == K_SPECIAL
+&& str[str_idx + 1] == KS_SPECIAL
+&& str[str_idx + 2] == KE_FILLER) {
+buf[buf_idx++] = (char)K_SPECIAL;
+str_idx += 2;
+} else if ((str[str_idx] == K_SPECIAL)
+&& str[str_idx + 1] == KS_EXTRA
+&& str[str_idx + 2] == KE_CSI) {
+buf[buf_idx++] = (char)CSI;
+str_idx += 2;
+} else if (str[str_idx] == K_SPECIAL) {
+break; 
+} else {
+buf[buf_idx++] = (char)str[str_idx];
+}
+buf[buf_idx] = NUL;
+
+
+
+if (utf_ptr2len((const char_u *)buf) > 1) {
+*pp = (const char *)str + str_idx + 1;
+return buf;
+}
+
+
+if ((uint8_t)buf[0] < 128) {
+break;
+}
+}
+return NULL;
+}
+
+
+
+
+
+char_u * enc_skip(char_u *p)
+{
+if (STRNCMP(p, "2byte-", 6) == 0)
+return p + 6;
+if (STRNCMP(p, "8bit-", 5) == 0)
+return p + 5;
+return p;
+}
+
+
+
+
+
+
+
+char_u *enc_canonize(char_u *enc) FUNC_ATTR_NONNULL_RET
+{
+char_u *p, *s;
+int i;
+
+if (STRCMP(enc, "default") == 0) {
+
+return vim_strsave(fenc_default);
+}
+
+
+char_u *r = xmalloc(STRLEN(enc) + 3);
+
+p = r;
+for (s = enc; *s != NUL; ++s) {
+if (*s == '_')
+*p++ = '-';
+else
+*p++ = TOLOWER_ASC(*s);
+}
+*p = NUL;
+
+
+p = enc_skip(r);
+
+
+if (STRNCMP(p, "microsoft-cp", 12) == 0)
+STRMOVE(p, p + 10);
+
+
+if (STRNCMP(p, "iso8859", 7) == 0) {
+STRMOVE(p + 4, p + 3);
+p[3] = '-';
+}
+
+
+if (STRNCMP(p, "iso-8859", 8) == 0 && p[8] != '-') {
+STRMOVE(p + 9, p + 8);
+p[8] = '-';
+}
+
+
+if (STRNCMP(p, "latin-", 6) == 0)
+STRMOVE(p + 5, p + 6);
+
+if (enc_canon_search(p) >= 0) {
+
+if (p != r)
+STRMOVE(r, p);
+} else if ((i = enc_alias_search(p)) >= 0) {
+
+xfree(r);
+r = vim_strsave((char_u *)enc_canon_table[i].name);
+}
+return r;
+}
+
+
+
+
+
+static int enc_alias_search(char_u *name)
+{
+int i;
+
+for (i = 0; enc_alias_table[i].name != NULL; ++i)
+if (STRCMP(name, enc_alias_table[i].name) == 0)
+return enc_alias_table[i].canon;
+return -1;
+}
+
+
+#if defined(HAVE_LANGINFO_H)
+#include <langinfo.h>
+#endif
+
+
+
+
+
+char_u * enc_locale(void)
+{
+int i;
+char buf[50];
+
+const char *s;
+#if defined(HAVE_NL_LANGINFO_CODESET)
+if (!(s = nl_langinfo(CODESET)) || *s == NUL)
+#endif
+{
+#if defined(HAVE_LOCALE_H)
+if (!(s = setlocale(LC_CTYPE, NULL)) || *s == NUL)
+#endif
+{
+if ((s = os_getenv("LC_ALL"))) {
+if ((s = os_getenv("LC_CTYPE"))) {
+s = os_getenv("LANG");
+}
+}
+}
+}
+
+if (!s) {
+return NULL;
+}
+
+
+
+
+
+
+
+
+const char *p = (char *)vim_strchr((char_u *)s, '.');
+if (p != NULL) {
+if (p > s + 2 && !STRNICMP(p + 1, "EUC", 3)
+&& !isalnum((int)p[4]) && p[4] != '-' && p[-3] == '_') {
+
+memmove(buf, "euc-", 4);
+buf[4] = (ASCII_ISALNUM(p[-2]) ? TOLOWER_ASC(p[-2]) : 0);
+buf[5] = (ASCII_ISALNUM(p[-1]) ? TOLOWER_ASC(p[-1]) : 0);
+buf[6] = NUL;
+} else {
+s = p + 1;
+goto enc_locale_copy_enc;
+}
+} else {
+enc_locale_copy_enc:
+for (i = 0; i < (int)sizeof(buf) - 1 && s[i] != NUL; i++) {
+if (s[i] == '_' || s[i] == '-') {
+buf[i] = '-';
+} else if (ASCII_ISALNUM((uint8_t)s[i])) {
+buf[i] = TOLOWER_ASC(s[i]);
+} else {
+break;
+}
+}
+buf[i] = NUL;
+}
+
+return enc_canonize((char_u *)buf);
+}
+
+#if defined(HAVE_ICONV)
+
+
+
+
+
+
+
+
+void * my_iconv_open(char_u *to, char_u *from)
+{
+iconv_t fd;
+#define ICONV_TESTLEN 400
+char_u tobuf[ICONV_TESTLEN];
+char *p;
+size_t tolen;
+static WorkingStatus iconv_working = kUnknown;
+
+if (iconv_working == kBroken)
+return (void *)-1; 
+
+fd = iconv_open((char *)enc_skip(to), (char *)enc_skip(from));
+
+if (fd != (iconv_t)-1 && iconv_working == kUnknown) {
+
+
+
+
+
+
+
+p = (char *)tobuf;
+tolen = ICONV_TESTLEN;
+(void)iconv(fd, NULL, NULL, &p, &tolen);
+if (p == NULL) {
+iconv_working = kBroken;
+iconv_close(fd);
+fd = (iconv_t)-1;
+} else
+iconv_working = kWorking;
+}
+
+return (void *)fd;
+}
+
+
+
+
+
+
+
+
+static char_u *iconv_string(const vimconv_T *const vcp, char_u *str,
+size_t slen, size_t *unconvlenp, size_t *resultlenp)
+{
+const char *from;
+size_t fromlen;
+char *to;
+size_t tolen;
+size_t len = 0;
+size_t done = 0;
+char_u *result = NULL;
+char_u *p;
+int l;
+
+from = (char *)str;
+fromlen = slen;
+for (;; ) {
+if (len == 0 || ICONV_ERRNO == ICONV_E2BIG) {
+
+
+len = len + fromlen * 2 + 40;
+p = xmalloc(len);
+if (done > 0)
+memmove(p, result, done);
+xfree(result);
+result = p;
+}
+
+to = (char *)result + done;
+tolen = len - done - 2;
+
+
+if (iconv(vcp->vc_fd, (void *)&from, &fromlen, &to, &tolen) != SIZE_MAX) {
+
+*to = NUL;
+break;
+}
+
+
+
+if (!vcp->vc_fail && unconvlenp != NULL
+&& (ICONV_ERRNO == ICONV_EINVAL || ICONV_ERRNO == EINVAL)) {
+
+*to = NUL;
+*unconvlenp = fromlen;
+break;
+} else if (!vcp->vc_fail
+&& (ICONV_ERRNO == ICONV_EILSEQ || ICONV_ERRNO == EILSEQ
+|| ICONV_ERRNO == ICONV_EINVAL || ICONV_ERRNO == EINVAL)) {
+
+
+
+
+
+
+*to++ = '?';
+if (utf_ptr2cells((char_u *)from) > 1) {
+*to++ = '?';
+}
+l = utfc_ptr2len_len((const char_u *)from, (int)fromlen);
+from += l;
+fromlen -= l;
+} else if (ICONV_ERRNO != ICONV_E2BIG) {
+
+XFREE_CLEAR(result);
+break;
+}
+
+done = to - (char *)result;
+}
+
+if (resultlenp != NULL && result != NULL)
+*resultlenp = (size_t)(to - (char *)result);
+return result;
+}
+
+#endif 
+
+
+
+
+
+
+
+
+
+
+
+
+
+int convert_setup(vimconv_T *vcp, char_u *from, char_u *to)
+{
+return convert_setup_ext(vcp, from, true, to, true);
+}
+
+
+
+
+
+int convert_setup_ext(vimconv_T *vcp, char_u *from, bool from_unicode_is_utf8,
+char_u *to, bool to_unicode_is_utf8)
+{
+int from_prop;
+int to_prop;
+int from_is_utf8;
+int to_is_utf8;
+
+
+#if defined(HAVE_ICONV)
+if (vcp->vc_type == CONV_ICONV && vcp->vc_fd != (iconv_t)-1) {
+iconv_close(vcp->vc_fd);
+}
+#endif
+*vcp = (vimconv_T)MBYTE_NONE_CONV;
+
+
+if (from == NULL || *from == NUL || to == NULL || *to == NUL
+|| STRCMP(from, to) == 0)
+return OK;
+
+from_prop = enc_canon_props(from);
+to_prop = enc_canon_props(to);
+if (from_unicode_is_utf8)
+from_is_utf8 = from_prop & ENC_UNICODE;
+else
+from_is_utf8 = from_prop == ENC_UNICODE;
+if (to_unicode_is_utf8)
+to_is_utf8 = to_prop & ENC_UNICODE;
+else
+to_is_utf8 = to_prop == ENC_UNICODE;
+
+if ((from_prop & ENC_LATIN1) && to_is_utf8) {
+
+vcp->vc_type = CONV_TO_UTF8;
+vcp->vc_factor = 2; 
+} else if ((from_prop & ENC_LATIN9) && to_is_utf8) {
+
+vcp->vc_type = CONV_9_TO_UTF8;
+vcp->vc_factor = 3; 
+} else if (from_is_utf8 && (to_prop & ENC_LATIN1)) {
+
+vcp->vc_type = CONV_TO_LATIN1;
+} else if (from_is_utf8 && (to_prop & ENC_LATIN9)) {
+
+vcp->vc_type = CONV_TO_LATIN9;
+}
+#if defined(HAVE_ICONV)
+else { 
+
+vcp->vc_fd = (iconv_t)my_iconv_open(
+to_is_utf8 ? (char_u *)"utf-8" : to,
+from_is_utf8 ? (char_u *)"utf-8" : from);
+if (vcp->vc_fd != (iconv_t)-1) {
+vcp->vc_type = CONV_ICONV;
+vcp->vc_factor = 4; 
+}
+}
+#endif
+if (vcp->vc_type == CONV_NONE)
+return FAIL;
+
+return OK;
+}
+
+
+
+
+
+
+
+
+char_u *string_convert(const vimconv_T *const vcp, char_u *ptr, size_t *lenp)
+{
+return string_convert_ext(vcp, ptr, lenp, NULL);
+}
+
+
+
+
+
+
+char_u * string_convert_ext(const vimconv_T *const vcp, char_u *ptr,
+size_t *lenp, size_t *unconvlenp)
+{
+char_u *retval = NULL;
+char_u *d;
+int l;
+int c;
+
+size_t len;
+if (lenp == NULL)
+len = STRLEN(ptr);
+else
+len = *lenp;
+if (len == 0)
+return vim_strsave((char_u *)"");
+
+switch (vcp->vc_type) {
+case CONV_TO_UTF8: 
+retval = xmalloc(len * 2 + 1);
+d = retval;
+for (size_t i = 0; i < len; ++i) {
+c = ptr[i];
+if (c < 0x80)
+*d++ = c;
+else {
+*d++ = 0xc0 + ((unsigned)c >> 6);
+*d++ = 0x80 + (c & 0x3f);
+}
+}
+*d = NUL;
+if (lenp != NULL)
+*lenp = (size_t)(d - retval);
+break;
+
+case CONV_9_TO_UTF8: 
+retval = xmalloc(len * 3 + 1);
+d = retval;
+for (size_t i = 0; i < len; ++i) {
+c = ptr[i];
+switch (c) {
+case 0xa4: c = 0x20ac; break; 
+case 0xa6: c = 0x0160; break; 
+case 0xa8: c = 0x0161; break; 
+case 0xb4: c = 0x017d; break; 
+case 0xb8: c = 0x017e; break; 
+case 0xbc: c = 0x0152; break; 
+case 0xbd: c = 0x0153; break; 
+case 0xbe: c = 0x0178; break; 
+}
+d += utf_char2bytes(c, d);
+}
+*d = NUL;
+if (lenp != NULL)
+*lenp = (size_t)(d - retval);
+break;
+
+case CONV_TO_LATIN1: 
+case CONV_TO_LATIN9: 
+retval = xmalloc(len + 1);
+d = retval;
+for (size_t i = 0; i < len; ++i) {
+l = utf_ptr2len_len(ptr + i, len - i);
+if (l == 0)
+*d++ = NUL;
+else if (l == 1) {
+uint8_t l_w = utf8len_tab_zero[ptr[i]];
+
+if (l_w == 0) {
+
+xfree(retval);
+return NULL;
+}
+if (unconvlenp != NULL && l_w > len - i) {
+
+*unconvlenp = len - i;
+break;
+}
+*d++ = ptr[i];
+} else {
+c = utf_ptr2char(ptr + i);
+if (vcp->vc_type == CONV_TO_LATIN9)
+switch (c) {
+case 0x20ac: c = 0xa4; break; 
+case 0x0160: c = 0xa6; break; 
+case 0x0161: c = 0xa8; break; 
+case 0x017d: c = 0xb4; break; 
+case 0x017e: c = 0xb8; break; 
+case 0x0152: c = 0xbc; break; 
+case 0x0153: c = 0xbd; break; 
+case 0x0178: c = 0xbe; break; 
+case 0xa4:
+case 0xa6:
+case 0xa8:
+case 0xb4:
+case 0xb8:
+case 0xbc:
+case 0xbd:
+case 0xbe: c = 0x100; break; 
+}
+if (!utf_iscomposing(c)) { 
+if (c < 0x100)
+*d++ = c;
+else if (vcp->vc_fail) {
+xfree(retval);
+return NULL;
+} else {
+*d++ = 0xbf;
+if (utf_char2cells(c) > 1)
+*d++ = '?';
+}
+}
+i += l - 1;
+}
+}
+*d = NUL;
+if (lenp != NULL)
+*lenp = (size_t)(d - retval);
+break;
+
+#if defined(HAVE_ICONV)
+case CONV_ICONV: 
+retval = iconv_string(vcp, ptr, len, unconvlenp, lenp);
+break;
+#endif
+}
+
+return retval;
+}

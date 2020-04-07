@@ -1,0 +1,14 @@
+#if defined(HAVE_CONFIG_H)
+#include "config.h"
+#endif
+#include <vlc_common.h>
+#include "gl_common.h"
+static inline unsigned vlc_align_pot(unsigned x)
+{
+unsigned align = 1 << (8 * sizeof (unsigned) - vlc_clz(x));
+return ((align >> 1) == x) ? x : align;
+}
+GLuint
+vlc_gl_BuildProgram(vlc_object_t *obj, const opengl_vtable_t *vt,
+GLsizei vstring_count, const GLchar **vstrings,
+GLsizei fstring_count, const GLchar **fstrings);

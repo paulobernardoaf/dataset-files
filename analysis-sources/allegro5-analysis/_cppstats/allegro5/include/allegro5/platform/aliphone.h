@@ -1,0 +1,10 @@
+#if !defined(ALLEGRO_IPHONE)
+#error bad include
+#endif
+#if !defined(ALLEGRO_LIB_BUILD)
+#define ALLEGRO_MAGIC_MAIN
+#define main _al_mangled_main
+#if defined(__cplusplus)
+extern "C" int _al_mangled_main(int, char **);
+#endif
+#endif

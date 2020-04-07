@@ -1,0 +1,18 @@
+#include "DeckLinkAPIConfiguration.h"
+BMD_CONST REFIID IID_IDeckLinkConfiguration_v10_4 = {0x1E,0x69,0xFC,0xF6,0x42,0x03,0x49,0x36,0x80,0x76,0x2A,0x9F,0x4C,0xFD,0x50,0xCB};
+class IDeckLinkConfiguration_v10_4;
+class BMD_PUBLIC IDeckLinkConfiguration_v10_4 : public IUnknown
+{
+public:
+virtual HRESULT SetFlag ( BMDDeckLinkConfigurationID cfgID, bool value) = 0;
+virtual HRESULT GetFlag ( BMDDeckLinkConfigurationID cfgID, bool *value) = 0;
+virtual HRESULT SetInt ( BMDDeckLinkConfigurationID cfgID, int64_t value) = 0;
+virtual HRESULT GetInt ( BMDDeckLinkConfigurationID cfgID, int64_t *value) = 0;
+virtual HRESULT SetFloat ( BMDDeckLinkConfigurationID cfgID, double value) = 0;
+virtual HRESULT GetFloat ( BMDDeckLinkConfigurationID cfgID, double *value) = 0;
+virtual HRESULT SetString ( BMDDeckLinkConfigurationID cfgID, const char *value) = 0;
+virtual HRESULT GetString ( BMDDeckLinkConfigurationID cfgID, const char **value) = 0;
+virtual HRESULT WriteConfigurationToPreferences (void) = 0;
+protected:
+virtual ~IDeckLinkConfiguration_v10_4 () {} 
+};

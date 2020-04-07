@@ -1,0 +1,37 @@
+#if defined(HAVE_CONFIG_H)
+#include "config.h"
+#endif
+#include <vlc_common.h>
+#include <vlc_plugin.h>
+#include <vlc_sout.h>
+#include <vlc_block.h>
+static int Open ( vlc_object_t * );
+vlc_module_begin ()
+set_description( N_("Dummy stream output") )
+set_shortname( N_( "Dummy" ))
+set_capability( "sout access", 0 )
+set_category( CAT_SOUT )
+set_subcategory( SUBCAT_SOUT_ACO )
+add_shortcut( "dummy" )
+set_callback( Open )
+vlc_module_end ()
+static ssize_t Write( sout_access_out_t *, block_t * );
+static int Open( vlc_object_t *p_this )
+{
+sout_access_out_t *p_access = (sout_access_out_t*)p_this;
+p_access->pf_write = Write;
+return VLC_SUCCESS;
+}
+static ssize_t Write( sout_access_out_t *p_access, block_t *p_buffer )
+{
+size_t i_write = 0;
+block_t *b = p_buffer;
+while( b )
+{
+i_write += b->i_buffer;
+b = b->p_next;
+}
+block_ChainRelease( p_buffer );
+(void)p_access;
+return i_write;
+}

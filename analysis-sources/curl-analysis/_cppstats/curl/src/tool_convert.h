@@ -1,0 +1,12 @@
+#include "tool_setup.h"
+#if defined(CURL_DOES_CONVERSIONS)
+#if defined(HAVE_ICONV)
+CURLcode convert_to_network(char *buffer, size_t length);
+CURLcode convert_from_network(char *buffer, size_t length);
+void convert_cleanup(void);
+#endif 
+char convert_char(curl_infotype infotype, char this_char);
+#endif 
+#if !defined(CURL_DOES_CONVERSIONS) || !defined(HAVE_ICONV)
+#define convert_cleanup() Curl_nop_stmt
+#endif

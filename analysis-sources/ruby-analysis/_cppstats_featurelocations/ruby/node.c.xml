@@ -1,0 +1,1406 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" revision="1.0.0" language="C" filename="D:\Pesquisa\Projects\ruby-analysis\_cppstats_featurelocations\ruby\node.c">
+
+
+
+
+
+
+
+
+
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"internal.h"</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"internal/hash.h"</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"internal/variable.h"</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"ruby/ruby.h"</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"vm_core.h"</cpp:file></cpp:include>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>NODE_BUF_DEFAULT_LEN</name></cpp:macro> <cpp:value>16</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>A</name><parameter_list>(<parameter><type><name>str</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>rb_str_cat2(buf, (str))</cpp:value></cpp:define>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>AR</name><parameter_list>(<parameter><type><name>str</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>rb_str_concat(buf, (str))</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>A_INDENT</name></cpp:macro> <cpp:value>add_indent(buf, indent)</cpp:value></cpp:define>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>D_INDENT</name></cpp:macro> <cpp:value>rb_str_cat2(indent, next_indent)</cpp:value></cpp:define>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>D_DEDENT</name></cpp:macro> <cpp:value>rb_str_resize(indent, RSTRING_LEN(indent) - 4)</cpp:value></cpp:define>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>A_ID</name><parameter_list>(<parameter><type><name>id</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>add_id(buf, (id))</cpp:value></cpp:define>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>A_INT</name><parameter_list>(<parameter><type><name>val</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>rb_str_catf(buf, "%d", (val))</cpp:value></cpp:define>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>A_LONG</name><parameter_list>(<parameter><type><name>val</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>rb_str_catf(buf, "%ld", (val))</cpp:value></cpp:define>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>A_LIT</name><parameter_list>(<parameter><type><name>lit</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>AR(rb_inspect(lit))</cpp:value></cpp:define>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>A_NODE_HEADER</name><parameter_list>(<parameter><type><name>node</name></type></parameter>, <parameter><type><name>term</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>rb_str_catf(buf, "@ %s (line: %d, location: (%d,%d)-(%d,%d))%s"term, ruby_node_name(nd_type(node)), nd_line(node), nd_first_lineno(node), nd_first_column(node), nd_last_lineno(node), nd_last_column(node), (node-&gt;flags &amp; NODE_FL_NEWLINE ? "*" : ""))</cpp:value></cpp:define>
+
+
+
+
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>A_FIELD_HEADER</name><parameter_list>(<parameter><type><name>len</name></type></parameter>, <parameter><type><name>name</name></type></parameter>, <parameter><type><name>term</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>rb_str_catf(buf, "+- %.*s:"term, (len), (name))</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>D_FIELD_HEADER</name><parameter_list>(<parameter><type><name>len</name></type></parameter>, <parameter><type><name>name</name></type></parameter>, <parameter><type><name>term</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>(A_INDENT, A_FIELD_HEADER(len, name, term))</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>D_NULL_NODE</name></cpp:macro> <cpp:value>(A_INDENT, A("(null node)\n"))</cpp:value></cpp:define>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>D_NODE_HEADER</name><parameter_list>(<parameter><type><name>node</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>(A_INDENT, A_NODE_HEADER(node, "\n"))</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>COMPOUND_FIELD</name><parameter_list>(<parameter><type><name>len</name></type></parameter>, <parameter><type><name>name</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>FIELD_BLOCK((D_FIELD_HEADER((len), (name), "\n"), D_INDENT), D_DEDENT)</cpp:value></cpp:define>
+
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>COMPOUND_FIELD1</name><parameter_list>(<parameter><type><name>name</name></type></parameter>, <parameter><type><name>ann</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>COMPOUND_FIELD(FIELD_NAME_LEN(name, ann), FIELD_NAME_DESC(name, ann))</cpp:value></cpp:define>
+
+
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>FIELD_NAME_DESC</name><parameter_list>(<parameter><type><name>name</name></type></parameter>, <parameter><type><name>ann</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>name " (" ann ")"</cpp:value></cpp:define>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>FIELD_NAME_LEN</name><parameter_list>(<parameter><type><name>name</name></type></parameter>, <parameter><type><name>ann</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>(int)( comment ? rb_strlen_lit(FIELD_NAME_DESC(name, ann)) : rb_strlen_lit(name))</cpp:value></cpp:define>
+
+
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>SIMPLE_FIELD</name><parameter_list>(<parameter><type><name>len</name></type></parameter>, <parameter><type><name>name</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>FIELD_BLOCK(D_FIELD_HEADER((len), (name), " "), A("\n"))</cpp:value></cpp:define>
+
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>FIELD_BLOCK</name><parameter_list>(<parameter><type><name>init</name></type></parameter>, <parameter><type><name>reset</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>for (init, field_flag = 1; field_flag; reset, field_flag = 0)</cpp:value></cpp:define>
+
+
+
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>SIMPLE_FIELD1</name><parameter_list>(<parameter><type><name>name</name></type></parameter>, <parameter><type><name>ann</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>SIMPLE_FIELD(FIELD_NAME_LEN(name, ann), FIELD_NAME_DESC(name, ann))</cpp:value></cpp:define>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>F_CUSTOM1</name><parameter_list>(<parameter><type><name>name</name></type></parameter>, <parameter><type><name>ann</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>SIMPLE_FIELD1(#name, ann)</cpp:value></cpp:define>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>F_ID</name><parameter_list>(<parameter><type><name>name</name></type></parameter>, <parameter><type><name>ann</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>SIMPLE_FIELD1(#name, ann) A_ID(node-&gt;name)</cpp:value></cpp:define>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>F_GENTRY</name><parameter_list>(<parameter><type><name>name</name></type></parameter>, <parameter><type><name>ann</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>SIMPLE_FIELD1(#name, ann) A_ID((node-&gt;name)-&gt;id)</cpp:value></cpp:define>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>F_INT</name><parameter_list>(<parameter><type><name>name</name></type></parameter>, <parameter><type><name>ann</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>SIMPLE_FIELD1(#name, ann) A_INT(node-&gt;name)</cpp:value></cpp:define>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>F_LONG</name><parameter_list>(<parameter><type><name>name</name></type></parameter>, <parameter><type><name>ann</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>SIMPLE_FIELD1(#name, ann) A_LONG(node-&gt;name)</cpp:value></cpp:define>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>F_LIT</name><parameter_list>(<parameter><type><name>name</name></type></parameter>, <parameter><type><name>ann</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>SIMPLE_FIELD1(#name, ann) A_LIT(node-&gt;name)</cpp:value></cpp:define>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>F_MSG</name><parameter_list>(<parameter><type><name>name</name></type></parameter>, <parameter><type><name>ann</name></type></parameter>, <parameter><type><name>desc</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>SIMPLE_FIELD1(#name, ann) A(desc)</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>F_NODE</name><parameter_list>(<parameter><type><name>name</name></type></parameter>, <parameter><type><name>ann</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>COMPOUND_FIELD1(#name, ann) {dump_node(buf, indent, comment, node-&gt;name);}</cpp:value></cpp:define>
+
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>ANN</name><parameter_list>(<parameter><type><name>ann</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>if (comment) { A_INDENT; A("| #" ann "\n"); }</cpp:value></cpp:define>
+
+
+
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>LAST_NODE</name></cpp:macro> <cpp:value>(next_indent = " ")</cpp:value></cpp:define>
+
+<function><type><specifier>static</specifier> <name>void</name></type>
+<name>add_indent</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>buf</name></decl></parameter>, <parameter><decl><type><name>VALUE</name></type> <name>indent</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<expr_stmt><expr><call><name>AR</name><argument_list>(<argument><expr><name>indent</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type>
+<name>add_id</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>buf</name></decl></parameter>, <parameter><decl><type><name>ID</name></type> <name>id</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name>id</name> <operator>==</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>A</name><argument_list>(<argument><expr><literal type="string">"(null)"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if>
+<else>else <block>{<block_content>
+<decl_stmt><decl><type><name>VALUE</name></type> <name>str</name> <init>= <expr><call><name>rb_id2str</name><argument_list>(<argument><expr><name>id</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<if_stmt><if>if <condition>(<expr><name>str</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>A</name><argument_list>(<argument><expr><literal type="string">":"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt> <expr_stmt><expr><call><name>AR</name><argument_list>(<argument><expr><name>str</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if>
+<else>else <block>{<block_content>
+<expr_stmt><expr><call><name>rb_str_catf</name><argument_list>(<argument><expr><name>buf</name></expr></argument>, <argument><expr><literal type="string">"(internal variable: 0x%"</literal><name>PRIsVALUE</name><literal type="string">")"</literal></expr></argument>, <argument><expr><name>id</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></else></if_stmt>
+</block_content>}</block></else></if_stmt>
+</block_content>}</block></function>
+
+<struct>struct <name>add_option_arg</name> <block>{
+<decl_stmt><decl><type><name>VALUE</name></type> <name>buf</name></decl>, <decl><type ref="prev"/><name>indent</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>st_index_t</name></type> <name>count</name></decl>;</decl_stmt>
+}</block>;</struct>
+
+<function_decl><type><specifier>static</specifier> <name>void</name></type> <name>dump_node</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type></decl></parameter>, <parameter><decl><type><name>VALUE</name></type></decl></parameter>, <parameter><decl><type><name>int</name></type></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>NODE</name> <modifier>*</modifier></type></decl></parameter>)</parameter_list>;</function_decl>
+<decl_stmt><decl><type><specifier>static</specifier> <specifier>const</specifier> <name>char</name></type> <name><name>default_indent</name><index>[]</index></name> <init>= <expr><literal type="string">"| "</literal></expr></init></decl>;</decl_stmt>
+
+<function><type><specifier>static</specifier> <name>void</name></type>
+<name>dump_array</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>buf</name></decl></parameter>, <parameter><decl><type><name>VALUE</name></type> <name>indent</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>comment</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>NODE</name> <modifier>*</modifier></type><name>node</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>int</name></type> <name>field_flag</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>next_indent</name> <init>= <expr><name>default_indent</name></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><call><name>F_LONG</name><argument_list>(<argument><expr><name>nd_alen</name></expr></argument>, <argument><expr><literal type="string">"length"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_head</name></expr></argument>, <argument><expr><literal type="string">"element"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<while>while <condition>(<expr><name><name>node</name><operator>-&gt;</operator><name>nd_next</name></name> <operator>&amp;&amp;</operator> <call><name>nd_type</name><argument_list>(<argument><expr><name><name>node</name><operator>-&gt;</operator><name>nd_next</name></name></expr></argument>)</argument_list></call> <operator>==</operator> <name>NODE_LIST</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name>node</name> <operator>=</operator> <name><name>node</name><operator>-&gt;</operator><name>nd_next</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_head</name></expr></argument>, <argument><expr><literal type="string">"element"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></while>
+<expr_stmt><expr><name>LAST_NODE</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_next</name></expr></argument>, <argument><expr><literal type="string">"next element"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type>
+<name>dump_node</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>buf</name></decl></parameter>, <parameter><decl><type><name>VALUE</name></type> <name>indent</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>comment</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>NODE</name> <modifier>*</modifier></type> <name>node</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>int</name></type> <name>field_flag</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>i</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>next_indent</name> <init>= <expr><name>default_indent</name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name><name>enum</name> <name>node_type</name></name></type> <name>type</name></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>node</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name>D_NULL_NODE</name></expr>;</expr_stmt>
+<return>return;</return>
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>D_NODE_HEADER</name><argument_list>(<argument><expr><name>node</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>type</name> <operator>=</operator> <call><name>nd_type</name><argument_list>(<argument><expr><name>node</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<switch>switch <condition>(<expr><name>type</name></expr>)</condition> <block>{<block_content>
+<case>case <expr><name>NODE_BLOCK</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"statement sequence"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: [nd_head]; ...; [nd_next]"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: foo; bar"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+<do>do <block>{<block_content>
+<expr_stmt><expr><name>A_INDENT</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>rb_str_catf</name><argument_list>(<argument><expr><name>buf</name></expr></argument>, <argument><expr><literal type="string">"+- nd_head (%s%d):\n"</literal></expr></argument>,
+<argument><expr><ternary><condition><expr><name>comment</name></expr> ?</condition><then> <expr><literal type="string">"statement #"</literal></expr> </then><else>: <expr><literal type="string">""</literal></expr></else></ternary></expr></argument>, <argument><expr><operator>++</operator><name>i</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>node</name><operator>-&gt;</operator><name>nd_next</name></name></expr>)</condition><block type="pseudo"><block_content> <expr_stmt><expr><name>LAST_NODE</name></expr>;</expr_stmt></block_content></block></if></if_stmt>
+<expr_stmt><expr><name>D_INDENT</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>dump_node</name><argument_list>(<argument><expr><name>buf</name></expr></argument>, <argument><expr><name>indent</name></expr></argument>, <argument><expr><name>comment</name></expr></argument>, <argument><expr><name><name>node</name><operator>-&gt;</operator><name>nd_head</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>D_DEDENT</name></expr>;</expr_stmt>
+</block_content>}</block> while <condition>(<expr><name><name>node</name><operator>-&gt;</operator><name>nd_next</name></name> <operator>&amp;&amp;</operator>
+<call><name>nd_type</name><argument_list>(<argument><expr><name><name>node</name><operator>-&gt;</operator><name>nd_next</name></name></expr></argument>)</argument_list></call> <operator>==</operator> <name>NODE_BLOCK</name> <operator>&amp;&amp;</operator>
+<operator>(</operator><name>node</name> <operator>=</operator> <name><name>node</name><operator>-&gt;</operator><name>nd_next</name></name><operator>,</operator> <literal type="number">1</literal><operator>)</operator></expr>)</condition>;</do>
+<if_stmt><if>if <condition>(<expr><name><name>node</name><operator>-&gt;</operator><name>nd_next</name></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name>LAST_NODE</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_next</name></expr></argument>, <argument><expr><literal type="string">"next block"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+<return>return;</return>
+
+<case>case <expr><name>NODE_IF</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"if statement"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: if [nd_cond] then [nd_body] else [nd_else] end"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: if x == 1 then foo else bar end"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_cond</name></expr></argument>, <argument><expr><literal type="string">"condition expr"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_body</name></expr></argument>, <argument><expr><literal type="string">"then clause"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>LAST_NODE</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_else</name></expr></argument>, <argument><expr><literal type="string">"else clause"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return;</return>
+
+<case>case <expr><name>NODE_UNLESS</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"unless statement"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: unless [nd_cond] then [nd_body] else [nd_else] end"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: unless x == 1 then foo else bar end"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_cond</name></expr></argument>, <argument><expr><literal type="string">"condition expr"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_body</name></expr></argument>, <argument><expr><literal type="string">"then clause"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>LAST_NODE</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_else</name></expr></argument>, <argument><expr><literal type="string">"else clause"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return;</return>
+
+<case>case <expr><name>NODE_CASE</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"case statement"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: case [nd_head]; [nd_body]; end"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: case x; when 1; foo; when 2; bar; else baz; end"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_head</name></expr></argument>, <argument><expr><literal type="string">"case expr"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>LAST_NODE</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_body</name></expr></argument>, <argument><expr><literal type="string">"when clauses"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return;</return>
+<case>case <expr><name>NODE_CASE2</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"case statement with no head"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: case; [nd_body]; end"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: case; when 1; foo; when 2; bar; else baz; end"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_head</name></expr></argument>, <argument><expr><literal type="string">"case expr"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>LAST_NODE</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_body</name></expr></argument>, <argument><expr><literal type="string">"when clauses"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return;</return>
+<case>case <expr><name>NODE_CASE3</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"case statement (pattern matching)"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: case [nd_head]; [nd_body]; end"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: case x; in 1; foo; in 2; bar; else baz; end"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_head</name></expr></argument>, <argument><expr><literal type="string">"case expr"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>LAST_NODE</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_body</name></expr></argument>, <argument><expr><literal type="string">"in clauses"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return;</return>
+
+<case>case <expr><name>NODE_WHEN</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"when clause"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: when [nd_head]; [nd_body]; (when or else) [nd_next]"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: case x; when 1; foo; when 2; bar; else baz; end"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_head</name></expr></argument>, <argument><expr><literal type="string">"when value"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_body</name></expr></argument>, <argument><expr><literal type="string">"when body"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>LAST_NODE</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_next</name></expr></argument>, <argument><expr><literal type="string">"next when clause"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return;</return>
+
+<case>case <expr><name>NODE_IN</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"in clause"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: in [nd_head]; [nd_body]; (in or else) [nd_next]"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: case x; in 1; foo; in 2; bar; else baz; end"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_head</name></expr></argument>, <argument><expr><literal type="string">"in pattern"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_body</name></expr></argument>, <argument><expr><literal type="string">"in body"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>LAST_NODE</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_next</name></expr></argument>, <argument><expr><literal type="string">"next in clause"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return;</return>
+
+<case>case <expr><name>NODE_WHILE</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"while statement"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: while [nd_cond]; [nd_body]; end"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: while x == 1; foo; end"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<goto>goto <name>loop</name>;</goto>
+<case>case <expr><name>NODE_UNTIL</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"until statement"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: until [nd_cond]; [nd_body]; end"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: until x == 1; foo; end"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<label><name>loop</name>:</label>
+<macro><name>F_CUSTOM1</name><argument_list>(<argument>nd_state</argument>, <argument><literal type="string">"begin-end-while?"</literal></argument>)</argument_list></macro> <block>{<block_content>
+<expr_stmt><expr><call><name>A_INT</name><argument_list>(<argument><expr><operator>(</operator><name>int</name><operator>)</operator><name><name>node</name><operator>-&gt;</operator><name>nd_state</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>A</name><argument_list>(<argument><expr><ternary><condition><expr><operator>(</operator><name><name>node</name><operator>-&gt;</operator><name>nd_state</name></name> <operator>==</operator> <literal type="number">1</literal><operator>)</operator></expr> ?</condition><then> <expr><literal type="string">" (while-end)"</literal></expr> </then><else>: <expr><literal type="string">" (begin-end-while)"</literal></expr></else></ternary></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_cond</name></expr></argument>, <argument><expr><literal type="string">"condition"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>LAST_NODE</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_body</name></expr></argument>, <argument><expr><literal type="string">"body"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return;</return>
+
+<case>case <expr><name>NODE_ITER</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"method call with block"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: [nd_iter] { [nd_body] }"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: 3.times { foo }"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<goto>goto <name>iter</name>;</goto>
+<case>case <expr><name>NODE_FOR</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"for statement"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: for * in [nd_iter] do [nd_body] end"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: for i in 1..3 do foo end"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<label><name>iter</name>:</label>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_iter</name></expr></argument>, <argument><expr><literal type="string">"iteration receiver"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>LAST_NODE</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_body</name></expr></argument>, <argument><expr><literal type="string">"body"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return;</return>
+
+<case>case <expr><name>NODE_FOR_MASGN</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"vars of for statement with masgn"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: for [nd_var] in ... do ... end"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: for x, y in 1..3 do foo end"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>LAST_NODE</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_var</name></expr></argument>, <argument><expr><literal type="string">"var"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return;</return>
+
+<case>case <expr><name>NODE_BREAK</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"break statement"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: break [nd_stts]"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: break 1"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<goto>goto <name>jump</name>;</goto>
+<case>case <expr><name>NODE_NEXT</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"next statement"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: next [nd_stts]"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: next 1"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<goto>goto <name>jump</name>;</goto>
+<case>case <expr><name>NODE_RETURN</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"return statement"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: return [nd_stts]"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: return 1"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<label><name>jump</name>:</label>
+<expr_stmt><expr><name>LAST_NODE</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_stts</name></expr></argument>, <argument><expr><literal type="string">"value"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return;</return>
+
+<case>case <expr><name>NODE_REDO</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"redo statement"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: redo"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: redo"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return;</return>
+
+<case>case <expr><name>NODE_RETRY</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"retry statement"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: retry"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: retry"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return;</return>
+
+<case>case <expr><name>NODE_BEGIN</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"begin statement"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: begin; [nd_body]; end"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: begin; 1; end"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>LAST_NODE</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_body</name></expr></argument>, <argument><expr><literal type="string">"body"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return;</return>
+
+<case>case <expr><name>NODE_RESCUE</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"rescue clause"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: begin; [nd_body]; (rescue) [nd_resq]; else [nd_else]; end"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: begin; foo; rescue; bar; else; baz; end"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_head</name></expr></argument>, <argument><expr><literal type="string">"body"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_resq</name></expr></argument>, <argument><expr><literal type="string">"rescue clause list"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>LAST_NODE</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_else</name></expr></argument>, <argument><expr><literal type="string">"rescue else clause"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return;</return>
+
+<case>case <expr><name>NODE_RESBODY</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"rescue clause (cont'd)"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: rescue [nd_args]; [nd_body]; (rescue) [nd_head]"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: begin; foo; rescue; bar; else; baz; end"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_args</name></expr></argument>, <argument><expr><literal type="string">"rescue exceptions"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_body</name></expr></argument>, <argument><expr><literal type="string">"rescue clause"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>LAST_NODE</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_head</name></expr></argument>, <argument><expr><literal type="string">"next rescue clause"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return;</return>
+
+<case>case <expr><name>NODE_ENSURE</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"ensure clause"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: begin; [nd_head]; ensure; [nd_ensr]; end"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: begin; foo; ensure; bar; end"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_head</name></expr></argument>, <argument><expr><literal type="string">"body"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>LAST_NODE</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_ensr</name></expr></argument>, <argument><expr><literal type="string">"ensure clause"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return;</return>
+
+<case>case <expr><name>NODE_AND</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"&amp;&amp; operator"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: [nd_1st] &amp;&amp; [nd_2nd]"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: foo &amp;&amp; bar"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<goto>goto <name>andor</name>;</goto>
+<case>case <expr><name>NODE_OR</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"|| operator"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: [nd_1st] || [nd_2nd]"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: foo || bar"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<label><name>andor</name>:</label>
+<while>while <condition>(<expr><literal type="number">1</literal></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_1st</name></expr></argument>, <argument><expr><literal type="string">"left expr"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>node</name><operator>-&gt;</operator><name>nd_2nd</name></name> <operator>||</operator> <call><name>nd_type</name><argument_list>(<argument><expr><name><name>node</name><operator>-&gt;</operator><name>nd_2nd</name></name></expr></argument>)</argument_list></call> <operator>!=</operator> <operator>(</operator><name>int</name><operator>)</operator><name>type</name></expr>)</condition><block type="pseudo"><block_content>
+<break>break;</break></block_content></block></if></if_stmt>
+<expr_stmt><expr><name>node</name> <operator>=</operator> <name><name>node</name><operator>-&gt;</operator><name>nd_2nd</name></name></expr>;</expr_stmt>
+</block_content>}</block></while>
+<expr_stmt><expr><name>LAST_NODE</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_2nd</name></expr></argument>, <argument><expr><literal type="string">"right expr"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return;</return>
+
+<case>case <expr><name>NODE_MASGN</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"multiple assignment"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: [nd_head], [nd_args] = [nd_value]"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: a, b = foo"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_value</name></expr></argument>, <argument><expr><literal type="string">"rhsn"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_head</name></expr></argument>, <argument><expr><literal type="string">"lhsn"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><call><name>NODE_NAMED_REST_P</name><argument_list>(<argument><expr><name><name>node</name><operator>-&gt;</operator><name>nd_args</name></name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name>LAST_NODE</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_args</name></expr></argument>, <argument><expr><literal type="string">"splatn"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if>
+<else>else <block>{<block_content>
+<expr_stmt><expr><call><name>F_MSG</name><argument_list>(<argument><expr><name>nd_args</name></expr></argument>, <argument><expr><literal type="string">"splatn"</literal></expr></argument>, <argument><expr><literal type="string">"NODE_SPECIAL_NO_NAME_REST (rest argument without name)"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></else></if_stmt>
+<return>return;</return>
+
+<case>case <expr><name>NODE_LASGN</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"local variable assignment"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: [nd_vid](lvar) = [nd_value]"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: x = foo"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_ID</name><argument_list>(<argument><expr><name>nd_vid</name></expr></argument>, <argument><expr><literal type="string">"local variable"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><call><name>NODE_REQUIRED_KEYWORD_P</name><argument_list>(<argument><expr><name>node</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>F_MSG</name><argument_list>(<argument><expr><name>nd_value</name></expr></argument>, <argument><expr><literal type="string">"rvalue"</literal></expr></argument>, <argument><expr><literal type="string">"NODE_SPECIAL_REQUIRED_KEYWORD (required keyword argument)"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if>
+<else>else <block>{<block_content>
+<expr_stmt><expr><name>LAST_NODE</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_value</name></expr></argument>, <argument><expr><literal type="string">"rvalue"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></else></if_stmt>
+<return>return;</return>
+<case>case <expr><name>NODE_DASGN</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"dynamic variable assignment (out of current scope)"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: [nd_vid](dvar) = [nd_value]"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: x = nil; 1.times { x = foo }"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_ID</name><argument_list>(<argument><expr><name>nd_vid</name></expr></argument>, <argument><expr><literal type="string">"local variable"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>LAST_NODE</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_value</name></expr></argument>, <argument><expr><literal type="string">"rvalue"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return;</return>
+<case>case <expr><name>NODE_DASGN_CURR</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"dynamic variable assignment (in current scope)"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: [nd_vid](current dvar) = [nd_value]"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: 1.times { x = foo }"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_ID</name><argument_list>(<argument><expr><name>nd_vid</name></expr></argument>, <argument><expr><literal type="string">"local variable"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><call><name>NODE_REQUIRED_KEYWORD_P</name><argument_list>(<argument><expr><name>node</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>F_MSG</name><argument_list>(<argument><expr><name>nd_value</name></expr></argument>, <argument><expr><literal type="string">"rvalue"</literal></expr></argument>, <argument><expr><literal type="string">"NODE_SPECIAL_REQUIRED_KEYWORD (required keyword argument)"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if>
+<else>else <block>{<block_content>
+<expr_stmt><expr><name>LAST_NODE</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_value</name></expr></argument>, <argument><expr><literal type="string">"rvalue"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></else></if_stmt>
+<return>return;</return>
+<case>case <expr><name>NODE_IASGN</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"instance variable assignment"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: [nd_vid](ivar) = [nd_value]"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: @x = foo"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_ID</name><argument_list>(<argument><expr><name>nd_vid</name></expr></argument>, <argument><expr><literal type="string">"instance variable"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>LAST_NODE</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_value</name></expr></argument>, <argument><expr><literal type="string">"rvalue"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return;</return>
+<case>case <expr><name>NODE_CVASGN</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"class variable assignment"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: [nd_vid](cvar) = [nd_value]"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: @@x = foo"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_ID</name><argument_list>(<argument><expr><name>nd_vid</name></expr></argument>, <argument><expr><literal type="string">"class variable"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>LAST_NODE</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_value</name></expr></argument>, <argument><expr><literal type="string">"rvalue"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return;</return>
+<case>case <expr><name>NODE_GASGN</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"global variable assignment"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: [nd_entry](gvar) = [nd_value]"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: $x = foo"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_GENTRY</name><argument_list>(<argument><expr><name>nd_entry</name></expr></argument>, <argument><expr><literal type="string">"global variable"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>LAST_NODE</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_value</name></expr></argument>, <argument><expr><literal type="string">"rvalue"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return;</return>
+
+<case>case <expr><name>NODE_CDECL</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"constant declaration"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: [nd_else]::[nd_vid](constant) = [nd_value]"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: X = foo"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>node</name><operator>-&gt;</operator><name>nd_vid</name></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>F_ID</name><argument_list>(<argument><expr><name>nd_vid</name></expr></argument>, <argument><expr><literal type="string">"constant"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_MSG</name><argument_list>(<argument><expr><name>nd_else</name></expr></argument>, <argument><expr><literal type="string">"extension"</literal></expr></argument>, <argument><expr><literal type="string">"not used"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if>
+<else>else <block>{<block_content>
+<expr_stmt><expr><call><name>F_MSG</name><argument_list>(<argument><expr><name>nd_vid</name></expr></argument>, <argument><expr><literal type="string">"constant"</literal></expr></argument>, <argument><expr><literal type="string">"0 (see extension field)"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_else</name></expr></argument>, <argument><expr><literal type="string">"extension"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></else></if_stmt>
+<expr_stmt><expr><name>LAST_NODE</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_value</name></expr></argument>, <argument><expr><literal type="string">"rvalue"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return;</return>
+
+<case>case <expr><name>NODE_OP_ASGN1</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"array assignment with operator"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: [nd_recv] [ [nd_args-&gt;nd_head] ] [nd_mid]= [nd_args-&gt;nd_body]"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: ary[1] += foo"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_recv</name></expr></argument>, <argument><expr><literal type="string">"receiver"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_ID</name><argument_list>(<argument><expr><name>nd_mid</name></expr></argument>, <argument><expr><literal type="string">"operator"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name><name>nd_args</name><operator>-&gt;</operator><name>nd_head</name></name></expr></argument>, <argument><expr><literal type="string">"index"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>LAST_NODE</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name><name>nd_args</name><operator>-&gt;</operator><name>nd_body</name></name></expr></argument>, <argument><expr><literal type="string">"rvalue"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return;</return>
+
+<case>case <expr><name>NODE_OP_ASGN2</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"attr assignment with operator"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: [nd_recv].[attr] [nd_next-&gt;nd_mid]= [nd_value]"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">" where [attr]: [nd_next-&gt;nd_vid]"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: struct.field += foo"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_recv</name></expr></argument>, <argument><expr><literal type="string">"receiver"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<macro><name>F_CUSTOM1</name><argument_list>(<argument>nd_next-&gt;nd_vid</argument>, <argument><literal type="string">"attr"</literal></argument>)</argument_list></macro> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name><name>node</name><operator>-&gt;</operator><name>nd_next</name><operator>-&gt;</operator><name>nd_aid</name></name></expr>)</condition><block type="pseudo"><block_content> <expr_stmt><expr><call><name>A</name><argument_list>(<argument><expr><literal type="string">"? "</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+<expr_stmt><expr><call><name>A_ID</name><argument_list>(<argument><expr><name><name>node</name><operator>-&gt;</operator><name>nd_next</name><operator>-&gt;</operator><name>nd_vid</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block>
+<expr_stmt><expr><call><name>F_ID</name><argument_list>(<argument><expr><name><name>nd_next</name><operator>-&gt;</operator><name>nd_mid</name></name></expr></argument>, <argument><expr><literal type="string">"operator"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>LAST_NODE</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_value</name></expr></argument>, <argument><expr><literal type="string">"rvalue"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return;</return>
+
+<case>case <expr><name>NODE_OP_ASGN_AND</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"assignment with &amp;&amp; operator"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: [nd_head] &amp;&amp;= [nd_value]"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: foo &amp;&amp;= bar"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<goto>goto <name>asgn_andor</name>;</goto>
+<case>case <expr><name>NODE_OP_ASGN_OR</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"assignment with || operator"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: [nd_head] ||= [nd_value]"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: foo ||= bar"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<label><name>asgn_andor</name>:</label>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_head</name></expr></argument>, <argument><expr><literal type="string">"variable"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>LAST_NODE</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_value</name></expr></argument>, <argument><expr><literal type="string">"rvalue"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return;</return>
+
+<case>case <expr><name>NODE_OP_CDECL</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"constant declaration with operator"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: [nd_head](constant) [nd_aid]= [nd_value]"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: A::B ||= 1"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_head</name></expr></argument>, <argument><expr><literal type="string">"constant"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_ID</name><argument_list>(<argument><expr><name>nd_aid</name></expr></argument>, <argument><expr><literal type="string">"operator"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>LAST_NODE</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_value</name></expr></argument>, <argument><expr><literal type="string">"rvalue"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return;</return>
+
+<case>case <expr><name>NODE_CALL</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"method invocation"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: [nd_recv].[nd_mid]([nd_args])"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: obj.foo(1)"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_ID</name><argument_list>(<argument><expr><name>nd_mid</name></expr></argument>, <argument><expr><literal type="string">"method id"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_recv</name></expr></argument>, <argument><expr><literal type="string">"receiver"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>LAST_NODE</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_args</name></expr></argument>, <argument><expr><literal type="string">"arguments"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return;</return>
+
+<case>case <expr><name>NODE_OPCALL</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"method invocation"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: [nd_recv] [nd_mid] [nd_args]"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: foo + bar"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_ID</name><argument_list>(<argument><expr><name>nd_mid</name></expr></argument>, <argument><expr><literal type="string">"method id"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_recv</name></expr></argument>, <argument><expr><literal type="string">"receiver"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>LAST_NODE</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_args</name></expr></argument>, <argument><expr><literal type="string">"arguments"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return;</return>
+
+<case>case <expr><name>NODE_FCALL</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"function call"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: [nd_mid]([nd_args])"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: foo(1)"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_ID</name><argument_list>(<argument><expr><name>nd_mid</name></expr></argument>, <argument><expr><literal type="string">"method id"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>LAST_NODE</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_args</name></expr></argument>, <argument><expr><literal type="string">"arguments"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return;</return>
+
+<case>case <expr><name>NODE_VCALL</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"function call with no argument"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: [nd_mid]"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: foo"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_ID</name><argument_list>(<argument><expr><name>nd_mid</name></expr></argument>, <argument><expr><literal type="string">"method id"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return;</return>
+
+<case>case <expr><name>NODE_QCALL</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"safe method invocation"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: [nd_recv]&amp;.[nd_mid]([nd_args])"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: obj&amp;.foo(1)"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_ID</name><argument_list>(<argument><expr><name>nd_mid</name></expr></argument>, <argument><expr><literal type="string">"method id"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_recv</name></expr></argument>, <argument><expr><literal type="string">"receiver"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>LAST_NODE</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_args</name></expr></argument>, <argument><expr><literal type="string">"arguments"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return;</return>
+
+<case>case <expr><name>NODE_SUPER</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"super invocation"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: super [nd_args]"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: super 1"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>LAST_NODE</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_args</name></expr></argument>, <argument><expr><literal type="string">"arguments"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return;</return>
+
+<case>case <expr><name>NODE_ZSUPER</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"super invocation with no argument"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: super"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: super"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return;</return>
+
+<case>case <expr><name>NODE_LIST</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"list constructor"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: [ [nd_head], [nd_next].. ] (length: [nd_alen])"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: [1, 2, 3]"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<goto>goto <name>ary</name>;</goto>
+<case>case <expr><name>NODE_VALUES</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"return arguments"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: [ [nd_head], [nd_next].. ] (length: [nd_alen])"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: return 1, 2, 3"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<label><name>ary</name>:</label>
+<expr_stmt><expr><call><name>dump_array</name><argument_list>(<argument><expr><name>buf</name></expr></argument>, <argument><expr><name>indent</name></expr></argument>, <argument><expr><name>comment</name></expr></argument>, <argument><expr><name>node</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return;</return>
+
+<case>case <expr><name>NODE_ZLIST</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"empty list constructor"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: []"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: []"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return;</return>
+
+<case>case <expr><name>NODE_HASH</name></expr>:</case>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>node</name><operator>-&gt;</operator><name>nd_brace</name></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"keyword arguments"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: nd_head"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: a: 1, b: 2"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if>
+<else>else <block>{<block_content>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"hash constructor"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: { [nd_head] }"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: { 1 =&gt; 2, 3 =&gt; 4 }"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></else></if_stmt>
+<macro><name>F_CUSTOM1</name><argument_list>(<argument>nd_brace</argument>, <argument><literal type="string">"keyword arguments or hash literal"</literal></argument>)</argument_list></macro> <block>{<block_content>
+<switch>switch <condition>(<expr><name><name>node</name><operator>-&gt;</operator><name>nd_brace</name></name></expr>)</condition> <block>{<block_content>
+<case>case <expr><literal type="number">0</literal></expr>:</case> <expr_stmt><expr><call><name>A</name><argument_list>(<argument><expr><literal type="string">"0 (keyword argument)"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt> <break>break;</break>
+<case>case <expr><literal type="number">1</literal></expr>:</case> <expr_stmt><expr><call><name>A</name><argument_list>(<argument><expr><literal type="string">"1 (hash literal)"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt> <break>break;</break>
+</block_content>}</block></switch>
+</block_content>}</block>
+<expr_stmt><expr><name>LAST_NODE</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_head</name></expr></argument>, <argument><expr><literal type="string">"contents"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return;</return>
+
+<case>case <expr><name>NODE_YIELD</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"yield invocation"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: yield [nd_head]"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: yield 1"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>LAST_NODE</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_head</name></expr></argument>, <argument><expr><literal type="string">"arguments"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return;</return>
+
+<case>case <expr><name>NODE_LVAR</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"local variable reference"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: [nd_vid](lvar)"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: x"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_ID</name><argument_list>(<argument><expr><name>nd_vid</name></expr></argument>, <argument><expr><literal type="string">"local variable"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return;</return>
+<case>case <expr><name>NODE_DVAR</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"dynamic variable reference"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: [nd_vid](dvar)"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: 1.times { x = 1; x }"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_ID</name><argument_list>(<argument><expr><name>nd_vid</name></expr></argument>, <argument><expr><literal type="string">"local variable"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return;</return>
+<case>case <expr><name>NODE_IVAR</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"instance variable reference"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: [nd_vid](ivar)"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: @x"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_ID</name><argument_list>(<argument><expr><name>nd_vid</name></expr></argument>, <argument><expr><literal type="string">"instance variable"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return;</return>
+<case>case <expr><name>NODE_CONST</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"constant reference"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: [nd_vid](constant)"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: X"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_ID</name><argument_list>(<argument><expr><name>nd_vid</name></expr></argument>, <argument><expr><literal type="string">"constant"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return;</return>
+<case>case <expr><name>NODE_CVAR</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"class variable reference"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: [nd_vid](cvar)"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: @@x"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_ID</name><argument_list>(<argument><expr><name>nd_vid</name></expr></argument>, <argument><expr><literal type="string">"class variable"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return;</return>
+
+<case>case <expr><name>NODE_GVAR</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"global variable reference"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: [nd_entry](gvar)"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: $x"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_GENTRY</name><argument_list>(<argument><expr><name>nd_entry</name></expr></argument>, <argument><expr><literal type="string">"global variable"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return;</return>
+
+<case>case <expr><name>NODE_NTH_REF</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"nth special variable reference"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: $[nd_nth]"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: $1, $2, .."</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<macro><name>F_CUSTOM1</name><argument_list>(<argument>nd_nth</argument>, <argument><literal type="string">"variable"</literal></argument>)</argument_list></macro> <block>{<block_content> <expr_stmt><expr><call><name>A</name><argument_list>(<argument><expr><literal type="string">"$"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt> <expr_stmt><expr><call><name>A_LONG</name><argument_list>(<argument><expr><name><name>node</name><operator>-&gt;</operator><name>nd_nth</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt> </block_content>}</block>
+<return>return;</return>
+
+<case>case <expr><name>NODE_BACK_REF</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"back special variable reference"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: $[nd_nth]"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: $&amp;, $`, $', $+"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<macro><name>F_CUSTOM1</name><argument_list>(<argument>nd_nth</argument>, <argument><literal type="string">"variable"</literal></argument>)</argument_list></macro> <block>{<block_content>
+<decl_stmt><decl><type><name>char</name></type> <name><name>name</name><index>[<expr><literal type="number">3</literal></expr>]</index></name></decl>;</decl_stmt>
+<expr_stmt><expr><name><name>name</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>=</operator> <literal type="char">'$'</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>name</name><index>[<expr><literal type="number">1</literal></expr>]</index></name> <operator>=</operator> <operator>(</operator><name>char</name><operator>)</operator><name><name>node</name><operator>-&gt;</operator><name>nd_nth</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>name</name><index>[<expr><literal type="number">2</literal></expr>]</index></name> <operator>=</operator> <literal type="char">'\0'</literal></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>A</name><argument_list>(<argument><expr><name>name</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block>
+<return>return;</return>
+
+<case>case <expr><name>NODE_MATCH</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"match expression (against $_ implicitly)"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: [nd_lit] (in condition)"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: if /foo/; foo; end"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_LIT</name><argument_list>(<argument><expr><name>nd_lit</name></expr></argument>, <argument><expr><literal type="string">"regexp"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return;</return>
+
+<case>case <expr><name>NODE_MATCH2</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"match expression (regexp first)"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: [nd_recv] =~ [nd_value]"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: /foo/ =~ 'foo'"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_recv</name></expr></argument>, <argument><expr><literal type="string">"regexp (receiver)"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>node</name><operator>-&gt;</operator><name>nd_args</name></name></expr>)</condition><block type="pseudo"><block_content> <expr_stmt><expr><name>LAST_NODE</name></expr>;</expr_stmt></block_content></block></if></if_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_value</name></expr></argument>, <argument><expr><literal type="string">"string (argument)"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>node</name><operator>-&gt;</operator><name>nd_args</name></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name>LAST_NODE</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_args</name></expr></argument>, <argument><expr><literal type="string">"named captures"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+<return>return;</return>
+
+<case>case <expr><name>NODE_MATCH3</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"match expression (regexp second)"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: [nd_recv] =~ [nd_value]"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: 'foo' =~ /foo/"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_recv</name></expr></argument>, <argument><expr><literal type="string">"string (receiver)"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>LAST_NODE</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_value</name></expr></argument>, <argument><expr><literal type="string">"regexp (argument)"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return;</return>
+
+<case>case <expr><name>NODE_LIT</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"literal"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: [nd_lit]"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: 1, /foo/"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<goto>goto <name>lit</name>;</goto>
+<case>case <expr><name>NODE_STR</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"string literal"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: [nd_lit]"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: 'foo'"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<goto>goto <name>lit</name>;</goto>
+<case>case <expr><name>NODE_XSTR</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"xstring literal"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: [nd_lit]"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: `foo`"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<label><name>lit</name>:</label>
+<expr_stmt><expr><call><name>F_LIT</name><argument_list>(<argument><expr><name>nd_lit</name></expr></argument>, <argument><expr><literal type="string">"literal"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return;</return>
+
+<case>case <expr><name>NODE_ONCE</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"once evaluation"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: [nd_body]"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: /foo#{ bar }baz/o"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>LAST_NODE</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_body</name></expr></argument>, <argument><expr><literal type="string">"body"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return;</return>
+<case>case <expr><name>NODE_DSTR</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"string literal with interpolation"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: [nd_lit]"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: \"foo#{ bar }baz\""</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<goto>goto <name>dlit</name>;</goto>
+<case>case <expr><name>NODE_DXSTR</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"xstring literal with interpolation"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: [nd_lit]"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: `foo#{ bar }baz`"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<goto>goto <name>dlit</name>;</goto>
+<case>case <expr><name>NODE_DREGX</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"regexp literal with interpolation"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: [nd_lit]"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: /foo#{ bar }baz/"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<goto>goto <name>dlit</name>;</goto>
+<case>case <expr><name>NODE_DSYM</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"symbol literal with interpolation"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: [nd_lit]"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: :\"foo#{ bar }baz\""</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<label><name>dlit</name>:</label>
+<expr_stmt><expr><call><name>F_LIT</name><argument_list>(<argument><expr><name>nd_lit</name></expr></argument>, <argument><expr><literal type="string">"preceding string"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name><name>nd_next</name><operator>-&gt;</operator><name>nd_head</name></name></expr></argument>, <argument><expr><literal type="string">"interpolation"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>LAST_NODE</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name><name>nd_next</name><operator>-&gt;</operator><name>nd_next</name></name></expr></argument>, <argument><expr><literal type="string">"tailing strings"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return;</return>
+
+<case>case <expr><name>NODE_EVSTR</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"interpolation expression"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: \"..#{ [nd_lit] }..\""</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: \"foo#{ bar }baz\""</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>LAST_NODE</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_body</name></expr></argument>, <argument><expr><literal type="string">"body"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return;</return>
+
+<case>case <expr><name>NODE_ARGSCAT</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"splat argument following arguments"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: ..(*[nd_head], [nd_body..])"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: foo(*ary, post_arg1, post_arg2)"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_head</name></expr></argument>, <argument><expr><literal type="string">"preceding array"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>LAST_NODE</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_body</name></expr></argument>, <argument><expr><literal type="string">"following array"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return;</return>
+
+<case>case <expr><name>NODE_ARGSPUSH</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"splat argument following one argument"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: ..(*[nd_head], [nd_body])"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: foo(*ary, post_arg)"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_head</name></expr></argument>, <argument><expr><literal type="string">"preceding array"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>LAST_NODE</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_body</name></expr></argument>, <argument><expr><literal type="string">"following element"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return;</return>
+
+<case>case <expr><name>NODE_SPLAT</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"splat argument"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: *[nd_head]"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: foo(*ary)"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>LAST_NODE</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_head</name></expr></argument>, <argument><expr><literal type="string">"splat'ed array"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return;</return>
+
+<case>case <expr><name>NODE_BLOCK_PASS</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"arguments with block argument"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: ..([nd_head], &amp;[nd_body])"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: foo(x, &amp;blk)"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_head</name></expr></argument>, <argument><expr><literal type="string">"other arguments"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>LAST_NODE</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_body</name></expr></argument>, <argument><expr><literal type="string">"block argument"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return;</return>
+
+<case>case <expr><name>NODE_DEFN</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"method definition"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: def [nd_mid] [nd_defn]; end"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: def foo; bar; end"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_ID</name><argument_list>(<argument><expr><name>nd_mid</name></expr></argument>, <argument><expr><literal type="string">"method name"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>LAST_NODE</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_defn</name></expr></argument>, <argument><expr><literal type="string">"method definition"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return;</return>
+
+<case>case <expr><name>NODE_DEFS</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"singleton method definition"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: def [nd_recv].[nd_mid] [nd_defn]; end"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: def obj.foo; bar; end"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_recv</name></expr></argument>, <argument><expr><literal type="string">"receiver"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_ID</name><argument_list>(<argument><expr><name>nd_mid</name></expr></argument>, <argument><expr><literal type="string">"method name"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>LAST_NODE</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_defn</name></expr></argument>, <argument><expr><literal type="string">"method definition"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return;</return>
+
+<case>case <expr><name>NODE_ALIAS</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"method alias statement"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: alias [nd_1st] [nd_2nd]"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: alias bar foo"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_1st</name></expr></argument>, <argument><expr><literal type="string">"new name"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>LAST_NODE</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_2nd</name></expr></argument>, <argument><expr><literal type="string">"old name"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return;</return>
+
+<case>case <expr><name>NODE_VALIAS</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"global variable alias statement"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: alias [nd_alias](gvar) [nd_orig](gvar)"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: alias $y $x"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_ID</name><argument_list>(<argument><expr><name>nd_alias</name></expr></argument>, <argument><expr><literal type="string">"new name"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_ID</name><argument_list>(<argument><expr><name>nd_orig</name></expr></argument>, <argument><expr><literal type="string">"old name"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return;</return>
+
+<case>case <expr><name>NODE_UNDEF</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"method undef statement"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: undef [nd_undef]"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: undef foo"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>LAST_NODE</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_undef</name></expr></argument>, <argument><expr><literal type="string">"old name"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return;</return>
+
+<case>case <expr><name>NODE_CLASS</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"class definition"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: class [nd_cpath] &lt; [nd_super]; [nd_body]; end"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: class C2 &lt; C; ..; end"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_cpath</name></expr></argument>, <argument><expr><literal type="string">"class path"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_super</name></expr></argument>, <argument><expr><literal type="string">"superclass"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>LAST_NODE</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_body</name></expr></argument>, <argument><expr><literal type="string">"class definition"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return;</return>
+
+<case>case <expr><name>NODE_MODULE</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"module definition"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: module [nd_cpath]; [nd_body]; end"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: module M; ..; end"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_cpath</name></expr></argument>, <argument><expr><literal type="string">"module path"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>LAST_NODE</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_body</name></expr></argument>, <argument><expr><literal type="string">"module definition"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return;</return>
+
+<case>case <expr><name>NODE_SCLASS</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"singleton class definition"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: class &lt;&lt; [nd_recv]; [nd_body]; end"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: class &lt;&lt; obj; ..; end"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_recv</name></expr></argument>, <argument><expr><literal type="string">"receiver"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>LAST_NODE</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_body</name></expr></argument>, <argument><expr><literal type="string">"singleton class definition"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return;</return>
+
+<case>case <expr><name>NODE_COLON2</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"scoped constant reference"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: [nd_head]::[nd_mid]"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: M::C"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_ID</name><argument_list>(<argument><expr><name>nd_mid</name></expr></argument>, <argument><expr><literal type="string">"constant name"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>LAST_NODE</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_head</name></expr></argument>, <argument><expr><literal type="string">"receiver"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return;</return>
+
+<case>case <expr><name>NODE_COLON3</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"top-level constant reference"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: ::[nd_mid]"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: ::Object"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_ID</name><argument_list>(<argument><expr><name>nd_mid</name></expr></argument>, <argument><expr><literal type="string">"constant name"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return;</return>
+
+<case>case <expr><name>NODE_DOT2</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"range constructor (incl.)"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: [nd_beg]..[nd_end]"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: 1..5"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<goto>goto <name>dot</name>;</goto>
+<case>case <expr><name>NODE_DOT3</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"range constructor (excl.)"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: [nd_beg]...[nd_end]"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: 1...5"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<goto>goto <name>dot</name>;</goto>
+<case>case <expr><name>NODE_FLIP2</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"flip-flop condition (incl.)"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: [nd_beg]..[nd_end]"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: if (x==1)..(x==5); foo; end"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<goto>goto <name>dot</name>;</goto>
+<case>case <expr><name>NODE_FLIP3</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"flip-flop condition (excl.)"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: [nd_beg]...[nd_end]"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: if (x==1)...(x==5); foo; end"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<label><name>dot</name>:</label>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_beg</name></expr></argument>, <argument><expr><literal type="string">"begin"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>LAST_NODE</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_end</name></expr></argument>, <argument><expr><literal type="string">"end"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return;</return>
+
+<case>case <expr><name>NODE_SELF</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"self"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: self"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: self"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return;</return>
+
+<case>case <expr><name>NODE_NIL</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"nil"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: nil"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: nil"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return;</return>
+
+<case>case <expr><name>NODE_TRUE</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"true"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: true"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: true"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return;</return>
+
+<case>case <expr><name>NODE_FALSE</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"false"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: false"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: false"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return;</return>
+
+<case>case <expr><name>NODE_ERRINFO</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"virtual reference to $!"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: rescue =&gt; id"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: rescue =&gt; id"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return;</return>
+
+<case>case <expr><name>NODE_DEFINED</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"defined? expression"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: defined?([nd_head])"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: defined?(foo)"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_head</name></expr></argument>, <argument><expr><literal type="string">"expr"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return;</return>
+
+<case>case <expr><name>NODE_POSTEXE</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"post-execution"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: END { [nd_body] }"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: END { foo }"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>LAST_NODE</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_body</name></expr></argument>, <argument><expr><literal type="string">"END clause"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return;</return>
+
+<case>case <expr><name>NODE_ATTRASGN</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"attr assignment"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: [nd_recv].[nd_mid] = [nd_args]"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: struct.field = foo"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_recv</name></expr></argument>, <argument><expr><literal type="string">"receiver"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_ID</name><argument_list>(<argument><expr><name>nd_mid</name></expr></argument>, <argument><expr><literal type="string">"method name"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>LAST_NODE</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_args</name></expr></argument>, <argument><expr><literal type="string">"arguments"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return;</return>
+
+<case>case <expr><name>NODE_LAMBDA</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"lambda expression"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: -&gt; [nd_body]"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: -&gt; { foo }"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>LAST_NODE</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_body</name></expr></argument>, <argument><expr><literal type="string">"lambda clause"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return;</return>
+
+<case>case <expr><name>NODE_OPT_ARG</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"optional arguments"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: def method_name([nd_body=some], [nd_next..])"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: def foo(a, b=1, c); end"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_body</name></expr></argument>, <argument><expr><literal type="string">"body"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>LAST_NODE</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_next</name></expr></argument>, <argument><expr><literal type="string">"next"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return;</return>
+
+<case>case <expr><name>NODE_KW_ARG</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"keyword arguments"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: def method_name([nd_body=some], [nd_next..])"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: def foo(a:1, b:2); end"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_body</name></expr></argument>, <argument><expr><literal type="string">"body"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>LAST_NODE</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_next</name></expr></argument>, <argument><expr><literal type="string">"next"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return;</return>
+
+<case>case <expr><name>NODE_POSTARG</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"post arguments"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: *[nd_1st], [nd_2nd..] = .."</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: a, *rest, z = foo"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><call><name>NODE_NAMED_REST_P</name><argument_list>(<argument><expr><name><name>node</name><operator>-&gt;</operator><name>nd_1st</name></name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_1st</name></expr></argument>, <argument><expr><literal type="string">"rest argument"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if>
+<else>else <block>{<block_content>
+<expr_stmt><expr><call><name>F_MSG</name><argument_list>(<argument><expr><name>nd_1st</name></expr></argument>, <argument><expr><literal type="string">"rest argument"</literal></expr></argument>, <argument><expr><literal type="string">"NODE_SPECIAL_NO_NAME_REST (rest argument without name)"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></else></if_stmt>
+<expr_stmt><expr><name>LAST_NODE</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_2nd</name></expr></argument>, <argument><expr><literal type="string">"post arguments"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return;</return>
+
+<case>case <expr><name>NODE_ARGS</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"method parameters"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: def method_name(.., [nd_opt=some], *[nd_rest], [nd_pid], .., &amp;[nd_body])"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"example: def foo(a, b, opt1=1, opt2=2, *rest, y, z, &amp;blk); end"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_INT</name><argument_list>(<argument><expr><name><name>nd_ainfo</name><operator>-&gt;</operator><name>pre_args_num</name></name></expr></argument>, <argument><expr><literal type="string">"count of mandatory (pre-)arguments"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name><name>nd_ainfo</name><operator>-&gt;</operator><name>pre_init</name></name></expr></argument>, <argument><expr><literal type="string">"initialization of (pre-)arguments"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_INT</name><argument_list>(<argument><expr><name><name>nd_ainfo</name><operator>-&gt;</operator><name>post_args_num</name></name></expr></argument>, <argument><expr><literal type="string">"count of mandatory post-arguments"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name><name>nd_ainfo</name><operator>-&gt;</operator><name>post_init</name></name></expr></argument>, <argument><expr><literal type="string">"initialization of post-arguments"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_ID</name><argument_list>(<argument><expr><name><name>nd_ainfo</name><operator>-&gt;</operator><name>first_post_arg</name></name></expr></argument>, <argument><expr><literal type="string">"first post argument"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<macro><name>F_CUSTOM1</name><argument_list>(<argument>nd_ainfo-&gt;rest_arg</argument>, <argument><literal type="string">"rest argument"</literal></argument>)</argument_list></macro> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name><name>node</name><operator>-&gt;</operator><name>nd_ainfo</name><operator>-&gt;</operator><name>rest_arg</name></name> <operator>==</operator> <name>NODE_SPECIAL_EXCESSIVE_COMMA</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>A</name><argument_list>(<argument><expr><literal type="string">"1 (excessed comma)"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if>
+<else>else <block>{<block_content>
+<expr_stmt><expr><call><name>A_ID</name><argument_list>(<argument><expr><name><name>node</name><operator>-&gt;</operator><name>nd_ainfo</name><operator>-&gt;</operator><name>rest_arg</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></else></if_stmt>
+</block_content>}</block>
+<expr_stmt><expr><call><name>F_ID</name><argument_list>(<argument><expr><name><name>nd_ainfo</name><operator>-&gt;</operator><name>block_arg</name></name></expr></argument>, <argument><expr><literal type="string">"block argument"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name><name>nd_ainfo</name><operator>-&gt;</operator><name>opt_args</name></name></expr></argument>, <argument><expr><literal type="string">"optional arguments"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name><name>nd_ainfo</name><operator>-&gt;</operator><name>kw_args</name></name></expr></argument>, <argument><expr><literal type="string">"keyword arguments"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>LAST_NODE</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name><name>nd_ainfo</name><operator>-&gt;</operator><name>kw_rest_arg</name></name></expr></argument>, <argument><expr><literal type="string">"keyword rest argument"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return;</return>
+
+<case>case <expr><name>NODE_SCOPE</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"new scope"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: [nd_tbl]: local table, [nd_args]: arguments, [nd_body]: body"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<macro><name>F_CUSTOM1</name><argument_list>(<argument>nd_tbl</argument>, <argument><literal type="string">"local table"</literal></argument>)</argument_list></macro> <block>{<block_content>
+<decl_stmt><decl><type><name>ID</name> <modifier>*</modifier></type><name>tbl</name> <init>= <expr><name><name>node</name><operator>-&gt;</operator><name>nd_tbl</name></name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>i</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>size</name> <init>= <expr><ternary><condition><expr><name>tbl</name></expr> ?</condition><then> <expr><operator>(</operator><name>int</name><operator>)</operator><operator>*</operator><name>tbl</name><operator>++</operator></expr> </then><else>: <expr><literal type="number">0</literal></expr></else></ternary></expr></init></decl>;</decl_stmt>
+<if_stmt><if>if <condition>(<expr><name>size</name> <operator>==</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content> <expr_stmt><expr><call><name>A</name><argument_list>(<argument><expr><literal type="string">"(empty)"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>size</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<expr_stmt><expr><call><name>A_ID</name><argument_list>(<argument><expr><name><name>tbl</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt> <if_stmt><if>if <condition>(<expr><name>i</name> <operator>&lt;</operator> <name>size</name> <operator>-</operator> <literal type="number">1</literal></expr>)</condition><block type="pseudo"><block_content> <expr_stmt><expr><call><name>A</name><argument_list>(<argument><expr><literal type="string">","</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+</block_content>}</block></for>
+</block_content>}</block>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_args</name></expr></argument>, <argument><expr><literal type="string">"arguments"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>LAST_NODE</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_body</name></expr></argument>, <argument><expr><literal type="string">"body"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return;</return>
+
+<case>case <expr><name>NODE_ARYPTN</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"array pattern"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: [nd_pconst]([pre_args], ..., *[rest_arg], [post_args], ...)"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_pconst</name></expr></argument>, <argument><expr><literal type="string">"constant"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name><name>nd_apinfo</name><operator>-&gt;</operator><name>pre_args</name></name></expr></argument>, <argument><expr><literal type="string">"pre arguments"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><call><name>NODE_NAMED_REST_P</name><argument_list>(<argument><expr><name><name>node</name><operator>-&gt;</operator><name>nd_apinfo</name><operator>-&gt;</operator><name>rest_arg</name></name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name><name>nd_apinfo</name><operator>-&gt;</operator><name>rest_arg</name></name></expr></argument>, <argument><expr><literal type="string">"rest argument"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if>
+<else>else <block>{<block_content>
+<expr_stmt><expr><call><name>F_MSG</name><argument_list>(<argument><expr><name><name>nd_apinfo</name><operator>-&gt;</operator><name>rest_arg</name></name></expr></argument>, <argument><expr><literal type="string">"rest argument"</literal></expr></argument>, <argument><expr><literal type="string">"NODE_SPECIAL_NO_NAME_REST (rest argument without name)"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></else></if_stmt>
+<expr_stmt><expr><name>LAST_NODE</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name><name>nd_apinfo</name><operator>-&gt;</operator><name>post_args</name></name></expr></argument>, <argument><expr><literal type="string">"post arguments"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return;</return>
+
+<case>case <expr><name>NODE_HSHPTN</name></expr>:</case>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"hash pattern"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ANN</name><argument_list>(<argument><expr><literal type="string">"format: [nd_pconst]([nd_pkwargs], ..., **[nd_pkwrestarg])"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_pconst</name></expr></argument>, <argument><expr><literal type="string">"constant"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_pkwargs</name></expr></argument>, <argument><expr><literal type="string">"keyword arguments"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>LAST_NODE</name></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>node</name><operator>-&gt;</operator><name>nd_pkwrestarg</name></name> <operator>==</operator> <name>NODE_SPECIAL_NO_REST_KEYWORD</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>F_MSG</name><argument_list>(<argument><expr><name>nd_pkwrestarg</name></expr></argument>, <argument><expr><literal type="string">"keyword rest argument"</literal></expr></argument>, <argument><expr><literal type="string">"NODE_SPECIAL_NO_REST_KEYWORD (**nil)"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if>
+<else>else <block>{<block_content>
+<expr_stmt><expr><call><name>F_NODE</name><argument_list>(<argument><expr><name>nd_pkwrestarg</name></expr></argument>, <argument><expr><literal type="string">"keyword rest argument"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></else></if_stmt>
+<return>return;</return>
+
+<case>case <expr><name>NODE_ARGS_AUX</name></expr>:</case>
+<case>case <expr><name>NODE_LAST</name></expr>:</case>
+<break>break;</break>
+</block_content>}</block></switch>
+
+<expr_stmt><expr><call><name>rb_bug</name><argument_list>(<argument><expr><literal type="string">"dump_node: unknown node: %s"</literal></expr></argument>, <argument><expr><call><name>ruby_node_name</name><argument_list>(<argument><expr><call><name>nd_type</name><argument_list>(<argument><expr><name>node</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><name>VALUE</name></type>
+<name>rb_parser_dump_tree</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name>NODE</name> <modifier>*</modifier></type><name>node</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>comment</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>VALUE</name></type> <name>buf</name> <init>= <expr><call><name>rb_str_new_cstr</name><argument_list>(
+<argument><expr><literal type="string">"###########################################################\n"</literal>
+<literal type="string">"##Do NOT use this node dump for any purpose other than ##\n"</literal>
+<literal type="string">"##debug and research. Compatibility is not guaranteed. ##\n"</literal>
+<literal type="string">"###########################################################\n\n"</literal></expr></argument>
+)</argument_list></call></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><call><name>dump_node</name><argument_list>(<argument><expr><name>buf</name></expr></argument>, <argument><expr><call><name>rb_str_new_cstr</name><argument_list>(<argument><expr><literal type="string">"#"</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name>comment</name></expr></argument>, <argument><expr><name>node</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>buf</name></expr>;</return>
+</block_content>}</block></function>
+
+
+
+
+
+
+
+<function><type><name>void</name></type>
+<name>rb_node_init</name><parameter_list>(<parameter><decl><type><name>NODE</name> <modifier>*</modifier></type><name>n</name></decl></parameter>, <parameter><decl><type><name><name>enum</name> <name>node_type</name></name></type> <name>type</name></decl></parameter>, <parameter><decl><type><name>VALUE</name></type> <name>a0</name></decl></parameter>, <parameter><decl><type><name>VALUE</name></type> <name>a1</name></decl></parameter>, <parameter><decl><type><name>VALUE</name></type> <name>a2</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<expr_stmt><expr><name><name>n</name><operator>-&gt;</operator><name>flags</name></name> <operator>=</operator> <name>T_NODE</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>nd_set_type</name><argument_list>(<argument><expr><name>n</name></expr></argument>, <argument><expr><name>type</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>n</name><operator>-&gt;</operator><name>u1</name><operator>.</operator><name>value</name></name> <operator>=</operator> <name>a0</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>n</name><operator>-&gt;</operator><name>u2</name><operator>.</operator><name>value</name></name> <operator>=</operator> <name>a1</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>n</name><operator>-&gt;</operator><name>u3</name><operator>.</operator><name>value</name></name> <operator>=</operator> <name>a2</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>n</name><operator>-&gt;</operator><name>nd_loc</name><operator>.</operator><name>beg_pos</name><operator>.</operator><name>lineno</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>n</name><operator>-&gt;</operator><name>nd_loc</name><operator>.</operator><name>beg_pos</name><operator>.</operator><name>column</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>n</name><operator>-&gt;</operator><name>nd_loc</name><operator>.</operator><name>end_pos</name><operator>.</operator><name>lineno</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>n</name><operator>-&gt;</operator><name>nd_loc</name><operator>.</operator><name>end_pos</name><operator>.</operator><name>column</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<typedef>typedef <type><struct>struct <name>node_buffer_elem_struct</name> <block>{
+<decl_stmt><decl><type><name><name>struct</name> <name>node_buffer_elem_struct</name></name> <modifier>*</modifier></type><name>next</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>long</name></type> <name>len</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>NODE</name></type> <name><name>buf</name><index>[<expr><name>FLEX_ARY_LEN</name></expr>]</index></name></decl>;</decl_stmt>
+}</block></struct></type> <name>node_buffer_elem_t</name>;</typedef>
+
+<typedef>typedef <type><struct>struct <block>{
+<decl_stmt><decl><type><name>long</name></type> <name>idx</name></decl>, <name>len</name>;</decl_stmt>
+<decl_stmt><decl><type><name>node_buffer_elem_t</name> <modifier>*</modifier></type><name>head</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>node_buffer_elem_t</name> <modifier>*</modifier></type><name>last</name></decl>;</decl_stmt>
+}</block></struct></type> <name>node_buffer_list_t</name>;</typedef>
+
+<struct>struct <name>node_buffer_struct</name> <block>{
+<decl_stmt><decl><type><name>node_buffer_list_t</name></type> <name>unmarkable</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>node_buffer_list_t</name></type> <name>markable</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>VALUE</name></type> <name>mark_hash</name></decl>;</decl_stmt>
+}</block>;</struct>
+
+<function><type><specifier>static</specifier> <name>void</name></type>
+<name>init_node_buffer_list</name><parameter_list>(<parameter><decl><type><name>node_buffer_list_t</name> <modifier>*</modifier></type> <name>nb</name></decl></parameter>, <parameter><decl><type><name>node_buffer_elem_t</name> <modifier>*</modifier></type><name>head</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<expr_stmt><expr><name><name>nb</name><operator>-&gt;</operator><name>idx</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>nb</name><operator>-&gt;</operator><name>len</name></name> <operator>=</operator> <name>NODE_BUF_DEFAULT_LEN</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>nb</name><operator>-&gt;</operator><name>head</name></name> <operator>=</operator> <name><name>nb</name><operator>-&gt;</operator><name>last</name></name> <operator>=</operator> <name>head</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>nb</name><operator>-&gt;</operator><name>head</name><operator>-&gt;</operator><name>len</name></name> <operator>=</operator> <name><name>nb</name><operator>-&gt;</operator><name>len</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>nb</name><operator>-&gt;</operator><name>head</name><operator>-&gt;</operator><name>next</name></name> <operator>=</operator> <name>NULL</name></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>node_buffer_t</name> <modifier>*</modifier></type>
+<name>rb_node_buffer_new</name><parameter_list>(<parameter><decl><type><name>void</name></type></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><specifier>const</specifier> <name>size_t</name></type> <name>bucket_size</name> <init>= <expr><call><name>offsetof</name><argument_list>(<argument><expr><name>node_buffer_elem_t</name></expr></argument>, <argument><expr><name>buf</name></expr></argument>)</argument_list></call> <operator>+</operator> <name>NODE_BUF_DEFAULT_LEN</name> <operator>*</operator> <sizeof>sizeof<argument_list>(<argument><expr><name>NODE</name></expr></argument>)</argument_list></sizeof></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><specifier>const</specifier> <name>size_t</name></type> <name>alloc_size</name> <init>= <expr><sizeof>sizeof<argument_list>(<argument><expr><name>node_buffer_t</name></expr></argument>)</argument_list></sizeof> <operator>+</operator> <operator>(</operator><name>bucket_size</name> <operator>*</operator> <literal type="number">2</literal><operator>)</operator></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><call><name>STATIC_ASSERT</name><argument_list>(
+<argument><expr><name>integer_overflow</name></expr></argument>,
+<argument><expr><call><name>offsetof</name><argument_list>(<argument><expr><name>node_buffer_elem_t</name></expr></argument>, <argument><expr><name>buf</name></expr></argument>)</argument_list></call> <operator>+</operator> <name>NODE_BUF_DEFAULT_LEN</name> <operator>*</operator> <sizeof>sizeof<argument_list>(<argument><expr><name>NODE</name></expr></argument>)</argument_list></sizeof>
+<operator>&gt;</operator> <sizeof>sizeof<argument_list>(<argument><expr><name>node_buffer_t</name></expr></argument>)</argument_list></sizeof> <operator>+</operator> <literal type="number">2</literal> <operator>*</operator> <sizeof>sizeof<argument_list>(<argument><expr><name>node_buffer_elem_t</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<decl_stmt><decl><type><name>node_buffer_t</name> <modifier>*</modifier></type><name>nb</name> <init>= <expr><call><name>ruby_xmalloc</name><argument_list>(<argument><expr><name>alloc_size</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><call><name>init_node_buffer_list</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>nb</name><operator>-&gt;</operator><name>unmarkable</name></name></expr></argument>, <argument><expr><operator>(</operator><name>node_buffer_elem_t</name><operator>*</operator><operator>)</operator><operator>&amp;</operator><name><name>nb</name><index>[<expr><literal type="number">1</literal></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>init_node_buffer_list</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>nb</name><operator>-&gt;</operator><name>markable</name></name></expr></argument>, <argument><expr><operator>(</operator><name>node_buffer_elem_t</name><operator>*</operator><operator>)</operator><operator>(</operator><operator>(</operator><name>size_t</name><operator>)</operator><name><name>nb</name><operator>-&gt;</operator><name>unmarkable</name><operator>.</operator><name>head</name></name> <operator>+</operator> <name>bucket_size</name><operator>)</operator></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>nb</name><operator>-&gt;</operator><name>mark_hash</name></name> <operator>=</operator> <name>Qnil</name></expr>;</expr_stmt>
+<return>return <expr><name>nb</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type>
+<name>node_buffer_list_free</name><parameter_list>(<parameter><decl><type><name>node_buffer_list_t</name> <modifier>*</modifier></type> <name>nb</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>node_buffer_elem_t</name> <modifier>*</modifier></type><name>nbe</name> <init>= <expr><name><name>nb</name><operator>-&gt;</operator><name>head</name></name></expr></init></decl>;</decl_stmt>
+
+<while>while <condition>(<expr><name>nbe</name> <operator>!=</operator> <name><name>nb</name><operator>-&gt;</operator><name>last</name></name></expr>)</condition> <block>{<block_content>
+<decl_stmt><decl><type><name>void</name> <modifier>*</modifier></type><name>buf</name> <init>= <expr><name>nbe</name></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><name>nbe</name> <operator>=</operator> <name><name>nbe</name><operator>-&gt;</operator><name>next</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>xfree</name><argument_list>(<argument><expr><name>buf</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></while>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type>
+<name>rb_node_buffer_free</name><parameter_list>(<parameter><decl><type><name>node_buffer_t</name> <modifier>*</modifier></type><name>nb</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<expr_stmt><expr><call><name>node_buffer_list_free</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>nb</name><operator>-&gt;</operator><name>unmarkable</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>node_buffer_list_free</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>nb</name><operator>-&gt;</operator><name>markable</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>xfree</name><argument_list>(<argument><expr><name>nb</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>NODE</name> <modifier>*</modifier></type>
+<name>ast_newnode_in_bucket</name><parameter_list>(<parameter><decl><type><name>node_buffer_list_t</name> <modifier>*</modifier></type><name>nb</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name><name>nb</name><operator>-&gt;</operator><name>idx</name></name> <operator>&gt;=</operator> <name><name>nb</name><operator>-&gt;</operator><name>len</name></name></expr>)</condition> <block>{<block_content>
+<decl_stmt><decl><type><name>long</name></type> <name>n</name> <init>= <expr><name><name>nb</name><operator>-&gt;</operator><name>len</name></name> <operator>*</operator> <literal type="number">2</literal></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>node_buffer_elem_t</name> <modifier>*</modifier></type><name>nbe</name></decl>;</decl_stmt>
+<expr_stmt><expr><name>nbe</name> <operator>=</operator> <call><name>rb_xmalloc_mul_add</name><argument_list>(<argument><expr><name>n</name></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr><name>NODE</name></expr></argument>)</argument_list></sizeof></expr></argument>, <argument><expr><call><name>offsetof</name><argument_list>(<argument><expr><name>node_buffer_elem_t</name></expr></argument>, <argument><expr><name>buf</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>nbe</name><operator>-&gt;</operator><name>len</name></name> <operator>=</operator> <name>n</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>nb</name><operator>-&gt;</operator><name>idx</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>nb</name><operator>-&gt;</operator><name>len</name></name> <operator>=</operator> <name>n</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>nbe</name><operator>-&gt;</operator><name>next</name></name> <operator>=</operator> <name><name>nb</name><operator>-&gt;</operator><name>head</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>nb</name><operator>-&gt;</operator><name>head</name></name> <operator>=</operator> <name>nbe</name></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+<return>return <expr><operator>&amp;</operator><name><name>nb</name><operator>-&gt;</operator><name>head</name><operator>-&gt;</operator><name>buf</name><index>[<expr><name><name>nb</name><operator>-&gt;</operator><name>idx</name></name><operator>++</operator></expr>]</index></name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><name>NODE</name> <modifier>*</modifier></type>
+<name>rb_ast_newnode</name><parameter_list>(<parameter><decl><type><name>rb_ast_t</name> <modifier>*</modifier></type><name>ast</name></decl></parameter>, <parameter><decl><type><name><name>enum</name> <name>node_type</name></name></type> <name>type</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>node_buffer_t</name> <modifier>*</modifier></type><name>nb</name> <init>= <expr><name><name>ast</name><operator>-&gt;</operator><name>node_buffer</name></name></expr></init></decl>;</decl_stmt>
+<switch>switch <condition>(<expr><name>type</name></expr>)</condition> <block>{<block_content>
+<case>case <expr><name>NODE_MATCH</name></expr>:</case>
+<case>case <expr><name>NODE_LIT</name></expr>:</case>
+<case>case <expr><name>NODE_STR</name></expr>:</case>
+<case>case <expr><name>NODE_XSTR</name></expr>:</case>
+<case>case <expr><name>NODE_DSTR</name></expr>:</case>
+<case>case <expr><name>NODE_DXSTR</name></expr>:</case>
+<case>case <expr><name>NODE_DREGX</name></expr>:</case>
+<case>case <expr><name>NODE_DSYM</name></expr>:</case>
+<case>case <expr><name>NODE_ARGS</name></expr>:</case>
+<case>case <expr><name>NODE_SCOPE</name></expr>:</case>
+<case>case <expr><name>NODE_ARYPTN</name></expr>:</case>
+<return>return <expr><call><name>ast_newnode_in_bucket</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>nb</name><operator>-&gt;</operator><name>markable</name></name></expr></argument>)</argument_list></call></expr>;</return>
+<default>default:</default>
+<return>return <expr><call><name>ast_newnode_in_bucket</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>nb</name><operator>-&gt;</operator><name>unmarkable</name></name></expr></argument>)</argument_list></call></expr>;</return>
+</block_content>}</block></switch>
+</block_content>}</block></function>
+
+<function><type><name>void</name></type>
+<name>rb_ast_delete_node</name><parameter_list>(<parameter><decl><type><name>rb_ast_t</name> <modifier>*</modifier></type><name>ast</name></decl></parameter>, <parameter><decl><type><name>NODE</name> <modifier>*</modifier></type><name>n</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<expr_stmt><expr><operator>(</operator><name>void</name><operator>)</operator><name>ast</name></expr>;</expr_stmt>
+<expr_stmt><expr><operator>(</operator><name>void</name><operator>)</operator><name>n</name></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><name>rb_ast_t</name> <modifier>*</modifier></type>
+<name>rb_ast_new</name><parameter_list>(<parameter><decl><type><name>void</name></type></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>node_buffer_t</name> <modifier>*</modifier></type><name>nb</name> <init>= <expr><call><name>rb_node_buffer_new</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>rb_ast_t</name> <modifier>*</modifier></type><name>ast</name> <init>= <expr><operator>(</operator><name>rb_ast_t</name> <operator>*</operator><operator>)</operator><call><name>rb_imemo_new</name><argument_list>(<argument><expr><name>imemo_ast</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><operator>(</operator><name>VALUE</name><operator>)</operator><name>nb</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<return>return <expr><name>ast</name></expr>;</return>
+</block_content>}</block></function>
+
+<typedef>typedef <function_decl><type><name>void</name></type> <name>node_itr_t</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>ctx</name></decl></parameter>, <parameter><decl><type><name>NODE</name> <modifier>*</modifier></type> <name>node</name></decl></parameter>)</parameter_list>;</function_decl></typedef>
+
+<function><type><specifier>static</specifier> <name>void</name></type>
+<name>iterate_buffer_elements</name><parameter_list>(<parameter><decl><type><name>node_buffer_elem_t</name> <modifier>*</modifier></type><name>nbe</name></decl></parameter>, <parameter><decl><type><name>long</name></type> <name>len</name></decl></parameter>, <parameter><decl><type><name>node_itr_t</name> <modifier>*</modifier></type><name>func</name></decl></parameter>, <parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>ctx</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>long</name></type> <name>cursor</name></decl>;</decl_stmt>
+<for>for <control>(<init><expr><name>cursor</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>cursor</name> <operator>&lt;</operator> <name>len</name></expr>;</condition> <incr><expr><name>cursor</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<expr_stmt><expr><call><name>func</name><argument_list>(<argument><expr><name>ctx</name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>nbe</name><operator>-&gt;</operator><name>buf</name><index>[<expr><name>cursor</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></for>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type>
+<name>iterate_node_values</name><parameter_list>(<parameter><decl><type><name>node_buffer_list_t</name> <modifier>*</modifier></type><name>nb</name></decl></parameter>, <parameter><decl><type><name>node_itr_t</name> <modifier>*</modifier></type> <name>func</name></decl></parameter>, <parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>ctx</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>node_buffer_elem_t</name> <modifier>*</modifier></type><name>nbe</name> <init>= <expr><name><name>nb</name><operator>-&gt;</operator><name>head</name></name></expr></init></decl>;</decl_stmt>
+
+
+<expr_stmt><expr><call><name>iterate_buffer_elements</name><argument_list>(<argument><expr><name>nbe</name></expr></argument>, <argument><expr><name><name>nb</name><operator>-&gt;</operator><name>idx</name></name></expr></argument>, <argument><expr><name>func</name></expr></argument>, <argument><expr><name>ctx</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>nbe</name> <operator>=</operator> <name><name>nbe</name><operator>-&gt;</operator><name>next</name></name></expr>;</expr_stmt>
+<while>while <condition>(<expr><name>nbe</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>iterate_buffer_elements</name><argument_list>(<argument><expr><name>nbe</name></expr></argument>, <argument><expr><name><name>nbe</name><operator>-&gt;</operator><name>len</name></name></expr></argument>, <argument><expr><name>func</name></expr></argument>, <argument><expr><name>ctx</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>nbe</name> <operator>=</operator> <name><name>nbe</name><operator>-&gt;</operator><name>next</name></name></expr>;</expr_stmt>
+</block_content>}</block></while>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type>
+<name>mark_ast_value</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>ctx</name></decl></parameter>, <parameter><decl><type><name>NODE</name> <modifier>*</modifier></type> <name>node</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<switch>switch <condition>(<expr><call><name>nd_type</name><argument_list>(<argument><expr><name>node</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+<case>case <expr><name>NODE_SCOPE</name></expr>:</case>
+<block>{<block_content>
+<decl_stmt><decl><type><name>ID</name> <modifier>*</modifier></type><name>buf</name> <init>= <expr><name><name>node</name><operator>-&gt;</operator><name>nd_tbl</name></name></expr></init></decl>;</decl_stmt>
+<if_stmt><if>if <condition>(<expr><name>buf</name></expr>)</condition> <block>{<block_content>
+<decl_stmt><decl><type><name>unsigned</name> <name>int</name></type> <name>size</name> <init>= <expr><operator>(</operator><name>unsigned</name> <name>int</name><operator>)</operator><operator>*</operator><name>buf</name></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><call><name>rb_gc_mark_movable</name><argument_list>(<argument><expr><operator>(</operator><name>VALUE</name><operator>)</operator><name><name>buf</name><index>[<expr><name>size</name> <operator>+</operator> <literal type="number">1</literal></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+<break>break;</break>
+</block_content>}</block>
+<case>case <expr><name>NODE_ARYPTN</name></expr>:</case>
+<block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>rb_ary_pattern_info</name></name> <modifier>*</modifier></type><name>apinfo</name> <init>= <expr><name><name>node</name><operator>-&gt;</operator><name>nd_apinfo</name></name></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><call><name>rb_gc_mark_movable</name><argument_list>(<argument><expr><name><name>apinfo</name><operator>-&gt;</operator><name>imemo</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+</block_content>}</block>
+<case>case <expr><name>NODE_ARGS</name></expr>:</case>
+<block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>rb_args_info</name></name> <modifier>*</modifier></type><name>args</name> <init>= <expr><name><name>node</name><operator>-&gt;</operator><name>nd_ainfo</name></name></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><call><name>rb_gc_mark_movable</name><argument_list>(<argument><expr><name><name>args</name><operator>-&gt;</operator><name>imemo</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+</block_content>}</block>
+<case>case <expr><name>NODE_MATCH</name></expr>:</case>
+<case>case <expr><name>NODE_LIT</name></expr>:</case>
+<case>case <expr><name>NODE_STR</name></expr>:</case>
+<case>case <expr><name>NODE_XSTR</name></expr>:</case>
+<case>case <expr><name>NODE_DSTR</name></expr>:</case>
+<case>case <expr><name>NODE_DXSTR</name></expr>:</case>
+<case>case <expr><name>NODE_DREGX</name></expr>:</case>
+<case>case <expr><name>NODE_DSYM</name></expr>:</case>
+<expr_stmt><expr><call><name>rb_gc_mark_movable</name><argument_list>(<argument><expr><name><name>node</name><operator>-&gt;</operator><name>nd_lit</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+<default>default:</default>
+<expr_stmt><expr><call><name>rb_bug</name><argument_list>(<argument><expr><literal type="string">"unreachable node %s"</literal></expr></argument>, <argument><expr><call><name>ruby_node_name</name><argument_list>(<argument><expr><call><name>nd_type</name><argument_list>(<argument><expr><name>node</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></switch>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type>
+<name>update_ast_value</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>ctx</name></decl></parameter>, <parameter><decl><type><name>NODE</name> <modifier>*</modifier></type> <name>node</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<switch>switch <condition>(<expr><call><name>nd_type</name><argument_list>(<argument><expr><name>node</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+<case>case <expr><name>NODE_SCOPE</name></expr>:</case>
+<block>{<block_content>
+<decl_stmt><decl><type><name>ID</name> <modifier>*</modifier></type><name>buf</name> <init>= <expr><name><name>node</name><operator>-&gt;</operator><name>nd_tbl</name></name></expr></init></decl>;</decl_stmt>
+<if_stmt><if>if <condition>(<expr><name>buf</name></expr>)</condition> <block>{<block_content>
+<decl_stmt><decl><type><name>unsigned</name> <name>int</name></type> <name>size</name> <init>= <expr><operator>(</operator><name>unsigned</name> <name>int</name><operator>)</operator><operator>*</operator><name>buf</name></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><name><name>buf</name><index>[<expr><name>size</name> <operator>+</operator> <literal type="number">1</literal></expr>]</index></name> <operator>=</operator> <call><name>rb_gc_location</name><argument_list>(<argument><expr><operator>(</operator><name>VALUE</name><operator>)</operator><name><name>buf</name><index>[<expr><name>size</name> <operator>+</operator> <literal type="number">1</literal></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+<break>break;</break>
+</block_content>}</block>
+<case>case <expr><name>NODE_ARYPTN</name></expr>:</case>
+<block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>rb_ary_pattern_info</name></name> <modifier>*</modifier></type><name>apinfo</name> <init>= <expr><name><name>node</name><operator>-&gt;</operator><name>nd_apinfo</name></name></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><name><name>apinfo</name><operator>-&gt;</operator><name>imemo</name></name> <operator>=</operator> <call><name>rb_gc_location</name><argument_list>(<argument><expr><name><name>apinfo</name><operator>-&gt;</operator><name>imemo</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+</block_content>}</block>
+<case>case <expr><name>NODE_ARGS</name></expr>:</case>
+<block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>rb_args_info</name></name> <modifier>*</modifier></type><name>args</name> <init>= <expr><name><name>node</name><operator>-&gt;</operator><name>nd_ainfo</name></name></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><name><name>args</name><operator>-&gt;</operator><name>imemo</name></name> <operator>=</operator> <call><name>rb_gc_location</name><argument_list>(<argument><expr><name><name>args</name><operator>-&gt;</operator><name>imemo</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+</block_content>}</block>
+<case>case <expr><name>NODE_LIT</name></expr>:</case>
+<case>case <expr><name>NODE_STR</name></expr>:</case>
+<case>case <expr><name>NODE_XSTR</name></expr>:</case>
+<case>case <expr><name>NODE_DSTR</name></expr>:</case>
+<case>case <expr><name>NODE_DXSTR</name></expr>:</case>
+<case>case <expr><name>NODE_DREGX</name></expr>:</case>
+<case>case <expr><name>NODE_DSYM</name></expr>:</case>
+<expr_stmt><expr><name><name>node</name><operator>-&gt;</operator><name>nd_lit</name></name> <operator>=</operator> <call><name>rb_gc_location</name><argument_list>(<argument><expr><name><name>node</name><operator>-&gt;</operator><name>nd_lit</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+<default>default:</default>
+<expr_stmt><expr><call><name>rb_bug</name><argument_list>(<argument><expr><literal type="string">"unreachable"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></switch>
+</block_content>}</block></function>
+
+<function><type><name>void</name></type>
+<name>rb_ast_update_references</name><parameter_list>(<parameter><decl><type><name>rb_ast_t</name> <modifier>*</modifier></type><name>ast</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name><name>ast</name><operator>-&gt;</operator><name>node_buffer</name></name></expr>)</condition> <block>{<block_content>
+<decl_stmt><decl><type><name>node_buffer_t</name> <modifier>*</modifier></type><name>nb</name> <init>= <expr><name><name>ast</name><operator>-&gt;</operator><name>node_buffer</name></name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>iterate_node_values</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>nb</name><operator>-&gt;</operator><name>markable</name></name></expr></argument>, <argument><expr><name>update_ast_value</name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block></function>
+
+<function><type><name>void</name></type>
+<name>rb_ast_mark</name><parameter_list>(<parameter><decl><type><name>rb_ast_t</name> <modifier>*</modifier></type><name>ast</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name><name>ast</name><operator>-&gt;</operator><name>node_buffer</name></name></expr>)</condition><block type="pseudo"><block_content> <expr_stmt><expr><call><name>rb_gc_mark</name><argument_list>(<argument><expr><name><name>ast</name><operator>-&gt;</operator><name>node_buffer</name><operator>-&gt;</operator><name>mark_hash</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>ast</name><operator>-&gt;</operator><name>body</name><operator>.</operator><name>compile_option</name></name></expr>)</condition><block type="pseudo"><block_content> <expr_stmt><expr><call><name>rb_gc_mark</name><argument_list>(<argument><expr><name><name>ast</name><operator>-&gt;</operator><name>body</name><operator>.</operator><name>compile_option</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>ast</name><operator>-&gt;</operator><name>node_buffer</name></name></expr>)</condition> <block>{<block_content>
+<decl_stmt><decl><type><name>node_buffer_t</name> <modifier>*</modifier></type><name>nb</name> <init>= <expr><name><name>ast</name><operator>-&gt;</operator><name>node_buffer</name></name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>iterate_node_values</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>nb</name><operator>-&gt;</operator><name>markable</name></name></expr></argument>, <argument><expr><name>mark_ast_value</name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block></function>
+
+<function><type><name>void</name></type>
+<name>rb_ast_free</name><parameter_list>(<parameter><decl><type><name>rb_ast_t</name> <modifier>*</modifier></type><name>ast</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name><name>ast</name><operator>-&gt;</operator><name>node_buffer</name></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>rb_node_buffer_free</name><argument_list>(<argument><expr><name><name>ast</name><operator>-&gt;</operator><name>node_buffer</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>ast</name><operator>-&gt;</operator><name>node_buffer</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>size_t</name></type>
+<name>buffer_list_size</name><parameter_list>(<parameter><decl><type><name>node_buffer_list_t</name> <modifier>*</modifier></type><name>nb</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>size_t</name></type> <name>size</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>node_buffer_elem_t</name> <modifier>*</modifier></type><name>nbe</name> <init>= <expr><name><name>nb</name><operator>-&gt;</operator><name>head</name></name></expr></init></decl>;</decl_stmt>
+<while>while <condition>(<expr><name>nbe</name> <operator>!=</operator> <name><name>nb</name><operator>-&gt;</operator><name>last</name></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name>nbe</name> <operator>=</operator> <name><name>nbe</name><operator>-&gt;</operator><name>next</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name>size</name> <operator>+=</operator> <call><name>offsetof</name><argument_list>(<argument><expr><name>node_buffer_elem_t</name></expr></argument>, <argument><expr><name>buf</name></expr></argument>)</argument_list></call> <operator>+</operator> <name><name>nb</name><operator>-&gt;</operator><name>len</name></name> <operator>*</operator> <sizeof>sizeof<argument_list>(<argument><expr><name>NODE</name></expr></argument>)</argument_list></sizeof></expr>;</expr_stmt>
+</block_content>}</block></while>
+<return>return <expr><name>size</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><name>size_t</name></type>
+<name>rb_ast_memsize</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name>rb_ast_t</name> <modifier>*</modifier></type><name>ast</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>size_t</name></type> <name>size</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>node_buffer_t</name> <modifier>*</modifier></type><name>nb</name> <init>= <expr><name><name>ast</name><operator>-&gt;</operator><name>node_buffer</name></name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>nb</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name>size</name> <operator>+=</operator> <sizeof>sizeof<argument_list>(<argument><expr><name>node_buffer_t</name></expr></argument>)</argument_list></sizeof> <operator>+</operator> <call><name>offsetof</name><argument_list>(<argument><expr><name>node_buffer_elem_t</name></expr></argument>, <argument><expr><name>buf</name></expr></argument>)</argument_list></call> <operator>+</operator> <name>NODE_BUF_DEFAULT_LEN</name> <operator>*</operator> <sizeof>sizeof<argument_list>(<argument><expr><name>NODE</name></expr></argument>)</argument_list></sizeof></expr>;</expr_stmt>
+<expr_stmt><expr><name>size</name> <operator>+=</operator> <call><name>buffer_list_size</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>nb</name><operator>-&gt;</operator><name>unmarkable</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>size</name> <operator>+=</operator> <call><name>buffer_list_size</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>nb</name><operator>-&gt;</operator><name>markable</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+<return>return <expr><name>size</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><name>void</name></type>
+<name>rb_ast_dispose</name><parameter_list>(<parameter><decl><type><name>rb_ast_t</name> <modifier>*</modifier></type><name>ast</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<expr_stmt><expr><call><name>rb_ast_free</name><argument_list>(<argument><expr><name>ast</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><name>void</name></type>
+<name>rb_ast_add_mark_object</name><parameter_list>(<parameter><decl><type><name>rb_ast_t</name> <modifier>*</modifier></type><name>ast</name></decl></parameter>, <parameter><decl><type><name>VALUE</name></type> <name>obj</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<if_stmt><if>if <condition>(<expr><call><name>NIL_P</name><argument_list>(<argument><expr><name><name>ast</name><operator>-&gt;</operator><name>node_buffer</name><operator>-&gt;</operator><name>mark_hash</name></name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>RB_OBJ_WRITE</name><argument_list>(<argument><expr><name>ast</name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>ast</name><operator>-&gt;</operator><name>node_buffer</name><operator>-&gt;</operator><name>mark_hash</name></name></expr></argument>, <argument><expr><call><name>rb_ident_hash_new</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+<expr_stmt><expr><call><name>rb_hash_aset</name><argument_list>(<argument><expr><name><name>ast</name><operator>-&gt;</operator><name>node_buffer</name><operator>-&gt;</operator><name>mark_hash</name></name></expr></argument>, <argument><expr><name>obj</name></expr></argument>, <argument><expr><name>Qtrue</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+</unit>

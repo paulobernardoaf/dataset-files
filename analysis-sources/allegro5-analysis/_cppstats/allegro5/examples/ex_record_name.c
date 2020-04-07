@@ -1,0 +1,158 @@
+#define ALLEGRO_UNSTABLE
+#include "allegro5/allegro.h"
+#include "allegro5/allegro_audio.h"
+#include "allegro5/allegro_acodec.h"
+#include "allegro5/allegro_font.h"
+#include "allegro5/allegro_image.h"
+#include "allegro5/allegro_primitives.h"
+#include "common.c"
+int main(int argc, char *argv[])
+{
+ALLEGRO_DISPLAY *display;
+ALLEGRO_FONT *font;
+ALLEGRO_AUDIO_RECORDER *recorder;
+ALLEGRO_EVENT_QUEUE *queue;
+ALLEGRO_TIMER *timer;
+int font_height;
+const int frequency = 44100;
+const int channels = 2;
+const float latency = 0.10;
+const int max_seconds = 3; 
+int16_t *name_buffer; 
+int16_t *name_buffer_pos; 
+int16_t *name_buffer_end; 
+float gain = 0.0f; 
+float begin_gain = 0.3f; 
+bool is_recording = false;
+ALLEGRO_SAMPLE *spl = NULL;
+(void) argc;
+(void) argv;
+if (!al_init()) {
+abort_example("Could not init Allegro.\n");
+}
+if (!al_install_audio()) {
+abort_example("Unable to initialize audio addon\n");
+}
+if (!al_init_acodec_addon()) {
+abort_example("Unable to initialize acoded addon\n");
+}
+if (!al_init_image_addon()) {
+abort_example("Unable to initialize image addon\n");
+}
+if (!al_init_primitives_addon()) {
+abort_example("Unable to initialize primitives addon\n");
+}
+al_init_font_addon();
+al_install_keyboard();
+font = al_load_bitmap_font("data/bmpfont.tga");
+if (!font) {
+abort_example("Unable to load data/a4_font.tga\n");
+}
+font_height = al_get_font_line_height(font);
+recorder = al_create_audio_recorder(
+5 / latency, 
+frequency * latency, 
+frequency, 
+ALLEGRO_AUDIO_DEPTH_INT16, 
+ALLEGRO_CHANNEL_CONF_2 
+);
+if (!recorder) {
+abort_example("Unable to create audio recorder\n");
+}
+display = al_create_display(640, 480);
+if (!display) {
+abort_example("Unable to create display\n");
+}
+al_reserve_samples(1);
+name_buffer = al_calloc(channels * frequency * max_seconds, sizeof(int16_t));
+name_buffer_pos = name_buffer;
+name_buffer_end = name_buffer + channels * frequency * max_seconds;
+queue = al_create_event_queue();
+timer = al_create_timer(1 / 60.0);
+al_register_event_source(queue, al_get_display_event_source(display));
+al_register_event_source(queue, al_get_audio_recorder_event_source(recorder));
+al_register_event_source(queue, al_get_timer_event_source(timer));
+al_register_event_source(queue, al_get_keyboard_event_source());
+al_start_timer(timer);
+al_start_audio_recorder(recorder);
+while (true) {
+ALLEGRO_EVENT event;
+bool do_draw = false;
+al_wait_for_event(queue, &event);
+if (event.type == ALLEGRO_EVENT_DISPLAY_CLOSE || 
+(event.type == ALLEGRO_EVENT_KEY_UP && event.keyboard.keycode == ALLEGRO_KEY_ESCAPE)) {
+break;
+}
+else if (event.type == ALLEGRO_EVENT_KEY_CHAR) {
+if (spl && event.keyboard.unichar != 27) {
+al_play_sample(spl, 1.0, 0.0, 1.0, ALLEGRO_PLAYMODE_ONCE, NULL);
+}
+}
+else if (event.type == ALLEGRO_EVENT_TIMER) {
+do_draw = true;
+}
+else if (event.type == ALLEGRO_EVENT_AUDIO_RECORDER_FRAGMENT && recorder != NULL) {
+ALLEGRO_AUDIO_RECORDER_EVENT *re = al_get_audio_recorder_event(&event);
+int16_t *buffer = re->buffer;
+int16_t low = 0, high = 0;
+unsigned int i;
+for (i = 0; i < channels * re->samples; ++i) {
+if (buffer[i] < low)
+low = buffer[i];
+else if (buffer[i] > high)
+high = buffer[i];
+}
+gain = gain * 0.25 + ((float) (high - low) / 0xffff) * 0.75;
+if (!is_recording && gain >= begin_gain && name_buffer_pos == name_buffer)
+is_recording = true;
+else if (is_recording && gain <= 0.10)
+is_recording = false;
+if (is_recording) {
+int samples_to_copy = channels * re->samples;
+if (samples_to_copy > name_buffer_end - name_buffer_pos)
+samples_to_copy = name_buffer_end - name_buffer_pos;
+if (samples_to_copy) {
+memcpy(name_buffer_pos, re->buffer, samples_to_copy * 2);
+}
+name_buffer_pos += samples_to_copy;
+if (name_buffer_pos >= name_buffer_end) {
+is_recording = false;
+}
+}
+if (!is_recording && name_buffer_pos != name_buffer && !spl) {
+spl = al_create_sample(name_buffer, name_buffer_pos - name_buffer, frequency, 
+ALLEGRO_AUDIO_DEPTH_INT16, ALLEGRO_CHANNEL_CONF_2, false);
+al_destroy_audio_recorder(recorder);
+recorder = NULL;
+}
+}
+if (do_draw) {
+al_clear_to_color(al_map_rgb(0,0,0));
+if (!spl) {
+const char *msg = "Say Your Name";
+int width = al_get_text_width(font, msg);
+al_draw_text(font, al_map_rgb(255,255,255),
+320, 240 - font_height / 2, ALLEGRO_ALIGN_CENTRE, msg
+);
+al_draw_filled_rectangle(320 - width / 2, 242 + font_height / 2,
+(320 - width / 2) + (gain * width), 242 + font_height, 
+al_map_rgb(0,255,0)
+);
+al_draw_line((320 - width / 2) + (begin_gain * width), 242 + font_height / 2,
+(320 - width / 2) + (begin_gain * width), 242 + font_height,
+al_map_rgb(255,255,0), 1.0
+);
+}
+else {
+al_draw_text(font, al_map_rgb(255,255,255), 320, 240 - font_height / 2,
+ALLEGRO_ALIGN_CENTRE, "Press Any Key");
+}
+al_flip_display();
+}
+}
+if (recorder) {
+al_destroy_audio_recorder(recorder);
+}
+al_free(name_buffer);
+return 0;
+}

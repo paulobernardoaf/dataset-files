@@ -1,0 +1,26 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#if !defined(GRUB_TPARM_HEADER)
+#define GRUB_TPARM_HEADER 1
+
+
+char *grub_terminfo_tparm (const char *string, ...);
+
+#endif 

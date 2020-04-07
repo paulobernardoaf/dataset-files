@@ -1,0 +1,2 @@
+#include <stddef.h> 
+int ruby_fill_random_bytes(void *, size_t, int);

@@ -1,0 +1,79 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#if !defined(AVFORMAT_IMG2_H)
+#define AVFORMAT_IMG2_H
+
+#include <stdint.h>
+#include "avformat.h"
+#include "libavutil/opt.h"
+
+#if HAVE_GLOB
+#include <glob.h>
+#endif
+
+enum PatternType {
+PT_GLOB_SEQUENCE,
+PT_GLOB,
+PT_SEQUENCE,
+PT_NONE,
+PT_DEFAULT
+};
+
+typedef struct VideoDemuxData {
+const AVClass *class; 
+int img_first;
+int img_last;
+int img_number;
+int64_t pts;
+int img_count;
+int is_pipe;
+int split_planes; 
+char path[1024];
+char *pixel_format; 
+int width, height; 
+AVRational framerate; 
+int loop;
+int pattern_type; 
+int use_glob;
+#if HAVE_GLOB
+glob_t globstate;
+#endif
+int start_number;
+int start_number_range;
+int frame_size;
+int ts_from_file;
+int export_path_metadata; 
+} VideoDemuxData;
+
+typedef struct IdStrMap {
+enum AVCodecID id;
+const char *str;
+} IdStrMap;
+
+extern const IdStrMap ff_img_tags[];
+
+extern const AVOption ff_img_options[];
+
+int ff_img_read_header(AVFormatContext *s1);
+
+int ff_img_read_packet(AVFormatContext *s1, AVPacket *pkt);
+#endif

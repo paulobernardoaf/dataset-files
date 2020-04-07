@@ -1,0 +1,17 @@
+#include "libavutil/buffer.h"
+#include "libavutil/frame.h"
+#include "libavutil/hwcontext.h"
+#include "avcodec.h"
+typedef struct FrameDecodeData {
+int (*post_process)(void *logctx, AVFrame *frame);
+void *post_process_opaque;
+void (*post_process_opaque_free)(void *opaque);
+void *hwaccel_priv;
+void (*hwaccel_priv_free)(void *priv);
+} FrameDecodeData;
+int ff_decode_get_packet(AVCodecContext *avctx, AVPacket *pkt);
+int ff_decode_bsfs_init(AVCodecContext *avctx);
+void ff_decode_bsfs_uninit(AVCodecContext *avctx);
+int ff_decode_get_hw_frames_ctx(AVCodecContext *avctx,
+enum AVHWDeviceType dev_type);
+int ff_attach_decode_data(AVFrame *frame);

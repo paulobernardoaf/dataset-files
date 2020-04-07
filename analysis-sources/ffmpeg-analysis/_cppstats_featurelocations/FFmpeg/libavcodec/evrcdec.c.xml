@@ -1,0 +1,943 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" revision="1.0.0" language="C" filename="D:\Pesquisa\Projects\ffmpeg-analysis\_cppstats_featurelocations\FFmpeg\libavcodec\evrcdec.c">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"libavutil/mathematics.h"</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"libavutil/opt.h"</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"avcodec.h"</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"internal.h"</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"get_bits.h"</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"evrcdata.h"</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"acelp_vectors.h"</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"lsp.h"</cpp:file></cpp:include>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>MIN_LSP_SEP</name></cpp:macro> <cpp:value>(0.05 / (2.0 * M_PI))</cpp:value></cpp:define>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>MIN_DELAY</name></cpp:macro> <cpp:value>20</cpp:value></cpp:define>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>MAX_DELAY</name></cpp:macro> <cpp:value>120</cpp:value></cpp:define>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>NB_SUBFRAMES</name></cpp:macro> <cpp:value>3</cpp:value></cpp:define>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>SUBFRAME_SIZE</name></cpp:macro> <cpp:value>54</cpp:value></cpp:define>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>FILTER_ORDER</name></cpp:macro> <cpp:value>10</cpp:value></cpp:define>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>ACB_SIZE</name></cpp:macro> <cpp:value>128</cpp:value></cpp:define>
+
+<typedef>typedef <type><enum>enum <block>{
+<decl><name>RATE_ERRS</name> <init>= <expr><operator>-</operator><literal type="number">1</literal></expr></init></decl>,
+<decl><name>SILENCE</name></decl>,
+<decl><name>RATE_QUANT</name></decl>,
+<decl><name>RATE_QUARTER</name></decl>,
+<decl><name>RATE_HALF</name></decl>,
+<decl><name>RATE_FULL</name></decl>,
+}</block></enum></type> <name>evrc_packet_rate</name>;</typedef>
+
+
+
+
+<typedef>typedef <type><struct>struct <name>EVRCAFrame</name> <block>{
+<decl_stmt><decl><type><name>uint8_t</name></type> <name>lpc_flag</name></decl>;</decl_stmt> 
+<decl_stmt><decl><type><name>uint16_t</name></type> <name><name>lsp</name><index>[<expr><literal type="number">4</literal></expr>]</index></name></decl>;</decl_stmt> 
+<decl_stmt><decl><type><name>uint8_t</name></type> <name>pitch_delay</name></decl>;</decl_stmt> 
+<decl_stmt><decl><type><name>uint8_t</name></type> <name>delay_diff</name></decl>;</decl_stmt> 
+<decl_stmt><decl><type><name>uint8_t</name></type> <name><name>acb_gain</name><index>[<expr><literal type="number">3</literal></expr>]</index></name></decl>;</decl_stmt> 
+<decl_stmt><decl><type><name>uint16_t</name></type> <name><name>fcb_shape</name><index>[<expr><literal type="number">3</literal></expr>]</index><index>[<expr><literal type="number">4</literal></expr>]</index></name></decl>;</decl_stmt> 
+<decl_stmt><decl><type><name>uint8_t</name></type> <name><name>fcb_gain</name><index>[<expr><literal type="number">3</literal></expr>]</index></name></decl>;</decl_stmt> 
+<decl_stmt><decl><type><name>uint8_t</name></type> <name>energy_gain</name></decl>;</decl_stmt> 
+<decl_stmt><decl><type><name>uint8_t</name></type> <name>tty</name></decl>;</decl_stmt> 
+}</block></struct></type> <name>EVRCAFrame</name>;</typedef>
+
+<typedef>typedef <type><struct>struct <name>EVRCContext</name> <block>{
+<decl_stmt><decl><type><name>AVClass</name> <modifier>*</modifier></type><name>class</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>postfilter</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>GetBitContext</name></type> <name>gb</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>evrc_packet_rate</name></type> <name>bitrate</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>evrc_packet_rate</name></type> <name>last_valid_bitrate</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>EVRCAFrame</name></type> <name>frame</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>float</name></type> <name><name>lspf</name><index>[<expr><name>FILTER_ORDER</name></expr>]</index></name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>float</name></type> <name><name>prev_lspf</name><index>[<expr><name>FILTER_ORDER</name></expr>]</index></name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>float</name></type> <name><name>synthesis</name><index>[<expr><name>FILTER_ORDER</name></expr>]</index></name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>float</name></type> <name><name>postfilter_fir</name><index>[<expr><name>FILTER_ORDER</name></expr>]</index></name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>float</name></type> <name><name>postfilter_iir</name><index>[<expr><name>FILTER_ORDER</name></expr>]</index></name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>float</name></type> <name><name>postfilter_residual</name><index>[<expr><name>ACB_SIZE</name> <operator>+</operator> <name>SUBFRAME_SIZE</name></expr>]</index></name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>float</name></type> <name>pitch_delay</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>float</name></type> <name>prev_pitch_delay</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>float</name></type> <name>avg_acb_gain</name></decl>;</decl_stmt> 
+<decl_stmt><decl><type><name>float</name></type> <name>avg_fcb_gain</name></decl>;</decl_stmt> 
+<decl_stmt><decl><type><name>float</name></type> <name><name>pitch</name><index>[<expr><name>ACB_SIZE</name> <operator>+</operator> <name>FILTER_ORDER</name> <operator>+</operator> <name>SUBFRAME_SIZE</name></expr>]</index></name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>float</name></type> <name><name>pitch_back</name><index>[<expr><name>ACB_SIZE</name></expr>]</index></name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>float</name></type> <name><name>interpolation_coeffs</name><index>[<expr><literal type="number">136</literal></expr>]</index></name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>float</name></type> <name><name>energy_vector</name><index>[<expr><name>NB_SUBFRAMES</name></expr>]</index></name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>float</name></type> <name>fade_scale</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>float</name></type> <name>last</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>uint8_t</name></type> <name>prev_energy_gain</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>uint8_t</name></type> <name>prev_error_flag</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>uint8_t</name></type> <name>warned_buf_mismatch_bitrate</name></decl>;</decl_stmt>
+}</block></struct></type> <name>EVRCContext</name>;</typedef>
+
+
+
+
+
+
+
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>unpack_frame</name><parameter_list>(<parameter><decl><type><name>EVRCContext</name> <modifier>*</modifier></type><name>e</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>EVRCAFrame</name> <modifier>*</modifier></type><name>frame</name> <init>= <expr><operator>&amp;</operator><name><name>e</name><operator>-&gt;</operator><name>frame</name></name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>GetBitContext</name> <modifier>*</modifier></type><name>gb</name> <init>= <expr><operator>&amp;</operator><name><name>e</name><operator>-&gt;</operator><name>gb</name></name></expr></init></decl>;</decl_stmt>
+
+<switch>switch <condition>(<expr><name><name>e</name><operator>-&gt;</operator><name>bitrate</name></name></expr>)</condition> <block>{<block_content>
+<case>case <expr><name>RATE_FULL</name></expr>:</case>
+<expr_stmt><expr><name><name>frame</name><operator>-&gt;</operator><name>lpc_flag</name></name> <operator>=</operator> <call><name>get_bits1</name><argument_list>(<argument><expr><name>gb</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>frame</name><operator>-&gt;</operator><name>lsp</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>=</operator> <call><name>get_bits</name><argument_list>(<argument><expr><name>gb</name></expr></argument>, <argument><expr><literal type="number">6</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>frame</name><operator>-&gt;</operator><name>lsp</name><index>[<expr><literal type="number">1</literal></expr>]</index></name> <operator>=</operator> <call><name>get_bits</name><argument_list>(<argument><expr><name>gb</name></expr></argument>, <argument><expr><literal type="number">6</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>frame</name><operator>-&gt;</operator><name>lsp</name><index>[<expr><literal type="number">2</literal></expr>]</index></name> <operator>=</operator> <call><name>get_bits</name><argument_list>(<argument><expr><name>gb</name></expr></argument>, <argument><expr><literal type="number">9</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>frame</name><operator>-&gt;</operator><name>lsp</name><index>[<expr><literal type="number">3</literal></expr>]</index></name> <operator>=</operator> <call><name>get_bits</name><argument_list>(<argument><expr><name>gb</name></expr></argument>, <argument><expr><literal type="number">7</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>frame</name><operator>-&gt;</operator><name>pitch_delay</name></name> <operator>=</operator> <call><name>get_bits</name><argument_list>(<argument><expr><name>gb</name></expr></argument>, <argument><expr><literal type="number">7</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>frame</name><operator>-&gt;</operator><name>delay_diff</name></name> <operator>=</operator> <call><name>get_bits</name><argument_list>(<argument><expr><name>gb</name></expr></argument>, <argument><expr><literal type="number">5</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>frame</name><operator>-&gt;</operator><name>acb_gain</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>=</operator> <call><name>get_bits</name><argument_list>(<argument><expr><name>gb</name></expr></argument>, <argument><expr><literal type="number">3</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>frame</name><operator>-&gt;</operator><name>fcb_shape</name><index>[<expr><literal type="number">0</literal></expr>]</index><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>=</operator> <call><name>get_bits</name><argument_list>(<argument><expr><name>gb</name></expr></argument>, <argument><expr><literal type="number">8</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>frame</name><operator>-&gt;</operator><name>fcb_shape</name><index>[<expr><literal type="number">0</literal></expr>]</index><index>[<expr><literal type="number">1</literal></expr>]</index></name> <operator>=</operator> <call><name>get_bits</name><argument_list>(<argument><expr><name>gb</name></expr></argument>, <argument><expr><literal type="number">8</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>frame</name><operator>-&gt;</operator><name>fcb_shape</name><index>[<expr><literal type="number">0</literal></expr>]</index><index>[<expr><literal type="number">2</literal></expr>]</index></name> <operator>=</operator> <call><name>get_bits</name><argument_list>(<argument><expr><name>gb</name></expr></argument>, <argument><expr><literal type="number">8</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>frame</name><operator>-&gt;</operator><name>fcb_shape</name><index>[<expr><literal type="number">0</literal></expr>]</index><index>[<expr><literal type="number">3</literal></expr>]</index></name> <operator>=</operator> <call><name>get_bits</name><argument_list>(<argument><expr><name>gb</name></expr></argument>, <argument><expr><literal type="number">11</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>frame</name><operator>-&gt;</operator><name>fcb_gain</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>=</operator> <call><name>get_bits</name><argument_list>(<argument><expr><name>gb</name></expr></argument>, <argument><expr><literal type="number">5</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>frame</name><operator>-&gt;</operator><name>acb_gain</name><index>[<expr><literal type="number">1</literal></expr>]</index></name> <operator>=</operator> <call><name>get_bits</name><argument_list>(<argument><expr><name>gb</name></expr></argument>, <argument><expr><literal type="number">3</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>frame</name><operator>-&gt;</operator><name>fcb_shape</name><index>[<expr><literal type="number">1</literal></expr>]</index><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>=</operator> <call><name>get_bits</name><argument_list>(<argument><expr><name>gb</name></expr></argument>, <argument><expr><literal type="number">8</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>frame</name><operator>-&gt;</operator><name>fcb_shape</name><index>[<expr><literal type="number">1</literal></expr>]</index><index>[<expr><literal type="number">1</literal></expr>]</index></name> <operator>=</operator> <call><name>get_bits</name><argument_list>(<argument><expr><name>gb</name></expr></argument>, <argument><expr><literal type="number">8</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>frame</name><operator>-&gt;</operator><name>fcb_shape</name><index>[<expr><literal type="number">1</literal></expr>]</index><index>[<expr><literal type="number">2</literal></expr>]</index></name> <operator>=</operator> <call><name>get_bits</name><argument_list>(<argument><expr><name>gb</name></expr></argument>, <argument><expr><literal type="number">8</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>frame</name><operator>-&gt;</operator><name>fcb_shape</name><index>[<expr><literal type="number">1</literal></expr>]</index><index>[<expr><literal type="number">3</literal></expr>]</index></name> <operator>=</operator> <call><name>get_bits</name><argument_list>(<argument><expr><name>gb</name></expr></argument>, <argument><expr><literal type="number">11</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>frame</name><operator>-&gt;</operator><name>fcb_gain</name> <index>[<expr><literal type="number">1</literal></expr>]</index></name> <operator>=</operator> <call><name>get_bits</name><argument_list>(<argument><expr><name>gb</name></expr></argument>, <argument><expr><literal type="number">5</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>frame</name><operator>-&gt;</operator><name>acb_gain</name> <index>[<expr><literal type="number">2</literal></expr>]</index></name> <operator>=</operator> <call><name>get_bits</name><argument_list>(<argument><expr><name>gb</name></expr></argument>, <argument><expr><literal type="number">3</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>frame</name><operator>-&gt;</operator><name>fcb_shape</name><index>[<expr><literal type="number">2</literal></expr>]</index><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>=</operator> <call><name>get_bits</name><argument_list>(<argument><expr><name>gb</name></expr></argument>, <argument><expr><literal type="number">8</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>frame</name><operator>-&gt;</operator><name>fcb_shape</name><index>[<expr><literal type="number">2</literal></expr>]</index><index>[<expr><literal type="number">1</literal></expr>]</index></name> <operator>=</operator> <call><name>get_bits</name><argument_list>(<argument><expr><name>gb</name></expr></argument>, <argument><expr><literal type="number">8</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>frame</name><operator>-&gt;</operator><name>fcb_shape</name><index>[<expr><literal type="number">2</literal></expr>]</index><index>[<expr><literal type="number">2</literal></expr>]</index></name> <operator>=</operator> <call><name>get_bits</name><argument_list>(<argument><expr><name>gb</name></expr></argument>, <argument><expr><literal type="number">8</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>frame</name><operator>-&gt;</operator><name>fcb_shape</name><index>[<expr><literal type="number">2</literal></expr>]</index><index>[<expr><literal type="number">3</literal></expr>]</index></name> <operator>=</operator> <call><name>get_bits</name><argument_list>(<argument><expr><name>gb</name></expr></argument>, <argument><expr><literal type="number">11</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>frame</name><operator>-&gt;</operator><name>fcb_gain</name> <index>[<expr><literal type="number">2</literal></expr>]</index></name> <operator>=</operator> <call><name>get_bits</name><argument_list>(<argument><expr><name>gb</name></expr></argument>, <argument><expr><literal type="number">5</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>frame</name><operator>-&gt;</operator><name>tty</name></name> <operator>=</operator> <call><name>get_bits1</name><argument_list>(<argument><expr><name>gb</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>RATE_HALF</name></expr>:</case>
+<expr_stmt><expr><name><name>frame</name><operator>-&gt;</operator><name>lsp</name> <index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>=</operator> <call><name>get_bits</name><argument_list>(<argument><expr><name>gb</name></expr></argument>, <argument><expr><literal type="number">7</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>frame</name><operator>-&gt;</operator><name>lsp</name> <index>[<expr><literal type="number">1</literal></expr>]</index></name> <operator>=</operator> <call><name>get_bits</name><argument_list>(<argument><expr><name>gb</name></expr></argument>, <argument><expr><literal type="number">7</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>frame</name><operator>-&gt;</operator><name>lsp</name> <index>[<expr><literal type="number">2</literal></expr>]</index></name> <operator>=</operator> <call><name>get_bits</name><argument_list>(<argument><expr><name>gb</name></expr></argument>, <argument><expr><literal type="number">8</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>frame</name><operator>-&gt;</operator><name>pitch_delay</name></name> <operator>=</operator> <call><name>get_bits</name><argument_list>(<argument><expr><name>gb</name></expr></argument>, <argument><expr><literal type="number">7</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>frame</name><operator>-&gt;</operator><name>acb_gain</name> <index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>=</operator> <call><name>get_bits</name><argument_list>(<argument><expr><name>gb</name></expr></argument>, <argument><expr><literal type="number">3</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>frame</name><operator>-&gt;</operator><name>fcb_shape</name><index>[<expr><literal type="number">0</literal></expr>]</index><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>=</operator> <call><name>get_bits</name><argument_list>(<argument><expr><name>gb</name></expr></argument>, <argument><expr><literal type="number">10</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>frame</name><operator>-&gt;</operator><name>fcb_gain</name> <index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>=</operator> <call><name>get_bits</name><argument_list>(<argument><expr><name>gb</name></expr></argument>, <argument><expr><literal type="number">4</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>frame</name><operator>-&gt;</operator><name>acb_gain</name> <index>[<expr><literal type="number">1</literal></expr>]</index></name> <operator>=</operator> <call><name>get_bits</name><argument_list>(<argument><expr><name>gb</name></expr></argument>, <argument><expr><literal type="number">3</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>frame</name><operator>-&gt;</operator><name>fcb_shape</name><index>[<expr><literal type="number">1</literal></expr>]</index><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>=</operator> <call><name>get_bits</name><argument_list>(<argument><expr><name>gb</name></expr></argument>, <argument><expr><literal type="number">10</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>frame</name><operator>-&gt;</operator><name>fcb_gain</name> <index>[<expr><literal type="number">1</literal></expr>]</index></name> <operator>=</operator> <call><name>get_bits</name><argument_list>(<argument><expr><name>gb</name></expr></argument>, <argument><expr><literal type="number">4</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>frame</name><operator>-&gt;</operator><name>acb_gain</name> <index>[<expr><literal type="number">2</literal></expr>]</index></name> <operator>=</operator> <call><name>get_bits</name><argument_list>(<argument><expr><name>gb</name></expr></argument>, <argument><expr><literal type="number">3</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>frame</name><operator>-&gt;</operator><name>fcb_shape</name><index>[<expr><literal type="number">2</literal></expr>]</index><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>=</operator> <call><name>get_bits</name><argument_list>(<argument><expr><name>gb</name></expr></argument>, <argument><expr><literal type="number">10</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>frame</name><operator>-&gt;</operator><name>fcb_gain</name> <index>[<expr><literal type="number">2</literal></expr>]</index></name> <operator>=</operator> <call><name>get_bits</name><argument_list>(<argument><expr><name>gb</name></expr></argument>, <argument><expr><literal type="number">4</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>RATE_QUANT</name></expr>:</case>
+<expr_stmt><expr><name><name>frame</name><operator>-&gt;</operator><name>lsp</name> <index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>=</operator> <call><name>get_bits</name><argument_list>(<argument><expr><name>gb</name></expr></argument>, <argument><expr><literal type="number">4</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>frame</name><operator>-&gt;</operator><name>lsp</name> <index>[<expr><literal type="number">1</literal></expr>]</index></name> <operator>=</operator> <call><name>get_bits</name><argument_list>(<argument><expr><name>gb</name></expr></argument>, <argument><expr><literal type="number">4</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>frame</name><operator>-&gt;</operator><name>energy_gain</name></name> <operator>=</operator> <call><name>get_bits</name><argument_list>(<argument><expr><name>gb</name></expr></argument>, <argument><expr><literal type="number">8</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+</block_content>}</block></switch>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>evrc_packet_rate</name></type> <name>buf_size2bitrate</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name>int</name></type> <name>buf_size</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<switch>switch <condition>(<expr><name>buf_size</name></expr>)</condition> <block>{<block_content>
+<case>case <expr><literal type="number">23</literal></expr>:</case> <return>return <expr><name>RATE_FULL</name></expr>;</return>
+<case>case <expr><literal type="number">11</literal></expr>:</case> <return>return <expr><name>RATE_HALF</name></expr>;</return>
+<case>case <expr><literal type="number">6</literal></expr>:</case> <return>return <expr><name>RATE_QUARTER</name></expr>;</return>
+<case>case <expr><literal type="number">3</literal></expr>:</case> <return>return <expr><name>RATE_QUANT</name></expr>;</return>
+<case>case <expr><literal type="number">1</literal></expr>:</case> <return>return <expr><name>SILENCE</name></expr>;</return>
+</block_content>}</block></switch>
+
+<return>return <expr><name>RATE_ERRS</name></expr>;</return>
+</block_content>}</block></function>
+
+
+
+
+
+
+
+
+
+
+
+<function><type><specifier>static</specifier> <name>evrc_packet_rate</name></type> <name>determine_bitrate</name><parameter_list>(<parameter><decl><type><name>AVCodecContext</name> <modifier>*</modifier></type><name>avctx</name></decl></parameter>,
+<parameter><decl><type><name>int</name> <modifier>*</modifier></type><name>buf_size</name></decl></parameter>,
+<parameter><decl><type><specifier>const</specifier> <name>uint8_t</name> <modifier>*</modifier><modifier>*</modifier></type><name>buf</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>evrc_packet_rate</name></type> <name>bitrate</name></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>(</operator><name>bitrate</name> <operator>=</operator> <call><name>buf_size2bitrate</name><argument_list>(<argument><expr><operator>*</operator><name>buf_size</name></expr></argument>)</argument_list></call><operator>)</operator> <operator>&gt;=</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name>bitrate</name> <operator>&gt;</operator> <operator>*</operator><operator>*</operator><name>buf</name></expr>)</condition> <block>{<block_content>
+<decl_stmt><decl><type><name>EVRCContext</name> <modifier>*</modifier></type><name>e</name> <init>= <expr><name><name>avctx</name><operator>-&gt;</operator><name>priv_data</name></name></expr></init></decl>;</decl_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>e</name><operator>-&gt;</operator><name>warned_buf_mismatch_bitrate</name></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>av_log</name><argument_list>(<argument><expr><name>avctx</name></expr></argument>, <argument><expr><name>AV_LOG_WARNING</name></expr></argument>,
+<argument><expr><literal type="string">"Claimed bitrate and buffer size mismatch.\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>e</name><operator>-&gt;</operator><name>warned_buf_mismatch_bitrate</name></name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+<expr_stmt><expr><name>bitrate</name> <operator>=</operator> <operator>*</operator><operator>*</operator><name>buf</name></expr>;</expr_stmt>
+</block_content>}</block></if> <if type="elseif">else if <condition>(<expr><name>bitrate</name> <operator>&lt;</operator> <operator>*</operator><operator>*</operator><name>buf</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>av_log</name><argument_list>(<argument><expr><name>avctx</name></expr></argument>, <argument><expr><name>AV_LOG_ERROR</name></expr></argument>,
+<argument><expr><literal type="string">"Buffer is too small for the claimed bitrate.\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>RATE_ERRS</name></expr>;</return>
+</block_content>}</block></if></if_stmt>
+<expr_stmt><expr><operator>(</operator><operator>*</operator><name>buf</name><operator>)</operator><operator>++</operator></expr>;</expr_stmt>
+<expr_stmt><expr><operator>*</operator><name>buf_size</name> <operator>-=</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+</block_content>}</block></if> <if type="elseif">else if <condition>(<expr><operator>(</operator><name>bitrate</name> <operator>=</operator> <call><name>buf_size2bitrate</name><argument_list>(<argument><expr><operator>*</operator><name>buf_size</name> <operator>+</operator> <literal type="number">1</literal></expr></argument>)</argument_list></call><operator>)</operator> <operator>&gt;=</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>av_log</name><argument_list>(<argument><expr><name>avctx</name></expr></argument>, <argument><expr><name>AV_LOG_DEBUG</name></expr></argument>,
+<argument><expr><literal type="string">"Bitrate byte is missing, guessing the bitrate from packet size.\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if> <else>else<block type="pseudo"><block_content>
+<return>return <expr><name>RATE_ERRS</name></expr>;</return></block_content></block></else></if_stmt>
+
+<return>return <expr><name>bitrate</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>warn_insufficient_frame_quality</name><parameter_list>(<parameter><decl><type><name>AVCodecContext</name> <modifier>*</modifier></type><name>avctx</name></decl></parameter>,
+<parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>message</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<expr_stmt><expr><call><name>av_log</name><argument_list>(<argument><expr><name>avctx</name></expr></argument>, <argument><expr><name>AV_LOG_WARNING</name></expr></argument>, <argument><expr><literal type="string">"Frame #%d, %s\n"</literal></expr></argument>,
+<argument><expr><name><name>avctx</name><operator>-&gt;</operator><name>frame_number</name></name></expr></argument>, <argument><expr><name>message</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+
+
+
+
+
+<function><type><specifier>static</specifier> <name>av_cold</name> <name>int</name></type> <name>evrc_decode_init</name><parameter_list>(<parameter><decl><type><name>AVCodecContext</name> <modifier>*</modifier></type><name>avctx</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>EVRCContext</name> <modifier>*</modifier></type><name>e</name> <init>= <expr><name><name>avctx</name><operator>-&gt;</operator><name>priv_data</name></name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>i</name></decl>, <decl><type ref="prev"/><name>n</name></decl>, <decl><type ref="prev"/><name>idx</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>float</name></type> <name>denom</name> <init>= <expr><literal type="number">2.0</literal> <operator>/</operator> <operator>(</operator><literal type="number">2.0</literal> <operator>*</operator> <literal type="number">8.0</literal> <operator>+</operator> <literal type="number">1.0</literal><operator>)</operator></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>avctx</name><operator>-&gt;</operator><name>channels</name></name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>avctx</name><operator>-&gt;</operator><name>channel_layout</name></name> <operator>=</operator> <name>AV_CH_LAYOUT_MONO</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>avctx</name><operator>-&gt;</operator><name>sample_fmt</name></name> <operator>=</operator> <name>AV_SAMPLE_FMT_FLT</name></expr>;</expr_stmt>
+
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>FILTER_ORDER</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<expr_stmt><expr><name><name>e</name><operator>-&gt;</operator><name>prev_lspf</name><index>[<expr><name>i</name></expr>]</index></name> <operator>=</operator> <operator>(</operator><name>i</name> <operator>+</operator> <literal type="number">1</literal><operator>)</operator> <operator>*</operator> <literal type="number">0.048</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>e</name><operator>-&gt;</operator><name>synthesis</name><index>[<expr><name>i</name></expr>]</index></name> <operator>=</operator> <literal type="number">0.0</literal></expr>;</expr_stmt>
+</block_content>}</block></for>
+
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>ACB_SIZE</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control><block type="pseudo"><block_content>
+<expr_stmt><expr><name><name>e</name><operator>-&gt;</operator><name>pitch</name><index>[<expr><name>i</name></expr>]</index></name> <operator>=</operator> <name><name>e</name><operator>-&gt;</operator><name>pitch_back</name><index>[<expr><name>i</name></expr>]</index></name> <operator>=</operator> <literal type="number">0.0</literal></expr>;</expr_stmt></block_content></block></for>
+
+<expr_stmt><expr><name><name>e</name><operator>-&gt;</operator><name>last_valid_bitrate</name></name> <operator>=</operator> <name>RATE_QUANT</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>e</name><operator>-&gt;</operator><name>prev_pitch_delay</name></name> <operator>=</operator> <literal type="number">40.0</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>e</name><operator>-&gt;</operator><name>fade_scale</name></name> <operator>=</operator> <literal type="number">1.0</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>e</name><operator>-&gt;</operator><name>prev_error_flag</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>e</name><operator>-&gt;</operator><name>avg_acb_gain</name></name> <operator>=</operator> <name><name>e</name><operator>-&gt;</operator><name>avg_fcb_gain</name></name> <operator>=</operator> <literal type="number">0.0</literal></expr>;</expr_stmt>
+
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <literal type="number">8</literal></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<decl_stmt><decl><type><name>float</name></type> <name>tt</name> <init>= <expr><operator>(</operator><operator>(</operator><name>float</name><operator>)</operator><name>i</name> <operator>-</operator> <literal type="number">8.0</literal> <operator>/</operator> <literal type="number">2.0</literal><operator>)</operator> <operator>/</operator> <literal type="number">8.0</literal></expr></init></decl>;</decl_stmt>
+
+<for>for <control>(<init><expr><name>n</name> <operator>=</operator> <operator>-</operator><literal type="number">8</literal></expr>;</init> <condition><expr><name>n</name> <operator>&lt;=</operator> <literal type="number">8</literal></expr>;</condition> <incr><expr><name>n</name><operator>++</operator></expr><operator>,</operator> <expr><name>idx</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<decl_stmt><decl><type><name>float</name></type> <name>arg1</name> <init>= <expr><name>M_PI</name> <operator>*</operator> <literal type="number">0.9</literal> <operator>*</operator> <operator>(</operator><name>tt</name> <operator>-</operator> <name>n</name><operator>)</operator></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>float</name></type> <name>arg2</name> <init>= <expr><name>M_PI</name> <operator>*</operator> <operator>(</operator><name>tt</name> <operator>-</operator> <name>n</name><operator>)</operator></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>e</name><operator>-&gt;</operator><name>interpolation_coeffs</name><index>[<expr><name>idx</name></expr>]</index></name> <operator>=</operator> <literal type="number">0.9</literal></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name>arg1</name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name><name>e</name><operator>-&gt;</operator><name>interpolation_coeffs</name><index>[<expr><name>idx</name></expr>]</index></name> <operator>*=</operator> <operator>(</operator><literal type="number">0.54</literal> <operator>+</operator> <literal type="number">0.46</literal> <operator>*</operator> <call><name>cos</name><argument_list>(<argument><expr><name>arg2</name> <operator>*</operator> <name>denom</name></expr></argument>)</argument_list></call><operator>)</operator> <operator>*</operator>
+<call><name>sin</name><argument_list>(<argument><expr><name>arg1</name></expr></argument>)</argument_list></call> <operator>/</operator> <name>arg1</name></expr>;</expr_stmt></block_content></block></if></if_stmt>
+</block_content>}</block></for>
+</block_content>}</block></for>
+
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+</block_content>}</block></function>
+
+
+
+
+
+
+
+
+
+
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>decode_lspf</name><parameter_list>(<parameter><decl><type><name>EVRCContext</name> <modifier>*</modifier></type><name>e</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><specifier>const</specifier> <name>float</name> <modifier>*</modifier> <specifier>const</specifier> <modifier>*</modifier></type><name>codebooks</name> <init>= <expr><name><name>evrc_lspq_codebooks</name><index>[<expr><name><name>e</name><operator>-&gt;</operator><name>bitrate</name></name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>i</name></decl>, <decl><type ref="prev"/><name>j</name></decl>, <decl><type ref="prev"/><name>k</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name><name>evrc_lspq_nb_codebooks</name><index>[<expr><name><name>e</name><operator>-&gt;</operator><name>bitrate</name></name></expr>]</index></name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<decl_stmt><decl><type><name>int</name></type> <name>row_size</name> <init>= <expr><name><name>evrc_lspq_codebooks_row_sizes</name><index>[<expr><name><name>e</name><operator>-&gt;</operator><name>bitrate</name></name></expr>]</index><index>[<expr><name>i</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><specifier>const</specifier> <name>float</name> <modifier>*</modifier></type><name>codebook</name> <init>= <expr><name><name>codebooks</name><index>[<expr><name>i</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+
+<for>for <control>(<init><expr><name>j</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>j</name> <operator>&lt;</operator> <name>row_size</name></expr>;</condition> <incr><expr><name>j</name><operator>++</operator></expr></incr>)</control><block type="pseudo"><block_content>
+<expr_stmt><expr><name><name>e</name><operator>-&gt;</operator><name>lspf</name><index>[<expr><name>k</name><operator>++</operator></expr>]</index></name> <operator>=</operator> <name><name>codebook</name><index>[<expr><name><name>e</name><operator>-&gt;</operator><name>frame</name><operator>.</operator><name>lsp</name><index>[<expr><name>i</name></expr>]</index></name> <operator>*</operator> <name>row_size</name> <operator>+</operator> <name>j</name></expr>]</index></name></expr>;</expr_stmt></block_content></block></for>
+</block_content>}</block></for>
+
+
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">1</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>FILTER_ORDER</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control><block type="pseudo"><block_content>
+<if_stmt><if>if <condition>(<expr><name><name>e</name><operator>-&gt;</operator><name>lspf</name><index>[<expr><name>i</name></expr>]</index></name> <operator>&lt;=</operator> <name><name>e</name><operator>-&gt;</operator><name>lspf</name><index>[<expr><name>i</name> <operator>-</operator> <literal type="number">1</literal></expr>]</index></name></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><operator>-</operator><literal type="number">1</literal></expr>;</return></block_content></block></if></if_stmt></block_content></block></for>
+
+
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr><operator>,</operator> <expr><name>k</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name><name>evrc_lspq_nb_codebooks</name><index>[<expr><name><name>e</name><operator>-&gt;</operator><name>bitrate</name></name></expr>]</index></name> <operator>-</operator> <literal type="number">1</literal></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<expr_stmt><expr><name>k</name> <operator>+=</operator> <name><name>evrc_lspq_codebooks_row_sizes</name><index>[<expr><name><name>e</name><operator>-&gt;</operator><name>bitrate</name></name></expr>]</index><index>[<expr><name>i</name></expr>]</index></name></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>e</name><operator>-&gt;</operator><name>lspf</name><index>[<expr><name>k</name></expr>]</index></name> <operator>-</operator> <name><name>e</name><operator>-&gt;</operator><name>lspf</name><index>[<expr><name>k</name> <operator>-</operator> <literal type="number">1</literal></expr>]</index></name> <operator>&lt;=</operator> <name>MIN_LSP_SEP</name></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><operator>-</operator><literal type="number">1</literal></expr>;</return></block_content></block></if></if_stmt>
+</block_content>}</block></for>
+
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+</block_content>}</block></function>
+
+
+
+
+
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>interpolate_lsp</name><parameter_list>(<parameter><decl><type><name>float</name> <modifier>*</modifier></type><name>ilsp</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>float</name> <modifier>*</modifier></type><name>lsp</name></decl></parameter>,
+<parameter><decl><type><specifier>const</specifier> <name>float</name> <modifier>*</modifier></type><name>prev</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>index</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><specifier>static</specifier> <specifier>const</specifier> <name>float</name></type> <name><name>lsp_interpolation_factors</name><index>[]</index></name> <init>= <expr><block>{ <expr><literal type="number">0.1667</literal></expr>, <expr><literal type="number">0.5</literal></expr>, <expr><literal type="number">0.8333</literal></expr> }</block></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><call><name>ff_weighted_vector_sumf</name><argument_list>(<argument><expr><name>ilsp</name></expr></argument>, <argument><expr><name>prev</name></expr></argument>, <argument><expr><name>lsp</name></expr></argument>,
+<argument><expr><literal type="number">1.0</literal> <operator>-</operator> <name><name>lsp_interpolation_factors</name><index>[<expr><name>index</name></expr>]</index></name></expr></argument>,
+<argument><expr><name><name>lsp_interpolation_factors</name><index>[<expr><name>index</name></expr>]</index></name></expr></argument>, <argument><expr><name>FILTER_ORDER</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+
+
+
+
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>interpolate_delay</name><parameter_list>(<parameter><decl><type><name>float</name> <modifier>*</modifier></type><name>dst</name></decl></parameter>, <parameter><decl><type><name>float</name></type> <name>current</name></decl></parameter>, <parameter><decl><type><name>float</name></type> <name>prev</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>index</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><specifier>static</specifier> <specifier>const</specifier> <name>float</name></type> <name><name>d_interpolation_factors</name><index>[]</index></name> <init>= <expr><block>{ <expr><literal type="number">0</literal></expr>, <expr><literal type="number">0.3313</literal></expr>, <expr><literal type="number">0.6625</literal></expr>, <expr><literal type="number">1</literal></expr>, <expr><literal type="number">1</literal></expr> }</block></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><name><name>dst</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>=</operator> <operator>(</operator><literal type="number">1.0</literal> <operator>-</operator> <name><name>d_interpolation_factors</name><index>[<expr><name>index</name></expr> ]</index></name><operator>)</operator> <operator>*</operator> <name>prev</name>
+<operator>+</operator> <name><name>d_interpolation_factors</name><index>[<expr><name>index</name></expr> ]</index></name> <operator>*</operator> <name>current</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>dst</name><index>[<expr><literal type="number">1</literal></expr>]</index></name> <operator>=</operator> <operator>(</operator><literal type="number">1.0</literal> <operator>-</operator> <name><name>d_interpolation_factors</name><index>[<expr><name>index</name> <operator>+</operator> <literal type="number">1</literal></expr>]</index></name><operator>)</operator> <operator>*</operator> <name>prev</name>
+<operator>+</operator> <name><name>d_interpolation_factors</name><index>[<expr><name>index</name> <operator>+</operator> <literal type="number">1</literal></expr>]</index></name> <operator>*</operator> <name>current</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>dst</name><index>[<expr><literal type="number">2</literal></expr>]</index></name> <operator>=</operator> <operator>(</operator><literal type="number">1.0</literal> <operator>-</operator> <name><name>d_interpolation_factors</name><index>[<expr><name>index</name> <operator>+</operator> <literal type="number">2</literal></expr>]</index></name><operator>)</operator> <operator>*</operator> <name>prev</name>
+<operator>+</operator> <name><name>d_interpolation_factors</name><index>[<expr><name>index</name> <operator>+</operator> <literal type="number">2</literal></expr>]</index></name> <operator>*</operator> <name>current</name></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+
+
+
+
+
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>decode_predictor_coeffs</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name>float</name> <modifier>*</modifier></type><name>ilspf</name></decl></parameter>, <parameter><decl><type><name>float</name> <modifier>*</modifier></type><name>ilpc</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>double</name></type> <name><name>lsp</name><index>[<expr><name>FILTER_ORDER</name></expr>]</index></name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>float</name></type> <name><name>a</name><index>[<expr><name>FILTER_ORDER</name> <operator>/</operator> <literal type="number">2</literal> <operator>+</operator> <literal type="number">1</literal></expr>]</index></name></decl>, <decl><type ref="prev"/><name><name>b</name><index>[<expr><name>FILTER_ORDER</name> <operator>/</operator> <literal type="number">2</literal> <operator>+</operator> <literal type="number">1</literal></expr>]</index></name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>float</name></type> <name><name>a1</name><index>[<expr><name>FILTER_ORDER</name> <operator>/</operator> <literal type="number">2</literal></expr>]</index></name> <init>= <expr><block>{ <expr><literal type="number">0</literal></expr> }</block></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>float</name></type> <name><name>a2</name><index>[<expr><name>FILTER_ORDER</name> <operator>/</operator> <literal type="number">2</literal></expr>]</index></name> <init>= <expr><block>{ <expr><literal type="number">0</literal></expr> }</block></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>float</name></type> <name><name>b1</name><index>[<expr><name>FILTER_ORDER</name> <operator>/</operator> <literal type="number">2</literal></expr>]</index></name> <init>= <expr><block>{ <expr><literal type="number">0</literal></expr> }</block></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>float</name></type> <name><name>b2</name><index>[<expr><name>FILTER_ORDER</name> <operator>/</operator> <literal type="number">2</literal></expr>]</index></name> <init>= <expr><block>{ <expr><literal type="number">0</literal></expr> }</block></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>i</name></decl>, <decl><type ref="prev"/><name>k</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>ff_acelp_lsf2lspd</name><argument_list>(<argument><expr><name>lsp</name></expr></argument>, <argument><expr><name>ilspf</name></expr></argument>, <argument><expr><name>FILTER_ORDER</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<for>for <control>(<init><expr><name>k</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>k</name> <operator>&lt;=</operator> <name>FILTER_ORDER</name></expr>;</condition> <incr><expr><name>k</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<expr_stmt><expr><name><name>a</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>=</operator> <ternary><condition><expr><name>k</name> <operator>&lt;</operator> <literal type="number">2</literal></expr> ?</condition><then> <expr><literal type="number">0.25</literal></expr> </then><else>: <expr><literal type="number">0</literal></expr></else></ternary></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>b</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>=</operator> <ternary><condition><expr><name>k</name> <operator>&lt;</operator> <literal type="number">2</literal></expr> ?</condition><then> <expr><ternary><condition><expr><name>k</name> <operator>&lt;</operator> <literal type="number">1</literal></expr> ?</condition><then> <expr><literal type="number">0.25</literal></expr> </then><else>: <expr><operator>-</operator><literal type="number">0.25</literal></expr></else></ternary></expr> </then><else>: <expr><literal type="number">0</literal></expr></else></ternary></expr>;</expr_stmt>
+
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>FILTER_ORDER</name> <operator>/</operator> <literal type="number">2</literal></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<expr_stmt><expr><name><name>a</name><index>[<expr><name>i</name> <operator>+</operator> <literal type="number">1</literal></expr>]</index></name> <operator>=</operator> <name><name>a</name><index>[<expr><name>i</name></expr>]</index></name> <operator>-</operator> <literal type="number">2</literal> <operator>*</operator> <name><name>lsp</name><index>[<expr><name>i</name> <operator>*</operator> <literal type="number">2</literal></expr> ]</index></name> <operator>*</operator> <name><name>a1</name><index>[<expr><name>i</name></expr>]</index></name> <operator>+</operator> <name><name>a2</name><index>[<expr><name>i</name></expr>]</index></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>b</name><index>[<expr><name>i</name> <operator>+</operator> <literal type="number">1</literal></expr>]</index></name> <operator>=</operator> <name><name>b</name><index>[<expr><name>i</name></expr>]</index></name> <operator>-</operator> <literal type="number">2</literal> <operator>*</operator> <name><name>lsp</name><index>[<expr><name>i</name> <operator>*</operator> <literal type="number">2</literal> <operator>+</operator> <literal type="number">1</literal></expr>]</index></name> <operator>*</operator> <name><name>b1</name><index>[<expr><name>i</name></expr>]</index></name> <operator>+</operator> <name><name>b2</name><index>[<expr><name>i</name></expr>]</index></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>a2</name><index>[<expr><name>i</name></expr>]</index></name> <operator>=</operator> <name><name>a1</name><index>[<expr><name>i</name></expr>]</index></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>a1</name><index>[<expr><name>i</name></expr>]</index></name> <operator>=</operator> <name><name>a</name><index>[<expr><name>i</name></expr>]</index></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>b2</name><index>[<expr><name>i</name></expr>]</index></name> <operator>=</operator> <name><name>b1</name><index>[<expr><name>i</name></expr>]</index></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>b1</name><index>[<expr><name>i</name></expr>]</index></name> <operator>=</operator> <name><name>b</name><index>[<expr><name>i</name></expr>]</index></name></expr>;</expr_stmt>
+</block_content>}</block></for>
+
+<if_stmt><if>if <condition>(<expr><name>k</name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name><name>ilpc</name><index>[<expr><name>k</name> <operator>-</operator> <literal type="number">1</literal></expr>]</index></name> <operator>=</operator> <literal type="number">2.0</literal> <operator>*</operator> <operator>(</operator><name><name>a</name><index>[<expr><name>FILTER_ORDER</name> <operator>/</operator> <literal type="number">2</literal></expr>]</index></name> <operator>+</operator> <name><name>b</name><index>[<expr><name>FILTER_ORDER</name> <operator>/</operator> <literal type="number">2</literal></expr>]</index></name><operator>)</operator></expr>;</expr_stmt></block_content></block></if></if_stmt>
+</block_content>}</block></for>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>bl_intrp</name><parameter_list>(<parameter><decl><type><name>EVRCContext</name> <modifier>*</modifier></type><name>e</name></decl></parameter>, <parameter><decl><type><name>float</name> <modifier>*</modifier></type><name>ex</name></decl></parameter>, <parameter><decl><type><name>float</name></type> <name>delay</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>float</name> <modifier>*</modifier></type><name>f</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>offset</name></decl>, <decl><type ref="prev"/><name>i</name></decl>, <decl><type ref="prev"/><name>coef_idx</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int16_t</name></type> <name>t</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>offset</name> <operator>=</operator> <call><name>lrintf</name><argument_list>(<argument><expr><name>delay</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>t</name> <operator>=</operator> <operator>(</operator><name>offset</name> <operator>-</operator> <name>delay</name> <operator>+</operator> <literal type="number">0.5</literal><operator>)</operator> <operator>*</operator> <literal type="number">8.0</literal> <operator>+</operator> <literal type="number">0.5</literal></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name>t</name> <operator>==</operator> <literal type="number">8</literal></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name>t</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name>offset</name><operator>--</operator></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name>f</name> <operator>=</operator> <name>ex</name> <operator>-</operator> <name>offset</name> <operator>-</operator> <literal type="number">8</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>coef_idx</name> <operator>=</operator> <name>t</name> <operator>*</operator> <operator>(</operator><literal type="number">2</literal> <operator>*</operator> <literal type="number">8</literal> <operator>+</operator> <literal type="number">1</literal><operator>)</operator></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>ex</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>=</operator> <literal type="number">0.0</literal></expr>;</expr_stmt>
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <literal type="number">2</literal> <operator>*</operator> <literal type="number">8</literal> <operator>+</operator> <literal type="number">1</literal></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control><block type="pseudo"><block_content>
+<expr_stmt><expr><name><name>ex</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>+=</operator> <name><name>e</name><operator>-&gt;</operator><name>interpolation_coeffs</name><index>[<expr><name>coef_idx</name> <operator>+</operator> <name>i</name></expr>]</index></name> <operator>*</operator> <name><name>f</name><index>[<expr><name>i</name></expr>]</index></name></expr>;</expr_stmt></block_content></block></for>
+</block_content>}</block></function>
+
+
+
+
+
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>acb_excitation</name><parameter_list>(<parameter><decl><type><name>EVRCContext</name> <modifier>*</modifier></type><name>e</name></decl></parameter>, <parameter><decl><type><name>float</name> <modifier>*</modifier></type><name>excitation</name></decl></parameter>, <parameter><decl><type><name>float</name></type> <name>gain</name></decl></parameter>,
+<parameter><decl><type><specifier>const</specifier> <name>float</name></type> <name><name>delay</name><index>[<expr><literal type="number">3</literal></expr>]</index></name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>length</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>float</name></type> <name>denom</name></decl>, <decl><type ref="prev"/><name>locdelay</name></decl>, <decl><type ref="prev"/><name>dpr</name></decl>, <decl><type ref="prev"/><name>invl</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>i</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>invl</name> <operator>=</operator> <literal type="number">1.0</literal> <operator>/</operator> <operator>(</operator><operator>(</operator><name>float</name><operator>)</operator> <name>length</name><operator>)</operator></expr>;</expr_stmt>
+<expr_stmt><expr><name>dpr</name> <operator>=</operator> <name>length</name></expr>;</expr_stmt>
+
+
+<expr_stmt><expr><name>denom</name> <operator>=</operator> <operator>(</operator><name><name>delay</name><index>[<expr><literal type="number">1</literal></expr>]</index></name> <operator>-</operator> <name><name>delay</name><index>[<expr><literal type="number">0</literal></expr>]</index></name><operator>)</operator> <operator>*</operator> <name>invl</name></expr>;</expr_stmt>
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>dpr</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<expr_stmt><expr><name>locdelay</name> <operator>=</operator> <name><name>delay</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>+</operator> <name>i</name> <operator>*</operator> <name>denom</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>bl_intrp</name><argument_list>(<argument><expr><name>e</name></expr></argument>, <argument><expr><name>excitation</name> <operator>+</operator> <name>i</name></expr></argument>, <argument><expr><name>locdelay</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></for>
+
+<expr_stmt><expr><name>denom</name> <operator>=</operator> <operator>(</operator><name><name>delay</name><index>[<expr><literal type="number">2</literal></expr>]</index></name> <operator>-</operator> <name><name>delay</name><index>[<expr><literal type="number">1</literal></expr>]</index></name><operator>)</operator> <operator>*</operator> <name>invl</name></expr>;</expr_stmt>
+
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <name>dpr</name></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>dpr</name> <operator>+</operator> <literal type="number">10</literal></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<expr_stmt><expr><name>locdelay</name> <operator>=</operator> <name><name>delay</name><index>[<expr><literal type="number">1</literal></expr>]</index></name> <operator>+</operator> <operator>(</operator><name>i</name> <operator>-</operator> <name>dpr</name><operator>)</operator> <operator>*</operator> <name>denom</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>bl_intrp</name><argument_list>(<argument><expr><name>e</name></expr></argument>, <argument><expr><name>excitation</name> <operator>+</operator> <name>i</name></expr></argument>, <argument><expr><name>locdelay</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></for>
+
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>length</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control><block type="pseudo"><block_content>
+<expr_stmt><expr><name><name>excitation</name><index>[<expr><name>i</name></expr>]</index></name> <operator>*=</operator> <name>gain</name></expr>;</expr_stmt></block_content></block></for>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>decode_8_pulses_35bits</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name>uint16_t</name> <modifier>*</modifier></type><name>fixed_index</name></decl></parameter>, <parameter><decl><type><name>float</name> <modifier>*</modifier></type><name>cod</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>int</name></type> <name>i</name></decl>, <decl><type ref="prev"/><name>pos1</name></decl>, <decl><type ref="prev"/><name>pos2</name></decl>, <decl><type ref="prev"/><name>offset</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>offset</name> <operator>=</operator> <operator>(</operator><name><name>fixed_index</name><index>[<expr><literal type="number">3</literal></expr>]</index></name> <operator>&gt;&gt;</operator> <literal type="number">9</literal><operator>)</operator> <operator>&amp;</operator> <literal type="number">3</literal></expr>;</expr_stmt>
+
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <literal type="number">3</literal></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<expr_stmt><expr><name>pos1</name> <operator>=</operator> <operator>(</operator><operator>(</operator><name><name>fixed_index</name><index>[<expr><name>i</name></expr>]</index></name> <operator>&amp;</operator> <literal type="number">0x7f</literal><operator>)</operator> <operator>/</operator> <literal type="number">11</literal><operator>)</operator> <operator>*</operator> <literal type="number">5</literal> <operator>+</operator> <operator>(</operator><operator>(</operator><name>i</name> <operator>+</operator> <name>offset</name><operator>)</operator> <operator>%</operator> <literal type="number">5</literal><operator>)</operator></expr>;</expr_stmt>
+<expr_stmt><expr><name>pos2</name> <operator>=</operator> <operator>(</operator><operator>(</operator><name><name>fixed_index</name><index>[<expr><name>i</name></expr>]</index></name> <operator>&amp;</operator> <literal type="number">0x7f</literal><operator>)</operator> <operator>%</operator> <literal type="number">11</literal><operator>)</operator> <operator>*</operator> <literal type="number">5</literal> <operator>+</operator> <operator>(</operator><operator>(</operator><name>i</name> <operator>+</operator> <name>offset</name><operator>)</operator> <operator>%</operator> <literal type="number">5</literal><operator>)</operator></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>cod</name><index>[<expr><name>pos1</name></expr>]</index></name> <operator>=</operator> <ternary><condition><expr><operator>(</operator><name><name>fixed_index</name><index>[<expr><name>i</name></expr>]</index></name> <operator>&amp;</operator> <literal type="number">0x80</literal><operator>)</operator></expr> ?</condition><then> <expr><operator>-</operator><literal type="number">1.0</literal></expr> </then><else>: <expr><literal type="number">1.0</literal></expr></else></ternary></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>pos2</name> <operator>&lt;</operator> <name>pos1</name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name><name>cod</name><index>[<expr><name>pos2</name></expr>]</index></name> <operator>=</operator> <operator>-</operator><name><name>cod</name><index>[<expr><name>pos1</name></expr>]</index></name></expr>;</expr_stmt></block_content></block></if>
+<else>else<block type="pseudo"><block_content>
+<expr_stmt><expr><name><name>cod</name><index>[<expr><name>pos2</name></expr>]</index></name> <operator>+=</operator> <name><name>cod</name><index>[<expr><name>pos1</name></expr>]</index></name></expr>;</expr_stmt></block_content></block></else></if_stmt>
+</block_content>}</block></for>
+
+<expr_stmt><expr><name>pos1</name> <operator>=</operator> <operator>(</operator><operator>(</operator><name><name>fixed_index</name><index>[<expr><literal type="number">3</literal></expr>]</index></name> <operator>&amp;</operator> <literal type="number">0x7f</literal><operator>)</operator> <operator>/</operator> <literal type="number">11</literal><operator>)</operator> <operator>*</operator> <literal type="number">5</literal> <operator>+</operator> <operator>(</operator><operator>(</operator><literal type="number">3</literal> <operator>+</operator> <name>offset</name><operator>)</operator> <operator>%</operator> <literal type="number">5</literal><operator>)</operator></expr>;</expr_stmt>
+<expr_stmt><expr><name>pos2</name> <operator>=</operator> <operator>(</operator><operator>(</operator><name><name>fixed_index</name><index>[<expr><literal type="number">3</literal></expr>]</index></name> <operator>&amp;</operator> <literal type="number">0x7f</literal><operator>)</operator> <operator>%</operator> <literal type="number">11</literal><operator>)</operator> <operator>*</operator> <literal type="number">5</literal> <operator>+</operator> <operator>(</operator><operator>(</operator><literal type="number">4</literal> <operator>+</operator> <name>offset</name><operator>)</operator> <operator>%</operator> <literal type="number">5</literal><operator>)</operator></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>cod</name><index>[<expr><name>pos1</name></expr>]</index></name> <operator>=</operator> <ternary><condition><expr><operator>(</operator><name><name>fixed_index</name><index>[<expr><literal type="number">3</literal></expr>]</index></name> <operator>&amp;</operator> <literal type="number">0x100</literal><operator>)</operator></expr> ?</condition><then> <expr><operator>-</operator><literal type="number">1.0</literal></expr> </then><else>: <expr><literal type="number">1.0</literal></expr></else></ternary></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>cod</name><index>[<expr><name>pos2</name></expr>]</index></name> <operator>=</operator> <ternary><condition><expr><operator>(</operator><name><name>fixed_index</name><index>[<expr><literal type="number">3</literal></expr>]</index></name> <operator>&amp;</operator> <literal type="number">0x80</literal> <operator>)</operator></expr> ?</condition><then> <expr><operator>-</operator><literal type="number">1.0</literal></expr> </then><else>: <expr><literal type="number">1.0</literal></expr></else></ternary></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>decode_3_pulses_10bits</name><parameter_list>(<parameter><decl><type><name>uint16_t</name></type> <name>fixed_index</name></decl></parameter>, <parameter><decl><type><name>float</name> <modifier>*</modifier></type><name>cod</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>float</name></type> <name>sign</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>pos</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>sign</name> <operator>=</operator> <ternary><condition><expr><operator>(</operator><name>fixed_index</name> <operator>&amp;</operator> <literal type="number">0x200</literal><operator>)</operator></expr> ?</condition><then> <expr><operator>-</operator><literal type="number">1.0</literal></expr> </then><else>: <expr><literal type="number">1.0</literal></expr></else></ternary></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>pos</name> <operator>=</operator> <operator>(</operator><operator>(</operator><name>fixed_index</name> <operator>&amp;</operator> <literal type="number">0x7</literal><operator>)</operator> <operator>*</operator> <literal type="number">7</literal><operator>)</operator> <operator>+</operator> <literal type="number">4</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>cod</name><index>[<expr><name>pos</name></expr>]</index></name> <operator>+=</operator> <name>sign</name></expr>;</expr_stmt>
+<expr_stmt><expr><name>pos</name> <operator>=</operator> <operator>(</operator><operator>(</operator><operator>(</operator><name>fixed_index</name> <operator>&gt;&gt;</operator> <literal type="number">3</literal><operator>)</operator> <operator>&amp;</operator> <literal type="number">0x7</literal><operator>)</operator> <operator>*</operator> <literal type="number">7</literal><operator>)</operator> <operator>+</operator> <literal type="number">2</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>cod</name><index>[<expr><name>pos</name></expr>]</index></name> <operator>-=</operator> <name>sign</name></expr>;</expr_stmt>
+<expr_stmt><expr><name>pos</name> <operator>=</operator> <operator>(</operator><operator>(</operator><operator>(</operator><name>fixed_index</name> <operator>&gt;&gt;</operator> <literal type="number">6</literal><operator>)</operator> <operator>&amp;</operator> <literal type="number">0x7</literal><operator>)</operator> <operator>*</operator> <literal type="number">7</literal><operator>)</operator></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>cod</name><index>[<expr><name>pos</name></expr>]</index></name> <operator>+=</operator> <name>sign</name></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+
+
+
+
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>fcb_excitation</name><parameter_list>(<parameter><decl><type><name>EVRCContext</name> <modifier>*</modifier></type><name>e</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>uint16_t</name> <modifier>*</modifier></type><name>codebook</name></decl></parameter>,
+<parameter><decl><type><name>float</name> <modifier>*</modifier></type><name>excitation</name></decl></parameter>, <parameter><decl><type><name>float</name></type> <name>pitch_gain</name></decl></parameter>,
+<parameter><decl><type><name>int</name></type> <name>pitch_lag</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>subframe_size</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>int</name></type> <name>i</name></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>e</name><operator>-&gt;</operator><name>bitrate</name></name> <operator>==</operator> <name>RATE_FULL</name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>decode_8_pulses_35bits</name><argument_list>(<argument><expr><name>codebook</name></expr></argument>, <argument><expr><name>excitation</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if>
+<else>else<block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>decode_3_pulses_10bits</name><argument_list>(<argument><expr><operator>*</operator><name>codebook</name></expr></argument>, <argument><expr><name>excitation</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></else></if_stmt>
+
+<expr_stmt><expr><name>pitch_gain</name> <operator>=</operator> <call><name>av_clipf</name><argument_list>(<argument><expr><name>pitch_gain</name></expr></argument>, <argument><expr><literal type="number">0.2</literal></expr></argument>, <argument><expr><literal type="number">0.9</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <name>pitch_lag</name></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>subframe_size</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control><block type="pseudo"><block_content>
+<expr_stmt><expr><name><name>excitation</name><index>[<expr><name>i</name></expr>]</index></name> <operator>+=</operator> <name>pitch_gain</name> <operator>*</operator> <name><name>excitation</name><index>[<expr><name>i</name> <operator>-</operator> <name>pitch_lag</name></expr>]</index></name></expr>;</expr_stmt></block_content></block></for>
+</block_content>}</block></function>
+
+
+
+
+
+
+
+
+
+
+
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>synthesis_filter</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name>float</name> <modifier>*</modifier></type><name>in</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>float</name> <modifier>*</modifier></type><name>filter_coeffs</name></decl></parameter>,
+<parameter><decl><type><name>float</name> <modifier>*</modifier></type><name>memory</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>buffer_length</name></decl></parameter>, <parameter><decl><type><name>float</name> <modifier>*</modifier></type><name>samples</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>int</name></type> <name>i</name></decl>, <decl><type ref="prev"/><name>j</name></decl>;</decl_stmt>
+
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>buffer_length</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<expr_stmt><expr><name><name>samples</name><index>[<expr><name>i</name></expr>]</index></name> <operator>=</operator> <name><name>in</name><index>[<expr><name>i</name></expr>]</index></name></expr>;</expr_stmt>
+<for>for <control>(<init><expr><name>j</name> <operator>=</operator> <name>FILTER_ORDER</name> <operator>-</operator> <literal type="number">1</literal></expr>;</init> <condition><expr><name>j</name> <operator>&gt;</operator> <literal type="number">0</literal></expr>;</condition> <incr><expr><name>j</name><operator>--</operator></expr></incr>)</control> <block>{<block_content>
+<expr_stmt><expr><name><name>samples</name><index>[<expr><name>i</name></expr>]</index></name> <operator>-=</operator> <name><name>filter_coeffs</name><index>[<expr><name>j</name></expr>]</index></name> <operator>*</operator> <name><name>memory</name><index>[<expr><name>j</name></expr>]</index></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>memory</name><index>[<expr><name>j</name></expr>]</index></name> <operator>=</operator> <name><name>memory</name><index>[<expr><name>j</name> <operator>-</operator> <literal type="number">1</literal></expr>]</index></name></expr>;</expr_stmt>
+</block_content>}</block></for>
+<expr_stmt><expr><name><name>samples</name><index>[<expr><name>i</name></expr>]</index></name> <operator>-=</operator> <name><name>filter_coeffs</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>*</operator> <name><name>memory</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>memory</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>=</operator> <name><name>samples</name><index>[<expr><name>i</name></expr>]</index></name></expr>;</expr_stmt>
+</block_content>}</block></for>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>bandwidth_expansion</name><parameter_list>(<parameter><decl><type><name>float</name> <modifier>*</modifier></type><name>coeff</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>float</name> <modifier>*</modifier></type><name>inbuf</name></decl></parameter>, <parameter><decl><type><name>float</name></type> <name>gamma</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>double</name></type> <name>fac</name> <init>= <expr><name>gamma</name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>i</name></decl>;</decl_stmt>
+
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>FILTER_ORDER</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<expr_stmt><expr><name><name>coeff</name><index>[<expr><name>i</name></expr>]</index></name> <operator>=</operator> <name><name>inbuf</name><index>[<expr><name>i</name></expr>]</index></name> <operator>*</operator> <name>fac</name></expr>;</expr_stmt>
+<expr_stmt><expr><name>fac</name> <operator>*=</operator> <name>gamma</name></expr>;</expr_stmt>
+</block_content>}</block></for>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>residual_filter</name><parameter_list>(<parameter><decl><type><name>float</name> <modifier>*</modifier></type><name>output</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>float</name> <modifier>*</modifier></type><name>input</name></decl></parameter>,
+<parameter><decl><type><specifier>const</specifier> <name>float</name> <modifier>*</modifier></type><name>coef</name></decl></parameter>, <parameter><decl><type><name>float</name> <modifier>*</modifier></type><name>memory</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>length</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>float</name></type> <name>sum</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>i</name></decl>, <decl><type ref="prev"/><name>j</name></decl>;</decl_stmt>
+
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>length</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<expr_stmt><expr><name>sum</name> <operator>=</operator> <name><name>input</name><index>[<expr><name>i</name></expr>]</index></name></expr>;</expr_stmt>
+
+<for>for <control>(<init><expr><name>j</name> <operator>=</operator> <name>FILTER_ORDER</name> <operator>-</operator> <literal type="number">1</literal></expr>;</init> <condition><expr><name>j</name> <operator>&gt;</operator> <literal type="number">0</literal></expr>;</condition> <incr><expr><name>j</name><operator>--</operator></expr></incr>)</control> <block>{<block_content>
+<expr_stmt><expr><name>sum</name> <operator>+=</operator> <name><name>coef</name><index>[<expr><name>j</name></expr>]</index></name> <operator>*</operator> <name><name>memory</name><index>[<expr><name>j</name></expr>]</index></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>memory</name><index>[<expr><name>j</name></expr>]</index></name> <operator>=</operator> <name><name>memory</name><index>[<expr><name>j</name> <operator>-</operator> <literal type="number">1</literal></expr>]</index></name></expr>;</expr_stmt>
+</block_content>}</block></for>
+<expr_stmt><expr><name>sum</name> <operator>+=</operator> <name><name>coef</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>*</operator> <name><name>memory</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>memory</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>=</operator> <name><name>input</name><index>[<expr><name>i</name></expr>]</index></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>output</name><index>[<expr><name>i</name></expr>]</index></name> <operator>=</operator> <name>sum</name></expr>;</expr_stmt>
+</block_content>}</block></for>
+</block_content>}</block></function>
+
+
+
+
+<struct><specifier>static</specifier> <specifier>const</specifier> struct <name>PfCoeff</name> <block>{
+<decl_stmt><decl><type><name>float</name></type> <name>tilt</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>float</name></type> <name>ltgain</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>float</name></type> <name>p1</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>float</name></type> <name>p2</name></decl>;</decl_stmt>
+}</block> <decl><name><name>postfilter_coeffs</name><index>[<expr><literal type="number">5</literal></expr>]</index></name> <init>= <expr><block>{
+<expr><block>{ <expr><literal type="number">0.0</literal></expr> , <expr><literal type="number">0.0</literal></expr> , <expr><literal type="number">0.0</literal></expr> , <expr><literal type="number">0.0</literal></expr> }</block></expr>,
+<expr><block>{ <expr><literal type="number">0.0</literal></expr> , <expr><literal type="number">0.0</literal></expr> , <expr><literal type="number">0.57</literal></expr>, <expr><literal type="number">0.57</literal></expr> }</block></expr>,
+<expr><block>{ <expr><literal type="number">0.0</literal></expr> , <expr><literal type="number">0.0</literal></expr> , <expr><literal type="number">0.0</literal></expr> , <expr><literal type="number">0.0</literal></expr> }</block></expr>,
+<expr><block>{ <expr><literal type="number">0.35</literal></expr>, <expr><literal type="number">0.50</literal></expr>, <expr><literal type="number">0.50</literal></expr>, <expr><literal type="number">0.75</literal></expr> }</block></expr>,
+<expr><block>{ <expr><literal type="number">0.20</literal></expr>, <expr><literal type="number">0.50</literal></expr>, <expr><literal type="number">0.57</literal></expr>, <expr><literal type="number">0.75</literal></expr> }</block></expr>,
+}</block></expr></init></decl>;</struct>
+
+
+
+
+
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>postfilter</name><parameter_list>(<parameter><decl><type><name>EVRCContext</name> <modifier>*</modifier></type><name>e</name></decl></parameter>, <parameter><decl><type><name>float</name> <modifier>*</modifier></type><name>in</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>float</name> <modifier>*</modifier></type><name>coeff</name></decl></parameter>,
+<parameter><decl><type><name>float</name> <modifier>*</modifier></type><name>out</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>idx</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name><name>struct</name> <name>PfCoeff</name></name> <modifier>*</modifier></type><name>pfc</name></decl></parameter>,
+<parameter><decl><type><name>int</name></type> <name>length</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>float</name></type> <name><name>wcoef1</name><index>[<expr><name>FILTER_ORDER</name></expr>]</index></name></decl>, <decl><type ref="prev"/><name><name>wcoef2</name><index>[<expr><name>FILTER_ORDER</name></expr>]</index></name></decl>,
+<decl><type ref="prev"/><name><name>scratch</name><index>[<expr><name>SUBFRAME_SIZE</name></expr>]</index></name></decl>, <decl><type ref="prev"/><name><name>temp</name><index>[<expr><name>SUBFRAME_SIZE</name></expr>]</index></name></decl>,
+<decl><type ref="prev"/><name><name>mem</name><index>[<expr><name>SUBFRAME_SIZE</name></expr>]</index></name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>float</name></type> <name>sum1</name> <init>= <expr><literal type="number">0.0</literal></expr></init></decl>, <decl><type ref="prev"/><name>sum2</name> <init>= <expr><literal type="number">0.0</literal></expr></init></decl>, <decl><type ref="prev"/><name>gamma</name></decl>, <decl><type ref="prev"/><name>gain</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>float</name></type> <name>tilt</name> <init>= <expr><name><name>pfc</name><operator>-&gt;</operator><name>tilt</name></name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>i</name></decl>, <decl><type ref="prev"/><name>n</name></decl>, <decl><type ref="prev"/><name>best</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>bandwidth_expansion</name><argument_list>(<argument><expr><name>wcoef1</name></expr></argument>, <argument><expr><name>coeff</name></expr></argument>, <argument><expr><name><name>pfc</name><operator>-&gt;</operator><name>p1</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>bandwidth_expansion</name><argument_list>(<argument><expr><name>wcoef2</name></expr></argument>, <argument><expr><name>coeff</name></expr></argument>, <argument><expr><name><name>pfc</name><operator>-&gt;</operator><name>p2</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>length</name> <operator>-</operator> <literal type="number">1</literal></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control><block type="pseudo"><block_content>
+<expr_stmt><expr><name>sum2</name> <operator>+=</operator> <name><name>in</name><index>[<expr><name>i</name></expr>]</index></name> <operator>*</operator> <name><name>in</name><index>[<expr><name>i</name> <operator>+</operator> <literal type="number">1</literal></expr>]</index></name></expr>;</expr_stmt></block_content></block></for>
+<if_stmt><if>if <condition>(<expr><name>sum2</name> <operator>&lt;</operator> <literal type="number">0.0</literal></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name>tilt</name> <operator>=</operator> <literal type="number">0.0</literal></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>length</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<expr_stmt><expr><name><name>scratch</name><index>[<expr><name>i</name></expr>]</index></name> <operator>=</operator> <name><name>in</name><index>[<expr><name>i</name></expr>]</index></name> <operator>-</operator> <name>tilt</name> <operator>*</operator> <name><name>e</name><operator>-&gt;</operator><name>last</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>e</name><operator>-&gt;</operator><name>last</name></name> <operator>=</operator> <name><name>in</name><index>[<expr><name>i</name></expr>]</index></name></expr>;</expr_stmt>
+</block_content>}</block></for>
+
+
+<expr_stmt><expr><call><name>residual_filter</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>e</name><operator>-&gt;</operator><name>postfilter_residual</name><index>[<expr><name>ACB_SIZE</name></expr>]</index></name></expr></argument>, <argument><expr><name>scratch</name></expr></argument>, <argument><expr><name>wcoef1</name></expr></argument>, <argument><expr><name><name>e</name><operator>-&gt;</operator><name>postfilter_fir</name></name></expr></argument>, <argument><expr><name>length</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+
+<expr_stmt><expr><name>best</name> <operator>=</operator> <name>idx</name></expr>;</expr_stmt>
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <call><name>FFMIN</name><argument_list>(<argument><expr><name>MIN_DELAY</name></expr></argument>, <argument><expr><name>idx</name> <operator>-</operator> <literal type="number">3</literal></expr></argument>)</argument_list></call></expr>;</init> <condition><expr><name>i</name> <operator>&lt;=</operator> <call><name>FFMAX</name><argument_list>(<argument><expr><name>MAX_DELAY</name></expr></argument>, <argument><expr><name>idx</name> <operator>+</operator> <literal type="number">3</literal></expr></argument>)</argument_list></call></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<for>for <control>(<init><expr><name>n</name> <operator>=</operator> <name>ACB_SIZE</name></expr><operator>,</operator> <expr><name>sum2</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>n</name> <operator>&lt;</operator> <name>ACB_SIZE</name> <operator>+</operator> <name>length</name></expr>;</condition> <incr><expr><name>n</name><operator>++</operator></expr></incr>)</control><block type="pseudo"><block_content>
+<expr_stmt><expr><name>sum2</name> <operator>+=</operator> <name><name>e</name><operator>-&gt;</operator><name>postfilter_residual</name><index>[<expr><name>n</name></expr>]</index></name> <operator>*</operator> <name><name>e</name><operator>-&gt;</operator><name>postfilter_residual</name><index>[<expr><name>n</name> <operator>-</operator> <name>i</name></expr>]</index></name></expr>;</expr_stmt></block_content></block></for>
+<if_stmt><if>if <condition>(<expr><name>sum2</name> <operator>&gt;</operator> <name>sum1</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name>sum1</name> <operator>=</operator> <name>sum2</name></expr>;</expr_stmt>
+<expr_stmt><expr><name>best</name> <operator>=</operator> <name>i</name></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block></for>
+
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <name>ACB_SIZE</name></expr><operator>,</operator> <expr><name>sum1</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>ACB_SIZE</name> <operator>+</operator> <name>length</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control><block type="pseudo"><block_content>
+<expr_stmt><expr><name>sum1</name> <operator>+=</operator> <name><name>e</name><operator>-&gt;</operator><name>postfilter_residual</name><index>[<expr><name>i</name> <operator>-</operator> <name>best</name></expr>]</index></name> <operator>*</operator> <name><name>e</name><operator>-&gt;</operator><name>postfilter_residual</name><index>[<expr><name>i</name> <operator>-</operator> <name>best</name></expr>]</index></name></expr>;</expr_stmt></block_content></block></for>
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <name>ACB_SIZE</name></expr><operator>,</operator> <expr><name>sum2</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>ACB_SIZE</name> <operator>+</operator> <name>length</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control><block type="pseudo"><block_content>
+<expr_stmt><expr><name>sum2</name> <operator>+=</operator> <name><name>e</name><operator>-&gt;</operator><name>postfilter_residual</name><index>[<expr><name>i</name></expr>]</index></name> <operator>*</operator> <name><name>e</name><operator>-&gt;</operator><name>postfilter_residual</name><index>[<expr><name>i</name> <operator>-</operator> <name>best</name></expr>]</index></name></expr>;</expr_stmt></block_content></block></for>
+
+<if_stmt><if>if <condition>(<expr><name>sum2</name> <operator>*</operator> <name>sum1</name> <operator>==</operator> <literal type="number">0</literal> <operator>||</operator> <name><name>e</name><operator>-&gt;</operator><name>bitrate</name></name> <operator>==</operator> <name>RATE_QUANT</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>memcpy</name><argument_list>(<argument><expr><name>temp</name></expr></argument>, <argument><expr><name><name>e</name><operator>-&gt;</operator><name>postfilter_residual</name></name> <operator>+</operator> <name>ACB_SIZE</name></expr></argument>, <argument><expr><name>length</name> <operator>*</operator> <sizeof>sizeof<argument_list>(<argument><expr><name>float</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<expr_stmt><expr><name>gamma</name> <operator>=</operator> <name>sum2</name> <operator>/</operator> <name>sum1</name></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name>gamma</name> <operator>&lt;</operator> <literal type="number">0.5</literal></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>memcpy</name><argument_list>(<argument><expr><name>temp</name></expr></argument>, <argument><expr><name><name>e</name><operator>-&gt;</operator><name>postfilter_residual</name></name> <operator>+</operator> <name>ACB_SIZE</name></expr></argument>, <argument><expr><name>length</name> <operator>*</operator> <sizeof>sizeof<argument_list>(<argument><expr><name>float</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if>
+<else>else <block>{<block_content>
+<expr_stmt><expr><name>gamma</name> <operator>=</operator> <call><name>FFMIN</name><argument_list>(<argument><expr><name>gamma</name></expr></argument>, <argument><expr><literal type="number">1.0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>length</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<expr_stmt><expr><name><name>temp</name><index>[<expr><name>i</name></expr>]</index></name> <operator>=</operator> <name><name>e</name><operator>-&gt;</operator><name>postfilter_residual</name><index>[<expr><name>ACB_SIZE</name> <operator>+</operator> <name>i</name></expr>]</index></name> <operator>+</operator> <name>gamma</name> <operator>*</operator>
+<name><name>pfc</name><operator>-&gt;</operator><name>ltgain</name></name> <operator>*</operator> <name><name>e</name><operator>-&gt;</operator><name>postfilter_residual</name><index>[<expr><name>ACB_SIZE</name> <operator>+</operator> <name>i</name> <operator>-</operator> <name>best</name></expr>]</index></name></expr>;</expr_stmt>
+</block_content>}</block></for>
+</block_content>}</block></else></if_stmt>
+</block_content>}</block></else></if_stmt>
+
+<expr_stmt><expr><call><name>memcpy</name><argument_list>(<argument><expr><name>scratch</name></expr></argument>, <argument><expr><name>temp</name></expr></argument>, <argument><expr><name>length</name> <operator>*</operator> <sizeof>sizeof<argument_list>(<argument><expr><name>float</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>memcpy</name><argument_list>(<argument><expr><name>mem</name></expr></argument>, <argument><expr><name><name>e</name><operator>-&gt;</operator><name>postfilter_iir</name></name></expr></argument>, <argument><expr><name>FILTER_ORDER</name> <operator>*</operator> <sizeof>sizeof<argument_list>(<argument><expr><name>float</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>synthesis_filter</name><argument_list>(<argument><expr><name>scratch</name></expr></argument>, <argument><expr><name>wcoef2</name></expr></argument>, <argument><expr><name>mem</name></expr></argument>, <argument><expr><name>length</name></expr></argument>, <argument><expr><name>scratch</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr><operator>,</operator> <expr><name>sum1</name> <operator>=</operator> <literal type="number">0</literal></expr><operator>,</operator> <expr><name>sum2</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>length</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<expr_stmt><expr><name>sum1</name> <operator>+=</operator> <name><name>in</name><index>[<expr><name>i</name></expr>]</index></name> <operator>*</operator> <name><name>in</name><index>[<expr><name>i</name></expr>]</index></name></expr>;</expr_stmt>
+<expr_stmt><expr><name>sum2</name> <operator>+=</operator> <name><name>scratch</name><index>[<expr><name>i</name></expr>]</index></name> <operator>*</operator> <name><name>scratch</name><index>[<expr><name>i</name></expr>]</index></name></expr>;</expr_stmt>
+</block_content>}</block></for>
+<expr_stmt><expr><name>gain</name> <operator>=</operator> <ternary><condition><expr><name>sum2</name></expr> ?</condition><then> <expr><call><name>sqrt</name><argument_list>(<argument><expr><name>sum1</name> <operator>/</operator> <name>sum2</name></expr></argument>)</argument_list></call></expr> </then><else>: <expr><literal type="number">1.0</literal></expr></else></ternary></expr>;</expr_stmt>
+
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>length</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control><block type="pseudo"><block_content>
+<expr_stmt><expr><name><name>temp</name><index>[<expr><name>i</name></expr>]</index></name> <operator>*=</operator> <name>gain</name></expr>;</expr_stmt></block_content></block></for>
+
+
+<expr_stmt><expr><call><name>synthesis_filter</name><argument_list>(<argument><expr><name>temp</name></expr></argument>, <argument><expr><name>wcoef2</name></expr></argument>, <argument><expr><name><name>e</name><operator>-&gt;</operator><name>postfilter_iir</name></name></expr></argument>, <argument><expr><name>length</name></expr></argument>, <argument><expr><name>out</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>memmove</name><argument_list>(<argument><expr><name><name>e</name><operator>-&gt;</operator><name>postfilter_residual</name></name></expr></argument>,
+<argument><expr><name><name>e</name><operator>-&gt;</operator><name>postfilter_residual</name></name> <operator>+</operator> <name>length</name></expr></argument>, <argument><expr><name>ACB_SIZE</name> <operator>*</operator> <sizeof>sizeof<argument_list>(<argument><expr><name>float</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>frame_erasure</name><parameter_list>(<parameter><decl><type><name>EVRCContext</name> <modifier>*</modifier></type><name>e</name></decl></parameter>, <parameter><decl><type><name>float</name> <modifier>*</modifier></type><name>samples</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>float</name></type> <name><name>ilspf</name><index>[<expr><name>FILTER_ORDER</name></expr>]</index></name></decl>, <decl><type ref="prev"/><name><name>ilpc</name><index>[<expr><name>FILTER_ORDER</name></expr>]</index></name></decl>, <decl><type ref="prev"/><name><name>idelay</name><index>[<expr><name>NB_SUBFRAMES</name></expr>]</index></name></decl>,
+<decl><type ref="prev"/><name><name>tmp</name><index>[<expr><name>SUBFRAME_SIZE</name> <operator>+</operator> <literal type="number">6</literal></expr>]</index></name></decl>, <decl><type ref="prev"/><name>f</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>i</name></decl>, <decl><type ref="prev"/><name>j</name></decl>;</decl_stmt>
+
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>FILTER_ORDER</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name><name>e</name><operator>-&gt;</operator><name>bitrate</name></name> <operator>!=</operator> <name>RATE_QUANT</name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name><name>e</name><operator>-&gt;</operator><name>lspf</name><index>[<expr><name>i</name></expr>]</index></name> <operator>=</operator> <name><name>e</name><operator>-&gt;</operator><name>prev_lspf</name><index>[<expr><name>i</name></expr>]</index></name> <operator>*</operator> <literal type="number">0.875</literal> <operator>+</operator> <literal type="number">0.125</literal> <operator>*</operator> <operator>(</operator><name>i</name> <operator>+</operator> <literal type="number">1</literal><operator>)</operator> <operator>*</operator> <literal type="number">0.048</literal></expr>;</expr_stmt></block_content></block></if>
+<else>else<block type="pseudo"><block_content>
+<expr_stmt><expr><name><name>e</name><operator>-&gt;</operator><name>lspf</name><index>[<expr><name>i</name></expr>]</index></name> <operator>=</operator> <name><name>e</name><operator>-&gt;</operator><name>prev_lspf</name><index>[<expr><name>i</name></expr>]</index></name></expr>;</expr_stmt></block_content></block></else></if_stmt>
+</block_content>}</block></for>
+
+<if_stmt><if>if <condition>(<expr><name><name>e</name><operator>-&gt;</operator><name>prev_error_flag</name></name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name><name>e</name><operator>-&gt;</operator><name>avg_acb_gain</name></name> <operator>*=</operator> <literal type="number">0.75</literal></expr>;</expr_stmt></block_content></block></if></if_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>e</name><operator>-&gt;</operator><name>bitrate</name></name> <operator>==</operator> <name>RATE_FULL</name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>memcpy</name><argument_list>(<argument><expr><name><name>e</name><operator>-&gt;</operator><name>pitch_back</name></name></expr></argument>, <argument><expr><name><name>e</name><operator>-&gt;</operator><name>pitch</name></name></expr></argument>, <argument><expr><name>ACB_SIZE</name> <operator>*</operator> <sizeof>sizeof<argument_list>(<argument><expr><name>float</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>e</name><operator>-&gt;</operator><name>last_valid_bitrate</name></name> <operator>==</operator> <name>RATE_QUANT</name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name><name>e</name><operator>-&gt;</operator><name>bitrate</name></name> <operator>=</operator> <name>RATE_QUANT</name></expr>;</expr_stmt></block_content></block></if>
+<else>else<block type="pseudo"><block_content>
+<expr_stmt><expr><name><name>e</name><operator>-&gt;</operator><name>bitrate</name></name> <operator>=</operator> <name>RATE_FULL</name></expr>;</expr_stmt></block_content></block></else></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>e</name><operator>-&gt;</operator><name>bitrate</name></name> <operator>==</operator> <name>RATE_FULL</name> <operator>||</operator> <name><name>e</name><operator>-&gt;</operator><name>bitrate</name></name> <operator>==</operator> <name>RATE_HALF</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name><name>e</name><operator>-&gt;</operator><name>pitch_delay</name></name> <operator>=</operator> <name><name>e</name><operator>-&gt;</operator><name>prev_pitch_delay</name></name></expr>;</expr_stmt>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<decl_stmt><decl><type><name>float</name></type> <name>sum</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>idelay</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>=</operator> <name><name>idelay</name><index>[<expr><literal type="number">1</literal></expr>]</index></name> <operator>=</operator> <name><name>idelay</name><index>[<expr><literal type="number">2</literal></expr>]</index></name> <operator>=</operator> <name>MIN_DELAY</name></expr>;</expr_stmt>
+
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>NB_SUBFRAMES</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control><block type="pseudo"><block_content>
+<expr_stmt><expr><name>sum</name> <operator>+=</operator> <name><name>evrc_energy_quant</name><index>[<expr><name><name>e</name><operator>-&gt;</operator><name>prev_energy_gain</name></name></expr>]</index><index>[<expr><name>i</name></expr>]</index></name></expr>;</expr_stmt></block_content></block></for>
+<expr_stmt><expr><name>sum</name> <operator>/=</operator> <operator>(</operator><name>float</name><operator>)</operator> <name>NB_SUBFRAMES</name></expr>;</expr_stmt>
+<expr_stmt><expr><name>sum</name> <operator>=</operator> <call><name>pow</name><argument_list>(<argument><expr><literal type="number">10</literal></expr></argument>, <argument><expr><name>sum</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>NB_SUBFRAMES</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control><block type="pseudo"><block_content>
+<expr_stmt><expr><name><name>e</name><operator>-&gt;</operator><name>energy_vector</name><index>[<expr><name>i</name></expr>]</index></name> <operator>=</operator> <name>sum</name></expr>;</expr_stmt></block_content></block></for>
+</block_content>}</block></else></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>fabs</name><argument_list>(<argument><expr><name><name>e</name><operator>-&gt;</operator><name>pitch_delay</name></name> <operator>-</operator> <name><name>e</name><operator>-&gt;</operator><name>prev_pitch_delay</name></name></expr></argument>)</argument_list></call> <operator>&gt;</operator> <literal type="number">15</literal></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name><name>e</name><operator>-&gt;</operator><name>prev_pitch_delay</name></name> <operator>=</operator> <name><name>e</name><operator>-&gt;</operator><name>pitch_delay</name></name></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>NB_SUBFRAMES</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<decl_stmt><decl><type><name>int</name></type> <name>subframe_size</name> <init>= <expr><name><name>subframe_sizes</name><index>[<expr><name>i</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>pitch_lag</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>interpolate_lsp</name><argument_list>(<argument><expr><name>ilspf</name></expr></argument>, <argument><expr><name><name>e</name><operator>-&gt;</operator><name>lspf</name></name></expr></argument>, <argument><expr><name><name>e</name><operator>-&gt;</operator><name>prev_lspf</name></name></expr></argument>, <argument><expr><name>i</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>e</name><operator>-&gt;</operator><name>bitrate</name></name> <operator>!=</operator> <name>RATE_QUANT</name></expr>)</condition> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name><name>e</name><operator>-&gt;</operator><name>avg_acb_gain</name></name> <operator>&lt;</operator> <literal type="number">0.3</literal></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name><name>idelay</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>=</operator> <name><name>estimation_delay</name><index>[<expr><name>i</name></expr>]</index></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>idelay</name><index>[<expr><literal type="number">1</literal></expr>]</index></name> <operator>=</operator> <name><name>estimation_delay</name><index>[<expr><name>i</name> <operator>+</operator> <literal type="number">1</literal></expr>]</index></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>idelay</name><index>[<expr><literal type="number">2</literal></expr>]</index></name> <operator>=</operator> <name><name>estimation_delay</name><index>[<expr><name>i</name> <operator>+</operator> <literal type="number">2</literal></expr>]</index></name></expr>;</expr_stmt>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<expr_stmt><expr><call><name>interpolate_delay</name><argument_list>(<argument><expr><name>idelay</name></expr></argument>, <argument><expr><name><name>e</name><operator>-&gt;</operator><name>pitch_delay</name></name></expr></argument>, <argument><expr><name><name>e</name><operator>-&gt;</operator><name>prev_pitch_delay</name></name></expr></argument>, <argument><expr><name>i</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></else></if_stmt>
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name>pitch_lag</name> <operator>=</operator> <call><name>lrintf</name><argument_list>(<argument><expr><operator>(</operator><name><name>idelay</name><index>[<expr><literal type="number">1</literal></expr>]</index></name> <operator>+</operator> <name><name>idelay</name><index>[<expr><literal type="number">0</literal></expr>]</index></name><operator>)</operator> <operator>/</operator> <literal type="number">2.0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>decode_predictor_coeffs</name><argument_list>(<argument><expr><name>ilspf</name></expr></argument>, <argument><expr><name>ilpc</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>e</name><operator>-&gt;</operator><name>bitrate</name></name> <operator>!=</operator> <name>RATE_QUANT</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>acb_excitation</name><argument_list>(<argument><expr><name>e</name></expr></argument>, <argument><expr><name><name>e</name><operator>-&gt;</operator><name>pitch</name></name> <operator>+</operator> <name>ACB_SIZE</name></expr></argument>,
+<argument><expr><name><name>e</name><operator>-&gt;</operator><name>avg_acb_gain</name></name></expr></argument>, <argument><expr><name>idelay</name></expr></argument>, <argument><expr><name>subframe_size</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<for>for <control>(<init><expr><name>j</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>j</name> <operator>&lt;</operator> <name>subframe_size</name></expr>;</condition> <incr><expr><name>j</name><operator>++</operator></expr></incr>)</control><block type="pseudo"><block_content>
+<expr_stmt><expr><name><name>e</name><operator>-&gt;</operator><name>pitch</name><index>[<expr><name>ACB_SIZE</name> <operator>+</operator> <name>j</name></expr>]</index></name> <operator>*=</operator> <name><name>e</name><operator>-&gt;</operator><name>fade_scale</name></name></expr>;</expr_stmt></block_content></block></for>
+<expr_stmt><expr><name><name>e</name><operator>-&gt;</operator><name>fade_scale</name></name> <operator>=</operator> <call><name>FFMAX</name><argument_list>(<argument><expr><name><name>e</name><operator>-&gt;</operator><name>fade_scale</name></name> <operator>-</operator> <literal type="number">0.05</literal></expr></argument>, <argument><expr><literal type="number">0.0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<for>for <control>(<init><expr><name>j</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>j</name> <operator>&lt;</operator> <name>subframe_size</name></expr>;</condition> <incr><expr><name>j</name><operator>++</operator></expr></incr>)</control><block type="pseudo"><block_content>
+<expr_stmt><expr><name><name>e</name><operator>-&gt;</operator><name>pitch</name><index>[<expr><name>ACB_SIZE</name> <operator>+</operator> <name>j</name></expr>]</index></name> <operator>=</operator> <name><name>e</name><operator>-&gt;</operator><name>energy_vector</name><index>[<expr><name>i</name></expr>]</index></name></expr>;</expr_stmt></block_content></block></for>
+</block_content>}</block></else></if_stmt>
+
+<expr_stmt><expr><call><name>memmove</name><argument_list>(<argument><expr><name><name>e</name><operator>-&gt;</operator><name>pitch</name></name></expr></argument>, <argument><expr><name><name>e</name><operator>-&gt;</operator><name>pitch</name></name> <operator>+</operator> <name>subframe_size</name></expr></argument>, <argument><expr><name>ACB_SIZE</name> <operator>*</operator> <sizeof>sizeof<argument_list>(<argument><expr><name>float</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>e</name><operator>-&gt;</operator><name>bitrate</name></name> <operator>!=</operator> <name>RATE_QUANT</name> <operator>&amp;&amp;</operator> <name><name>e</name><operator>-&gt;</operator><name>avg_acb_gain</name></name> <operator>&lt;</operator> <literal type="number">0.4</literal></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name>f</name> <operator>=</operator> <literal type="number">0.1</literal> <operator>*</operator> <name><name>e</name><operator>-&gt;</operator><name>avg_fcb_gain</name></name></expr>;</expr_stmt>
+<for>for <control>(<init><expr><name>j</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>j</name> <operator>&lt;</operator> <name>subframe_size</name></expr>;</condition> <incr><expr><name>j</name><operator>++</operator></expr></incr>)</control><block type="pseudo"><block_content>
+<expr_stmt><expr><name><name>e</name><operator>-&gt;</operator><name>pitch</name><index>[<expr><name>ACB_SIZE</name> <operator>+</operator> <name>j</name></expr>]</index></name> <operator>+=</operator> <name>f</name></expr>;</expr_stmt></block_content></block></for>
+</block_content>}</block></if> <if type="elseif">else if <condition>(<expr><name><name>e</name><operator>-&gt;</operator><name>bitrate</name></name> <operator>==</operator> <name>RATE_QUANT</name></expr>)</condition> <block>{<block_content>
+<for>for <control>(<init><expr><name>j</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>j</name> <operator>&lt;</operator> <name>subframe_size</name></expr>;</condition> <incr><expr><name>j</name><operator>++</operator></expr></incr>)</control><block type="pseudo"><block_content>
+<expr_stmt><expr><name><name>e</name><operator>-&gt;</operator><name>pitch</name><index>[<expr><name>ACB_SIZE</name> <operator>+</operator> <name>j</name></expr>]</index></name> <operator>=</operator> <name><name>e</name><operator>-&gt;</operator><name>energy_vector</name><index>[<expr><name>i</name></expr>]</index></name></expr>;</expr_stmt></block_content></block></for>
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>synthesis_filter</name><argument_list>(<argument><expr><name><name>e</name><operator>-&gt;</operator><name>pitch</name></name> <operator>+</operator> <name>ACB_SIZE</name></expr></argument>, <argument><expr><name>ilpc</name></expr></argument>,
+<argument><expr><name><name>e</name><operator>-&gt;</operator><name>synthesis</name></name></expr></argument>, <argument><expr><name>subframe_size</name></expr></argument>, <argument><expr><name>tmp</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>postfilter</name><argument_list>(<argument><expr><name>e</name></expr></argument>, <argument><expr><name>tmp</name></expr></argument>, <argument><expr><name>ilpc</name></expr></argument>, <argument><expr><name>samples</name></expr></argument>, <argument><expr><name>pitch_lag</name></expr></argument>,
+<argument><expr><operator>&amp;</operator><name><name>postfilter_coeffs</name><index>[<expr><name><name>e</name><operator>-&gt;</operator><name>bitrate</name></name></expr>]</index></name></expr></argument>, <argument><expr><name>subframe_size</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>samples</name> <operator>+=</operator> <name>subframe_size</name></expr>;</expr_stmt>
+</block_content>}</block></for>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>evrc_decode_frame</name><parameter_list>(<parameter><decl><type><name>AVCodecContext</name> <modifier>*</modifier></type><name>avctx</name></decl></parameter>, <parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>,
+<parameter><decl><type><name>int</name> <modifier>*</modifier></type><name>got_frame_ptr</name></decl></parameter>, <parameter><decl><type><name>AVPacket</name> <modifier>*</modifier></type><name>avpkt</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><specifier>const</specifier> <name>uint8_t</name> <modifier>*</modifier></type><name>buf</name> <init>= <expr><name><name>avpkt</name><operator>-&gt;</operator><name>data</name></name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>AVFrame</name> <modifier>*</modifier></type><name>frame</name> <init>= <expr><name>data</name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>EVRCContext</name> <modifier>*</modifier></type><name>e</name> <init>= <expr><name><name>avctx</name><operator>-&gt;</operator><name>priv_data</name></name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>buf_size</name> <init>= <expr><name><name>avpkt</name><operator>-&gt;</operator><name>size</name></name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>float</name></type> <name><name>ilspf</name><index>[<expr><name>FILTER_ORDER</name></expr>]</index></name></decl>, <decl><type ref="prev"/><name><name>ilpc</name><index>[<expr><name>FILTER_ORDER</name></expr>]</index></name></decl>, <decl><type ref="prev"/><name><name>idelay</name><index>[<expr><name>NB_SUBFRAMES</name></expr>]</index></name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>float</name> <modifier>*</modifier></type><name>samples</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>i</name></decl>, <decl><type ref="prev"/><name>j</name></decl>, <decl><type ref="prev"/><name>ret</name></decl>, <decl><type ref="prev"/><name>error_flag</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>frame</name><operator>-&gt;</operator><name>nb_samples</name></name> <operator>=</operator> <literal type="number">160</literal></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><operator>(</operator><name>ret</name> <operator>=</operator> <call><name>ff_get_buffer</name><argument_list>(<argument><expr><name>avctx</name></expr></argument>, <argument><expr><name>frame</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call><operator>)</operator> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><name>ret</name></expr>;</return></block_content></block></if></if_stmt>
+<expr_stmt><expr><name>samples</name> <operator>=</operator> <operator>(</operator><name>float</name> <operator>*</operator><operator>)</operator><name><name>frame</name><operator>-&gt;</operator><name>data</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>(</operator><name><name>e</name><operator>-&gt;</operator><name>bitrate</name></name> <operator>=</operator> <call><name>determine_bitrate</name><argument_list>(<argument><expr><name>avctx</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>buf_size</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>buf</name></expr></argument>)</argument_list></call><operator>)</operator> <operator>==</operator> <name>RATE_ERRS</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>warn_insufficient_frame_quality</name><argument_list>(<argument><expr><name>avctx</name></expr></argument>, <argument><expr><literal type="string">"bitrate cannot be determined."</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<goto>goto <name>erasure</name>;</goto>
+</block_content>}</block></if></if_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>e</name><operator>-&gt;</operator><name>bitrate</name></name> <operator>&lt;=</operator> <name>SILENCE</name> <operator>||</operator> <name><name>e</name><operator>-&gt;</operator><name>bitrate</name></name> <operator>==</operator> <name>RATE_QUARTER</name></expr>)</condition><block type="pseudo"><block_content>
+<goto>goto <name>erasure</name>;</goto></block_content></block></if></if_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>e</name><operator>-&gt;</operator><name>bitrate</name></name> <operator>==</operator> <name>RATE_QUANT</name> <operator>&amp;&amp;</operator> <name><name>e</name><operator>-&gt;</operator><name>last_valid_bitrate</name></name> <operator>==</operator> <name>RATE_FULL</name>
+<operator>&amp;&amp;</operator> <operator>!</operator><name><name>e</name><operator>-&gt;</operator><name>prev_error_flag</name></name></expr>)</condition><block type="pseudo"><block_content>
+<goto>goto <name>erasure</name>;</goto></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>(</operator><name>ret</name> <operator>=</operator> <call><name>init_get_bits8</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>e</name><operator>-&gt;</operator><name>gb</name></name></expr></argument>, <argument><expr><name>buf</name></expr></argument>, <argument><expr><name>buf_size</name></expr></argument>)</argument_list></call><operator>)</operator> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><name>ret</name></expr>;</return></block_content></block></if></if_stmt>
+<expr_stmt><expr><call><name>memset</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>e</name><operator>-&gt;</operator><name>frame</name></name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr><name>EVRCAFrame</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>unpack_frame</name><argument_list>(<argument><expr><name>e</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>e</name><operator>-&gt;</operator><name>bitrate</name></name> <operator>!=</operator> <name>RATE_QUANT</name></expr>)</condition> <block>{<block_content>
+<decl_stmt><decl><type><name>uint8_t</name> <modifier>*</modifier></type><name>p</name> <init>= <expr><operator>(</operator><name>uint8_t</name> <operator>*</operator><operator>)</operator> <operator>&amp;</operator><name><name>e</name><operator>-&gt;</operator><name>frame</name></name></expr></init></decl>;</decl_stmt>
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <sizeof>sizeof<argument_list>(<argument><expr><name>EVRCAFrame</name></expr></argument>)</argument_list></sizeof></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name><name>p</name><index>[<expr><name>i</name></expr>]</index></name></expr>)</condition><block type="pseudo"><block_content>
+<break>break;</break></block_content></block></if></if_stmt>
+</block_content>}</block></for>
+<if_stmt><if>if <condition>(<expr><name>i</name> <operator>==</operator> <sizeof>sizeof<argument_list>(<argument><expr><name>EVRCAFrame</name></expr></argument>)</argument_list></sizeof></expr>)</condition><block type="pseudo"><block_content>
+<goto>goto <name>erasure</name>;</goto></block_content></block></if></if_stmt>
+</block_content>}</block></if> <if type="elseif">else if <condition>(<expr><name><name>e</name><operator>-&gt;</operator><name>frame</name><operator>.</operator><name>lsp</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>==</operator> <literal type="number">0xf</literal> <operator>&amp;&amp;</operator>
+<name><name>e</name><operator>-&gt;</operator><name>frame</name><operator>.</operator><name>lsp</name><index>[<expr><literal type="number">1</literal></expr>]</index></name> <operator>==</operator> <literal type="number">0xf</literal> <operator>&amp;&amp;</operator>
+<name><name>e</name><operator>-&gt;</operator><name>frame</name><operator>.</operator><name>energy_gain</name></name> <operator>==</operator> <literal type="number">0xff</literal></expr>)</condition> <block>{<block_content>
+<goto>goto <name>erasure</name>;</goto>
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>decode_lspf</name><argument_list>(<argument><expr><name>e</name></expr></argument>)</argument_list></call> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+<goto>goto <name>erasure</name>;</goto></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>e</name><operator>-&gt;</operator><name>bitrate</name></name> <operator>==</operator> <name>RATE_FULL</name> <operator>||</operator> <name><name>e</name><operator>-&gt;</operator><name>bitrate</name></name> <operator>==</operator> <name>RATE_HALF</name></expr>)</condition> <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><name><name>e</name><operator>-&gt;</operator><name>frame</name><operator>.</operator><name>pitch_delay</name></name> <operator>&gt;</operator> <name>MAX_DELAY</name> <operator>-</operator> <name>MIN_DELAY</name></expr>)</condition><block type="pseudo"><block_content>
+<goto>goto <name>erasure</name>;</goto></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name><name>e</name><operator>-&gt;</operator><name>pitch_delay</name></name> <operator>=</operator> <name><name>e</name><operator>-&gt;</operator><name>frame</name><operator>.</operator><name>pitch_delay</name></name> <operator>+</operator> <name>MIN_DELAY</name></expr>;</expr_stmt>
+
+
+<if_stmt><if>if <condition>(<expr><name><name>e</name><operator>-&gt;</operator><name>frame</name><operator>.</operator><name>delay_diff</name></name></expr>)</condition> <block>{<block_content>
+<decl_stmt><decl><type><name>int</name></type> <name>p</name> <init>= <expr><name><name>e</name><operator>-&gt;</operator><name>pitch_delay</name></name> <operator>-</operator> <name><name>e</name><operator>-&gt;</operator><name>frame</name><operator>.</operator><name>delay_diff</name></name> <operator>+</operator> <literal type="number">16</literal></expr></init></decl>;</decl_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>p</name> <argument_list type="generic">&lt; <argument><expr><name>MIN_DELAY</name> <operator>||</operator> <name>p</name></expr></argument> &gt;</argument_list></name> <name>MAX_DELAY</name></expr>)</condition><block type="pseudo"><block_content>
+<goto>goto <name>erasure</name>;</goto></block_content></block></if></if_stmt>
+</block_content>}</block></if></if_stmt>
+
+
+<if_stmt><if>if <condition>(<expr><name><name>e</name><operator>-&gt;</operator><name>frame</name><operator>.</operator><name>delay_diff</name></name> <operator>&amp;&amp;</operator>
+<name><name>e</name><operator>-&gt;</operator><name>bitrate</name></name> <operator>==</operator> <name>RATE_FULL</name> <operator>&amp;&amp;</operator> <name><name>e</name><operator>-&gt;</operator><name>prev_error_flag</name></name></expr>)</condition> <block>{<block_content>
+<decl_stmt><decl><type><name>float</name></type> <name>delay</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>memcpy</name><argument_list>(<argument><expr><name><name>e</name><operator>-&gt;</operator><name>pitch</name></name></expr></argument>, <argument><expr><name><name>e</name><operator>-&gt;</operator><name>pitch_back</name></name></expr></argument>, <argument><expr><name>ACB_SIZE</name> <operator>*</operator> <sizeof>sizeof<argument_list>(<argument><expr><name>float</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>delay</name> <operator>=</operator> <name><name>e</name><operator>-&gt;</operator><name>prev_pitch_delay</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>e</name><operator>-&gt;</operator><name>prev_pitch_delay</name></name> <operator>=</operator> <name>delay</name> <operator>-</operator> <name><name>e</name><operator>-&gt;</operator><name>frame</name><operator>.</operator><name>delay_diff</name></name> <operator>+</operator> <literal type="number">16.0</literal></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>fabs</name><argument_list>(<argument><expr><name><name>e</name><operator>-&gt;</operator><name>pitch_delay</name></name> <operator>-</operator> <name>delay</name></expr></argument>)</argument_list></call> <operator>&gt;</operator> <literal type="number">15</literal></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name>delay</name> <operator>=</operator> <name><name>e</name><operator>-&gt;</operator><name>pitch_delay</name></name></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>NB_SUBFRAMES</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<decl_stmt><decl><type><name>int</name></type> <name>subframe_size</name> <init>= <expr><name><name>subframe_sizes</name><index>[<expr><name>i</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>interpolate_delay</name><argument_list>(<argument><expr><name>idelay</name></expr></argument>, <argument><expr><name>delay</name></expr></argument>, <argument><expr><name><name>e</name><operator>-&gt;</operator><name>prev_pitch_delay</name></name></expr></argument>, <argument><expr><name>i</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>acb_excitation</name><argument_list>(<argument><expr><name>e</name></expr></argument>, <argument><expr><name><name>e</name><operator>-&gt;</operator><name>pitch</name></name> <operator>+</operator> <name>ACB_SIZE</name></expr></argument>, <argument><expr><name><name>e</name><operator>-&gt;</operator><name>avg_acb_gain</name></name></expr></argument>, <argument><expr><name>idelay</name></expr></argument>, <argument><expr><name>subframe_size</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>memmove</name><argument_list>(<argument><expr><name><name>e</name><operator>-&gt;</operator><name>pitch</name></name></expr></argument>, <argument><expr><name><name>e</name><operator>-&gt;</operator><name>pitch</name></name> <operator>+</operator> <name>subframe_size</name></expr></argument>, <argument><expr><name>ACB_SIZE</name> <operator>*</operator> <sizeof>sizeof<argument_list>(<argument><expr><name>float</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></for>
+</block_content>}</block></if></if_stmt>
+
+
+<if_stmt><if>if <condition>(<expr><call><name>fabs</name><argument_list>(<argument><expr><name><name>e</name><operator>-&gt;</operator><name>pitch_delay</name></name> <operator>-</operator> <name><name>e</name><operator>-&gt;</operator><name>prev_pitch_delay</name></name></expr></argument>)</argument_list></call> <operator>&gt;</operator> <literal type="number">15</literal></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name><name>e</name><operator>-&gt;</operator><name>prev_pitch_delay</name></name> <operator>=</operator> <name><name>e</name><operator>-&gt;</operator><name>pitch_delay</name></name></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name><name>e</name><operator>-&gt;</operator><name>avg_acb_gain</name></name> <operator>=</operator> <name><name>e</name><operator>-&gt;</operator><name>avg_fcb_gain</name></name> <operator>=</operator> <literal type="number">0.0</literal></expr>;</expr_stmt>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<expr_stmt><expr><name><name>idelay</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>=</operator> <name><name>idelay</name><index>[<expr><literal type="number">1</literal></expr>]</index></name> <operator>=</operator> <name><name>idelay</name><index>[<expr><literal type="number">2</literal></expr>]</index></name> <operator>=</operator> <name>MIN_DELAY</name></expr>;</expr_stmt>
+
+
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>NB_SUBFRAMES</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control><block type="pseudo"><block_content>
+<expr_stmt><expr><name><name>e</name><operator>-&gt;</operator><name>energy_vector</name><index>[<expr><name>i</name></expr>]</index></name> <operator>=</operator> <call><name>pow</name><argument_list>(<argument><expr><literal type="number">10</literal></expr></argument>, <argument><expr><name><name>evrc_energy_quant</name><index>[<expr><name><name>e</name><operator>-&gt;</operator><name>frame</name><operator>.</operator><name>energy_gain</name></name></expr>]</index><index>[<expr><name>i</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></for>
+<expr_stmt><expr><name><name>e</name><operator>-&gt;</operator><name>prev_energy_gain</name></name> <operator>=</operator> <name><name>e</name><operator>-&gt;</operator><name>frame</name><operator>.</operator><name>energy_gain</name></name></expr>;</expr_stmt>
+</block_content>}</block></else></if_stmt>
+
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>NB_SUBFRAMES</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<decl_stmt><decl><type><name>float</name></type> <name><name>tmp</name><index>[<expr><name>SUBFRAME_SIZE</name> <operator>+</operator> <literal type="number">6</literal></expr>]</index></name> <init>= <expr><block>{ <expr><literal type="number">0</literal></expr> }</block></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>subframe_size</name> <init>= <expr><name><name>subframe_sizes</name><index>[<expr><name>i</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>pitch_lag</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>interpolate_lsp</name><argument_list>(<argument><expr><name>ilspf</name></expr></argument>, <argument><expr><name><name>e</name><operator>-&gt;</operator><name>lspf</name></name></expr></argument>, <argument><expr><name><name>e</name><operator>-&gt;</operator><name>prev_lspf</name></name></expr></argument>, <argument><expr><name>i</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>e</name><operator>-&gt;</operator><name>bitrate</name></name> <operator>!=</operator> <name>RATE_QUANT</name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>interpolate_delay</name><argument_list>(<argument><expr><name>idelay</name></expr></argument>, <argument><expr><name><name>e</name><operator>-&gt;</operator><name>pitch_delay</name></name></expr></argument>, <argument><expr><name><name>e</name><operator>-&gt;</operator><name>prev_pitch_delay</name></name></expr></argument>, <argument><expr><name>i</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>pitch_lag</name> <operator>=</operator> <call><name>lrintf</name><argument_list>(<argument><expr><operator>(</operator><name><name>idelay</name><index>[<expr><literal type="number">1</literal></expr>]</index></name> <operator>+</operator> <name><name>idelay</name><index>[<expr><literal type="number">0</literal></expr>]</index></name><operator>)</operator> <operator>/</operator> <literal type="number">2.0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>decode_predictor_coeffs</name><argument_list>(<argument><expr><name>ilspf</name></expr></argument>, <argument><expr><name>ilpc</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+
+<if_stmt><if>if <condition>(<expr><name><name>e</name><operator>-&gt;</operator><name>frame</name><operator>.</operator><name>lpc_flag</name></name> <operator>&amp;&amp;</operator> <name><name>e</name><operator>-&gt;</operator><name>prev_error_flag</name></name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>bandwidth_expansion</name><argument_list>(<argument><expr><name>ilpc</name></expr></argument>, <argument><expr><name>ilpc</name></expr></argument>, <argument><expr><literal type="number">0.75</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>e</name><operator>-&gt;</operator><name>bitrate</name></name> <operator>!=</operator> <name>RATE_QUANT</name></expr>)</condition> <block>{<block_content>
+<decl_stmt><decl><type><name>float</name></type> <name>acb_sum</name></decl>, <decl><type ref="prev"/><name>f</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>f</name> <operator>=</operator> <call><name>exp</name><argument_list>(<argument><expr><operator>(</operator><ternary><condition><expr><name><name>e</name><operator>-&gt;</operator><name>bitrate</name></name> <operator>==</operator> <name>RATE_HALF</name></expr> ?</condition><then> <expr><literal type="number">0.5</literal></expr> </then><else>: <expr><literal type="number">0.25</literal></expr></else></ternary><operator>)</operator>
+<operator>*</operator> <operator>(</operator><name><name>e</name><operator>-&gt;</operator><name>frame</name><operator>.</operator><name>fcb_gain</name><index>[<expr><name>i</name></expr>]</index></name> <operator>+</operator> <literal type="number">1</literal><operator>)</operator></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>acb_sum</name> <operator>=</operator> <name><name>pitch_gain_vq</name><index>[<expr><name><name>e</name><operator>-&gt;</operator><name>frame</name><operator>.</operator><name>acb_gain</name><index>[<expr><name>i</name></expr>]</index></name></expr>]</index></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>e</name><operator>-&gt;</operator><name>avg_acb_gain</name></name> <operator>+=</operator> <name>acb_sum</name> <operator>/</operator> <name>NB_SUBFRAMES</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>e</name><operator>-&gt;</operator><name>avg_fcb_gain</name></name> <operator>+=</operator> <name>f</name> <operator>/</operator> <name>NB_SUBFRAMES</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>acb_excitation</name><argument_list>(<argument><expr><name>e</name></expr></argument>, <argument><expr><name><name>e</name><operator>-&gt;</operator><name>pitch</name></name> <operator>+</operator> <name>ACB_SIZE</name></expr></argument>,
+<argument><expr><name>acb_sum</name></expr></argument>, <argument><expr><name>idelay</name></expr></argument>, <argument><expr><name>subframe_size</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>fcb_excitation</name><argument_list>(<argument><expr><name>e</name></expr></argument>, <argument><expr><name><name>e</name><operator>-&gt;</operator><name>frame</name><operator>.</operator><name>fcb_shape</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>, <argument><expr><name>tmp</name></expr></argument>,
+<argument><expr><name>acb_sum</name></expr></argument>, <argument><expr><name>pitch_lag</name></expr></argument>, <argument><expr><name>subframe_size</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+
+<for>for <control>(<init><expr><name>j</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>j</name> <operator>&lt;</operator> <name>subframe_size</name></expr>;</condition> <incr><expr><name>j</name><operator>++</operator></expr></incr>)</control><block type="pseudo"><block_content>
+<expr_stmt><expr><name><name>e</name><operator>-&gt;</operator><name>pitch</name><index>[<expr><name>ACB_SIZE</name> <operator>+</operator> <name>j</name></expr>]</index></name> <operator>+=</operator> <name>f</name> <operator>*</operator> <name><name>tmp</name><index>[<expr><name>j</name></expr>]</index></name></expr>;</expr_stmt></block_content></block></for>
+<expr_stmt><expr><name><name>e</name><operator>-&gt;</operator><name>fade_scale</name></name> <operator>=</operator> <call><name>FFMIN</name><argument_list>(<argument><expr><name><name>e</name><operator>-&gt;</operator><name>fade_scale</name></name> <operator>+</operator> <literal type="number">0.2</literal></expr></argument>, <argument><expr><literal type="number">1.0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<for>for <control>(<init><expr><name>j</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>j</name> <operator>&lt;</operator> <name>subframe_size</name></expr>;</condition> <incr><expr><name>j</name><operator>++</operator></expr></incr>)</control><block type="pseudo"><block_content>
+<expr_stmt><expr><name><name>e</name><operator>-&gt;</operator><name>pitch</name><index>[<expr><name>ACB_SIZE</name> <operator>+</operator> <name>j</name></expr>]</index></name> <operator>=</operator> <name><name>e</name><operator>-&gt;</operator><name>energy_vector</name><index>[<expr><name>i</name></expr>]</index></name></expr>;</expr_stmt></block_content></block></for>
+</block_content>}</block></else></if_stmt>
+
+<expr_stmt><expr><call><name>memmove</name><argument_list>(<argument><expr><name><name>e</name><operator>-&gt;</operator><name>pitch</name></name></expr></argument>, <argument><expr><name><name>e</name><operator>-&gt;</operator><name>pitch</name></name> <operator>+</operator> <name>subframe_size</name></expr></argument>, <argument><expr><name>ACB_SIZE</name> <operator>*</operator> <sizeof>sizeof<argument_list>(<argument><expr><name>float</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>synthesis_filter</name><argument_list>(<argument><expr><name><name>e</name><operator>-&gt;</operator><name>pitch</name></name> <operator>+</operator> <name>ACB_SIZE</name></expr></argument>, <argument><expr><name>ilpc</name></expr></argument>,
+<argument><expr><name><name>e</name><operator>-&gt;</operator><name>synthesis</name></name></expr></argument>, <argument><expr><name>subframe_size</name></expr></argument>,
+<argument><expr><ternary><condition><expr><name><name>e</name><operator>-&gt;</operator><name>postfilter</name></name></expr> ?</condition><then> <expr><name>tmp</name></expr> </then><else>: <expr><name>samples</name></expr></else></ternary></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>e</name><operator>-&gt;</operator><name>postfilter</name></name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>postfilter</name><argument_list>(<argument><expr><name>e</name></expr></argument>, <argument><expr><name>tmp</name></expr></argument>, <argument><expr><name>ilpc</name></expr></argument>, <argument><expr><name>samples</name></expr></argument>, <argument><expr><name>pitch_lag</name></expr></argument>,
+<argument><expr><operator>&amp;</operator><name><name>postfilter_coeffs</name><index>[<expr><name><name>e</name><operator>-&gt;</operator><name>bitrate</name></name></expr>]</index></name></expr></argument>, <argument><expr><name>subframe_size</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>samples</name> <operator>+=</operator> <name>subframe_size</name></expr>;</expr_stmt>
+</block_content>}</block></for>
+
+<if_stmt><if>if <condition>(<expr><name>error_flag</name></expr>)</condition> <block>{<block_content>
+<label><name>erasure</name>:</label>
+<expr_stmt><expr><name>error_flag</name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>av_log</name><argument_list>(<argument><expr><name>avctx</name></expr></argument>, <argument><expr><name>AV_LOG_WARNING</name></expr></argument>, <argument><expr><literal type="string">"frame erasure\n"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>frame_erasure</name><argument_list>(<argument><expr><name>e</name></expr></argument>, <argument><expr><name>samples</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>memcpy</name><argument_list>(<argument><expr><name><name>e</name><operator>-&gt;</operator><name>prev_lspf</name></name></expr></argument>, <argument><expr><name><name>e</name><operator>-&gt;</operator><name>lspf</name></name></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr><name><name>e</name><operator>-&gt;</operator><name>prev_lspf</name></name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>e</name><operator>-&gt;</operator><name>prev_error_flag</name></name> <operator>=</operator> <name>error_flag</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>e</name><operator>-&gt;</operator><name>last_valid_bitrate</name></name> <operator>=</operator> <name><name>e</name><operator>-&gt;</operator><name>bitrate</name></name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>e</name><operator>-&gt;</operator><name>bitrate</name></name> <operator>!=</operator> <name>RATE_QUANT</name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name><name>e</name><operator>-&gt;</operator><name>prev_pitch_delay</name></name> <operator>=</operator> <name><name>e</name><operator>-&gt;</operator><name>pitch_delay</name></name></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>samples</name> <operator>=</operator> <operator>(</operator><name>float</name> <operator>*</operator><operator>)</operator><name><name>frame</name><operator>-&gt;</operator><name>data</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr>;</expr_stmt>
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <literal type="number">160</literal></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control><block type="pseudo"><block_content>
+<expr_stmt><expr><name><name>samples</name><index>[<expr><name>i</name></expr>]</index></name> <operator>/=</operator> <literal type="number">32768</literal></expr>;</expr_stmt></block_content></block></for>
+
+<expr_stmt><expr><operator>*</operator><name>got_frame_ptr</name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+
+<return>return <expr><name><name>avpkt</name><operator>-&gt;</operator><name>size</name></name></expr>;</return>
+</block_content>}</block></function>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>OFFSET</name><parameter_list>(<parameter><type><name>x</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>offsetof(EVRCContext, x)</cpp:value></cpp:define>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>AD</name></cpp:macro> <cpp:value>AV_OPT_FLAG_AUDIO_PARAM | AV_OPT_FLAG_DECODING_PARAM</cpp:value></cpp:define>
+
+<decl_stmt><decl><type><specifier>static</specifier> <specifier>const</specifier> <name>AVOption</name></type> <name><name>options</name><index>[]</index></name> <init>= <expr><block>{
+<expr><block>{ <expr><literal type="string">"postfilter"</literal></expr>, <expr><literal type="string">"enable postfilter"</literal></expr>, <expr><call><name>OFFSET</name><argument_list>(<argument><expr><name>postfilter</name></expr></argument>)</argument_list></call></expr>, <expr><name>AV_OPT_TYPE_BOOL</name></expr>, <expr><block>{<expr><operator>.</operator><name>i64</name> <operator>=</operator> <literal type="number">1</literal></expr>}</block></expr>, <expr><literal type="number">0</literal></expr>, <expr><literal type="number">1</literal></expr>, <expr><name>AD</name></expr> }</block></expr>,
+<expr><block>{ <expr><name>NULL</name></expr> }</block></expr>
+}</block></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <specifier>const</specifier> <name>AVClass</name></type> <name>evrcdec_class</name> <init>= <expr><block>{
+<expr><operator>.</operator><name>class_name</name> <operator>=</operator> <literal type="string">"evrc"</literal></expr>,
+<expr><operator>.</operator><name>item_name</name> <operator>=</operator> <name>av_default_item_name</name></expr>,
+<expr><operator>.</operator><name>option</name> <operator>=</operator> <name>options</name></expr>,
+<expr><operator>.</operator><name>version</name> <operator>=</operator> <name>LIBAVUTIL_VERSION_INT</name></expr>,
+}</block></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>AVCodec</name></type> <name>ff_evrc_decoder</name> <init>= <expr><block>{
+<expr><operator>.</operator><name>name</name> <operator>=</operator> <literal type="string">"evrc"</literal></expr>,
+<expr><operator>.</operator><name>long_name</name> <operator>=</operator> <call><name>NULL_IF_CONFIG_SMALL</name><argument_list>(<argument><expr><literal type="string">"EVRC (Enhanced Variable Rate Codec)"</literal></expr></argument>)</argument_list></call></expr>,
+<expr><operator>.</operator><name>type</name> <operator>=</operator> <name>AVMEDIA_TYPE_AUDIO</name></expr>,
+<expr><operator>.</operator><name>id</name> <operator>=</operator> <name>AV_CODEC_ID_EVRC</name></expr>,
+<expr><operator>.</operator><name>init</name> <operator>=</operator> <name>evrc_decode_init</name></expr>,
+<expr><operator>.</operator><name>decode</name> <operator>=</operator> <name>evrc_decode_frame</name></expr>,
+<expr><operator>.</operator><name>capabilities</name> <operator>=</operator> <name>AV_CODEC_CAP_DR1</name></expr>,
+<expr><operator>.</operator><name>priv_data_size</name> <operator>=</operator> <sizeof>sizeof<argument_list>(<argument><expr><name>EVRCContext</name></expr></argument>)</argument_list></sizeof></expr>,
+<expr><operator>.</operator><name>priv_class</name> <operator>=</operator> <operator>&amp;</operator><name>evrcdec_class</name></expr>,
+}</block></expr></init></decl>;</decl_stmt>
+</unit>

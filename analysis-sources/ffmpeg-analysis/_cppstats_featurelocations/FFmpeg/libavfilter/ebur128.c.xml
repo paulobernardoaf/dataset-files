@@ -1,0 +1,771 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" revision="1.0.0" language="C" filename="D:\Pesquisa\Projects\ffmpeg-analysis\_cppstats_featurelocations\FFmpeg\libavfilter\ebur128.c">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"ebur128.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;float.h&gt;</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;limits.h&gt;</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;math.h&gt;</cpp:file></cpp:include> 
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"libavutil/common.h"</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"libavutil/mem.h"</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"libavutil/thread.h"</cpp:file></cpp:include>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>CHECK_ERROR</name><parameter_list>(<parameter><type><name>condition</name></type></parameter>, <parameter><type><name>errorcode</name></type></parameter>, <parameter><type><name>goto_point</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>if ((condition)) { errcode = (errorcode); goto goto_point; }</cpp:value></cpp:define>
+
+
+
+
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>ALMOST_ZERO</name></cpp:macro> <cpp:value>0.000001</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>RELATIVE_GATE</name></cpp:macro> <cpp:value>(-10.0)</cpp:value></cpp:define>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>RELATIVE_GATE_FACTOR</name></cpp:macro> <cpp:value>pow(10.0, RELATIVE_GATE / 10.0)</cpp:value></cpp:define>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>MINUS_20DB</name></cpp:macro> <cpp:value>pow(10.0, -20.0 / 10.0)</cpp:value></cpp:define>
+
+<struct>struct <name>FFEBUR128StateInternal</name> <block>{
+
+<decl_stmt><decl><type><name>double</name> <modifier>*</modifier></type><name>audio_data</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>size_t</name></type> <name>audio_data_frames</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>size_t</name></type> <name>audio_data_index</name></decl>;</decl_stmt>
+
+
+
+<decl_stmt><decl><type><name>unsigned</name> <name>long</name></type> <name>needed_frames</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name> <modifier>*</modifier></type><name>channel_map</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>unsigned</name> <name>long</name></type> <name>samples_in_100ms</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>double</name></type> <name><name>b</name><index>[<expr><literal type="number">5</literal></expr>]</index></name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>double</name></type> <name><name>a</name><index>[<expr><literal type="number">5</literal></expr>]</index></name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>double</name></type> <name><name>v</name><index>[<expr><literal type="number">5</literal></expr>]</index><index>[<expr><literal type="number">5</literal></expr>]</index></name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>unsigned</name> <name>long</name> <modifier>*</modifier></type><name>block_energy_histogram</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>unsigned</name> <name>long</name> <modifier>*</modifier></type><name>short_term_block_energy_histogram</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>size_t</name></type> <name>short_term_frame_counter</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>double</name> <modifier>*</modifier></type><name>sample_peak</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>unsigned</name> <name>long</name></type> <name>window</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>void</name> <modifier>*</modifier><modifier>*</modifier></type><name>data_ptrs</name></decl>;</decl_stmt>
+}</block>;</struct>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>AVOnce</name></type> <name>histogram_init</name> <init>= <expr><name>AV_ONCE_INIT</name></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><specifier>static</specifier> <call><name>DECLARE_ALIGNED</name><argument_list>(<argument><expr><literal type="number">32</literal></expr></argument>, <argument><expr><name>double</name></expr></argument>, <argument><expr><name>histogram_energies</name></expr></argument>)</argument_list></call><index>[<expr><literal type="number">1000</literal></expr>]</index></expr>;</expr_stmt>
+<expr_stmt><expr><specifier>static</specifier> <call><name>DECLARE_ALIGNED</name><argument_list>(<argument><expr><literal type="number">32</literal></expr></argument>, <argument><expr><name>double</name></expr></argument>, <argument><expr><name>histogram_energy_boundaries</name></expr></argument>)</argument_list></call><index>[<expr><literal type="number">1001</literal></expr>]</index></expr>;</expr_stmt>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>ebur128_init_filter</name><parameter_list>(<parameter><decl><type><name>FFEBUR128State</name> <modifier>*</modifier></type> <name>st</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>int</name></type> <name>i</name></decl>, <decl><type ref="prev"/><name>j</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>double</name></type> <name>f0</name> <init>= <expr><literal type="number">1681.974450955533</literal></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>double</name></type> <name>G</name> <init>= <expr><literal type="number">3.999843853973347</literal></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>double</name></type> <name>Q</name> <init>= <expr><literal type="number">0.7071752369554196</literal></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>double</name></type> <name>K</name> <init>= <expr><call><name>tan</name><argument_list>(<argument><expr><name>M_PI</name> <operator>*</operator> <name>f0</name> <operator>/</operator> <operator>(</operator><name>double</name><operator>)</operator> <name><name>st</name><operator>-&gt;</operator><name>samplerate</name></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>double</name></type> <name>Vh</name> <init>= <expr><call><name>pow</name><argument_list>(<argument><expr><literal type="number">10.0</literal></expr></argument>, <argument><expr><name>G</name> <operator>/</operator> <literal type="number">20.0</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>double</name></type> <name>Vb</name> <init>= <expr><call><name>pow</name><argument_list>(<argument><expr><name>Vh</name></expr></argument>, <argument><expr><literal type="number">0.4996667741545416</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>double</name></type> <name><name>pb</name><index>[<expr><literal type="number">3</literal></expr>]</index></name> <init>= <expr><block>{ <expr><literal type="number">0.0</literal></expr>, <expr><literal type="number">0.0</literal></expr>, <expr><literal type="number">0.0</literal></expr> }</block></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>double</name></type> <name><name>pa</name><index>[<expr><literal type="number">3</literal></expr>]</index></name> <init>= <expr><block>{ <expr><literal type="number">1.0</literal></expr>, <expr><literal type="number">0.0</literal></expr>, <expr><literal type="number">0.0</literal></expr> }</block></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>double</name></type> <name><name>rb</name><index>[<expr><literal type="number">3</literal></expr>]</index></name> <init>= <expr><block>{ <expr><literal type="number">1.0</literal></expr>, <expr><operator>-</operator><literal type="number">2.0</literal></expr>, <expr><literal type="number">1.0</literal></expr> }</block></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>double</name></type> <name><name>ra</name><index>[<expr><literal type="number">3</literal></expr>]</index></name> <init>= <expr><block>{ <expr><literal type="number">1.0</literal></expr>, <expr><literal type="number">0.0</literal></expr>, <expr><literal type="number">0.0</literal></expr> }</block></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>double</name></type> <name>a0</name> <init>= <expr><literal type="number">1.0</literal> <operator>+</operator> <name>K</name> <operator>/</operator> <name>Q</name> <operator>+</operator> <name>K</name> <operator>*</operator> <name>K</name></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><name><name>pb</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>=</operator> <operator>(</operator><name>Vh</name> <operator>+</operator> <name>Vb</name> <operator>*</operator> <name>K</name> <operator>/</operator> <name>Q</name> <operator>+</operator> <name>K</name> <operator>*</operator> <name>K</name><operator>)</operator> <operator>/</operator> <name>a0</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>pb</name><index>[<expr><literal type="number">1</literal></expr>]</index></name> <operator>=</operator> <literal type="number">2.0</literal> <operator>*</operator> <operator>(</operator><name>K</name> <operator>*</operator> <name>K</name> <operator>-</operator> <name>Vh</name><operator>)</operator> <operator>/</operator> <name>a0</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>pb</name><index>[<expr><literal type="number">2</literal></expr>]</index></name> <operator>=</operator> <operator>(</operator><name>Vh</name> <operator>-</operator> <name>Vb</name> <operator>*</operator> <name>K</name> <operator>/</operator> <name>Q</name> <operator>+</operator> <name>K</name> <operator>*</operator> <name>K</name><operator>)</operator> <operator>/</operator> <name>a0</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>pa</name><index>[<expr><literal type="number">1</literal></expr>]</index></name> <operator>=</operator> <literal type="number">2.0</literal> <operator>*</operator> <operator>(</operator><name>K</name> <operator>*</operator> <name>K</name> <operator>-</operator> <literal type="number">1.0</literal><operator>)</operator> <operator>/</operator> <name>a0</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>pa</name><index>[<expr><literal type="number">2</literal></expr>]</index></name> <operator>=</operator> <operator>(</operator><literal type="number">1.0</literal> <operator>-</operator> <name>K</name> <operator>/</operator> <name>Q</name> <operator>+</operator> <name>K</name> <operator>*</operator> <name>K</name><operator>)</operator> <operator>/</operator> <name>a0</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>f0</name> <operator>=</operator> <literal type="number">38.13547087602444</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name>Q</name> <operator>=</operator> <literal type="number">0.5003270373238773</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name>K</name> <operator>=</operator> <call><name>tan</name><argument_list>(<argument><expr><name>M_PI</name> <operator>*</operator> <name>f0</name> <operator>/</operator> <operator>(</operator><name>double</name><operator>)</operator> <name><name>st</name><operator>-&gt;</operator><name>samplerate</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>ra</name><index>[<expr><literal type="number">1</literal></expr>]</index></name> <operator>=</operator> <literal type="number">2.0</literal> <operator>*</operator> <operator>(</operator><name>K</name> <operator>*</operator> <name>K</name> <operator>-</operator> <literal type="number">1.0</literal><operator>)</operator> <operator>/</operator> <operator>(</operator><literal type="number">1.0</literal> <operator>+</operator> <name>K</name> <operator>/</operator> <name>Q</name> <operator>+</operator> <name>K</name> <operator>*</operator> <name>K</name><operator>)</operator></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>ra</name><index>[<expr><literal type="number">2</literal></expr>]</index></name> <operator>=</operator> <operator>(</operator><literal type="number">1.0</literal> <operator>-</operator> <name>K</name> <operator>/</operator> <name>Q</name> <operator>+</operator> <name>K</name> <operator>*</operator> <name>K</name><operator>)</operator> <operator>/</operator> <operator>(</operator><literal type="number">1.0</literal> <operator>+</operator> <name>K</name> <operator>/</operator> <name>Q</name> <operator>+</operator> <name>K</name> <operator>*</operator> <name>K</name><operator>)</operator></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>st</name><operator>-&gt;</operator><name>d</name><operator>-&gt;</operator><name>b</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>=</operator> <name><name>pb</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>*</operator> <name><name>rb</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>st</name><operator>-&gt;</operator><name>d</name><operator>-&gt;</operator><name>b</name><index>[<expr><literal type="number">1</literal></expr>]</index></name> <operator>=</operator> <name><name>pb</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>*</operator> <name><name>rb</name><index>[<expr><literal type="number">1</literal></expr>]</index></name> <operator>+</operator> <name><name>pb</name><index>[<expr><literal type="number">1</literal></expr>]</index></name> <operator>*</operator> <name><name>rb</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>st</name><operator>-&gt;</operator><name>d</name><operator>-&gt;</operator><name>b</name><index>[<expr><literal type="number">2</literal></expr>]</index></name> <operator>=</operator> <name><name>pb</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>*</operator> <name><name>rb</name><index>[<expr><literal type="number">2</literal></expr>]</index></name> <operator>+</operator> <name><name>pb</name><index>[<expr><literal type="number">1</literal></expr>]</index></name> <operator>*</operator> <name><name>rb</name><index>[<expr><literal type="number">1</literal></expr>]</index></name> <operator>+</operator> <name><name>pb</name><index>[<expr><literal type="number">2</literal></expr>]</index></name> <operator>*</operator> <name><name>rb</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>st</name><operator>-&gt;</operator><name>d</name><operator>-&gt;</operator><name>b</name><index>[<expr><literal type="number">3</literal></expr>]</index></name> <operator>=</operator> <name><name>pb</name><index>[<expr><literal type="number">1</literal></expr>]</index></name> <operator>*</operator> <name><name>rb</name><index>[<expr><literal type="number">2</literal></expr>]</index></name> <operator>+</operator> <name><name>pb</name><index>[<expr><literal type="number">2</literal></expr>]</index></name> <operator>*</operator> <name><name>rb</name><index>[<expr><literal type="number">1</literal></expr>]</index></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>st</name><operator>-&gt;</operator><name>d</name><operator>-&gt;</operator><name>b</name><index>[<expr><literal type="number">4</literal></expr>]</index></name> <operator>=</operator> <name><name>pb</name><index>[<expr><literal type="number">2</literal></expr>]</index></name> <operator>*</operator> <name><name>rb</name><index>[<expr><literal type="number">2</literal></expr>]</index></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>st</name><operator>-&gt;</operator><name>d</name><operator>-&gt;</operator><name>a</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>=</operator> <name><name>pa</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>*</operator> <name><name>ra</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>st</name><operator>-&gt;</operator><name>d</name><operator>-&gt;</operator><name>a</name><index>[<expr><literal type="number">1</literal></expr>]</index></name> <operator>=</operator> <name><name>pa</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>*</operator> <name><name>ra</name><index>[<expr><literal type="number">1</literal></expr>]</index></name> <operator>+</operator> <name><name>pa</name><index>[<expr><literal type="number">1</literal></expr>]</index></name> <operator>*</operator> <name><name>ra</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>st</name><operator>-&gt;</operator><name>d</name><operator>-&gt;</operator><name>a</name><index>[<expr><literal type="number">2</literal></expr>]</index></name> <operator>=</operator> <name><name>pa</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>*</operator> <name><name>ra</name><index>[<expr><literal type="number">2</literal></expr>]</index></name> <operator>+</operator> <name><name>pa</name><index>[<expr><literal type="number">1</literal></expr>]</index></name> <operator>*</operator> <name><name>ra</name><index>[<expr><literal type="number">1</literal></expr>]</index></name> <operator>+</operator> <name><name>pa</name><index>[<expr><literal type="number">2</literal></expr>]</index></name> <operator>*</operator> <name><name>ra</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>st</name><operator>-&gt;</operator><name>d</name><operator>-&gt;</operator><name>a</name><index>[<expr><literal type="number">3</literal></expr>]</index></name> <operator>=</operator> <name><name>pa</name><index>[<expr><literal type="number">1</literal></expr>]</index></name> <operator>*</operator> <name><name>ra</name><index>[<expr><literal type="number">2</literal></expr>]</index></name> <operator>+</operator> <name><name>pa</name><index>[<expr><literal type="number">2</literal></expr>]</index></name> <operator>*</operator> <name><name>ra</name><index>[<expr><literal type="number">1</literal></expr>]</index></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>st</name><operator>-&gt;</operator><name>d</name><operator>-&gt;</operator><name>a</name><index>[<expr><literal type="number">4</literal></expr>]</index></name> <operator>=</operator> <name><name>pa</name><index>[<expr><literal type="number">2</literal></expr>]</index></name> <operator>*</operator> <name><name>ra</name><index>[<expr><literal type="number">2</literal></expr>]</index></name></expr>;</expr_stmt>
+
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <literal type="number">5</literal></expr>;</condition> <incr><expr><operator>++</operator><name>i</name></expr></incr>)</control> <block>{<block_content>
+<for>for <control>(<init><expr><name>j</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>j</name> <operator>&lt;</operator> <literal type="number">5</literal></expr>;</condition> <incr><expr><operator>++</operator><name>j</name></expr></incr>)</control> <block>{<block_content>
+<expr_stmt><expr><name><name>st</name><operator>-&gt;</operator><name>d</name><operator>-&gt;</operator><name>v</name><index>[<expr><name>i</name></expr>]</index><index>[<expr><name>j</name></expr>]</index></name> <operator>=</operator> <literal type="number">0.0</literal></expr>;</expr_stmt>
+</block_content>}</block></for>
+</block_content>}</block></for>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>ebur128_init_channel_map</name><parameter_list>(<parameter><decl><type><name>FFEBUR128State</name> <modifier>*</modifier></type> <name>st</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>size_t</name></type> <name>i</name></decl>;</decl_stmt>
+<expr_stmt><expr><name><name>st</name><operator>-&gt;</operator><name>d</name><operator>-&gt;</operator><name>channel_map</name></name> <operator>=</operator>
+<operator>(</operator><name>int</name> <operator>*</operator><operator>)</operator> <call><name>av_malloc_array</name><argument_list>(<argument><expr><name><name>st</name><operator>-&gt;</operator><name>channels</name></name></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr><name>int</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>st</name><operator>-&gt;</operator><name>d</name><operator>-&gt;</operator><name>channel_map</name></name></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><call><name>AVERROR</name><argument_list>(<argument><expr><name>ENOMEM</name></expr></argument>)</argument_list></call></expr>;</return></block_content></block></if></if_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>st</name><operator>-&gt;</operator><name>channels</name></name> <operator>==</operator> <literal type="number">4</literal></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name><name>st</name><operator>-&gt;</operator><name>d</name><operator>-&gt;</operator><name>channel_map</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>=</operator> <name>FF_EBUR128_LEFT</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>st</name><operator>-&gt;</operator><name>d</name><operator>-&gt;</operator><name>channel_map</name><index>[<expr><literal type="number">1</literal></expr>]</index></name> <operator>=</operator> <name>FF_EBUR128_RIGHT</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>st</name><operator>-&gt;</operator><name>d</name><operator>-&gt;</operator><name>channel_map</name><index>[<expr><literal type="number">2</literal></expr>]</index></name> <operator>=</operator> <name>FF_EBUR128_LEFT_SURROUND</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>st</name><operator>-&gt;</operator><name>d</name><operator>-&gt;</operator><name>channel_map</name><index>[<expr><literal type="number">3</literal></expr>]</index></name> <operator>=</operator> <name>FF_EBUR128_RIGHT_SURROUND</name></expr>;</expr_stmt>
+</block_content>}</block></if> <if type="elseif">else if <condition>(<expr><name><name>st</name><operator>-&gt;</operator><name>channels</name></name> <operator>==</operator> <literal type="number">5</literal></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name><name>st</name><operator>-&gt;</operator><name>d</name><operator>-&gt;</operator><name>channel_map</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>=</operator> <name>FF_EBUR128_LEFT</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>st</name><operator>-&gt;</operator><name>d</name><operator>-&gt;</operator><name>channel_map</name><index>[<expr><literal type="number">1</literal></expr>]</index></name> <operator>=</operator> <name>FF_EBUR128_RIGHT</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>st</name><operator>-&gt;</operator><name>d</name><operator>-&gt;</operator><name>channel_map</name><index>[<expr><literal type="number">2</literal></expr>]</index></name> <operator>=</operator> <name>FF_EBUR128_CENTER</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>st</name><operator>-&gt;</operator><name>d</name><operator>-&gt;</operator><name>channel_map</name><index>[<expr><literal type="number">3</literal></expr>]</index></name> <operator>=</operator> <name>FF_EBUR128_LEFT_SURROUND</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>st</name><operator>-&gt;</operator><name>d</name><operator>-&gt;</operator><name>channel_map</name><index>[<expr><literal type="number">4</literal></expr>]</index></name> <operator>=</operator> <name>FF_EBUR128_RIGHT_SURROUND</name></expr>;</expr_stmt>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name><name>st</name><operator>-&gt;</operator><name>channels</name></name></expr>;</condition> <incr><expr><operator>++</operator><name>i</name></expr></incr>)</control> <block>{<block_content>
+<switch>switch <condition>(<expr><name>i</name></expr>)</condition> <block>{<block_content>
+<case>case <expr><literal type="number">0</literal></expr>:</case>
+<expr_stmt><expr><name><name>st</name><operator>-&gt;</operator><name>d</name><operator>-&gt;</operator><name>channel_map</name><index>[<expr><name>i</name></expr>]</index></name> <operator>=</operator> <name>FF_EBUR128_LEFT</name></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><literal type="number">1</literal></expr>:</case>
+<expr_stmt><expr><name><name>st</name><operator>-&gt;</operator><name>d</name><operator>-&gt;</operator><name>channel_map</name><index>[<expr><name>i</name></expr>]</index></name> <operator>=</operator> <name>FF_EBUR128_RIGHT</name></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><literal type="number">2</literal></expr>:</case>
+<expr_stmt><expr><name><name>st</name><operator>-&gt;</operator><name>d</name><operator>-&gt;</operator><name>channel_map</name><index>[<expr><name>i</name></expr>]</index></name> <operator>=</operator> <name>FF_EBUR128_CENTER</name></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><literal type="number">3</literal></expr>:</case>
+<expr_stmt><expr><name><name>st</name><operator>-&gt;</operator><name>d</name><operator>-&gt;</operator><name>channel_map</name><index>[<expr><name>i</name></expr>]</index></name> <operator>=</operator> <name>FF_EBUR128_UNUSED</name></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><literal type="number">4</literal></expr>:</case>
+<expr_stmt><expr><name><name>st</name><operator>-&gt;</operator><name>d</name><operator>-&gt;</operator><name>channel_map</name><index>[<expr><name>i</name></expr>]</index></name> <operator>=</operator> <name>FF_EBUR128_LEFT_SURROUND</name></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><literal type="number">5</literal></expr>:</case>
+<expr_stmt><expr><name><name>st</name><operator>-&gt;</operator><name>d</name><operator>-&gt;</operator><name>channel_map</name><index>[<expr><name>i</name></expr>]</index></name> <operator>=</operator> <name>FF_EBUR128_RIGHT_SURROUND</name></expr>;</expr_stmt>
+<break>break;</break>
+<default>default:</default>
+<expr_stmt><expr><name><name>st</name><operator>-&gt;</operator><name>d</name><operator>-&gt;</operator><name>channel_map</name><index>[<expr><name>i</name></expr>]</index></name> <operator>=</operator> <name>FF_EBUR128_UNUSED</name></expr>;</expr_stmt>
+<break>break;</break>
+</block_content>}</block></switch>
+</block_content>}</block></for>
+</block_content>}</block></else></if_stmt>
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <specifier>inline</specifier> <name>void</name></type> <name>init_histogram</name><parameter_list>(<parameter><decl><type><name>void</name></type></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>int</name></type> <name>i</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>histogram_energy_boundaries</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>=</operator> <call><name>pow</name><argument_list>(<argument><expr><literal type="number">10.0</literal></expr></argument>, <argument><expr><operator>(</operator><operator>-</operator><literal type="number">70.0</literal> <operator>+</operator> <literal type="number">0.691</literal><operator>)</operator> <operator>/</operator> <literal type="number">10.0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <literal type="number">1000</literal></expr>;</condition> <incr><expr><operator>++</operator><name>i</name></expr></incr>)</control> <block>{<block_content>
+<expr_stmt><expr><name><name>histogram_energies</name><index>[<expr><name>i</name></expr>]</index></name> <operator>=</operator>
+<call><name>pow</name><argument_list>(<argument><expr><literal type="number">10.0</literal></expr></argument>, <argument><expr><operator>(</operator><operator>(</operator><name>double</name><operator>)</operator> <name>i</name> <operator>/</operator> <literal type="number">10.0</literal> <operator>-</operator> <literal type="number">69.95</literal> <operator>+</operator> <literal type="number">0.691</literal><operator>)</operator> <operator>/</operator> <literal type="number">10.0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></for>
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">1</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <literal type="number">1001</literal></expr>;</condition> <incr><expr><operator>++</operator><name>i</name></expr></incr>)</control> <block>{<block_content>
+<expr_stmt><expr><name><name>histogram_energy_boundaries</name><index>[<expr><name>i</name></expr>]</index></name> <operator>=</operator>
+<call><name>pow</name><argument_list>(<argument><expr><literal type="number">10.0</literal></expr></argument>, <argument><expr><operator>(</operator><operator>(</operator><name>double</name><operator>)</operator> <name>i</name> <operator>/</operator> <literal type="number">10.0</literal> <operator>-</operator> <literal type="number">70.0</literal> <operator>+</operator> <literal type="number">0.691</literal><operator>)</operator> <operator>/</operator> <literal type="number">10.0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></for>
+</block_content>}</block></function>
+
+<function><type><name>FFEBUR128State</name> <modifier>*</modifier></type><name>ff_ebur128_init</name><parameter_list>(<parameter><decl><type><name>unsigned</name> <name>int</name></type> <name>channels</name></decl></parameter>,
+<parameter><decl><type><name>unsigned</name> <name>long</name></type> <name>samplerate</name></decl></parameter>,
+<parameter><decl><type><name>unsigned</name> <name>long</name></type> <name>window</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>mode</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>int</name></type> <name>errcode</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>FFEBUR128State</name> <modifier>*</modifier></type><name>st</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>st</name> <operator>=</operator> <operator>(</operator><name>FFEBUR128State</name> <operator>*</operator><operator>)</operator> <call><name>av_malloc</name><argument_list>(<argument><expr><sizeof>sizeof<argument_list>(<argument><expr><name>FFEBUR128State</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<macro><name>CHECK_ERROR</name><argument_list>(<argument>!st</argument>, <argument><literal type="number">0</literal></argument>, <argument>exit</argument>)</argument_list></macro>
+<expr_stmt><expr><name><name>st</name><operator>-&gt;</operator><name>d</name></name> <operator>=</operator> <operator>(</operator>struct <name>FFEBUR128StateInternal</name> <operator>*</operator><operator>)</operator>
+<call><name>av_malloc</name><argument_list>(<argument><expr><sizeof>sizeof<argument_list>(<argument><expr>struct <name>FFEBUR128StateInternal</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<macro><name>CHECK_ERROR</name><argument_list>(<argument>!st-&gt;d</argument>, <argument><literal type="number">0</literal></argument>, <argument>free_state</argument>)</argument_list></macro>
+<expr_stmt><expr><name><name>st</name><operator>-&gt;</operator><name>channels</name></name> <operator>=</operator> <name>channels</name></expr>;</expr_stmt>
+<expr_stmt><expr><name>errcode</name> <operator>=</operator> <call><name>ebur128_init_channel_map</name><argument_list>(<argument><expr><name>st</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<macro><name>CHECK_ERROR</name><argument_list>(<argument>errcode</argument>, <argument><literal type="number">0</literal></argument>, <argument>free_internal</argument>)</argument_list></macro>
+
+<expr_stmt><expr><name><name>st</name><operator>-&gt;</operator><name>d</name><operator>-&gt;</operator><name>sample_peak</name></name> <operator>=</operator>
+<operator>(</operator><name>double</name> <operator>*</operator><operator>)</operator> <call><name>av_mallocz_array</name><argument_list>(<argument><expr><name>channels</name></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr><name>double</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<macro><name>CHECK_ERROR</name><argument_list>(<argument>!st-&gt;d-&gt;sample_peak</argument>, <argument><literal type="number">0</literal></argument>, <argument>free_channel_map</argument>)</argument_list></macro>
+
+<expr_stmt><expr><name><name>st</name><operator>-&gt;</operator><name>samplerate</name></name> <operator>=</operator> <name>samplerate</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>st</name><operator>-&gt;</operator><name>d</name><operator>-&gt;</operator><name>samples_in_100ms</name></name> <operator>=</operator> <operator>(</operator><name><name>st</name><operator>-&gt;</operator><name>samplerate</name></name> <operator>+</operator> <literal type="number">5</literal><operator>)</operator> <operator>/</operator> <literal type="number">10</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>st</name><operator>-&gt;</operator><name>mode</name></name> <operator>=</operator> <name>mode</name></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><operator>(</operator><name>mode</name> <operator>&amp;</operator> <name>FF_EBUR128_MODE_S</name><operator>)</operator> <operator>==</operator> <name>FF_EBUR128_MODE_S</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name><name>st</name><operator>-&gt;</operator><name>d</name><operator>-&gt;</operator><name>window</name></name> <operator>=</operator> <call><name>FFMAX</name><argument_list>(<argument><expr><name>window</name></expr></argument>, <argument><expr><literal type="number">3000</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if> <if type="elseif">else if <condition>(<expr><operator>(</operator><name>mode</name> <operator>&amp;</operator> <name>FF_EBUR128_MODE_M</name><operator>)</operator> <operator>==</operator> <name>FF_EBUR128_MODE_M</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name><name>st</name><operator>-&gt;</operator><name>d</name><operator>-&gt;</operator><name>window</name></name> <operator>=</operator> <call><name>FFMAX</name><argument_list>(<argument><expr><name>window</name></expr></argument>, <argument><expr><literal type="number">400</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<goto>goto <name>free_sample_peak</name>;</goto>
+</block_content>}</block></else></if_stmt>
+<expr_stmt><expr><name><name>st</name><operator>-&gt;</operator><name>d</name><operator>-&gt;</operator><name>audio_data_frames</name></name> <operator>=</operator> <name><name>st</name><operator>-&gt;</operator><name>samplerate</name></name> <operator>*</operator> <name><name>st</name><operator>-&gt;</operator><name>d</name><operator>-&gt;</operator><name>window</name></name> <operator>/</operator> <literal type="number">1000</literal></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>st</name><operator>-&gt;</operator><name>d</name><operator>-&gt;</operator><name>audio_data_frames</name></name> <operator>%</operator> <name><name>st</name><operator>-&gt;</operator><name>d</name><operator>-&gt;</operator><name>samples_in_100ms</name></name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name><name>st</name><operator>-&gt;</operator><name>d</name><operator>-&gt;</operator><name>audio_data_frames</name></name> <operator>=</operator> <name><name>st</name><operator>-&gt;</operator><name>d</name><operator>-&gt;</operator><name>audio_data_frames</name></name>
+<operator>+</operator> <name><name>st</name><operator>-&gt;</operator><name>d</name><operator>-&gt;</operator><name>samples_in_100ms</name></name>
+<operator>-</operator> <operator>(</operator><name><name>st</name><operator>-&gt;</operator><name>d</name><operator>-&gt;</operator><name>audio_data_frames</name></name> <operator>%</operator> <name><name>st</name><operator>-&gt;</operator><name>d</name><operator>-&gt;</operator><name>samples_in_100ms</name></name><operator>)</operator></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+<expr_stmt><expr><name><name>st</name><operator>-&gt;</operator><name>d</name><operator>-&gt;</operator><name>audio_data</name></name> <operator>=</operator>
+<operator>(</operator><name>double</name> <operator>*</operator><operator>)</operator> <call><name>av_mallocz_array</name><argument_list>(<argument><expr><name><name>st</name><operator>-&gt;</operator><name>d</name><operator>-&gt;</operator><name>audio_data_frames</name></name></expr></argument>,
+<argument><expr><name><name>st</name><operator>-&gt;</operator><name>channels</name></name> <operator>*</operator> <sizeof>sizeof<argument_list>(<argument><expr><name>double</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<macro><name>CHECK_ERROR</name><argument_list>(<argument>!st-&gt;d-&gt;audio_data</argument>, <argument><literal type="number">0</literal></argument>, <argument>free_sample_peak</argument>)</argument_list></macro>
+
+<expr_stmt><expr><call><name>ebur128_init_filter</name><argument_list>(<argument><expr><name>st</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>st</name><operator>-&gt;</operator><name>d</name><operator>-&gt;</operator><name>block_energy_histogram</name></name> <operator>=</operator>
+<call><name>av_mallocz</name><argument_list>(<argument><expr><literal type="number">1000</literal> <operator>*</operator> sizeof<operator>(</operator><name>unsigned</name> <name>long</name><operator>)</operator></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<macro><name>CHECK_ERROR</name><argument_list>(<argument>!st-&gt;d-&gt;block_energy_histogram</argument>, <argument><literal type="number">0</literal></argument>, <argument>free_audio_data</argument>)</argument_list></macro>
+<expr_stmt><expr><name><name>st</name><operator>-&gt;</operator><name>d</name><operator>-&gt;</operator><name>short_term_block_energy_histogram</name></name> <operator>=</operator>
+<call><name>av_mallocz</name><argument_list>(<argument><expr><literal type="number">1000</literal> <operator>*</operator> sizeof<operator>(</operator><name>unsigned</name> <name>long</name><operator>)</operator></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<macro><name>CHECK_ERROR</name><argument_list>(<argument>!st-&gt;d-&gt;short_term_block_energy_histogram</argument>, <argument><literal type="number">0</literal></argument>,
+<argument>free_block_energy_histogram</argument>)</argument_list></macro>
+<expr_stmt><expr><name><name>st</name><operator>-&gt;</operator><name>d</name><operator>-&gt;</operator><name>short_term_frame_counter</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+
+<expr_stmt><expr><name><name>st</name><operator>-&gt;</operator><name>d</name><operator>-&gt;</operator><name>needed_frames</name></name> <operator>=</operator> <name><name>st</name><operator>-&gt;</operator><name>d</name><operator>-&gt;</operator><name>samples_in_100ms</name></name> <operator>*</operator> <literal type="number">4</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>st</name><operator>-&gt;</operator><name>d</name><operator>-&gt;</operator><name>audio_data_index</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>ff_thread_once</name><argument_list>(<argument><expr><operator>&amp;</operator><name>histogram_init</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>init_histogram</name></expr></argument>)</argument_list></call> <operator>!=</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+<goto>goto <name>free_short_term_block_energy_histogram</name>;</goto></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name><name>st</name><operator>-&gt;</operator><name>d</name><operator>-&gt;</operator><name>data_ptrs</name></name> <operator>=</operator> <call><name>av_malloc_array</name><argument_list>(<argument><expr><name>channels</name></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr><name>void</name> <operator>*</operator></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>CHECK_ERROR</name><argument_list>(<argument><expr><operator>!</operator><name><name>st</name><operator>-&gt;</operator><name>d</name><operator>-&gt;</operator><name>data_ptrs</name></name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>,
+<argument><expr><name>free_short_term_block_energy_histogram</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>st</name></expr>;</return>
+
+<label><name>free_short_term_block_energy_histogram</name>:</label>
+<expr_stmt><expr><call><name>av_free</name><argument_list>(<argument><expr><name><name>st</name><operator>-&gt;</operator><name>d</name><operator>-&gt;</operator><name>short_term_block_energy_histogram</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<label><name>free_block_energy_histogram</name>:</label>
+<expr_stmt><expr><call><name>av_free</name><argument_list>(<argument><expr><name><name>st</name><operator>-&gt;</operator><name>d</name><operator>-&gt;</operator><name>block_energy_histogram</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<label><name>free_audio_data</name>:</label>
+<expr_stmt><expr><call><name>av_free</name><argument_list>(<argument><expr><name><name>st</name><operator>-&gt;</operator><name>d</name><operator>-&gt;</operator><name>audio_data</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<label><name>free_sample_peak</name>:</label>
+<expr_stmt><expr><call><name>av_free</name><argument_list>(<argument><expr><name><name>st</name><operator>-&gt;</operator><name>d</name><operator>-&gt;</operator><name>sample_peak</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<label><name>free_channel_map</name>:</label>
+<expr_stmt><expr><call><name>av_free</name><argument_list>(<argument><expr><name><name>st</name><operator>-&gt;</operator><name>d</name><operator>-&gt;</operator><name>channel_map</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<label><name>free_internal</name>:</label>
+<expr_stmt><expr><call><name>av_free</name><argument_list>(<argument><expr><name><name>st</name><operator>-&gt;</operator><name>d</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<label><name>free_state</name>:</label>
+<expr_stmt><expr><call><name>av_free</name><argument_list>(<argument><expr><name>st</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<label><name>exit</name>:</label>
+<return>return <expr><name>NULL</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><name>void</name></type> <name>ff_ebur128_destroy</name><parameter_list>(<parameter><decl><type><name>FFEBUR128State</name> <modifier>*</modifier><modifier>*</modifier></type> <name>st</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<expr_stmt><expr><call><name>av_free</name><argument_list>(<argument><expr><name><operator>(</operator><operator>*</operator><name>st</name><operator>)</operator><operator>-&gt;</operator><name><name>d</name><operator>-&gt;</operator><name>block_energy_histogram</name></name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>av_free</name><argument_list>(<argument><expr><name><operator>(</operator><operator>*</operator><name>st</name><operator>)</operator><operator>-&gt;</operator><name><name>d</name><operator>-&gt;</operator><name>short_term_block_energy_histogram</name></name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>av_free</name><argument_list>(<argument><expr><name><operator>(</operator><operator>*</operator><name>st</name><operator>)</operator><operator>-&gt;</operator><name><name>d</name><operator>-&gt;</operator><name>audio_data</name></name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>av_free</name><argument_list>(<argument><expr><name><operator>(</operator><operator>*</operator><name>st</name><operator>)</operator><operator>-&gt;</operator><name><name>d</name><operator>-&gt;</operator><name>channel_map</name></name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>av_free</name><argument_list>(<argument><expr><name><operator>(</operator><operator>*</operator><name>st</name><operator>)</operator><operator>-&gt;</operator><name><name>d</name><operator>-&gt;</operator><name>sample_peak</name></name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>av_free</name><argument_list>(<argument><expr><name><operator>(</operator><operator>*</operator><name>st</name><operator>)</operator><operator>-&gt;</operator><name><name>d</name><operator>-&gt;</operator><name>data_ptrs</name></name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>av_free</name><argument_list>(<argument><expr><name><operator>(</operator><operator>*</operator><name>st</name><operator>)</operator><operator>-&gt;</operator><name>d</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>av_free</name><argument_list>(<argument><expr><operator>*</operator><name>st</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><operator>*</operator><name>st</name> <operator>=</operator> <name>NULL</name></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>EBUR128_FILTER</name><parameter_list>(<parameter><type><name>type</name></type></parameter>, <parameter><type><name>scaling_factor</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>static void ebur128_filter_##type(FFEBUR128State* st, const type** srcs, size_t src_index, size_t frames, int stride) { double* audio_data = st-&gt;d-&gt;audio_data + st-&gt;d-&gt;audio_data_index; size_t i, c; if ((st-&gt;mode &amp; FF_EBUR128_MODE_SAMPLE_PEAK) == FF_EBUR128_MODE_SAMPLE_PEAK) { for (c = 0; c &lt; st-&gt;channels; ++c) { double max = 0.0; for (i = 0; i &lt; frames; ++i) { type v = srcs[c][src_index + i * stride]; if (v &gt; max) { max = v; } else if (-v &gt; max) { max = -1.0 * v; } } max /= scaling_factor; if (max &gt; st-&gt;d-&gt;sample_peak[c]) st-&gt;d-&gt;sample_peak[c] = max; } } for (c = 0; c &lt; st-&gt;channels; ++c) { int ci = st-&gt;d-&gt;channel_map[c] - 1; if (ci &lt; 0) continue; else if (ci == FF_EBUR128_DUAL_MONO - 1) ci = 0; for (i = 0; i &lt; frames; ++i) { st-&gt;d-&gt;v[ci][0] = (double) (srcs[c][src_index + i * stride] / scaling_factor) - st-&gt;d-&gt;a[1] * st-&gt;d-&gt;v[ci][1] - st-&gt;d-&gt;a[2] * st-&gt;d-&gt;v[ci][2] - st-&gt;d-&gt;a[3] * st-&gt;d-&gt;v[ci][3] - st-&gt;d-&gt;a[4] * st-&gt;d-&gt;v[ci][4]; audio_data[i * st-&gt;channels + c] = st-&gt;d-&gt;b[0] * st-&gt;d-&gt;v[ci][0] + st-&gt;d-&gt;b[1] * st-&gt;d-&gt;v[ci][1] + st-&gt;d-&gt;b[2] * st-&gt;d-&gt;v[ci][2] + st-&gt;d-&gt;b[3] * st-&gt;d-&gt;v[ci][3] + st-&gt;d-&gt;b[4] * st-&gt;d-&gt;v[ci][4]; st-&gt;d-&gt;v[ci][4] = st-&gt;d-&gt;v[ci][3]; st-&gt;d-&gt;v[ci][3] = st-&gt;d-&gt;v[ci][2]; st-&gt;d-&gt;v[ci][2] = st-&gt;d-&gt;v[ci][1]; st-&gt;d-&gt;v[ci][1] = st-&gt;d-&gt;v[ci][0]; } st-&gt;d-&gt;v[ci][4] = fabs(st-&gt;d-&gt;v[ci][4]) &lt; DBL_MIN ? 0.0 : st-&gt;d-&gt;v[ci][4]; st-&gt;d-&gt;v[ci][3] = fabs(st-&gt;d-&gt;v[ci][3]) &lt; DBL_MIN ? 0.0 : st-&gt;d-&gt;v[ci][3]; st-&gt;d-&gt;v[ci][2] = fabs(st-&gt;d-&gt;v[ci][2]) &lt; DBL_MIN ? 0.0 : st-&gt;d-&gt;v[ci][2]; st-&gt;d-&gt;v[ci][1] = fabs(st-&gt;d-&gt;v[ci][1]) &lt; DBL_MIN ? 0.0 : st-&gt;d-&gt;v[ci][1]; } }</cpp:value></cpp:define>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<macro><name>EBUR128_FILTER</name><argument_list>(<argument>short</argument>, <argument>-((double)SHRT_MIN)</argument>)</argument_list></macro>
+<macro><name>EBUR128_FILTER</name><argument_list>(<argument>int</argument>, <argument>-((double)INT_MIN)</argument>)</argument_list></macro>
+<macro><name>EBUR128_FILTER</name><argument_list>(<argument>float</argument>, <argument><literal type="number">1.0</literal></argument>)</argument_list></macro>
+<macro><name>EBUR128_FILTER</name><argument_list>(<argument>double</argument>, <argument><literal type="number">1.0</literal></argument>)</argument_list></macro>
+
+<function><type><specifier>static</specifier> <name>double</name></type> <name>ebur128_energy_to_loudness</name><parameter_list>(<parameter><decl><type><name>double</name></type> <name>energy</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<return>return <expr><literal type="number">10</literal> <operator>*</operator> <call><name>log10</name><argument_list>(<argument><expr><name>energy</name></expr></argument>)</argument_list></call> <operator>-</operator> <literal type="number">0.691</literal></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>size_t</name></type> <name>find_histogram_index</name><parameter_list>(<parameter><decl><type><name>double</name></type> <name>energy</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>size_t</name></type> <name>index_min</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>size_t</name></type> <name>index_max</name> <init>= <expr><literal type="number">1000</literal></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>size_t</name></type> <name>index_mid</name></decl>;</decl_stmt>
+
+<do>do <block>{<block_content>
+<expr_stmt><expr><name>index_mid</name> <operator>=</operator> <operator>(</operator><name>index_min</name> <operator>+</operator> <name>index_max</name><operator>)</operator> <operator>/</operator> <literal type="number">2</literal></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name>energy</name> <operator>&gt;=</operator> <name><name>histogram_energy_boundaries</name><index>[<expr><name>index_mid</name></expr>]</index></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name>index_min</name> <operator>=</operator> <name>index_mid</name></expr>;</expr_stmt>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<expr_stmt><expr><name>index_max</name> <operator>=</operator> <name>index_mid</name></expr>;</expr_stmt>
+</block_content>}</block></else></if_stmt>
+</block_content>}</block> while <condition>(<expr><name>index_max</name> <operator>-</operator> <name>index_min</name> <operator>!=</operator> <literal type="number">1</literal></expr>)</condition>;</do>
+
+<return>return <expr><name>index_min</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>ebur128_calc_gating_block</name><parameter_list>(<parameter><decl><type><name>FFEBUR128State</name> <modifier>*</modifier></type> <name>st</name></decl></parameter>,
+<parameter><decl><type><name>size_t</name></type> <name>frames_per_block</name></decl></parameter>,
+<parameter><decl><type><name>double</name> <modifier>*</modifier></type><name>optional_output</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>size_t</name></type> <name>i</name></decl>, <decl><type ref="prev"/><name>c</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>double</name></type> <name>sum</name> <init>= <expr><literal type="number">0.0</literal></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>double</name></type> <name>channel_sum</name></decl>;</decl_stmt>
+<for>for <control>(<init><expr><name>c</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>c</name> <operator>&lt;</operator> <name><name>st</name><operator>-&gt;</operator><name>channels</name></name></expr>;</condition> <incr><expr><operator>++</operator><name>c</name></expr></incr>)</control> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name><name>st</name><operator>-&gt;</operator><name>d</name><operator>-&gt;</operator><name>channel_map</name><index>[<expr><name>c</name></expr>]</index></name> <operator>==</operator> <name>FF_EBUR128_UNUSED</name></expr>)</condition><block type="pseudo"><block_content>
+<continue>continue;</continue></block_content></block></if></if_stmt>
+<expr_stmt><expr><name>channel_sum</name> <operator>=</operator> <literal type="number">0.0</literal></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>st</name><operator>-&gt;</operator><name>d</name><operator>-&gt;</operator><name>audio_data_index</name></name> <operator>&lt;</operator> <name>frames_per_block</name> <operator>*</operator> <name><name>st</name><operator>-&gt;</operator><name>channels</name></name></expr>)</condition> <block>{<block_content>
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name><name>st</name><operator>-&gt;</operator><name>d</name><operator>-&gt;</operator><name>audio_data_index</name></name> <operator>/</operator> <name><name>st</name><operator>-&gt;</operator><name>channels</name></name></expr>;</condition> <incr><expr><operator>++</operator><name>i</name></expr></incr>)</control> <block>{<block_content>
+<expr_stmt><expr><name>channel_sum</name> <operator>+=</operator> <name><name>st</name><operator>-&gt;</operator><name>d</name><operator>-&gt;</operator><name>audio_data</name><index>[<expr><name>i</name> <operator>*</operator> <name><name>st</name><operator>-&gt;</operator><name>channels</name></name> <operator>+</operator> <name>c</name></expr>]</index></name> <operator>*</operator>
+<name><name>st</name><operator>-&gt;</operator><name>d</name><operator>-&gt;</operator><name>audio_data</name><index>[<expr><name>i</name> <operator>*</operator> <name><name>st</name><operator>-&gt;</operator><name>channels</name></name> <operator>+</operator> <name>c</name></expr>]</index></name></expr>;</expr_stmt>
+</block_content>}</block></for>
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <name><name>st</name><operator>-&gt;</operator><name>d</name><operator>-&gt;</operator><name>audio_data_frames</name></name> <operator>-</operator>
+<operator>(</operator><name>frames_per_block</name> <operator>-</operator>
+<name><name>st</name><operator>-&gt;</operator><name>d</name><operator>-&gt;</operator><name>audio_data_index</name></name> <operator>/</operator> <name><name>st</name><operator>-&gt;</operator><name>channels</name></name><operator>)</operator></expr>;</init>
+<condition><expr><name>i</name> <operator>&lt;</operator> <name><name>st</name><operator>-&gt;</operator><name>d</name><operator>-&gt;</operator><name>audio_data_frames</name></name></expr>;</condition> <incr><expr><operator>++</operator><name>i</name></expr></incr>)</control> <block>{<block_content>
+<expr_stmt><expr><name>channel_sum</name> <operator>+=</operator> <name><name>st</name><operator>-&gt;</operator><name>d</name><operator>-&gt;</operator><name>audio_data</name><index>[<expr><name>i</name> <operator>*</operator> <name><name>st</name><operator>-&gt;</operator><name>channels</name></name> <operator>+</operator> <name>c</name></expr>]</index></name> <operator>*</operator>
+<name><name>st</name><operator>-&gt;</operator><name>d</name><operator>-&gt;</operator><name>audio_data</name><index>[<expr><name>i</name> <operator>*</operator> <name><name>st</name><operator>-&gt;</operator><name>channels</name></name> <operator>+</operator> <name>c</name></expr>]</index></name></expr>;</expr_stmt>
+</block_content>}</block></for>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator>
+<name><name>st</name><operator>-&gt;</operator><name>d</name><operator>-&gt;</operator><name>audio_data_index</name></name> <operator>/</operator> <name><name>st</name><operator>-&gt;</operator><name>channels</name></name> <operator>-</operator> <name>frames_per_block</name></expr>;</init>
+<condition><expr><name>i</name> <operator>&lt;</operator> <name><name>st</name><operator>-&gt;</operator><name>d</name><operator>-&gt;</operator><name>audio_data_index</name></name> <operator>/</operator> <name><name>st</name><operator>-&gt;</operator><name>channels</name></name></expr>;</condition> <incr><expr><operator>++</operator><name>i</name></expr></incr>)</control> <block>{<block_content>
+<expr_stmt><expr><name>channel_sum</name> <operator>+=</operator>
+<name><name>st</name><operator>-&gt;</operator><name>d</name><operator>-&gt;</operator><name>audio_data</name><index>[<expr><name>i</name> <operator>*</operator> <name><name>st</name><operator>-&gt;</operator><name>channels</name></name> <operator>+</operator>
+<name>c</name></expr>]</index></name> <operator>*</operator> <name><name>st</name><operator>-&gt;</operator><name>d</name><operator>-&gt;</operator><name>audio_data</name><index>[<expr><name>i</name> <operator>*</operator>
+<name><name>st</name><operator>-&gt;</operator><name>channels</name></name> <operator>+</operator>
+<name>c</name></expr>]</index></name></expr>;</expr_stmt>
+</block_content>}</block></for>
+</block_content>}</block></else></if_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>st</name><operator>-&gt;</operator><name>d</name><operator>-&gt;</operator><name>channel_map</name><index>[<expr><name>c</name></expr>]</index></name> <operator>==</operator> <name>FF_EBUR128_Mp110</name> <operator>||</operator>
+<name><name>st</name><operator>-&gt;</operator><name>d</name><operator>-&gt;</operator><name>channel_map</name><index>[<expr><name>c</name></expr>]</index></name> <operator>==</operator> <name>FF_EBUR128_Mm110</name> <operator>||</operator>
+<name><name>st</name><operator>-&gt;</operator><name>d</name><operator>-&gt;</operator><name>channel_map</name><index>[<expr><name>c</name></expr>]</index></name> <operator>==</operator> <name>FF_EBUR128_Mp060</name> <operator>||</operator>
+<name><name>st</name><operator>-&gt;</operator><name>d</name><operator>-&gt;</operator><name>channel_map</name><index>[<expr><name>c</name></expr>]</index></name> <operator>==</operator> <name>FF_EBUR128_Mm060</name> <operator>||</operator>
+<name><name>st</name><operator>-&gt;</operator><name>d</name><operator>-&gt;</operator><name>channel_map</name><index>[<expr><name>c</name></expr>]</index></name> <operator>==</operator> <name>FF_EBUR128_Mp090</name> <operator>||</operator>
+<name><name>st</name><operator>-&gt;</operator><name>d</name><operator>-&gt;</operator><name>channel_map</name><index>[<expr><name>c</name></expr>]</index></name> <operator>==</operator> <name>FF_EBUR128_Mm090</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name>channel_sum</name> <operator>*=</operator> <literal type="number">1.41</literal></expr>;</expr_stmt>
+</block_content>}</block></if> <if type="elseif">else if <condition>(<expr><name><name>st</name><operator>-&gt;</operator><name>d</name><operator>-&gt;</operator><name>channel_map</name><index>[<expr><name>c</name></expr>]</index></name> <operator>==</operator> <name>FF_EBUR128_DUAL_MONO</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name>channel_sum</name> <operator>*=</operator> <literal type="number">2.0</literal></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+<expr_stmt><expr><name>sum</name> <operator>+=</operator> <name>channel_sum</name></expr>;</expr_stmt>
+</block_content>}</block></for>
+<expr_stmt><expr><name>sum</name> <operator>/=</operator> <operator>(</operator><name>double</name><operator>)</operator> <name>frames_per_block</name></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name>optional_output</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><operator>*</operator><name>optional_output</name> <operator>=</operator> <name>sum</name></expr>;</expr_stmt>
+</block_content>}</block></if> <if type="elseif">else if <condition>(<expr><name>sum</name> <operator>&gt;=</operator> <name><name>histogram_energy_boundaries</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><operator>++</operator><name><name>st</name><operator>-&gt;</operator><name>d</name><operator>-&gt;</operator><name>block_energy_histogram</name><index>[<expr><call><name>find_histogram_index</name><argument_list>(<argument><expr><name>sum</name></expr></argument>)</argument_list></call></expr>]</index></name></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block></function>
+
+<function><type><name>int</name></type> <name>ff_ebur128_set_channel</name><parameter_list>(<parameter><decl><type><name>FFEBUR128State</name> <modifier>*</modifier></type> <name>st</name></decl></parameter>,
+<parameter><decl><type><name>unsigned</name> <name>int</name></type> <name>channel_number</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>value</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name>channel_number</name> <operator>&gt;=</operator> <name><name>st</name><operator>-&gt;</operator><name>channels</name></name></expr>)</condition> <block>{<block_content>
+<return>return <expr><literal type="number">1</literal></expr>;</return>
+</block_content>}</block></if></if_stmt>
+<if_stmt><if>if <condition>(<expr><name>value</name> <operator>==</operator> <name>FF_EBUR128_DUAL_MONO</name> <operator>&amp;&amp;</operator>
+<operator>(</operator><name><name>st</name><operator>-&gt;</operator><name>channels</name></name> <operator>!=</operator> <literal type="number">1</literal> <operator>||</operator> <name>channel_number</name> <operator>!=</operator> <literal type="number">0</literal><operator>)</operator></expr>)</condition> <block>{<block_content>
+<return>return <expr><literal type="number">1</literal></expr>;</return>
+</block_content>}</block></if></if_stmt>
+<expr_stmt><expr><name><name>st</name><operator>-&gt;</operator><name>d</name><operator>-&gt;</operator><name>channel_map</name><index>[<expr><name>channel_number</name></expr>]</index></name> <operator>=</operator> <name>value</name></expr>;</expr_stmt>
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+</block_content>}</block></function>
+
+<function_decl><type><specifier>static</specifier> <name>int</name></type> <name>ebur128_energy_shortterm</name><parameter_list>(<parameter><decl><type><name>FFEBUR128State</name> <modifier>*</modifier></type> <name>st</name></decl></parameter>, <parameter><decl><type><name>double</name> <modifier>*</modifier></type><name>out</name></decl></parameter>)</parameter_list>;</function_decl>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>FF_EBUR128_ADD_FRAMES_PLANAR</name><parameter_list>(<parameter><type><name>type</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>void ff_ebur128_add_frames_planar_##type(FFEBUR128State* st, const type** srcs, size_t frames, int stride) { size_t src_index = 0; while (frames &gt; 0) { if (frames &gt;= st-&gt;d-&gt;needed_frames) { ebur128_filter_##type(st, srcs, src_index, st-&gt;d-&gt;needed_frames, stride); src_index += st-&gt;d-&gt;needed_frames * stride; frames -= st-&gt;d-&gt;needed_frames; st-&gt;d-&gt;audio_data_index += st-&gt;d-&gt;needed_frames * st-&gt;channels; if ((st-&gt;mode &amp; FF_EBUR128_MODE_I) == FF_EBUR128_MODE_I) { ebur128_calc_gating_block(st, st-&gt;d-&gt;samples_in_100ms * 4, NULL); } if ((st-&gt;mode &amp; FF_EBUR128_MODE_LRA) == FF_EBUR128_MODE_LRA) { st-&gt;d-&gt;short_term_frame_counter += st-&gt;d-&gt;needed_frames; if (st-&gt;d-&gt;short_term_frame_counter == st-&gt;d-&gt;samples_in_100ms * 30) { double st_energy; ebur128_energy_shortterm(st, &amp;st_energy); if (st_energy &gt;= histogram_energy_boundaries[0]) { ++st-&gt;d-&gt;short_term_block_energy_histogram[ find_histogram_index(st_energy)]; } st-&gt;d-&gt;short_term_frame_counter = st-&gt;d-&gt;samples_in_100ms * 20; } } st-&gt;d-&gt;needed_frames = st-&gt;d-&gt;samples_in_100ms; if (st-&gt;d-&gt;audio_data_index == st-&gt;d-&gt;audio_data_frames * st-&gt;channels) { st-&gt;d-&gt;audio_data_index = 0; } } else { ebur128_filter_##type(st, srcs, src_index, frames, stride); st-&gt;d-&gt;audio_data_index += frames * st-&gt;channels; if ((st-&gt;mode &amp; FF_EBUR128_MODE_LRA) == FF_EBUR128_MODE_LRA) { st-&gt;d-&gt;short_term_frame_counter += frames; } st-&gt;d-&gt;needed_frames -= frames; frames = 0; } } }</cpp:value></cpp:define>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<macro><name>FF_EBUR128_ADD_FRAMES_PLANAR</name><argument_list>(<argument>short</argument>)</argument_list></macro>
+<macro><name>FF_EBUR128_ADD_FRAMES_PLANAR</name><argument_list>(<argument>int</argument>)</argument_list></macro>
+<macro><name>FF_EBUR128_ADD_FRAMES_PLANAR</name><argument_list>(<argument>float</argument>)</argument_list></macro>
+<macro><name>FF_EBUR128_ADD_FRAMES_PLANAR</name><argument_list>(<argument>double</argument>)</argument_list></macro>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>FF_EBUR128_ADD_FRAMES</name><parameter_list>(<parameter><type><name>type</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>void ff_ebur128_add_frames_##type(FFEBUR128State* st, const type* src, size_t frames) { int i; const type **buf = (const type**)st-&gt;d-&gt;data_ptrs; for (i = 0; i &lt; st-&gt;channels; i++) buf[i] = src + i; ff_ebur128_add_frames_planar_##type(st, buf, frames, st-&gt;channels); }</cpp:value></cpp:define>
+
+
+
+
+
+
+
+
+<macro><name>FF_EBUR128_ADD_FRAMES</name><argument_list>(<argument>short</argument>)</argument_list></macro>
+<macro><name>FF_EBUR128_ADD_FRAMES</name><argument_list>(<argument>int</argument>)</argument_list></macro>
+<macro><name>FF_EBUR128_ADD_FRAMES</name><argument_list>(<argument>float</argument>)</argument_list></macro>
+<macro><name>FF_EBUR128_ADD_FRAMES</name><argument_list>(<argument>double</argument>)</argument_list></macro>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>ebur128_calc_relative_threshold</name><parameter_list>(<parameter><decl><type><name>FFEBUR128State</name> <modifier>*</modifier><modifier>*</modifier></type><name>sts</name></decl></parameter>, <parameter><decl><type><name>size_t</name></type> <name>size</name></decl></parameter>,
+<parameter><decl><type><name>double</name> <modifier>*</modifier></type><name>relative_threshold</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>size_t</name></type> <name>i</name></decl>, <decl><type ref="prev"/><name>j</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>above_thresh_counter</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><operator>*</operator><name>relative_threshold</name> <operator>=</operator> <literal type="number">0.0</literal></expr>;</expr_stmt>
+
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>size</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<decl_stmt><decl><type><name>unsigned</name> <name>long</name> <modifier>*</modifier></type><name>block_energy_histogram</name> <init>= <expr><name><name>sts</name><index>[<expr><name>i</name></expr>]</index></name><operator>-&gt;</operator><name><name>d</name><operator>-&gt;</operator><name>block_energy_histogram</name></name></expr></init></decl>;</decl_stmt>
+<for>for <control>(<init><expr><name>j</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>j</name> <operator>&lt;</operator> <literal type="number">1000</literal></expr>;</condition> <incr><expr><operator>++</operator><name>j</name></expr></incr>)</control> <block>{<block_content>
+<expr_stmt><expr><operator>*</operator><name>relative_threshold</name> <operator>+=</operator> <name><name>block_energy_histogram</name><index>[<expr><name>j</name></expr>]</index></name> <operator>*</operator> <name><name>histogram_energies</name><index>[<expr><name>j</name></expr>]</index></name></expr>;</expr_stmt>
+<expr_stmt><expr><name>above_thresh_counter</name> <operator>+=</operator> <name><name>block_energy_histogram</name><index>[<expr><name>j</name></expr>]</index></name></expr>;</expr_stmt>
+</block_content>}</block></for>
+</block_content>}</block></for>
+
+<if_stmt><if>if <condition>(<expr><name>above_thresh_counter</name> <operator>!=</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><operator>*</operator><name>relative_threshold</name> <operator>/=</operator> <operator>(</operator><name>double</name><operator>)</operator><name>above_thresh_counter</name></expr>;</expr_stmt>
+<expr_stmt><expr><operator>*</operator><name>relative_threshold</name> <operator>*=</operator> <name>RELATIVE_GATE_FACTOR</name></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+
+<return>return <expr><name>above_thresh_counter</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>ebur128_gated_loudness</name><parameter_list>(<parameter><decl><type><name>FFEBUR128State</name> <modifier>*</modifier><modifier>*</modifier></type> <name>sts</name></decl></parameter>, <parameter><decl><type><name>size_t</name></type> <name>size</name></decl></parameter>,
+<parameter><decl><type><name>double</name> <modifier>*</modifier></type><name>out</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>double</name></type> <name>gated_loudness</name> <init>= <expr><literal type="number">0.0</literal></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>double</name></type> <name>relative_threshold</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>size_t</name></type> <name>above_thresh_counter</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>size_t</name></type> <name>i</name></decl>, <decl><type ref="prev"/><name>j</name></decl>, <decl><type ref="prev"/><name>start_index</name></decl>;</decl_stmt>
+
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>size</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control><block type="pseudo"><block_content>
+<if_stmt><if>if <condition>(<expr><operator>(</operator><name><name>sts</name><index>[<expr><name>i</name></expr>]</index></name><operator>-&gt;</operator><name>mode</name> <operator>&amp;</operator> <name>FF_EBUR128_MODE_I</name><operator>)</operator> <operator>!=</operator> <name>FF_EBUR128_MODE_I</name></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><call><name>AVERROR</name><argument_list>(<argument><expr><name>EINVAL</name></expr></argument>)</argument_list></call></expr>;</return></block_content></block></if></if_stmt></block_content></block></for>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>ebur128_calc_relative_threshold</name><argument_list>(<argument><expr><name>sts</name></expr></argument>, <argument><expr><name>size</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>relative_threshold</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><operator>*</operator><name>out</name> <operator>=</operator> <operator>-</operator><name>HUGE_VAL</name></expr>;</expr_stmt>
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name>above_thresh_counter</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name>relative_threshold</name> <operator>&lt;</operator> <name><name>histogram_energy_boundaries</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name>start_index</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<expr_stmt><expr><name>start_index</name> <operator>=</operator> <call><name>find_histogram_index</name><argument_list>(<argument><expr><name>relative_threshold</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name>relative_threshold</name> <operator>&gt;</operator> <name><name>histogram_energies</name><index>[<expr><name>start_index</name></expr>]</index></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><operator>++</operator><name>start_index</name></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block></else></if_stmt>
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>size</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<for>for <control>(<init><expr><name>j</name> <operator>=</operator> <name>start_index</name></expr>;</init> <condition><expr><name>j</name> <operator>&lt;</operator> <literal type="number">1000</literal></expr>;</condition> <incr><expr><operator>++</operator><name>j</name></expr></incr>)</control> <block>{<block_content>
+<expr_stmt><expr><name>gated_loudness</name> <operator>+=</operator> <name><name>sts</name><index>[<expr><name>i</name></expr>]</index></name><operator>-&gt;</operator><name><name>d</name><operator>-&gt;</operator><name>block_energy_histogram</name><index>[<expr><name>j</name></expr>]</index></name> <operator>*</operator>
+<name><name>histogram_energies</name><index>[<expr><name>j</name></expr>]</index></name></expr>;</expr_stmt>
+<expr_stmt><expr><name>above_thresh_counter</name> <operator>+=</operator> <name><name>sts</name><index>[<expr><name>i</name></expr>]</index></name><operator>-&gt;</operator><name><name>d</name><operator>-&gt;</operator><name>block_energy_histogram</name><index>[<expr><name>j</name></expr>]</index></name></expr>;</expr_stmt>
+</block_content>}</block></for>
+</block_content>}</block></for>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>above_thresh_counter</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><operator>*</operator><name>out</name> <operator>=</operator> <operator>-</operator><name>HUGE_VAL</name></expr>;</expr_stmt>
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+</block_content>}</block></if></if_stmt>
+<expr_stmt><expr><name>gated_loudness</name> <operator>/=</operator> <operator>(</operator><name>double</name><operator>)</operator> <name>above_thresh_counter</name></expr>;</expr_stmt>
+<expr_stmt><expr><operator>*</operator><name>out</name> <operator>=</operator> <call><name>ebur128_energy_to_loudness</name><argument_list>(<argument><expr><name>gated_loudness</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><name>int</name></type> <name>ff_ebur128_relative_threshold</name><parameter_list>(<parameter><decl><type><name>FFEBUR128State</name> <modifier>*</modifier></type> <name>st</name></decl></parameter>, <parameter><decl><type><name>double</name> <modifier>*</modifier></type><name>out</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>double</name></type> <name>relative_threshold</name></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>(</operator><name><name>st</name><operator>-&gt;</operator><name>mode</name></name> <operator>&amp;</operator> <name>FF_EBUR128_MODE_I</name><operator>)</operator> <operator>!=</operator> <name>FF_EBUR128_MODE_I</name></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><call><name>AVERROR</name><argument_list>(<argument><expr><name>EINVAL</name></expr></argument>)</argument_list></call></expr>;</return></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>ebur128_calc_relative_threshold</name><argument_list>(<argument><expr><operator>&amp;</operator><name>st</name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>, <argument><expr><operator>&amp;</operator><name>relative_threshold</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><operator>*</operator><name>out</name> <operator>=</operator> <operator>-</operator><literal type="number">70.0</literal></expr>;</expr_stmt>
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><operator>*</operator><name>out</name> <operator>=</operator> <call><name>ebur128_energy_to_loudness</name><argument_list>(<argument><expr><name>relative_threshold</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><name>int</name></type> <name>ff_ebur128_loudness_global</name><parameter_list>(<parameter><decl><type><name>FFEBUR128State</name> <modifier>*</modifier></type> <name>st</name></decl></parameter>, <parameter><decl><type><name>double</name> <modifier>*</modifier></type><name>out</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<return>return <expr><call><name>ebur128_gated_loudness</name><argument_list>(<argument><expr><operator>&amp;</operator><name>st</name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>, <argument><expr><name>out</name></expr></argument>)</argument_list></call></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><name>int</name></type> <name>ff_ebur128_loudness_global_multiple</name><parameter_list>(<parameter><decl><type><name>FFEBUR128State</name> <modifier>*</modifier><modifier>*</modifier></type> <name>sts</name></decl></parameter>, <parameter><decl><type><name>size_t</name></type> <name>size</name></decl></parameter>,
+<parameter><decl><type><name>double</name> <modifier>*</modifier></type><name>out</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<return>return <expr><call><name>ebur128_gated_loudness</name><argument_list>(<argument><expr><name>sts</name></expr></argument>, <argument><expr><name>size</name></expr></argument>, <argument><expr><name>out</name></expr></argument>)</argument_list></call></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>ebur128_energy_in_interval</name><parameter_list>(<parameter><decl><type><name>FFEBUR128State</name> <modifier>*</modifier></type> <name>st</name></decl></parameter>,
+<parameter><decl><type><name>size_t</name></type> <name>interval_frames</name></decl></parameter>, <parameter><decl><type><name>double</name> <modifier>*</modifier></type><name>out</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name>interval_frames</name> <operator>&gt;</operator> <name><name>st</name><operator>-&gt;</operator><name>d</name><operator>-&gt;</operator><name>audio_data_frames</name></name></expr>)</condition> <block>{<block_content>
+<return>return <expr><call><name>AVERROR</name><argument_list>(<argument><expr><name>EINVAL</name></expr></argument>)</argument_list></call></expr>;</return>
+</block_content>}</block></if></if_stmt>
+<expr_stmt><expr><call><name>ebur128_calc_gating_block</name><argument_list>(<argument><expr><name>st</name></expr></argument>, <argument><expr><name>interval_frames</name></expr></argument>, <argument><expr><name>out</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>ebur128_energy_shortterm</name><parameter_list>(<parameter><decl><type><name>FFEBUR128State</name> <modifier>*</modifier></type> <name>st</name></decl></parameter>, <parameter><decl><type><name>double</name> <modifier>*</modifier></type><name>out</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<return>return <expr><call><name>ebur128_energy_in_interval</name><argument_list>(<argument><expr><name>st</name></expr></argument>, <argument><expr><name><name>st</name><operator>-&gt;</operator><name>d</name><operator>-&gt;</operator><name>samples_in_100ms</name></name> <operator>*</operator> <literal type="number">30</literal></expr></argument>,
+<argument><expr><name>out</name></expr></argument>)</argument_list></call></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><name>int</name></type> <name>ff_ebur128_loudness_momentary</name><parameter_list>(<parameter><decl><type><name>FFEBUR128State</name> <modifier>*</modifier></type> <name>st</name></decl></parameter>, <parameter><decl><type><name>double</name> <modifier>*</modifier></type><name>out</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>double</name></type> <name>energy</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>error</name> <init>= <expr><call><name>ebur128_energy_in_interval</name><argument_list>(<argument><expr><name>st</name></expr></argument>, <argument><expr><name><name>st</name><operator>-&gt;</operator><name>d</name><operator>-&gt;</operator><name>samples_in_100ms</name></name> <operator>*</operator> <literal type="number">4</literal></expr></argument>,
+<argument><expr><operator>&amp;</operator><name>energy</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<if_stmt><if>if <condition>(<expr><name>error</name></expr>)</condition> <block>{<block_content>
+<return>return <expr><name>error</name></expr>;</return>
+</block_content>}</block></if> <if type="elseif">else if <condition>(<expr><name>energy</name> <operator>&lt;=</operator> <literal type="number">0.0</literal></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><operator>*</operator><name>out</name> <operator>=</operator> <operator>-</operator><name>HUGE_VAL</name></expr>;</expr_stmt>
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+</block_content>}</block></if></if_stmt>
+<expr_stmt><expr><operator>*</operator><name>out</name> <operator>=</operator> <call><name>ebur128_energy_to_loudness</name><argument_list>(<argument><expr><name>energy</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><name>int</name></type> <name>ff_ebur128_loudness_shortterm</name><parameter_list>(<parameter><decl><type><name>FFEBUR128State</name> <modifier>*</modifier></type> <name>st</name></decl></parameter>, <parameter><decl><type><name>double</name> <modifier>*</modifier></type><name>out</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>double</name></type> <name>energy</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>error</name> <init>= <expr><call><name>ebur128_energy_shortterm</name><argument_list>(<argument><expr><name>st</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>energy</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<if_stmt><if>if <condition>(<expr><name>error</name></expr>)</condition> <block>{<block_content>
+<return>return <expr><name>error</name></expr>;</return>
+</block_content>}</block></if> <if type="elseif">else if <condition>(<expr><name>energy</name> <operator>&lt;=</operator> <literal type="number">0.0</literal></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><operator>*</operator><name>out</name> <operator>=</operator> <operator>-</operator><name>HUGE_VAL</name></expr>;</expr_stmt>
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+</block_content>}</block></if></if_stmt>
+<expr_stmt><expr><operator>*</operator><name>out</name> <operator>=</operator> <call><name>ebur128_energy_to_loudness</name><argument_list>(<argument><expr><name>energy</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><name>int</name></type> <name>ff_ebur128_loudness_window</name><parameter_list>(<parameter><decl><type><name>FFEBUR128State</name> <modifier>*</modifier></type> <name>st</name></decl></parameter>,
+<parameter><decl><type><name>unsigned</name> <name>long</name></type> <name>window</name></decl></parameter>, <parameter><decl><type><name>double</name> <modifier>*</modifier></type><name>out</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>double</name></type> <name>energy</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>size_t</name></type> <name>interval_frames</name> <init>= <expr><name><name>st</name><operator>-&gt;</operator><name>samplerate</name></name> <operator>*</operator> <name>window</name> <operator>/</operator> <literal type="number">1000</literal></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>error</name> <init>= <expr><call><name>ebur128_energy_in_interval</name><argument_list>(<argument><expr><name>st</name></expr></argument>, <argument><expr><name>interval_frames</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>energy</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<if_stmt><if>if <condition>(<expr><name>error</name></expr>)</condition> <block>{<block_content>
+<return>return <expr><name>error</name></expr>;</return>
+</block_content>}</block></if> <if type="elseif">else if <condition>(<expr><name>energy</name> <operator>&lt;=</operator> <literal type="number">0.0</literal></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><operator>*</operator><name>out</name> <operator>=</operator> <operator>-</operator><name>HUGE_VAL</name></expr>;</expr_stmt>
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+</block_content>}</block></if></if_stmt>
+<expr_stmt><expr><operator>*</operator><name>out</name> <operator>=</operator> <call><name>ebur128_energy_to_loudness</name><argument_list>(<argument><expr><name>energy</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+</block_content>}</block></function>
+
+
+<function><type><name>int</name></type> <name>ff_ebur128_loudness_range_multiple</name><parameter_list>(<parameter><decl><type><name>FFEBUR128State</name> <modifier>*</modifier><modifier>*</modifier></type> <name>sts</name></decl></parameter>, <parameter><decl><type><name>size_t</name></type> <name>size</name></decl></parameter>,
+<parameter><decl><type><name>double</name> <modifier>*</modifier></type><name>out</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>size_t</name></type> <name>i</name></decl>, <decl><type ref="prev"/><name>j</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>size_t</name></type> <name>stl_size</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>double</name></type> <name>stl_power</name></decl>, <decl><type ref="prev"/><name>stl_integrated</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>double</name></type> <name>h_en</name></decl>, <decl><type ref="prev"/><name>l_en</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>unsigned</name> <name>long</name></type> <name><name>hist</name><index>[<expr><literal type="number">1000</literal></expr>]</index></name> <init>= <expr><block>{ <expr><literal type="number">0</literal></expr> }</block></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>size_t</name></type> <name>percentile_low</name></decl>, <decl><type ref="prev"/><name>percentile_high</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>size_t</name></type> <name>index</name></decl>;</decl_stmt>
+
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>size</name></expr>;</condition> <incr><expr><operator>++</operator><name>i</name></expr></incr>)</control> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name><name>sts</name><index>[<expr><name>i</name></expr>]</index></name></expr>)</condition> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><operator>(</operator><name><name>sts</name><index>[<expr><name>i</name></expr>]</index></name><operator>-&gt;</operator><name>mode</name> <operator>&amp;</operator> <name>FF_EBUR128_MODE_LRA</name><operator>)</operator> <operator>!=</operator>
+<name>FF_EBUR128_MODE_LRA</name></expr>)</condition> <block>{<block_content>
+<return>return <expr><call><name>AVERROR</name><argument_list>(<argument><expr><name>EINVAL</name></expr></argument>)</argument_list></call></expr>;</return>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block></for>
+
+<expr_stmt><expr><name>stl_size</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name>stl_power</name> <operator>=</operator> <literal type="number">0.0</literal></expr>;</expr_stmt>
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>size</name></expr>;</condition> <incr><expr><operator>++</operator><name>i</name></expr></incr>)</control> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>sts</name><index>[<expr><name>i</name></expr>]</index></name></expr>)</condition><block type="pseudo"><block_content>
+<continue>continue;</continue></block_content></block></if></if_stmt>
+<for>for <control>(<init><expr><name>j</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>j</name> <operator>&lt;</operator> <literal type="number">1000</literal></expr>;</condition> <incr><expr><operator>++</operator><name>j</name></expr></incr>)</control> <block>{<block_content>
+<expr_stmt><expr><name><name>hist</name><index>[<expr><name>j</name></expr>]</index></name> <operator>+=</operator> <name><name>sts</name><index>[<expr><name>i</name></expr>]</index></name><operator>-&gt;</operator><name><name>d</name><operator>-&gt;</operator><name>short_term_block_energy_histogram</name><index>[<expr><name>j</name></expr>]</index></name></expr>;</expr_stmt>
+<expr_stmt><expr><name>stl_size</name> <operator>+=</operator> <name><name>sts</name><index>[<expr><name>i</name></expr>]</index></name><operator>-&gt;</operator><name><name>d</name><operator>-&gt;</operator><name>short_term_block_energy_histogram</name><index>[<expr><name>j</name></expr>]</index></name></expr>;</expr_stmt>
+<expr_stmt><expr><name>stl_power</name> <operator>+=</operator> <name><name>sts</name><index>[<expr><name>i</name></expr>]</index></name><operator>-&gt;</operator><name><name>d</name><operator>-&gt;</operator><name>short_term_block_energy_histogram</name><index>[<expr><name>j</name></expr>]</index></name>
+<operator>*</operator> <name><name>histogram_energies</name><index>[<expr><name>j</name></expr>]</index></name></expr>;</expr_stmt>
+</block_content>}</block></for>
+</block_content>}</block></for>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>stl_size</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><operator>*</operator><name>out</name> <operator>=</operator> <literal type="number">0.0</literal></expr>;</expr_stmt>
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name>stl_power</name> <operator>/=</operator> <name>stl_size</name></expr>;</expr_stmt>
+<expr_stmt><expr><name>stl_integrated</name> <operator>=</operator> <name>MINUS_20DB</name> <operator>*</operator> <name>stl_power</name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>stl_integrated</name> <operator>&lt;</operator> <name><name>histogram_energy_boundaries</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name>index</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<expr_stmt><expr><name>index</name> <operator>=</operator> <call><name>find_histogram_index</name><argument_list>(<argument><expr><name>stl_integrated</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name>stl_integrated</name> <operator>&gt;</operator> <name><name>histogram_energies</name><index>[<expr><name>index</name></expr>]</index></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><operator>++</operator><name>index</name></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block></else></if_stmt>
+<expr_stmt><expr><name>stl_size</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+<for>for <control>(<init><expr><name>j</name> <operator>=</operator> <name>index</name></expr>;</init> <condition><expr><name>j</name> <operator>&lt;</operator> <literal type="number">1000</literal></expr>;</condition> <incr><expr><operator>++</operator><name>j</name></expr></incr>)</control> <block>{<block_content>
+<expr_stmt><expr><name>stl_size</name> <operator>+=</operator> <name><name>hist</name><index>[<expr><name>j</name></expr>]</index></name></expr>;</expr_stmt>
+</block_content>}</block></for>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>stl_size</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><operator>*</operator><name>out</name> <operator>=</operator> <literal type="number">0.0</literal></expr>;</expr_stmt>
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name>percentile_low</name> <operator>=</operator> <operator>(</operator><name>size_t</name><operator>)</operator> <operator>(</operator><operator>(</operator><name>stl_size</name> <operator>-</operator> <literal type="number">1</literal><operator>)</operator> <operator>*</operator> <literal type="number">0.1</literal> <operator>+</operator> <literal type="number">0.5</literal><operator>)</operator></expr>;</expr_stmt>
+<expr_stmt><expr><name>percentile_high</name> <operator>=</operator> <operator>(</operator><name>size_t</name><operator>)</operator> <operator>(</operator><operator>(</operator><name>stl_size</name> <operator>-</operator> <literal type="number">1</literal><operator>)</operator> <operator>*</operator> <literal type="number">0.95</literal> <operator>+</operator> <literal type="number">0.5</literal><operator>)</operator></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>stl_size</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name>j</name> <operator>=</operator> <name>index</name></expr>;</expr_stmt>
+<while>while <condition>(<expr><name>stl_size</name> <operator>&lt;=</operator> <name>percentile_low</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name>stl_size</name> <operator>+=</operator> <name><name>hist</name><index>[<expr><name>j</name><operator>++</operator></expr>]</index></name></expr>;</expr_stmt>
+</block_content>}</block></while>
+<expr_stmt><expr><name>l_en</name> <operator>=</operator> <name><name>histogram_energies</name><index>[<expr><name>j</name> <operator>-</operator> <literal type="number">1</literal></expr>]</index></name></expr>;</expr_stmt>
+<while>while <condition>(<expr><name>stl_size</name> <operator>&lt;=</operator> <name>percentile_high</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name>stl_size</name> <operator>+=</operator> <name><name>hist</name><index>[<expr><name>j</name><operator>++</operator></expr>]</index></name></expr>;</expr_stmt>
+</block_content>}</block></while>
+<expr_stmt><expr><name>h_en</name> <operator>=</operator> <name><name>histogram_energies</name><index>[<expr><name>j</name> <operator>-</operator> <literal type="number">1</literal></expr>]</index></name></expr>;</expr_stmt>
+<expr_stmt><expr><operator>*</operator><name>out</name> <operator>=</operator>
+<call><name>ebur128_energy_to_loudness</name><argument_list>(<argument><expr><name>h_en</name></expr></argument>)</argument_list></call> <operator>-</operator>
+<call><name>ebur128_energy_to_loudness</name><argument_list>(<argument><expr><name>l_en</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><name>int</name></type> <name>ff_ebur128_loudness_range</name><parameter_list>(<parameter><decl><type><name>FFEBUR128State</name> <modifier>*</modifier></type> <name>st</name></decl></parameter>, <parameter><decl><type><name>double</name> <modifier>*</modifier></type><name>out</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<return>return <expr><call><name>ff_ebur128_loudness_range_multiple</name><argument_list>(<argument><expr><operator>&amp;</operator><name>st</name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>, <argument><expr><name>out</name></expr></argument>)</argument_list></call></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><name>int</name></type> <name>ff_ebur128_sample_peak</name><parameter_list>(<parameter><decl><type><name>FFEBUR128State</name> <modifier>*</modifier></type> <name>st</name></decl></parameter>,
+<parameter><decl><type><name>unsigned</name> <name>int</name></type> <name>channel_number</name></decl></parameter>, <parameter><decl><type><name>double</name> <modifier>*</modifier></type><name>out</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<if_stmt><if>if <condition>(<expr><operator>(</operator><name><name>st</name><operator>-&gt;</operator><name>mode</name></name> <operator>&amp;</operator> <name>FF_EBUR128_MODE_SAMPLE_PEAK</name><operator>)</operator> <operator>!=</operator>
+<name>FF_EBUR128_MODE_SAMPLE_PEAK</name></expr>)</condition> <block>{<block_content>
+<return>return <expr><call><name>AVERROR</name><argument_list>(<argument><expr><name>EINVAL</name></expr></argument>)</argument_list></call></expr>;</return>
+</block_content>}</block></if> <if type="elseif">else if <condition>(<expr><name>channel_number</name> <operator>&gt;=</operator> <name><name>st</name><operator>-&gt;</operator><name>channels</name></name></expr>)</condition> <block>{<block_content>
+<return>return <expr><call><name>AVERROR</name><argument_list>(<argument><expr><name>EINVAL</name></expr></argument>)</argument_list></call></expr>;</return>
+</block_content>}</block></if></if_stmt>
+<expr_stmt><expr><operator>*</operator><name>out</name> <operator>=</operator> <name><name>st</name><operator>-&gt;</operator><name>d</name><operator>-&gt;</operator><name>sample_peak</name><index>[<expr><name>channel_number</name></expr>]</index></name></expr>;</expr_stmt>
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+</block_content>}</block></function>
+</unit>

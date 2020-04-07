@@ -1,0 +1,37 @@
+#if !defined(INTERNAL_RANGE_H)
+#define INTERNAL_RANGE_H
+
+
+
+
+
+
+
+
+
+#include "internal/struct.h" 
+
+
+static inline VALUE RANGE_BEG(VALUE r);
+static inline VALUE RANGE_END(VALUE r);
+static inline VALUE RANGE_EXCL(VALUE r);
+
+static inline VALUE
+RANGE_BEG(VALUE r)
+{
+return RSTRUCT(r)->as.ary[0];
+}
+
+static inline VALUE
+RANGE_END(VALUE r)
+{
+return RSTRUCT(r)->as.ary[1];
+}
+
+static inline VALUE
+RANGE_EXCL(VALUE r)
+{
+return RSTRUCT(r)->as.ary[2];
+}
+
+#endif 

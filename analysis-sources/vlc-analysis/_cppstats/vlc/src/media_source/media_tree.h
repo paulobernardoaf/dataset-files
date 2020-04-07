@@ -1,0 +1,12 @@
+#include <vlc_media_source.h>
+vlc_media_tree_t *
+vlc_media_tree_New(void);
+void
+vlc_media_tree_Hold(vlc_media_tree_t *tree);
+void
+vlc_media_tree_Release(vlc_media_tree_t *tree);
+input_item_node_t *
+vlc_media_tree_Add(vlc_media_tree_t *tree, input_item_node_t *parent,
+input_item_t *media);
+bool
+vlc_media_tree_Remove(vlc_media_tree_t *tree, input_item_t *media);

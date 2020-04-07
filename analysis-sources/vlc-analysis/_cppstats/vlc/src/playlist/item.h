@@ -1,0 +1,11 @@
+#include <vlc_atomic.h>
+typedef struct vlc_playlist_item vlc_playlist_item_t;
+typedef struct input_item_t input_item_t;
+struct vlc_playlist_item
+{
+input_item_t *media;
+uint64_t id;
+vlc_atomic_rc_t rc;
+};
+vlc_playlist_item_t *
+vlc_playlist_item_New(input_item_t *media, uint64_t id);

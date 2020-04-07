@@ -1,0 +1,37 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#include <allegro5/allegro.h>
+#include "framework.h"
+
+
+int main(int argc, char **argv)
+{
+(void)argc;
+(void)argv;
+
+if (init_framework() != DEMO_OK) {
+return 1;
+}
+
+run_framework();
+shutdown_framework();
+
+return 0;
+}
+

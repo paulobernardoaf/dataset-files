@@ -1,0 +1,121 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#if !defined(LZMA_H_INTERNAL)
+#error Never include this file directly. Use <lzma.h> instead.
+#endif
+
+
+
+
+
+#define LZMA_VERSION_MAJOR 5
+#define LZMA_VERSION_MINOR 0
+#define LZMA_VERSION_PATCH 7
+#define LZMA_VERSION_STABILITY LZMA_VERSION_STABILITY_STABLE
+
+#if !defined(LZMA_VERSION_COMMIT)
+#define LZMA_VERSION_COMMIT ""
+#endif
+
+
+
+
+
+#define LZMA_VERSION_STABILITY_ALPHA 0
+#define LZMA_VERSION_STABILITY_BETA 1
+#define LZMA_VERSION_STABILITY_STABLE 2
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#define LZMA_VERSION (LZMA_VERSION_MAJOR * UINT32_C(10000000) + LZMA_VERSION_MINOR * UINT32_C(10000) + LZMA_VERSION_PATCH * UINT32_C(10) + LZMA_VERSION_STABILITY)
+
+
+
+
+
+
+
+
+#if LZMA_VERSION_STABILITY == LZMA_VERSION_STABILITY_ALPHA
+#define LZMA_VERSION_STABILITY_STRING "alpha"
+#elif LZMA_VERSION_STABILITY == LZMA_VERSION_STABILITY_BETA
+#define LZMA_VERSION_STABILITY_STRING "beta"
+#elif LZMA_VERSION_STABILITY == LZMA_VERSION_STABILITY_STABLE
+#define LZMA_VERSION_STABILITY_STRING ""
+#else
+#error Incorrect LZMA_VERSION_STABILITY
+#endif
+
+#define LZMA_VERSION_STRING_C_(major, minor, patch, stability, commit) #major "." #minor "." #patch stability commit
+
+
+#define LZMA_VERSION_STRING_C(major, minor, patch, stability, commit) LZMA_VERSION_STRING_C_(major, minor, patch, stability, commit)
+
+
+
+
+
+
+
+
+
+
+
+
+#define LZMA_VERSION_STRING LZMA_VERSION_STRING_C( LZMA_VERSION_MAJOR, LZMA_VERSION_MINOR, LZMA_VERSION_PATCH, LZMA_VERSION_STABILITY_STRING, LZMA_VERSION_COMMIT)
+
+
+
+
+
+
+#if !defined(LZMA_H_INTERNAL_RC)
+
+
+
+
+
+
+
+
+extern LZMA_API(uint32_t) lzma_version_number(void)
+lzma_nothrow lzma_attr_const;
+
+
+
+
+
+
+
+
+extern LZMA_API(const char *) lzma_version_string(void)
+lzma_nothrow lzma_attr_const;
+
+#endif

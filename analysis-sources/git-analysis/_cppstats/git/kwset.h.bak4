@@ -1,0 +1,65 @@
+#if !defined(KWSET_H)
+#define KWSET_H
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+struct kwsmatch
+{
+int index; 
+size_t offset[1]; 
+size_t size[1]; 
+};
+
+struct kwset_t;
+typedef struct kwset_t* kwset_t;
+
+
+
+
+
+kwset_t kwsalloc(unsigned char const *);
+
+
+
+
+const char *kwsincr(kwset_t, char const *, size_t);
+
+
+
+const char *kwsprep(kwset_t);
+
+
+
+
+
+
+
+size_t kwsexec(kwset_t, char const *, size_t, struct kwsmatch *);
+
+
+void kwsfree(kwset_t);
+
+#endif 

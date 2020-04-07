@@ -1,0 +1,1254 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" revision="1.0.0" language="C" filename="D:\Pesquisa\Projects\radare2-analysis\_cppstats_featurelocations\radare2\libr\anal\p\anal_ppc_cs.c">
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;r_anal.h&gt;</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;r_lib.h&gt;</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;capstone/capstone.h&gt;</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;capstone/ppc.h&gt;</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"../../asm/arch/ppc/libvle/vle.h"</cpp:file></cpp:include>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>SPR_HID0</name></cpp:macro> <cpp:value>0x3f0</cpp:value></cpp:define> 
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>SPR_HID1</name></cpp:macro> <cpp:value>0x3f1</cpp:value></cpp:define> 
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>SPR_HID2</name></cpp:macro> <cpp:value>0x3f3</cpp:value></cpp:define> 
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>SPR_HID4</name></cpp:macro> <cpp:value>0x3f4</cpp:value></cpp:define> 
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>SPR_HID5</name></cpp:macro> <cpp:value>0x3f6</cpp:value></cpp:define> 
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>SPR_HID6</name></cpp:macro> <cpp:value>0x3f9</cpp:value></cpp:define> 
+
+<struct>struct <name>Getarg</name> <block>{
+<decl_stmt><decl><type><name>csh</name></type> <name>handle</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>cs_insn</name> <modifier>*</modifier></type><name>insn</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>bits</name></decl>;</decl_stmt>
+}</block>;</struct>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>INSOPS</name></cpp:macro> <cpp:value>insn-&gt;detail-&gt;ppc.op_count</cpp:value></cpp:define>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>INSOP</name><parameter_list>(<parameter><type><name>n</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>insn-&gt;detail-&gt;ppc.operands[n]</cpp:value></cpp:define>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>IMM</name><parameter_list>(<parameter><type><name>x</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>(ut64)(insn-&gt;detail-&gt;ppc.operands[x].imm)</cpp:value></cpp:define>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><operator>!</operator><call><name>defined</name><argument_list>(<argument><expr><name>PFMT32x</name></expr></argument>)</argument_list></call></expr></cpp:if>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>PFMT32x</name></cpp:macro> <cpp:value>"lx"</cpp:value></cpp:define>
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+<function><type><specifier>static</specifier> <name>ut64</name></type> <name>mask64</name><parameter_list>(<parameter><decl><type><name>ut64</name></type> <name>mb</name></decl></parameter>, <parameter><decl><type><name>ut64</name></type> <name>me</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<decl_stmt><decl><type><name>ut64</name></type> <name>maskmb</name> <init>= <expr><name>UT64_MAX</name> <operator>&gt;&gt;</operator> <name>mb</name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>ut64</name></type> <name>maskme</name> <init>= <expr><name>UT64_MAX</name> <operator>&lt;&lt;</operator> <operator>(</operator><literal type="number">63</literal> <operator>-</operator> <name>me</name><operator>)</operator></expr></init></decl>;</decl_stmt>
+<return>return <expr><ternary><condition><expr><operator>(</operator><name>mb</name> <operator>&lt;=</operator> <name>me</name><operator>)</operator></expr> ?</condition><then> <expr><name>maskmb</name> <operator>&amp;</operator> <name>maskme</name></expr> </then><else>: <expr><name>maskmb</name> <operator>|</operator> <name>maskme</name></expr></else></ternary></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>ut32</name></type> <name>mask32</name><parameter_list>(<parameter><decl><type><name>ut32</name></type> <name>mb</name></decl></parameter>, <parameter><decl><type><name>ut32</name></type> <name>me</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<decl_stmt><decl><type><name>ut32</name></type> <name>maskmb</name> <init>= <expr><name>UT32_MAX</name> <operator>&gt;&gt;</operator> <name>mb</name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>ut32</name></type> <name>maskme</name> <init>= <expr><name>UT32_MAX</name> <operator>&lt;&lt;</operator> <operator>(</operator><literal type="number">31</literal> <operator>-</operator> <name>me</name><operator>)</operator></expr></init></decl>;</decl_stmt>
+<return>return <expr><ternary><condition><expr><operator>(</operator><name>mb</name> <operator>&lt;=</operator> <name>me</name><operator>)</operator></expr> ?</condition><then> <expr><name>maskmb</name> <operator>&amp;</operator> <name>maskme</name></expr> </then><else>: <expr><name>maskmb</name> <operator>|</operator> <name>maskme</name></expr></else></ternary></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <specifier>const</specifier> <name>char</name><modifier>*</modifier></type> <name>cmask64</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>mb_c</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>me_c</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<decl_stmt><decl><type><specifier>static</specifier> <name>char</name></type> <name><name>cmask</name><index>[<expr><literal type="number">32</literal></expr>]</index></name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>ut64</name></type> <name>mb</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>ut64</name></type> <name>me</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+<if_stmt><if>if <condition>(<expr><name>mb_c</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name>mb</name> <operator>=</operator> <call><name>strtol</name> <argument_list>(<argument><expr><name>mb_c</name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>, <argument><expr><literal type="number">16</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+<if_stmt><if>if <condition>(<expr><name>me_c</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name>me</name> <operator>=</operator> <call><name>strtol</name> <argument_list>(<argument><expr><name>me_c</name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>, <argument><expr><literal type="number">16</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+<expr_stmt><expr><call><name>snprintf</name> <argument_list>(<argument><expr><name>cmask</name></expr></argument>, <argument><expr><sizeof>sizeof <argument_list>(<argument><expr><name>cmask</name></expr></argument>)</argument_list></sizeof></expr></argument>, <argument><expr><literal type="string">"0x%"</literal><name>PFMT64x</name><literal type="string">""</literal></expr></argument>, <argument><expr><call><name>mask64</name> <argument_list>(<argument><expr><name>mb</name></expr></argument>, <argument><expr><name>me</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>cmask</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <specifier>const</specifier> <name>char</name><modifier>*</modifier></type> <name>cmask32</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>mb_c</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>me_c</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<decl_stmt><decl><type><specifier>static</specifier> <name>char</name></type> <name><name>cmask</name><index>[<expr><literal type="number">32</literal></expr>]</index></name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>ut32</name></type> <name>mb</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>ut32</name></type> <name>me</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+<if_stmt><if>if <condition>(<expr><name>mb_c</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name>mb</name> <operator>=</operator> <call><name>strtol</name> <argument_list>(<argument><expr><name>mb_c</name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>, <argument><expr><literal type="number">16</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+<if_stmt><if>if <condition>(<expr><name>me_c</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name>me</name> <operator>=</operator> <call><name>strtol</name> <argument_list>(<argument><expr><name>me_c</name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>, <argument><expr><literal type="number">16</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+<expr_stmt><expr><call><name>snprintf</name> <argument_list>(<argument><expr><name>cmask</name></expr></argument>, <argument><expr><sizeof>sizeof <argument_list>(<argument><expr><name>cmask</name></expr></argument>)</argument_list></sizeof></expr></argument>, <argument><expr><literal type="string">"0x%"</literal><name>PFMT32x</name><literal type="string">""</literal></expr></argument>, <argument><expr><call><name>mask32</name> <argument_list>(<argument><expr><name>mb</name></expr></argument>, <argument><expr><name>me</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>cmask</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>char</name> <modifier>*</modifier></type><name>getarg2</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>Getarg</name></name> <modifier>*</modifier></type><name>gop</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>n</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>setstr</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<decl_stmt><decl><type><name>cs_insn</name> <modifier>*</modifier></type><name>insn</name> <init>= <expr><name><name>gop</name><operator>-&gt;</operator><name>insn</name></name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>csh</name></type> <name>handle</name> <init>= <expr><name><name>gop</name><operator>-&gt;</operator><name>handle</name></name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><specifier>static</specifier> <name>char</name></type> <name><name>words</name><index>[<expr><literal type="number">8</literal></expr>]</index><index>[<expr><literal type="number">64</literal></expr>]</index></name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>cs_ppc_op</name></type> <name>op</name></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>n</name> <operator>&lt;</operator> <literal type="number">0</literal> <operator>||</operator> <name>n</name> <operator>&gt;=</operator> <literal type="number">8</literal></expr>)</condition> <block>{<block_content>
+<return>return <expr><name>NULL</name></expr>;</return>
+</block_content>}</block></if></if_stmt>
+<expr_stmt><expr><name>op</name> <operator>=</operator> <call><name>INSOP</name> <argument_list>(<argument><expr><name>n</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<switch>switch <condition>(<expr><name><name>op</name><operator>.</operator><name>type</name></name></expr>)</condition> <block>{<block_content>
+<case>case <expr><name>PPC_OP_INVALID</name></expr>:</case>
+<expr_stmt><expr><name><name>words</name><index>[<expr><name>n</name></expr>]</index><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>=</operator> <literal type="char">'\0'</literal></expr>;</expr_stmt>
+
+<break>break;</break>
+<case>case <expr><name>PPC_OP_REG</name></expr>:</case>
+<expr_stmt><expr><call><name>snprintf</name> <argument_list>(<argument><expr><name><name>words</name><index>[<expr><name>n</name></expr>]</index></name></expr></argument>, <argument><expr><sizeof>sizeof <argument_list>(<argument><expr><name><name>words</name><index>[<expr><name>n</name></expr>]</index></name></expr></argument>)</argument_list></sizeof></expr></argument>,
+<argument><expr><literal type="string">"%s%s"</literal></expr></argument>, <argument><expr><call><name>cs_reg_name</name> <argument_list>(<argument><expr><name>handle</name></expr></argument>, <argument><expr><name><name>op</name><operator>.</operator><name>reg</name></name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name>setstr</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_OP_IMM</name></expr>:</case>
+<expr_stmt><expr><call><name>snprintf</name> <argument_list>(<argument><expr><name><name>words</name><index>[<expr><name>n</name></expr>]</index></name></expr></argument>, <argument><expr><sizeof>sizeof <argument_list>(<argument><expr><name><name>words</name><index>[<expr><name>n</name></expr>]</index></name></expr></argument>)</argument_list></sizeof></expr></argument>,
+<argument><expr><literal type="string">"0x%"</literal><name>PFMT64x</name><literal type="string">"%s"</literal></expr></argument>, <argument><expr><operator>(</operator><name>ut64</name><operator>)</operator> <name><name>op</name><operator>.</operator><name>imm</name></name></expr></argument>, <argument><expr><name>setstr</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_OP_MEM</name></expr>:</case>
+<expr_stmt><expr><call><name>snprintf</name> <argument_list>(<argument><expr><name><name>words</name><index>[<expr><name>n</name></expr>]</index></name></expr></argument>, <argument><expr><sizeof>sizeof <argument_list>(<argument><expr><name><name>words</name><index>[<expr><name>n</name></expr>]</index></name></expr></argument>)</argument_list></sizeof></expr></argument>,
+<argument><expr><literal type="string">"%"</literal><name>PFMT64d</name><literal type="string">",%s,+,%s"</literal></expr></argument>,
+<argument><expr><operator>(</operator><name>ut64</name><operator>)</operator> <name><name>op</name><operator>.</operator><name>mem</name><operator>.</operator><name>disp</name></name></expr></argument>,
+<argument><expr><call><name>cs_reg_name</name> <argument_list>(<argument><expr><name>handle</name></expr></argument>, <argument><expr><name><name>op</name><operator>.</operator><name>mem</name><operator>.</operator><name>base</name></name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name>setstr</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_OP_CRX</name></expr>:</case> 
+<expr_stmt><expr><call><name>snprintf</name> <argument_list>(<argument><expr><name><name>words</name><index>[<expr><name>n</name></expr>]</index></name></expr></argument>, <argument><expr><sizeof>sizeof <argument_list>(<argument><expr><name><name>words</name><index>[<expr><name>n</name></expr>]</index></name></expr></argument>)</argument_list></sizeof></expr></argument>,
+<argument><expr><literal type="string">"%"</literal><name>PFMT64d</name><literal type="string">"%s"</literal></expr></argument>, <argument><expr><operator>(</operator><name>ut64</name><operator>)</operator> <name><name>op</name><operator>.</operator><name>imm</name></name></expr></argument>, <argument><expr><name>setstr</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+</block_content>}</block></switch>
+<return>return <expr><name><name>words</name><index>[<expr><name>n</name></expr>]</index></name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>ut64</name></type> <name>getarg</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>Getarg</name></name> <modifier>*</modifier></type><name>gop</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>n</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<decl_stmt><decl><type><name>ut64</name></type> <name>value</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>cs_insn</name> <modifier>*</modifier></type><name>insn</name> <init>= <expr><name><name>gop</name><operator>-&gt;</operator><name>insn</name></name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>cs_ppc_op</name></type> <name>op</name></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>n</name> <operator>&lt;</operator> <literal type="number">0</literal> <operator>||</operator> <name>n</name> <operator>&gt;=</operator> <literal type="number">8</literal></expr>)</condition> <block>{<block_content>
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name>op</name> <operator>=</operator> <call><name>INSOP</name> <argument_list>(<argument><expr><name>n</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<switch>switch <condition>(<expr><name><name>op</name><operator>.</operator><name>type</name></name></expr>)</condition> <block>{<block_content>
+<case>case <expr><name>PPC_OP_INVALID</name></expr>:</case>
+<break>break;</break>
+<case>case <expr><name>PPC_OP_REG</name></expr>:</case>
+<expr_stmt><expr><name>value</name> <operator>=</operator> <name><name>op</name><operator>.</operator><name>reg</name></name></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_OP_IMM</name></expr>:</case>
+<expr_stmt><expr><name>value</name> <operator>=</operator> <operator>(</operator><name>ut64</name><operator>)</operator> <name><name>op</name><operator>.</operator><name>imm</name></name></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_OP_MEM</name></expr>:</case>
+<expr_stmt><expr><name>value</name> <operator>=</operator> <name><name>op</name><operator>.</operator><name>mem</name><operator>.</operator><name>disp</name></name> <operator>+</operator> <name><name>op</name><operator>.</operator><name>mem</name><operator>.</operator><name>base</name></name></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_OP_CRX</name></expr>:</case> 
+<expr_stmt><expr><name>value</name> <operator>=</operator> <operator>(</operator><name>ut64</name><operator>)</operator> <name><name>op</name><operator>.</operator><name>imm</name></name></expr>;</expr_stmt>
+<break>break;</break>
+</block_content>}</block></switch>
+<return>return <expr><name>value</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <specifier>const</specifier> <name>char</name><modifier>*</modifier></type> <name>getspr</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>Getarg</name></name> <modifier>*</modifier></type><name>gop</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>n</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<decl_stmt><decl><type><specifier>static</specifier> <name>char</name></type> <name><name>cspr</name><index>[<expr><literal type="number">16</literal></expr>]</index></name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>ut32</name></type> <name>spr</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+<if_stmt><if>if <condition>(<expr><name>n</name> <operator>&lt;</operator> <literal type="number">0</literal> <operator>||</operator> <name>n</name> <operator>&gt;=</operator> <literal type="number">8</literal></expr>)</condition> <block>{<block_content>
+<return>return <expr><name>NULL</name></expr>;</return>
+</block_content>}</block></if></if_stmt>
+<expr_stmt><expr><name>spr</name> <operator>=</operator> <call><name>getarg</name> <argument_list>(<argument><expr><name>gop</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<switch>switch <condition>(<expr><name>spr</name></expr>)</condition> <block>{<block_content>
+<case>case <expr><name>SPR_HID0</name></expr>:</case>
+<return>return <expr><literal type="string">"hid0"</literal></expr>;</return>
+<case>case <expr><name>SPR_HID1</name></expr>:</case>
+<return>return <expr><literal type="string">"hid1"</literal></expr>;</return>
+<case>case <expr><name>SPR_HID2</name></expr>:</case>
+<return>return <expr><literal type="string">"hid2"</literal></expr>;</return>
+<case>case <expr><name>SPR_HID4</name></expr>:</case>
+<return>return <expr><literal type="string">"hid4"</literal></expr>;</return>
+<case>case <expr><name>SPR_HID5</name></expr>:</case>
+<return>return <expr><literal type="string">"hid5"</literal></expr>;</return>
+<case>case <expr><name>SPR_HID6</name></expr>:</case>
+<return>return <expr><literal type="string">"hid6"</literal></expr>;</return>
+<default>default:</default>
+<expr_stmt><expr><call><name>snprintf</name> <argument_list>(<argument><expr><name>cspr</name></expr></argument>, <argument><expr><sizeof>sizeof <argument_list>(<argument><expr><name>cspr</name></expr></argument>)</argument_list></sizeof></expr></argument>, <argument><expr><literal type="string">"spr_%u"</literal></expr></argument>, <argument><expr><name>spr</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+</block_content>}</block></switch>
+<return>return <expr><name>cspr</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>opex</name><parameter_list>(<parameter><decl><type><name>RStrBuf</name> <modifier>*</modifier></type><name>buf</name></decl></parameter>, <parameter><decl><type><name>csh</name></type> <name>handle</name></decl></parameter>, <parameter><decl><type><name>cs_insn</name> <modifier>*</modifier></type><name>insn</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<decl_stmt><decl><type><name>int</name></type> <name>i</name></decl>;</decl_stmt>
+<expr_stmt><expr><call><name>r_strbuf_init</name> <argument_list>(<argument><expr><name>buf</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>r_strbuf_append</name> <argument_list>(<argument><expr><name>buf</name></expr></argument>, <argument><expr><literal type="string">"{"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<decl_stmt><decl><type><name>cs_sysz</name> <modifier>*</modifier></type><name>x</name> <init>= <expr><operator>&amp;</operator><name><name>insn</name><operator>-&gt;</operator><name>detail</name><operator>-&gt;</operator><name>sysz</name></name></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><call><name>r_strbuf_append</name> <argument_list>(<argument><expr><name>buf</name></expr></argument>, <argument><expr><literal type="string">"\"operands\":["</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name><name>x</name><operator>-&gt;</operator><name>op_count</name></name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<decl_stmt><decl><type><name>cs_sysz_op</name> <modifier>*</modifier></type><name>op</name> <init>= <expr><operator>&amp;</operator><name><name>x</name><operator>-&gt;</operator><name>operands</name><index>[<expr><name>i</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+<if_stmt><if>if <condition>(<expr><name>i</name> <operator>&gt;</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>r_strbuf_append</name> <argument_list>(<argument><expr><name>buf</name></expr></argument>, <argument><expr><literal type="string">","</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+<expr_stmt><expr><call><name>r_strbuf_append</name> <argument_list>(<argument><expr><name>buf</name></expr></argument>, <argument><expr><literal type="string">"{"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<switch>switch <condition>(<expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name></expr>)</condition> <block>{<block_content>
+<case>case <expr><name>SYSZ_OP_REG</name></expr>:</case>
+<expr_stmt><expr><call><name>r_strbuf_append</name> <argument_list>(<argument><expr><name>buf</name></expr></argument>, <argument><expr><literal type="string">"\"type\":\"reg\""</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>r_strbuf_appendf</name> <argument_list>(<argument><expr><name>buf</name></expr></argument>, <argument><expr><literal type="string">",\"value\":\"%s\""</literal></expr></argument>, <argument><expr><call><name>cs_reg_name</name> <argument_list>(<argument><expr><name>handle</name></expr></argument>, <argument><expr><name><name>op</name><operator>-&gt;</operator><name>reg</name></name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>SYSZ_OP_IMM</name></expr>:</case>
+<expr_stmt><expr><call><name>r_strbuf_append</name> <argument_list>(<argument><expr><name>buf</name></expr></argument>, <argument><expr><literal type="string">"\"type\":\"imm\""</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>r_strbuf_appendf</name> <argument_list>(<argument><expr><name>buf</name></expr></argument>, <argument><expr><literal type="string">",\"value\":%"</literal><name>PFMT64d</name></expr></argument>, <argument><expr><name><name>op</name><operator>-&gt;</operator><name>imm</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>SYSZ_OP_MEM</name></expr>:</case>
+<expr_stmt><expr><call><name>r_strbuf_append</name> <argument_list>(<argument><expr><name>buf</name></expr></argument>, <argument><expr><literal type="string">"\"type\":\"mem\""</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>op</name><operator>-&gt;</operator><name>mem</name><operator>.</operator><name>base</name></name> <operator>!=</operator> <name>SYSZ_REG_INVALID</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>r_strbuf_appendf</name> <argument_list>(<argument><expr><name>buf</name></expr></argument>, <argument><expr><literal type="string">",\"base\":\"%s\""</literal></expr></argument>, <argument><expr><call><name>cs_reg_name</name> <argument_list>(<argument><expr><name>handle</name></expr></argument>, <argument><expr><name><name>op</name><operator>-&gt;</operator><name>mem</name><operator>.</operator><name>base</name></name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+<expr_stmt><expr><call><name>r_strbuf_appendf</name> <argument_list>(<argument><expr><name>buf</name></expr></argument>, <argument><expr><literal type="string">",\"index\":%"</literal><name>PFMT64d</name><literal type="string">""</literal></expr></argument>, <argument><expr><operator>(</operator><name>st64</name><operator>)</operator> <name><name>op</name><operator>-&gt;</operator><name>mem</name><operator>.</operator><name>index</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>r_strbuf_appendf</name> <argument_list>(<argument><expr><name>buf</name></expr></argument>, <argument><expr><literal type="string">",\"length\":%"</literal><name>PFMT64d</name><literal type="string">""</literal></expr></argument>, <argument><expr><operator>(</operator><name>st64</name><operator>)</operator> <name><name>op</name><operator>-&gt;</operator><name>mem</name><operator>.</operator><name>length</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>r_strbuf_appendf</name> <argument_list>(<argument><expr><name>buf</name></expr></argument>, <argument><expr><literal type="string">",\"disp\":%"</literal><name>PFMT64d</name><literal type="string">""</literal></expr></argument>, <argument><expr><operator>(</operator><name>st64</name><operator>)</operator> <name><name>op</name><operator>-&gt;</operator><name>mem</name><operator>.</operator><name>disp</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+<default>default:</default>
+<expr_stmt><expr><call><name>r_strbuf_append</name> <argument_list>(<argument><expr><name>buf</name></expr></argument>, <argument><expr><literal type="string">"\"type\":\"invalid\""</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+</block_content>}</block></switch>
+<expr_stmt><expr><call><name>r_strbuf_append</name> <argument_list>(<argument><expr><name>buf</name></expr></argument>, <argument><expr><literal type="string">"}"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></for>
+<expr_stmt><expr><call><name>r_strbuf_append</name> <argument_list>(<argument><expr><name>buf</name></expr></argument>, <argument><expr><literal type="string">"]}"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>PPCSPR</name><parameter_list>(<parameter><type><name>n</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>getspr(&amp;gop, n)</cpp:value></cpp:define>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>ARG</name><parameter_list>(<parameter><type><name>n</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>getarg2(&amp;gop, n, "")</cpp:value></cpp:define>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>ARG2</name><parameter_list>(<parameter><type><name>n</name></type></parameter>,<parameter><type><name>m</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>getarg2(&amp;gop, n, m)</cpp:value></cpp:define>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>set_reg_profile</name><parameter_list>(<parameter><decl><type><name>RAnal</name> <modifier>*</modifier></type><name>anal</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<decl_stmt><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>p</name> <init>= <expr><name>NULL</name></expr></init></decl>;</decl_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>anal</name><operator>-&gt;</operator><name>bits</name></name> <operator>==</operator> <literal type="number">32</literal></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name>p</name> <operator>=</operator>
+<literal type="string">"=PC pc\n"</literal>
+<literal type="string">"=SP r1\n"</literal>
+<literal type="string">"=BP r31\n"</literal>
+<literal type="string">"=SR srr1\n"</literal> 
+<literal type="string">"=SN r3\n"</literal> 
+<literal type="string">"=A0 r3\n"</literal> 
+<literal type="string">"=A1 r4\n"</literal>
+<literal type="string">"=A2 r5\n"</literal>
+<literal type="string">"=A3 r6\n"</literal>
+<literal type="string">"=A4 r7\n"</literal>
+<literal type="string">"=A5 r8\n"</literal>
+<literal type="string">"=A6 r6\n"</literal>
+<literal type="string">"gpr srr0 .32 0 0\n"</literal>
+<literal type="string">"gpr srr1 .32 4 0\n"</literal>
+<literal type="string">"gpr r0 .32 8 0\n"</literal>
+<literal type="string">"gpr r1 .32 12 0\n"</literal>
+<literal type="string">"gpr r2 .32 16 0\n"</literal>
+<literal type="string">"gpr r3 .32 20 0\n"</literal>
+<literal type="string">"gpr r4 .32 24 0\n"</literal>
+<literal type="string">"gpr r5 .32 28 0\n"</literal>
+<literal type="string">"gpr r6 .32 32 0\n"</literal>
+<literal type="string">"gpr r7 .32 36 0\n"</literal>
+<literal type="string">"gpr r8 .32 40 0\n"</literal>
+<literal type="string">"gpr r9 .32 44 0\n"</literal>
+<literal type="string">"gpr r10 .32 48 0\n"</literal>
+<literal type="string">"gpr r11 .32 52 0\n"</literal>
+<literal type="string">"gpr r12 .32 56 0\n"</literal>
+<literal type="string">"gpr r13 .32 60 0\n"</literal>
+<literal type="string">"gpr r14 .32 64 0\n"</literal>
+<literal type="string">"gpr r15 .32 68 0\n"</literal>
+<literal type="string">"gpr r16 .32 72 0\n"</literal>
+<literal type="string">"gpr r17 .32 76 0\n"</literal>
+<literal type="string">"gpr r18 .32 80 0\n"</literal>
+<literal type="string">"gpr r19 .32 84 0\n"</literal>
+<literal type="string">"gpr r20 .32 88 0\n"</literal>
+<literal type="string">"gpr r21 .32 92 0\n"</literal>
+<literal type="string">"gpr r22 .32 96 0\n"</literal>
+<literal type="string">"gpr r23 .32 100 0\n"</literal>
+<literal type="string">"gpr r24 .32 104 0\n"</literal>
+<literal type="string">"gpr r25 .32 108 0\n"</literal>
+<literal type="string">"gpr r26 .32 112 0\n"</literal>
+<literal type="string">"gpr r27 .32 116 0\n"</literal>
+<literal type="string">"gpr r28 .32 120 0\n"</literal>
+<literal type="string">"gpr r29 .32 124 0\n"</literal>
+<literal type="string">"gpr r30 .32 128 0\n"</literal>
+<literal type="string">"gpr r31 .32 132 0\n"</literal>
+<literal type="string">"gpr lr .32 136 0\n"</literal>
+<literal type="string">"gpr ctr .32 140 0\n"</literal>
+<literal type="string">"gpr msr .32 144 0\n"</literal>
+<literal type="string">"gpr pc .32 148 0\n"</literal>
+<literal type="string">"gpr cr .64 152 0\n"</literal>
+<literal type="string">"gpr cr0 .8 152 0\n"</literal>
+<literal type="string">"gpr cr1 .8 153 0\n"</literal>
+<literal type="string">"gpr cr2 .8 154 0\n"</literal>
+<literal type="string">"gpr cr3 .8 155 0\n"</literal>
+<literal type="string">"gpr cr4 .8 156 0\n"</literal>
+<literal type="string">"gpr cr5 .8 157 0\n"</literal>
+<literal type="string">"gpr cr6 .8 158 0\n"</literal>
+<literal type="string">"gpr cr7 .8 159 0\n"</literal>
+<literal type="string">"gpr xer .32 160 0\n"</literal>
+<literal type="string">"gpr mq .32 164 0\n"</literal>
+<literal type="string">"gpr fpscr .32 168 0\n"</literal>
+<literal type="string">"gpr vrsave .32 172 0\n"</literal>
+<literal type="string">"gpr pvr .32 176 0\n"</literal>
+<literal type="string">"gpr dccr .32 180 0\n"</literal>
+<literal type="string">"gpr iccr .32 184 0\n"</literal>
+<literal type="string">"gpr dear .32 188 0\n"</literal>
+<literal type="string">"gpr hid0 .32 192 0\n"</literal>
+<literal type="string">"gpr hid1 .32 196 0\n"</literal>
+<literal type="string">"gpr hid2 .32 200 0\n"</literal>
+<literal type="string">"gpr hid3 .32 204 0\n"</literal>
+<literal type="string">"gpr hid4 .32 208 0\n"</literal>
+<literal type="string">"gpr hid5 .32 212 0\n"</literal>
+<literal type="string">"gpr hid6 .32 216 0\n"</literal>
+<literal type="string">"gpr ibat0 .64 220 0\n"</literal>
+<literal type="string">"gpr ibat1 .64 228 0\n"</literal>
+<literal type="string">"gpr ibat2 .64 236 0\n"</literal>
+<literal type="string">"gpr ibat3 .64 244 0\n"</literal>
+<literal type="string">"gpr ibat0l .32 220 0\n"</literal>
+<literal type="string">"gpr ibat1l .32 228 0\n"</literal>
+<literal type="string">"gpr ibat2l .32 236 0\n"</literal>
+<literal type="string">"gpr ibat3l .32 244 0\n"</literal>
+<literal type="string">"gpr ibat0u .32 224 0\n"</literal>
+<literal type="string">"gpr ibat1u .32 232 0\n"</literal>
+<literal type="string">"gpr ibat2u .32 240 0\n"</literal>
+<literal type="string">"gpr ibat3u .32 248 0\n"</literal>
+<literal type="string">"gpr dbat0 .64 256 0\n"</literal>
+<literal type="string">"gpr dbat1 .64 264 0\n"</literal>
+<literal type="string">"gpr dbat2 .64 272 0\n"</literal>
+<literal type="string">"gpr dbat3 .64 280 0\n"</literal>
+<literal type="string">"gpr dbat0l .32 256 0\n"</literal>
+<literal type="string">"gpr dbat1l .32 264 0\n"</literal>
+<literal type="string">"gpr dbat2l .32 272 0\n"</literal>
+<literal type="string">"gpr dbat3l .32 280 0\n"</literal>
+<literal type="string">"gpr dbat0u .32 260 0\n"</literal>
+<literal type="string">"gpr dbat1u .32 268 0\n"</literal>
+<literal type="string">"gpr dbat2u .32 276 0\n"</literal>
+<literal type="string">"gpr dbat3u .32 284 0\n"</literal>
+<literal type="string">"gpr mask .32 288 0\n"</literal></expr>;</expr_stmt>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<expr_stmt><expr><name>p</name> <operator>=</operator>
+<literal type="string">"=PC pc\n"</literal>
+<literal type="string">"=SP r1\n"</literal>
+<literal type="string">"=SR srr1\n"</literal> 
+<literal type="string">"=A0 r3\n"</literal> 
+<literal type="string">"=A1 r4\n"</literal>
+<literal type="string">"=A2 r5\n"</literal>
+<literal type="string">"=A3 r6\n"</literal>
+<literal type="string">"=A4 r7\n"</literal>
+<literal type="string">"=A5 r8\n"</literal>
+<literal type="string">"=A6 r6\n"</literal>
+<literal type="string">"gpr srr0 .64 0 0\n"</literal>
+<literal type="string">"gpr srr1 .64 8 0\n"</literal>
+<literal type="string">"gpr r0 .64 16 0\n"</literal>
+<literal type="string">"gpr r1 .64 24 0\n"</literal>
+<literal type="string">"gpr r2 .64 32 0\n"</literal>
+<literal type="string">"gpr r3 .64 40 0\n"</literal>
+<literal type="string">"gpr r4 .64 48 0\n"</literal>
+<literal type="string">"gpr r5 .64 56 0\n"</literal>
+<literal type="string">"gpr r6 .64 64 0\n"</literal>
+<literal type="string">"gpr r7 .64 72 0\n"</literal>
+<literal type="string">"gpr r8 .64 80 0\n"</literal>
+<literal type="string">"gpr r9 .64 88 0\n"</literal>
+<literal type="string">"gpr r10 .64 96 0\n"</literal>
+<literal type="string">"gpr r11 .64 104 0\n"</literal>
+<literal type="string">"gpr r12 .64 112 0\n"</literal>
+<literal type="string">"gpr r13 .64 120 0\n"</literal>
+<literal type="string">"gpr r14 .64 128 0\n"</literal>
+<literal type="string">"gpr r15 .64 136 0\n"</literal>
+<literal type="string">"gpr r16 .64 144 0\n"</literal>
+<literal type="string">"gpr r17 .64 152 0\n"</literal>
+<literal type="string">"gpr r18 .64 160 0\n"</literal>
+<literal type="string">"gpr r19 .64 168 0\n"</literal>
+<literal type="string">"gpr r20 .64 176 0\n"</literal>
+<literal type="string">"gpr r21 .64 184 0\n"</literal>
+<literal type="string">"gpr r22 .64 192 0\n"</literal>
+<literal type="string">"gpr r23 .64 200 0\n"</literal>
+<literal type="string">"gpr r24 .64 208 0\n"</literal>
+<literal type="string">"gpr r25 .64 216 0\n"</literal>
+<literal type="string">"gpr r26 .64 224 0\n"</literal>
+<literal type="string">"gpr r27 .64 232 0\n"</literal>
+<literal type="string">"gpr r28 .64 240 0\n"</literal>
+<literal type="string">"gpr r29 .64 248 0\n"</literal>
+<literal type="string">"gpr r30 .64 256 0\n"</literal>
+<literal type="string">"gpr r31 .64 264 0\n"</literal>
+<literal type="string">"gpr lr .64 272 0\n"</literal>
+<literal type="string">"gpr ctr .64 280 0\n"</literal>
+<literal type="string">"gpr msr .64 288 0\n"</literal>
+<literal type="string">"gpr pc .64 296 0\n"</literal>
+<literal type="string">"gpr cr .64 304 0\n"</literal>
+<literal type="string">"gpr cr0 .8 304 0\n"</literal>
+<literal type="string">"gpr cr1 .8 305 0\n"</literal>
+<literal type="string">"gpr cr2 .8 306 0\n"</literal>
+<literal type="string">"gpr cr3 .8 307 0\n"</literal>
+<literal type="string">"gpr cr4 .8 308 0\n"</literal>
+<literal type="string">"gpr cr5 .8 309 0\n"</literal>
+<literal type="string">"gpr cr6 .8 310 0\n"</literal>
+<literal type="string">"gpr cr7 .8 311 0\n"</literal>
+<literal type="string">"gpr xer .64 312 0\n"</literal>
+<literal type="string">"gpr mq .64 320 0\n"</literal>
+<literal type="string">"gpr fpscr .64 328 0\n"</literal>
+<literal type="string">"gpr vrsave .64 336 0\n"</literal>
+<literal type="string">"gpr pvr .64 344 0\n"</literal>
+<literal type="string">"gpr dccr .32 352 0\n"</literal>
+<literal type="string">"gpr iccr .32 356 0\n"</literal>
+<literal type="string">"gpr dear .32 360 0\n"</literal>
+<literal type="string">"gpr hid0 .64 364 0\n"</literal>
+<literal type="string">"gpr hid1 .64 372 0\n"</literal>
+<literal type="string">"gpr hid2 .64 380 0\n"</literal>
+<literal type="string">"gpr hid3 .64 388 0\n"</literal>
+<literal type="string">"gpr hid4 .64 396 0\n"</literal>
+<literal type="string">"gpr hid5 .64 404 0\n"</literal>
+<literal type="string">"gpr hid6 .64 412 0\n"</literal>
+<literal type="string">"gpr ibat0 .64 420 0\n"</literal>
+<literal type="string">"gpr ibat1 .64 428 0\n"</literal>
+<literal type="string">"gpr ibat2 .64 436 0\n"</literal>
+<literal type="string">"gpr ibat3 .64 444 0\n"</literal>
+<literal type="string">"gpr ibat0l .32 420 0\n"</literal>
+<literal type="string">"gpr ibat1l .32 428 0\n"</literal>
+<literal type="string">"gpr ibat2l .32 436 0\n"</literal>
+<literal type="string">"gpr ibat3l .32 444 0\n"</literal>
+<literal type="string">"gpr ibat0u .32 424 0\n"</literal>
+<literal type="string">"gpr ibat1u .32 432 0\n"</literal>
+<literal type="string">"gpr ibat2u .32 440 0\n"</literal>
+<literal type="string">"gpr ibat3u .32 448 0\n"</literal>
+<literal type="string">"gpr dbat0 .64 456 0\n"</literal>
+<literal type="string">"gpr dbat1 .64 464 0\n"</literal>
+<literal type="string">"gpr dbat2 .64 472 0\n"</literal>
+<literal type="string">"gpr dbat3 .64 480 0\n"</literal>
+<literal type="string">"gpr dbat0l .32 456 0\n"</literal>
+<literal type="string">"gpr dbat1l .32 464 0\n"</literal>
+<literal type="string">"gpr dbat2l .32 472 0\n"</literal>
+<literal type="string">"gpr dbat3l .32 480 0\n"</literal>
+<literal type="string">"gpr dbat0u .32 460 0\n"</literal>
+<literal type="string">"gpr dbat1u .32 468 0\n"</literal>
+<literal type="string">"gpr dbat2u .32 476 0\n"</literal>
+<literal type="string">"gpr dbat3u .32 484 0\n"</literal>
+<literal type="string">"gpr mask .64 488 0\n"</literal></expr>;</expr_stmt> 
+</block_content>}</block></else></if_stmt>
+<return>return <expr><call><name>r_reg_set_profile_string</name> <argument_list>(<argument><expr><name><name>anal</name><operator>-&gt;</operator><name>reg</name></name></expr></argument>, <argument><expr><name>p</name></expr></argument>)</argument_list></call></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>analop_vle</name><parameter_list>(<parameter><decl><type><name>RAnal</name> <modifier>*</modifier></type><name>a</name></decl></parameter>, <parameter><decl><type><name>RAnalOp</name> <modifier>*</modifier></type><name>op</name></decl></parameter>, <parameter><decl><type><name>ut64</name></type> <name>addr</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>ut8</name> <modifier>*</modifier></type><name>buf</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>len</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<decl_stmt><decl><type><name>vle_t</name><modifier>*</modifier></type> <name>instr</name> <init>= <expr><name>NULL</name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>vle_handle</name></type> <name>handle</name> <init>= <expr><block>{<expr><literal type="number">0</literal></expr>}</block></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>size</name></name> <operator>=</operator> <literal type="number">2</literal></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name>len</name> <operator>&gt;</operator> <literal type="number">1</literal> <operator>&amp;&amp;</operator> <operator>!</operator><call><name>vle_init</name> <argument_list>(<argument><expr><operator>&amp;</operator><name>handle</name></expr></argument>, <argument><expr><name>buf</name></expr></argument>, <argument><expr><name>len</name></expr></argument>)</argument_list></call> <operator>&amp;&amp;</operator> <operator>(</operator><name>instr</name> <operator>=</operator> <call><name>vle_next</name> <argument_list>(<argument><expr><operator>&amp;</operator><name>handle</name></expr></argument>)</argument_list></call><operator>)</operator></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>size</name></name> <operator>=</operator> <name><name>instr</name><operator>-&gt;</operator><name>size</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name><name>instr</name><operator>-&gt;</operator><name>anal_op</name></name></expr>;</expr_stmt>
+
+
+<switch>switch <condition>(<expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name></expr>)</condition> <block>{<block_content>
+<case>case <expr><name>R_ANAL_OP_TYPE_ILL</name></expr>:</case>
+<break>break;</break>
+<case>case <expr><name>R_ANAL_OP_TYPE_ADD</name></expr>:</case>
+<break>break;</break>
+<case>case <expr><name>R_ANAL_OP_TYPE_AND</name></expr>:</case>
+<break>break;</break>
+<case>case <expr><name>R_ANAL_OP_TYPE_CALL</name></expr>:</case>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>jump</name></name> <operator>=</operator> <name>addr</name> <operator>+</operator> <name><name>instr</name><operator>-&gt;</operator><name>fields</name><index>[<expr><name><name>instr</name><operator>-&gt;</operator><name>n</name></name> <operator>-</operator> <literal type="number">1</literal></expr>]</index></name><operator>.</operator><name>value</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>fail</name></name> <operator>=</operator> <name>addr</name> <operator>+</operator> <name><name>op</name><operator>-&gt;</operator><name>size</name></name></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>R_ANAL_OP_TYPE_CCALL</name></expr>:</case>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>eob</name></name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>jump</name></name> <operator>=</operator> <name>addr</name> <operator>+</operator> <name><name>instr</name><operator>-&gt;</operator><name>fields</name><index>[<expr><name><name>instr</name><operator>-&gt;</operator><name>n</name></name> <operator>-</operator> <literal type="number">1</literal></expr>]</index></name><operator>.</operator><name>value</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>fail</name></name> <operator>=</operator> <name>addr</name> <operator>+</operator> <name><name>op</name><operator>-&gt;</operator><name>size</name></name></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>R_ANAL_OP_TYPE_CJMP</name></expr>:</case>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>cond</name></name> <operator>=</operator> <name><name>instr</name><operator>-&gt;</operator><name>cond</name></name></expr>;</expr_stmt> 
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>eob</name></name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>jump</name></name> <operator>=</operator> <name>addr</name> <operator>+</operator> <name><name>instr</name><operator>-&gt;</operator><name>fields</name><index>[<expr><name><name>instr</name><operator>-&gt;</operator><name>n</name></name> <operator>-</operator> <literal type="number">1</literal></expr>]</index></name><operator>.</operator><name>value</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>fail</name></name> <operator>=</operator> <name>addr</name> <operator>+</operator> <name><name>op</name><operator>-&gt;</operator><name>size</name></name></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>R_ANAL_OP_TYPE_CMP</name></expr>:</case>
+<break>break;</break>
+<case>case <expr><name>R_ANAL_OP_TYPE_JMP</name></expr>:</case>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>jump</name></name> <operator>=</operator> <name>addr</name> <operator>+</operator> <name><name>instr</name><operator>-&gt;</operator><name>fields</name><index>[<expr><name><name>instr</name><operator>-&gt;</operator><name>n</name></name> <operator>-</operator> <literal type="number">1</literal></expr>]</index></name><operator>.</operator><name>value</name></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>R_ANAL_OP_TYPE_LOAD</name></expr>:</case>
+<break>break;</break>
+<case>case <expr><name>R_ANAL_OP_TYPE_MOV</name></expr>:</case>
+<break>break;</break>
+<case>case <expr><name>R_ANAL_OP_TYPE_MUL</name></expr>:</case>
+<break>break;</break>
+<case>case <expr><name>R_ANAL_OP_TYPE_NOT</name></expr>:</case>
+<break>break;</break>
+<case>case <expr><name>R_ANAL_OP_TYPE_OR</name></expr>:</case>
+<break>break;</break>
+<case>case <expr><name>R_ANAL_OP_TYPE_ROR</name></expr>:</case>
+<break>break;</break>
+<case>case <expr><name>R_ANAL_OP_TYPE_ROL</name></expr>:</case>
+<break>break;</break>
+<case>case <expr><name>R_ANAL_OP_TYPE_RCALL</name></expr>:</case>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>eob</name></name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>R_ANAL_OP_TYPE_RET</name></expr>:</case>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>eob</name></name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>R_ANAL_OP_TYPE_RJMP</name></expr>:</case>
+<break>break;</break>
+<case>case <expr><name>R_ANAL_OP_TYPE_SHL</name></expr>:</case>
+<break>break;</break>
+<case>case <expr><name>R_ANAL_OP_TYPE_SHR</name></expr>:</case>
+<break>break;</break>
+<case>case <expr><name>R_ANAL_OP_TYPE_STORE</name></expr>:</case>
+<break>break;</break>
+<case>case <expr><name>R_ANAL_OP_TYPE_SUB</name></expr>:</case>
+<break>break;</break>
+<case>case <expr><name>R_ANAL_OP_TYPE_SWI</name></expr>:</case>
+<break>break;</break>
+<case>case <expr><name>R_ANAL_OP_TYPE_SYNC</name></expr>:</case>
+<break>break;</break>
+<case>case <expr><name>R_ANAL_OP_TYPE_TRAP</name></expr>:</case>
+<break>break;</break>
+<case>case <expr><name>R_ANAL_OP_TYPE_XOR</name></expr>:</case>
+<break>break;</break>
+<default>default:</default>
+
+<break>break;</break>
+</block_content>}</block></switch>
+<expr_stmt><expr><call><name>vle_free</name> <argument_list>(<argument><expr><name>instr</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name><name>op</name><operator>-&gt;</operator><name>size</name></name></expr>;</return>
+</block_content>}</block></if></if_stmt>
+<return>return <expr><operator>-</operator><literal type="number">1</literal></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>parse_reg_name</name><parameter_list>(<parameter><decl><type><name>RRegItem</name> <modifier>*</modifier></type><name>reg</name></decl></parameter>, <parameter><decl><type><name>csh</name></type> <name>handle</name></decl></parameter>, <parameter><decl><type><name>cs_insn</name> <modifier>*</modifier></type><name>insn</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>reg_num</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>reg</name></expr>)</condition> <block>{<block_content>
+<return>return <expr><operator>-</operator><literal type="number">1</literal></expr>;</return>
+</block_content>}</block></if></if_stmt>
+<switch>switch <condition>(<expr><call><name>INSOP</name> <argument_list>(<argument><expr><name>reg_num</name></expr></argument>)</argument_list></call><operator>.</operator><name>type</name></expr>)</condition> <block>{<block_content>
+<case>case <expr><name>PPC_OP_REG</name></expr>:</case>
+<expr_stmt><expr><name><name>reg</name><operator>-&gt;</operator><name>name</name></name> <operator>=</operator> <operator>(</operator><name>char</name> <operator>*</operator><operator>)</operator><call><name>cs_reg_name</name> <argument_list>(<argument><expr><name>handle</name></expr></argument>, <argument><expr><call><name>INSOP</name> <argument_list>(<argument><expr><name>reg_num</name></expr></argument>)</argument_list></call><operator>.</operator><name>reg</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_OP_MEM</name></expr>:</case>
+<if_stmt><if>if <condition>(<expr><call><name>INSOP</name> <argument_list>(<argument><expr><name>reg_num</name></expr></argument>)</argument_list></call><operator>.</operator><name><name>mem</name><operator>.</operator><name>base</name></name> <operator>!=</operator> <name>PPC_REG_INVALID</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name><name>reg</name><operator>-&gt;</operator><name>name</name></name> <operator>=</operator> <operator>(</operator><name>char</name> <operator>*</operator><operator>)</operator><call><name>cs_reg_name</name> <argument_list>(<argument><expr><name>handle</name></expr></argument>, <argument><expr><call><name>INSOP</name> <argument_list>(<argument><expr><name>reg_num</name></expr></argument>)</argument_list></call><operator>.</operator><name><name>mem</name><operator>.</operator><name>base</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+<break>break;</break>
+<default>default :</default>
+<break>break;</break>
+</block_content>}</block></switch>
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>op_fillval</name><parameter_list>(<parameter><decl><type><name>RAnalOp</name> <modifier>*</modifier></type><name>op</name></decl></parameter>, <parameter><decl><type><name>csh</name></type> <name>handle</name></decl></parameter>, <parameter><decl><type><name>cs_insn</name> <modifier>*</modifier></type><name>insn</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<decl_stmt><decl><type><specifier>static</specifier> <name>RRegItem</name></type> <name>reg</name></decl>;</decl_stmt>
+<switch>switch <condition>(<expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>&amp;</operator> <name>R_ANAL_OP_TYPE_MASK</name></expr>)</condition> <block>{<block_content>
+<case>case <expr><name>R_ANAL_OP_TYPE_LOAD</name></expr>:</case>
+<if_stmt><if>if <condition>(<expr><call><name>INSOP</name><argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call><operator>.</operator><name>type</name> <operator>==</operator> <name>PPC_OP_MEM</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>ZERO_FILL</name> <argument_list>(<argument><expr><name>reg</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>src</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>=</operator> <call><name>r_anal_value_new</name> <argument_list>()</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>src</name><index>[<expr><literal type="number">0</literal></expr>]</index></name><operator>-&gt;</operator><name>reg</name> <operator>=</operator> <operator>&amp;</operator><name>reg</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>parse_reg_name</name> <argument_list>(<argument><expr><name><name>op</name><operator>-&gt;</operator><name>src</name><index>[<expr><literal type="number">0</literal></expr>]</index></name><operator>-&gt;</operator><name>reg</name></expr></argument>, <argument><expr><name>handle</name></expr></argument>, <argument><expr><name>insn</name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>src</name><index>[<expr><literal type="number">0</literal></expr>]</index></name><operator>-&gt;</operator><name>delta</name> <operator>=</operator> <call><name>INSOP</name><argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call><operator>.</operator><name><name>mem</name><operator>.</operator><name>disp</name></name></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+<break>break;</break>
+<case>case <expr><name>R_ANAL_OP_TYPE_STORE</name></expr>:</case>
+<if_stmt><if>if <condition>(<expr><call><name>INSOP</name><argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call><operator>.</operator><name>type</name> <operator>==</operator> <name>PPC_OP_MEM</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>ZERO_FILL</name> <argument_list>(<argument><expr><name>reg</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>dst</name></name> <operator>=</operator> <call><name>r_anal_value_new</name> <argument_list>()</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>dst</name><operator>-&gt;</operator><name>reg</name></name> <operator>=</operator> <operator>&amp;</operator><name>reg</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>parse_reg_name</name> <argument_list>(<argument><expr><name><name>op</name><operator>-&gt;</operator><name>dst</name><operator>-&gt;</operator><name>reg</name></name></expr></argument>, <argument><expr><name>handle</name></expr></argument>, <argument><expr><name>insn</name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>dst</name><operator>-&gt;</operator><name>delta</name></name> <operator>=</operator> <call><name>INSOP</name><argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call><operator>.</operator><name><name>mem</name><operator>.</operator><name>disp</name></name></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+<break>break;</break>
+</block_content>}</block></switch>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>analop</name><parameter_list>(<parameter><decl><type><name>RAnal</name> <modifier>*</modifier></type><name>a</name></decl></parameter>, <parameter><decl><type><name>RAnalOp</name> <modifier>*</modifier></type><name>op</name></decl></parameter>, <parameter><decl><type><name>ut64</name></type> <name>addr</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>ut8</name> <modifier>*</modifier></type><name>buf</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>len</name></decl></parameter>, <parameter><decl><type><name>RAnalOpMask</name></type> <name>mask</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<decl_stmt><decl><type><specifier>static</specifier> <name>csh</name></type> <name>handle</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><specifier>static</specifier> <name>int</name></type> <name>omode</name> <init>= <expr><operator>-</operator><literal type="number">1</literal></expr></init></decl>, <decl><type ref="prev"/><name>obits</name> <init>= <expr><operator>-</operator><literal type="number">1</literal></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>n</name></decl>, <decl><type ref="prev"/><name>ret</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>cs_insn</name> <modifier>*</modifier></type><name>insn</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>char</name> <modifier>*</modifier></type><name>op1</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>mode</name> <init>= <expr><ternary><condition><expr><operator>(</operator><name><name>a</name><operator>-&gt;</operator><name>bits</name></name> <operator>==</operator> <literal type="number">64</literal><operator>)</operator></expr> ?</condition><then> <expr><name>CS_MODE_64</name></expr> </then><else>: <expr><ternary><condition><expr><operator>(</operator><name><name>a</name><operator>-&gt;</operator><name>bits</name></name> <operator>==</operator> <literal type="number">32</literal><operator>)</operator></expr> ?</condition><then> <expr><name>CS_MODE_32</name></expr> </then><else>: <expr><literal type="number">0</literal></expr></else></ternary></expr></else></ternary></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><name>mode</name> <operator>|=</operator> <ternary><condition><expr><name><name>a</name><operator>-&gt;</operator><name>big_endian</name></name></expr> ?</condition><then> <expr><name>CS_MODE_BIG_ENDIAN</name></expr> </then><else>: <expr><name>CS_MODE_LITTLE_ENDIAN</name></expr></else></ternary></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>delay</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_NULL</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>jump</name></name> <operator>=</operator> <name>UT64_MAX</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>fail</name></name> <operator>=</operator> <name>UT64_MAX</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>ptr</name></name> <operator>=</operator> <name><name>op</name><operator>-&gt;</operator><name>val</name></name> <operator>=</operator> <name>UT64_MAX</name></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>a</name><operator>-&gt;</operator><name>cpu</name></name> <operator>&amp;&amp;</operator> <call><name>strncmp</name> <argument_list>(<argument><expr><name><name>a</name><operator>-&gt;</operator><name>cpu</name></name></expr></argument>, <argument><expr><literal type="string">"vle"</literal></expr></argument>, <argument><expr><literal type="number">3</literal></expr></argument>)</argument_list></call> <operator>==</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>a</name><operator>-&gt;</operator><name>big_endian</name></name></expr>)</condition> <block>{<block_content>
+<return>return <expr><operator>-</operator><literal type="number">1</literal></expr>;</return>
+</block_content>}</block></if></if_stmt>
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <call><name>analop_vle</name> <argument_list>(<argument><expr><name>a</name></expr></argument>, <argument><expr><name>op</name></expr></argument>, <argument><expr><name>addr</name></expr></argument>, <argument><expr><name>buf</name></expr></argument>, <argument><expr><name>len</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name>ret</name> <operator>&gt;=</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+<return>return <expr><name><name>op</name><operator>-&gt;</operator><name>size</name></name></expr>;</return>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>mode</name> <operator>!=</operator> <name>omode</name> <operator>||</operator> <name><name>a</name><operator>-&gt;</operator><name>bits</name></name> <operator>!=</operator> <name>obits</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>cs_close</name> <argument_list>(<argument><expr><operator>&amp;</operator><name>handle</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>handle</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name>omode</name> <operator>=</operator> <name>mode</name></expr>;</expr_stmt>
+<expr_stmt><expr><name>obits</name> <operator>=</operator> <name><name>a</name><operator>-&gt;</operator><name>bits</name></name></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+<if_stmt><if>if <condition>(<expr><name>handle</name> <operator>==</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <call><name>cs_open</name> <argument_list>(<argument><expr><name>CS_ARCH_PPC</name></expr></argument>, <argument><expr><name>mode</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>handle</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name>ret</name> <operator>!=</operator> <name>CS_ERR_OK</name></expr>)</condition> <block>{<block_content>
+<return>return <expr><operator>-</operator><literal type="number">1</literal></expr>;</return>
+</block_content>}</block></if></if_stmt>
+<expr_stmt><expr><call><name>cs_option</name> <argument_list>(<argument><expr><name>handle</name></expr></argument>, <argument><expr><name>CS_OPT_DETAIL</name></expr></argument>, <argument><expr><name>CS_OPT_ON</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>size</name></name> <operator>=</operator> <literal type="number">4</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>r_strbuf_init</name> <argument_list>(<argument><expr><operator>&amp;</operator><name><name>op</name><operator>-&gt;</operator><name>esil</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>r_strbuf_set</name> <argument_list>(<argument><expr><operator>&amp;</operator><name><name>op</name><operator>-&gt;</operator><name>esil</name></name></expr></argument>, <argument><expr><literal type="string">""</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+
+<expr_stmt><expr><name>n</name> <operator>=</operator> <call><name>cs_disasm</name> <argument_list>(<argument><expr><name>handle</name></expr></argument>, <argument><expr><operator>(</operator><specifier>const</specifier> <name>ut8</name><operator>*</operator><operator>)</operator><name>buf</name></expr></argument>, <argument><expr><name>len</name></expr></argument>, <argument><expr><name>addr</name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>, <argument><expr><operator>&amp;</operator><name>insn</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name>n</name> <operator>&lt;</operator> <literal type="number">1</literal></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_ILL</name></expr>;</expr_stmt>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name>mask</name> <operator>&amp;</operator> <name>R_ANAL_OP_MASK_OPEX</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>opex</name> <argument_list>(<argument><expr><operator>&amp;</operator><name><name>op</name><operator>-&gt;</operator><name>opex</name></name></expr></argument>, <argument><expr><name>handle</name></expr></argument>, <argument><expr><name>insn</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+<decl_stmt><decl><type><name><name>struct</name> <name>Getarg</name></name></type> <name>gop</name> <init>= <expr><block>{
+<expr><operator>.</operator><name>handle</name> <operator>=</operator> <name>handle</name></expr>,
+<expr><operator>.</operator><name>insn</name> <operator>=</operator> <name>insn</name></expr>,
+<expr><operator>.</operator><name>bits</name> <operator>=</operator> <name><name>a</name><operator>-&gt;</operator><name>bits</name></name></expr>
+}</block></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>size</name></name> <operator>=</operator> <name><name>insn</name><operator>-&gt;</operator><name>size</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>id</name></name> <operator>=</operator> <name><name>insn</name><operator>-&gt;</operator><name>id</name></name></expr>;</expr_stmt>
+<switch>switch <condition>(<expr><name><name>insn</name><operator>-&gt;</operator><name>id</name></name></expr>)</condition> <block>{<block_content>
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><name>CS_API_MAJOR</name> <operator>&gt;=</operator> <literal type="number">4</literal></expr></cpp:if>
+<case>case <expr><name>PPC_INS_CMPB</name></expr>:</case>
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+<case>case <expr><name>PPC_INS_CMPD</name></expr>:</case>
+<case>case <expr><name>PPC_INS_CMPDI</name></expr>:</case>
+<case>case <expr><name>PPC_INS_CMPLD</name></expr>:</case>
+<case>case <expr><name>PPC_INS_CMPLDI</name></expr>:</case>
+<case>case <expr><name>PPC_INS_CMPLW</name></expr>:</case>
+<case>case <expr><name>PPC_INS_CMPLWI</name></expr>:</case>
+<case>case <expr><name>PPC_INS_CMPW</name></expr>:</case>
+<case>case <expr><name>PPC_INS_CMPWI</name></expr>:</case>
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><name>CS_API_MAJOR</name> <operator>&gt;</operator> <literal type="number">4</literal></expr></cpp:if>
+<case>case <expr><name>PPC_INS_CMP</name></expr>:</case>
+<case>case <expr><name>PPC_INS_CMPI</name></expr>:</case>
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_CMP</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>sign</name></name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">2</literal></expr></argument>)</argument_list></call><index>[<expr><literal type="number">0</literal></expr>]</index> <operator>==</operator> <literal type="char">'\0'</literal></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"%s,%s,-,0xff,&amp;,cr0,="</literal></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"%s,%s,-,0xff,&amp;,%s,="</literal></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">2</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></else></if_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_INS_MFLR</name></expr>:</case>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_MOV</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"lr,%s,="</literal></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_INS_MTLR</name></expr>:</case>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_MOV</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"%s,lr,="</literal></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_INS_MR</name></expr>:</case>
+<case>case <expr><name>PPC_INS_LI</name></expr>:</case>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_MOV</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"%s,%s,="</literal></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_INS_LIS</name></expr>:</case>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_MOV</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"%s0000,%s,="</literal></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_INS_CLRLWI</name></expr>:</case>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_AND</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"%s,%s,&amp;,%s,="</literal></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>cmask32</name> <argument_list>(<argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">2</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><literal type="string">"0x1F"</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_INS_RLWINM</name></expr>:</case>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_ROL</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"%s,%s,&lt;&lt;&lt;,%s,&amp;,%s,="</literal></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">2</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>cmask32</name> <argument_list>(<argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">3</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">4</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_INS_SC</name></expr>:</case>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_SWI</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"0,$"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_INS_EXTSB</name></expr>:</case>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>sign</name></name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_MOV</name></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>a</name><operator>-&gt;</operator><name>bits</name></name> <operator>==</operator> <literal type="number">64</literal></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"%s,0x80,&amp;,?{,0xFFFFFFFFFFFFFF00,%s,|,%s,=,}"</literal></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"%s,0x80,&amp;,?{,0xFFFFFF00,%s,|,%s,=,}"</literal></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></else></if_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_INS_EXTSH</name></expr>:</case>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>sign</name></name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>a</name><operator>-&gt;</operator><name>bits</name></name> <operator>==</operator> <literal type="number">64</literal></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"%s,0x8000,&amp;,?{,0xFFFFFFFFFFFF0000,%s,|,%s,=,}"</literal></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"%s,0x8000,&amp;,?{,0xFFFF0000,%s,|,%s,=,}"</literal></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></else></if_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_INS_EXTSW</name></expr>:</case>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>sign</name></name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"%s,0x80000000,&amp;,?{,0xFFFFFFFF00000000,%s,|,%s,=,}"</literal></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_INS_SYNC</name></expr>:</case>
+<case>case <expr><name>PPC_INS_ISYNC</name></expr>:</case>
+<case>case <expr><name>PPC_INS_LWSYNC</name></expr>:</case>
+<case>case <expr><name>PPC_INS_MSYNC</name></expr>:</case>
+<case>case <expr><name>PPC_INS_PTESYNC</name></expr>:</case>
+<case>case <expr><name>PPC_INS_TLBSYNC</name></expr>:</case>
+<case>case <expr><name>PPC_INS_SLBIA</name></expr>:</case>
+<case>case <expr><name>PPC_INS_SLBIE</name></expr>:</case>
+<case>case <expr><name>PPC_INS_SLBMFEE</name></expr>:</case>
+<case>case <expr><name>PPC_INS_SLBMTE</name></expr>:</case>
+<case>case <expr><name>PPC_INS_EIEIO</name></expr>:</case>
+<case>case <expr><name>PPC_INS_NOP</name></expr>:</case>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_NOP</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">","</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_INS_STW</name></expr>:</case>
+<case>case <expr><name>PPC_INS_STWUX</name></expr>:</case>
+<case>case <expr><name>PPC_INS_STWX</name></expr>:</case>
+<case>case <expr><name>PPC_INS_STWCX</name></expr>:</case>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_STORE</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"%s,%s"</literal></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>ARG2</name> <argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>, <argument><expr><literal type="string">"=[4]"</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_INS_STWU</name></expr>:</case>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_STORE</name></expr>;</expr_stmt>
+<expr_stmt><expr><name>op1</name> <operator>=</operator> <call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>op1</name><index>[<expr><call><name>strlen</name> <argument_list>(<argument><expr><name>op1</name></expr></argument>)</argument_list></call> <operator>-</operator> <literal type="number">1</literal></expr>]</index></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"%s,%s,=[4],%s="</literal></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name>op1</name></expr></argument>, <argument><expr><name>op1</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_INS_STWBRX</name></expr>:</case>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_STORE</name></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_INS_STB</name></expr>:</case>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_STORE</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"%s,%s"</literal></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>ARG2</name> <argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>, <argument><expr><literal type="string">"=[1]"</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_INS_STBU</name></expr>:</case>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_STORE</name></expr>;</expr_stmt>
+<expr_stmt><expr><name>op1</name> <operator>=</operator> <call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>op1</name><index>[<expr><call><name>strlen</name> <argument_list>(<argument><expr><name>op1</name></expr></argument>)</argument_list></call> <operator>-</operator> <literal type="number">1</literal></expr>]</index></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"%s,%s,=[1],%s="</literal></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name>op1</name></expr></argument>, <argument><expr><name>op1</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_INS_STH</name></expr>:</case>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_STORE</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"%s,%s"</literal></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>ARG2</name> <argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>, <argument><expr><literal type="string">"=[2]"</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_INS_STHU</name></expr>:</case>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_STORE</name></expr>;</expr_stmt>
+<expr_stmt><expr><name>op1</name> <operator>=</operator> <call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>op1</name><index>[<expr><call><name>strlen</name> <argument_list>(<argument><expr><name>op1</name></expr></argument>)</argument_list></call> <operator>-</operator> <literal type="number">1</literal></expr>]</index></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"%s,%s,=[2],%s="</literal></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name>op1</name></expr></argument>, <argument><expr><name>op1</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_INS_STD</name></expr>:</case>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_STORE</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"%s,%s"</literal></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>ARG2</name> <argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>, <argument><expr><literal type="string">"=[8]"</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_INS_STDU</name></expr>:</case>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_STORE</name></expr>;</expr_stmt>
+<expr_stmt><expr><name>op1</name> <operator>=</operator> <call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>op1</name><index>[<expr><call><name>strlen</name> <argument_list>(<argument><expr><name>op1</name></expr></argument>)</argument_list></call> <operator>-</operator> <literal type="number">1</literal></expr>]</index></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"%s,%s,=[8],%s="</literal></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name>op1</name></expr></argument>, <argument><expr><name>op1</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_INS_LBZ</name></expr>:</case>
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><name>CS_API_MAJOR</name> <operator>&gt;=</operator> <literal type="number">4</literal></expr></cpp:if>
+<case>case <expr><name>PPC_INS_LBZCIX</name></expr>:</case>
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+<case>case <expr><name>PPC_INS_LBZU</name></expr>:</case>
+<case>case <expr><name>PPC_INS_LBZUX</name></expr>:</case>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_LOAD</name></expr>;</expr_stmt>
+<expr_stmt><expr><name>op1</name> <operator>=</operator> <call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>op1</name><index>[<expr><call><name>strlen</name> <argument_list>(<argument><expr><name>op1</name></expr></argument>)</argument_list></call> <operator>-</operator> <literal type="number">1</literal></expr>]</index></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"%s,[1],%s,=,%s="</literal></expr></argument>, <argument><expr><name>op1</name></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name>op1</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_INS_LBZX</name></expr>:</case>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_LOAD</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"%s,%s,="</literal></expr></argument>, <argument><expr><call><name>ARG2</name> <argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>, <argument><expr><literal type="string">"[1]"</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_INS_LD</name></expr>:</case>
+<case>case <expr><name>PPC_INS_LDARX</name></expr>:</case>
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><name>CS_API_MAJOR</name> <operator>&gt;=</operator> <literal type="number">4</literal></expr></cpp:if>
+<case>case <expr><name>PPC_INS_LDCIX</name></expr>:</case>
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+<case>case <expr><name>PPC_INS_LDU</name></expr>:</case>
+<case>case <expr><name>PPC_INS_LDUX</name></expr>:</case>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_LOAD</name></expr>;</expr_stmt>
+<expr_stmt><expr><name>op1</name> <operator>=</operator> <call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>op1</name><index>[<expr><call><name>strlen</name> <argument_list>(<argument><expr><name>op1</name></expr></argument>)</argument_list></call> <operator>-</operator> <literal type="number">1</literal></expr>]</index></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"%s,[8],%s,=,%s="</literal></expr></argument>, <argument><expr><name>op1</name></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name>op1</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_INS_LDX</name></expr>:</case>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_LOAD</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"%s,%s,="</literal></expr></argument>, <argument><expr><call><name>ARG2</name> <argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>, <argument><expr><literal type="string">"[8]"</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_INS_LDBRX</name></expr>:</case>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_LOAD</name></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_INS_LFD</name></expr>:</case>
+<case>case <expr><name>PPC_INS_LFDU</name></expr>:</case>
+<case>case <expr><name>PPC_INS_LFDUX</name></expr>:</case>
+<case>case <expr><name>PPC_INS_LFDX</name></expr>:</case>
+<case>case <expr><name>PPC_INS_LFIWAX</name></expr>:</case>
+<case>case <expr><name>PPC_INS_LFIWZX</name></expr>:</case>
+<case>case <expr><name>PPC_INS_LFS</name></expr>:</case>
+<case>case <expr><name>PPC_INS_LFSU</name></expr>:</case>
+<case>case <expr><name>PPC_INS_LFSUX</name></expr>:</case>
+<case>case <expr><name>PPC_INS_LFSX</name></expr>:</case>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_LOAD</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"%s,%s,="</literal></expr></argument>, <argument><expr><call><name>ARG2</name> <argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>, <argument><expr><literal type="string">"[4]"</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_INS_LHA</name></expr>:</case>
+<case>case <expr><name>PPC_INS_LHAU</name></expr>:</case>
+<case>case <expr><name>PPC_INS_LHAUX</name></expr>:</case>
+<case>case <expr><name>PPC_INS_LHAX</name></expr>:</case>
+<case>case <expr><name>PPC_INS_LHZ</name></expr>:</case>
+<case>case <expr><name>PPC_INS_LHZU</name></expr>:</case>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_LOAD</name></expr>;</expr_stmt>
+<expr_stmt><expr><name>op1</name> <operator>=</operator> <call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>op1</name><index>[<expr><call><name>strlen</name> <argument_list>(<argument><expr><name>op1</name></expr></argument>)</argument_list></call> <operator>-</operator> <literal type="number">1</literal></expr>]</index></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"%s,[2],%s,=,%s="</literal></expr></argument>, <argument><expr><name>op1</name></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name>op1</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_INS_LHBRX</name></expr>:</case>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_LOAD</name></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_INS_LWA</name></expr>:</case>
+<case>case <expr><name>PPC_INS_LWARX</name></expr>:</case>
+<case>case <expr><name>PPC_INS_LWAUX</name></expr>:</case>
+<case>case <expr><name>PPC_INS_LWAX</name></expr>:</case>
+<case>case <expr><name>PPC_INS_LWZ</name></expr>:</case>
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><name>CS_API_MAJOR</name> <operator>&gt;=</operator> <literal type="number">4</literal></expr></cpp:if>
+<case>case <expr><name>PPC_INS_LWZCIX</name></expr>:</case>
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+<case>case <expr><name>PPC_INS_LWZX</name></expr>:</case>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_LOAD</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"%s,%s,="</literal></expr></argument>, <argument><expr><call><name>ARG2</name> <argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>, <argument><expr><literal type="string">"[4]"</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_INS_LWZU</name></expr>:</case>
+<case>case <expr><name>PPC_INS_LWZUX</name></expr>:</case>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_LOAD</name></expr>;</expr_stmt>
+<expr_stmt><expr><name>op1</name> <operator>=</operator> <call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>op1</name><index>[<expr><call><name>strlen</name><argument_list>(<argument><expr><name>op1</name></expr></argument>)</argument_list></call> <operator>-</operator> <literal type="number">1</literal></expr>]</index></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"%s,[4],%s,=,%s="</literal></expr></argument>, <argument><expr><name>op1</name></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name>op1</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_INS_LWBRX</name></expr>:</case>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_LOAD</name></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_INS_SLW</name></expr>:</case>
+<case>case <expr><name>PPC_INS_SLWI</name></expr>:</case>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_SHL</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"%s,%s,&lt;&lt;,%s,="</literal></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">2</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_INS_SRW</name></expr>:</case>
+<case>case <expr><name>PPC_INS_SRWI</name></expr>:</case>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_SHR</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"%s,%s,&gt;&gt;,%s,="</literal></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">2</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_INS_MULLI</name></expr>:</case>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>sign</name></name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+<case>case <expr><name>PPC_INS_MULLW</name></expr>:</case>
+<case>case <expr><name>PPC_INS_MULLD</name></expr>:</case>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_MUL</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"%s,%s,*,%s,="</literal></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">2</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_INS_SUB</name></expr>:</case>
+<case>case <expr><name>PPC_INS_SUBC</name></expr>:</case>
+<case>case <expr><name>PPC_INS_SUBF</name></expr>:</case>
+<case>case <expr><name>PPC_INS_SUBFIC</name></expr>:</case>
+<case>case <expr><name>PPC_INS_SUBFZE</name></expr>:</case>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_SUB</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"%s,%s,-,%s,="</literal></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">2</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_INS_ADD</name></expr>:</case>
+<case>case <expr><name>PPC_INS_ADDI</name></expr>:</case>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>sign</name></name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_ADD</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"%s,%s,+,%s,="</literal></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">2</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_INS_CRCLR</name></expr>:</case>
+<case>case <expr><name>PPC_INS_CRSET</name></expr>:</case>
+<case>case <expr><name>PPC_INS_CRMOVE</name></expr>:</case>
+<case>case <expr><name>PPC_INS_CRXOR</name></expr>:</case>
+<case>case <expr><name>PPC_INS_CRNOR</name></expr>:</case>
+<case>case <expr><name>PPC_INS_CRNOT</name></expr>:</case>
+
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_MOV</name></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_INS_ADDC</name></expr>:</case>
+<case>case <expr><name>PPC_INS_ADDIC</name></expr>:</case>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_ADD</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"%s,%s,+,%s,="</literal></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">2</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_INS_ADDE</name></expr>:</case>
+<case>case <expr><name>PPC_INS_ADDIS</name></expr>:</case>
+<case>case <expr><name>PPC_INS_ADDME</name></expr>:</case>
+<case>case <expr><name>PPC_INS_ADDZE</name></expr>:</case>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_ADD</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"%s,%s,+,%s,="</literal></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">2</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_INS_MTSPR</name></expr>:</case>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_MOV</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"%s,%s,="</literal></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>PPCSPR</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_INS_BCTR</name></expr>:</case> 
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_UJMP</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"ctr,pc,="</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_INS_BCTRL</name></expr>:</case> 
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_CALL</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"pc,lr,=,ctr,pc,="</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_INS_B</name></expr>:</case>
+<case>case <expr><name>PPC_INS_BC</name></expr>:</case>
+<case>case <expr><name>PPC_INS_BA</name></expr>:</case>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_CJMP</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>jump</name></name> <operator>=</operator> <ternary><condition><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call><index>[<expr><literal type="number">0</literal></expr>]</index> <operator>==</operator> <literal type="char">'\0'</literal></expr> ?</condition><then> <expr><call><name>IMM</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr> </then><else>: <expr><call><name>IMM</name> <argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr></else></ternary></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>fail</name></name> <operator>=</operator> <name>addr</name> <operator>+</operator> <name><name>op</name><operator>-&gt;</operator><name>size</name></name></expr>;</expr_stmt>
+<switch>switch <condition>(<expr><name><name>insn</name><operator>-&gt;</operator><name>detail</name><operator>-&gt;</operator><name>ppc</name><operator>.</operator><name>bc</name></name></expr>)</condition> <block>{<block_content>
+<case>case <expr><name>PPC_BC_LT</name></expr>:</case>
+<if_stmt><if>if <condition>(<expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call><index>[<expr><literal type="number">0</literal></expr>]</index> <operator>==</operator> <literal type="char">'\0'</literal></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"0x80,cr0,&amp;,!,!,?{,%s,pc,=,},"</literal></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"0x80,%s,&amp;,!,!,?{,%s,pc,=,},"</literal></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></else></if_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_BC_LE</name></expr>:</case>
+<if_stmt><if>if <condition>(<expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call><index>[<expr><literal type="number">0</literal></expr>]</index> <operator>==</operator> <literal type="char">'\0'</literal></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"0x80,cr0,&amp;,!,!,cr0,!,|,?{,%s,pc,=,},"</literal></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"0x80,%s,&amp;,!,!,0,%s,!,|,?{,%s,pc,=,},"</literal></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></else></if_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_BC_EQ</name></expr>:</case>
+<if_stmt><if>if <condition>(<expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call><index>[<expr><literal type="number">0</literal></expr>]</index> <operator>==</operator> <literal type="char">'\0'</literal></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"cr0,!,?{,%s,pc,=,},"</literal></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"%s,!,?{,%s,pc,=,},"</literal></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></else></if_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_BC_GE</name></expr>:</case>
+<if_stmt><if>if <condition>(<expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call><index>[<expr><literal type="number">0</literal></expr>]</index> <operator>==</operator> <literal type="char">'\0'</literal></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"0x80,cr0,&amp;,!,cr0,!,|,?{,%s,pc,=,},"</literal></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"0x80,%s,&amp;,!,%s,!,|,?{,%s,pc,=,},"</literal></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></else></if_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_BC_GT</name></expr>:</case>
+<if_stmt><if>if <condition>(<expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call><index>[<expr><literal type="number">0</literal></expr>]</index> <operator>==</operator> <literal type="char">'\0'</literal></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"0x80,cr0,&amp;,!,?{,%s,pc,=,},"</literal></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"0x80,%s,&amp;,!,?{,%s,pc,=,},"</literal></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></else></if_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_BC_NE</name></expr>:</case>
+<if_stmt><if>if <condition>(<expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call><index>[<expr><literal type="number">0</literal></expr>]</index> <operator>==</operator> <literal type="char">'\0'</literal></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"cr0,!,!,?{,%s,pc,=,},"</literal></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"%s,!,!,?{,%s,pc,=,},"</literal></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></else></if_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_BC_INVALID</name></expr>:</case>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_JMP</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"%s,pc,="</literal></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<case>case <expr><name>PPC_BC_UN</name></expr>:</case> 
+<case>case <expr><name>PPC_BC_NU</name></expr>:</case> 
+<case>case <expr><name>PPC_BC_SO</name></expr>:</case> 
+<case>case <expr><name>PPC_BC_NS</name></expr>:</case> 
+<default>default:</default>
+<break>break;</break>
+</block_content>}</block></switch>
+<break>break;</break>
+<case>case <expr><name>PPC_INS_BT</name></expr>:</case>
+<case>case <expr><name>PPC_INS_BF</name></expr>:</case>
+<switch>switch <condition>(<expr><name><name>insn</name><operator>-&gt;</operator><name>detail</name><operator>-&gt;</operator><name>ppc</name><operator>.</operator><name>operands</name><index>[<expr><literal type="number">0</literal></expr>]</index></name><operator>.</operator><name>type</name></expr>)</condition> <block>{<block_content>
+<case>case <expr><name>PPC_OP_CRX</name></expr>:</case>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_CJMP</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>fail</name></name> <operator>=</operator> <name>addr</name> <operator>+</operator> <name><name>op</name><operator>-&gt;</operator><name>size</name></name></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_OP_REG</name></expr>:</case>
+<if_stmt><if>if <condition>(<expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>==</operator> <name>R_ANAL_OP_TYPE_CJMP</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_UCJMP</name></expr>;</expr_stmt>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_CJMP</name></expr>;</expr_stmt>
+</block_content>}</block></else></if_stmt>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>jump</name></name> <operator>=</operator> <call><name>IMM</name> <argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>fail</name></name> <operator>=</operator> <name>addr</name> <operator>+</operator> <name><name>op</name><operator>-&gt;</operator><name>size</name></name></expr>;</expr_stmt>
+
+<default>default:</default>
+<break>break;</break>
+</block_content>}</block></switch>
+<break>break;</break>
+<case>case <expr><name>PPC_INS_BDNZ</name></expr>:</case>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_CJMP</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>jump</name></name> <operator>=</operator> <call><name>IMM</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>fail</name></name> <operator>=</operator> <name>addr</name> <operator>+</operator> <name><name>op</name><operator>-&gt;</operator><name>size</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"1,ctr,-=,$z,!,?{,%s,pc,=,}"</literal></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_INS_BDNZA</name></expr>:</case>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_CJMP</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>jump</name></name> <operator>=</operator> <call><name>IMM</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>fail</name></name> <operator>=</operator> <name>addr</name> <operator>+</operator> <name><name>op</name><operator>-&gt;</operator><name>size</name></name></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_INS_BDNZL</name></expr>:</case>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_CJMP</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>jump</name></name> <operator>=</operator> <call><name>IMM</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>fail</name></name> <operator>=</operator> <name>addr</name> <operator>+</operator> <name><name>op</name><operator>-&gt;</operator><name>size</name></name></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_INS_BDNZLA</name></expr>:</case>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_CJMP</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>jump</name></name> <operator>=</operator> <call><name>IMM</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>fail</name></name> <operator>=</operator> <name>addr</name> <operator>+</operator> <name><name>op</name><operator>-&gt;</operator><name>size</name></name></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_INS_BDNZLR</name></expr>:</case>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_CJMP</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>fail</name></name> <operator>=</operator> <name>addr</name> <operator>+</operator> <name><name>op</name><operator>-&gt;</operator><name>size</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"1,ctr,-=,$z,!,?{,lr,pc,=,},"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_INS_BDNZLRL</name></expr>:</case>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>fail</name></name> <operator>=</operator> <name>addr</name> <operator>+</operator> <name><name>op</name><operator>-&gt;</operator><name>size</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_CJMP</name></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_INS_BDZ</name></expr>:</case>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_CJMP</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>jump</name></name> <operator>=</operator> <call><name>IMM</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>fail</name></name> <operator>=</operator> <name>addr</name> <operator>+</operator> <name><name>op</name><operator>-&gt;</operator><name>size</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"1,ctr,-=,$z,?{,%s,pc,=,}"</literal></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_INS_BDZA</name></expr>:</case>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_CJMP</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>jump</name></name> <operator>=</operator> <call><name>IMM</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>fail</name></name> <operator>=</operator> <name>addr</name> <operator>+</operator> <name><name>op</name><operator>-&gt;</operator><name>size</name></name></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_INS_BDZL</name></expr>:</case>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_CJMP</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>jump</name></name> <operator>=</operator> <call><name>IMM</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>fail</name></name> <operator>=</operator> <name>addr</name> <operator>+</operator> <name><name>op</name><operator>-&gt;</operator><name>size</name></name></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_INS_BDZLA</name></expr>:</case>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_CJMP</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>jump</name></name> <operator>=</operator> <call><name>IMM</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>fail</name></name> <operator>=</operator> <name>addr</name> <operator>+</operator> <name><name>op</name><operator>-&gt;</operator><name>size</name></name></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_INS_BDZLR</name></expr>:</case>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_CJMP</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>fail</name></name> <operator>=</operator> <name>addr</name> <operator>+</operator> <name><name>op</name><operator>-&gt;</operator><name>size</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"1,ctr,-=,$z,?{,lr,pc,=,}"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_INS_BDZLRL</name></expr>:</case>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_CJMP</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>fail</name></name> <operator>=</operator> <name>addr</name> <operator>+</operator> <name><name>op</name><operator>-&gt;</operator><name>size</name></name></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_INS_BLR</name></expr>:</case>
+<case>case <expr><name>PPC_INS_BLRL</name></expr>:</case>
+<case>case <expr><name>PPC_INS_BCLR</name></expr>:</case>
+<case>case <expr><name>PPC_INS_BCLRL</name></expr>:</case>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_CRET</name></expr>;</expr_stmt> 
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>fail</name></name> <operator>=</operator> <name>addr</name> <operator>+</operator> <name><name>op</name><operator>-&gt;</operator><name>size</name></name></expr>;</expr_stmt>
+<switch>switch <condition>(<expr><name><name>insn</name><operator>-&gt;</operator><name>detail</name><operator>-&gt;</operator><name>ppc</name><operator>.</operator><name>bc</name></name></expr>)</condition> <block>{<block_content>
+<case>case <expr><name>PPC_BC_INVALID</name></expr>:</case>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_RET</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"lr,pc,="</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_BC_LT</name></expr>:</case>
+<if_stmt><if>if <condition>(<expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call><index>[<expr><literal type="number">0</literal></expr>]</index> <operator>==</operator> <literal type="char">'\0'</literal></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"0x80,cr0,&amp;,!,!,?{,lr,pc,=,},"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"0x80,%s,&amp;,!,!,?{,lr,pc,=,},"</literal></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></else></if_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_BC_LE</name></expr>:</case>
+<if_stmt><if>if <condition>(<expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call><index>[<expr><literal type="number">0</literal></expr>]</index> <operator>==</operator> <literal type="char">'\0'</literal></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"0x80,cr0,&amp;,!,!,cr0,!,|,?{,lr,pc,=,},"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"0x80,%s,&amp;,!,!,0,%s,!,|,?{,lr,pc,=,},"</literal></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></else></if_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_BC_EQ</name></expr>:</case>
+<if_stmt><if>if <condition>(<expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call><index>[<expr><literal type="number">0</literal></expr>]</index> <operator>==</operator> <literal type="char">'\0'</literal></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"cr0,!,?{,lr,pc,=,},"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"%s,!,?{,lr,pc,=,},"</literal></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></else></if_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_BC_GE</name></expr>:</case>
+<if_stmt><if>if <condition>(<expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call><index>[<expr><literal type="number">0</literal></expr>]</index> <operator>==</operator> <literal type="char">'\0'</literal></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"0x80,cr0,&amp;,!,cr0,!,|,?{,lr,pc,=,},"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"0x80,%s,&amp;,!,%s,!,|,?{,lr,pc,=,},"</literal></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></else></if_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_BC_GT</name></expr>:</case>
+<if_stmt><if>if <condition>(<expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call><index>[<expr><literal type="number">0</literal></expr>]</index> <operator>==</operator> <literal type="char">'\0'</literal></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"0x80,cr0,&amp;,!,?{,lr,pc,=,},"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"0x80,%s,&amp;,!,?{,lr,pc,=,},"</literal></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></else></if_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_BC_NE</name></expr>:</case>
+<if_stmt><if>if <condition>(<expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call><index>[<expr><literal type="number">0</literal></expr>]</index> <operator>==</operator> <literal type="char">'\0'</literal></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"cr0,!,!,?{,lr,pc,=,},"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"%s,!,!,?{,lr,pc,=,},"</literal></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></else></if_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_BC_UN</name></expr>:</case> 
+<case>case <expr><name>PPC_BC_NU</name></expr>:</case> 
+<case>case <expr><name>PPC_BC_SO</name></expr>:</case> 
+<case>case <expr><name>PPC_BC_NS</name></expr>:</case> 
+<default>default:</default>
+<break>break;</break>
+</block_content>}</block></switch>
+<break>break;</break>
+<case>case <expr><name>PPC_INS_NOR</name></expr>:</case>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_NOR</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"%s,%s,|,!,%s,="</literal></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">2</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_INS_XOR</name></expr>:</case>
+<case>case <expr><name>PPC_INS_XORI</name></expr>:</case>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_XOR</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"%s,%s,^,%s,="</literal></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">2</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_INS_XORIS</name></expr>:</case>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_XOR</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"16,%s,&lt;&lt;,%s,^,%s,="</literal></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">2</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_INS_DIVD</name></expr>:</case>
+<case>case <expr><name>PPC_INS_DIVW</name></expr>:</case>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>sign</name></name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_DIV</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"%s,%s,/,%s,="</literal></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">2</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_INS_DIVDU</name></expr>:</case>
+<case>case <expr><name>PPC_INS_DIVWU</name></expr>:</case>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_DIV</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"%s,%s,/,%s,="</literal></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">2</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_INS_BL</name></expr>:</case>
+<case>case <expr><name>PPC_INS_BLA</name></expr>:</case>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_CALL</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>jump</name></name> <operator>=</operator> <call><name>IMM</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>fail</name></name> <operator>=</operator> <name>addr</name> <operator>+</operator> <name><name>op</name><operator>-&gt;</operator><name>size</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"pc,lr,=,%s,pc,="</literal></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_INS_TRAP</name></expr>:</case>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>sign</name></name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_TRAP</name></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_INS_AND</name></expr>:</case>
+<case>case <expr><name>PPC_INS_NAND</name></expr>:</case>
+<case>case <expr><name>PPC_INS_ANDI</name></expr>:</case>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_AND</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"%s,%s,&amp;,%s,="</literal></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">2</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_INS_ANDIS</name></expr>:</case>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_AND</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"16,%s,&lt;&lt;,%s,&amp;,%s,="</literal></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">2</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_INS_OR</name></expr>:</case>
+<case>case <expr><name>PPC_INS_ORI</name></expr>:</case>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_OR</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"%s,%s,|,%s,="</literal></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">2</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_INS_ORIS</name></expr>:</case>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_OR</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"16,%s,&lt;&lt;,%s,|,%s,="</literal></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">2</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_INS_MFPVR</name></expr>:</case>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_MOV</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"pvr,%s,="</literal></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_INS_MFSPR</name></expr>:</case>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_MOV</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"%s,%s,="</literal></expr></argument>, <argument><expr><call><name>PPCSPR</name> <argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_INS_MFCTR</name></expr>:</case>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_MOV</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"ctr,%s,="</literal></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_INS_MFDCCR</name></expr>:</case>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_MOV</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"dccr,%s,="</literal></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_INS_MFICCR</name></expr>:</case>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_MOV</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"iccr,%s,="</literal></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_INS_MFDEAR</name></expr>:</case>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_MOV</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"dear,%s,="</literal></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_INS_MFMSR</name></expr>:</case>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_MOV</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"msr,%s,="</literal></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_INS_MTCTR</name></expr>:</case>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_MOV</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"%s,ctr,="</literal></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_INS_MTDCCR</name></expr>:</case>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_MOV</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"%s,dccr,="</literal></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_INS_MTICCR</name></expr>:</case>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_MOV</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"%s,iccr,="</literal></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_INS_MTDEAR</name></expr>:</case>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_MOV</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"%s,dear,="</literal></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_INS_MTMSR</name></expr>:</case>
+<case>case <expr><name>PPC_INS_MTMSRD</name></expr>:</case>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_MOV</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"%s,msr,="</literal></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+
+<case>case <expr><name>PPC_INS_DCBZ</name></expr>:</case>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_STORE</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"%s,%s"</literal></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>ARG2</name> <argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>, <argument><expr><literal type="string">",=[128]"</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_INS_CLRLDI</name></expr>:</case>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_AND</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"%s,%s,&amp;,%s,="</literal></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>cmask64</name> <argument_list>(<argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">2</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><literal type="string">"0x3F"</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_INS_ROTLDI</name></expr>:</case>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_ROL</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"%s,%s,&lt;&lt;&lt;,%s,="</literal></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">2</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_INS_RLDCL</name></expr>:</case>
+<case>case <expr><name>PPC_INS_RLDICL</name></expr>:</case>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_ROL</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"%s,%s,&lt;&lt;&lt;,%s,&amp;,%s,="</literal></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">2</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>cmask64</name> <argument_list>(<argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">3</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><literal type="string">"0x3F"</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>PPC_INS_RLDCR</name></expr>:</case>
+<case>case <expr><name>PPC_INS_RLDICR</name></expr>:</case>
+<expr_stmt><expr><name><name>op</name><operator>-&gt;</operator><name>type</name></name> <operator>=</operator> <name>R_ANAL_OP_TYPE_ROL</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>esilprintf</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><literal type="string">"%s,%s,&lt;&lt;&lt;,%s,&amp;,%s,="</literal></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">2</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>cmask64</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">3</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>ARG</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+</block_content>}</block></switch>
+<if_stmt><if>if <condition>(<expr><name>mask</name> <operator>&amp;</operator> <name>R_ANAL_OP_MASK_VAL</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>op_fillval</name> <argument_list>(<argument><expr><name>op</name></expr></argument>, <argument><expr><name>handle</name></expr></argument>, <argument><expr><name>insn</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><operator>(</operator><name>mask</name> <operator>&amp;</operator> <name>R_ANAL_OP_MASK_ESIL</name><operator>)</operator></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>r_strbuf_fini</name> <argument_list>(<argument><expr><operator>&amp;</operator><name><name>op</name><operator>-&gt;</operator><name>esil</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+<expr_stmt><expr><call><name>cs_free</name> <argument_list>(<argument><expr><name>insn</name></expr></argument>, <argument><expr><name>n</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+<return>return <expr><name><name>op</name><operator>-&gt;</operator><name>size</name></name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>archinfo</name><parameter_list>(<parameter><decl><type><name>RAnal</name> <modifier>*</modifier></type><name>a</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>q</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name><name>a</name><operator>-&gt;</operator><name>cpu</name></name> <operator>&amp;&amp;</operator> <operator>!</operator><call><name>strncmp</name> <argument_list>(<argument><expr><name><name>a</name><operator>-&gt;</operator><name>cpu</name></name></expr></argument>, <argument><expr><literal type="string">"vle"</literal></expr></argument>, <argument><expr><literal type="number">3</literal></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+<return>return <expr><literal type="number">2</literal></expr>;</return>
+</block_content>}</block></if></if_stmt>
+<return>return <expr><literal type="number">4</literal></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>RList</name> <modifier>*</modifier></type><name>anal_preludes</name><parameter_list>(<parameter><decl><type><name>RAnal</name> <modifier>*</modifier></type><name>anal</name></decl></parameter>)</parameter_list> <block>{<block_content>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>KW</name><parameter_list>(<parameter><type><name>d</name></type></parameter>,<parameter><type><name>ds</name></type></parameter>,<parameter><type><name>m</name></type></parameter>,<parameter><type><name>ms</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>r_list_append (l, r_search_keyword_new((const ut8*)d,ds,(const ut8*)m, ms, NULL))</cpp:value></cpp:define>
+<decl_stmt><decl><type><name>RList</name> <modifier>*</modifier></type><name>l</name> <init>= <expr><call><name>r_list_newf</name> <argument_list>(<argument><expr><operator>(</operator><name>RListFree</name><operator>)</operator><name>r_search_keyword_free</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><call><name>KW</name> <argument_list>(<argument><expr><literal type="string">"\x7c\x08\x02\xa6"</literal></expr></argument>, <argument><expr><literal type="number">4</literal></expr></argument>, <argument><expr><name>NULL</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>l</name></expr>;</return>
+</block_content>}</block></function>
+
+<decl_stmt><decl><type><name>RAnalPlugin</name></type> <name>r_anal_plugin_ppc_cs</name> <init>= <expr><block>{
+<expr><operator>.</operator><name>name</name> <operator>=</operator> <literal type="string">"ppc"</literal></expr>,
+<expr><operator>.</operator><name>desc</name> <operator>=</operator> <literal type="string">"Capstone PowerPC analysis"</literal></expr>,
+<expr><operator>.</operator><name>license</name> <operator>=</operator> <literal type="string">"BSD"</literal></expr>,
+<expr><operator>.</operator><name>esil</name> <operator>=</operator> <name>true</name></expr>,
+<expr><operator>.</operator><name>arch</name> <operator>=</operator> <literal type="string">"ppc"</literal></expr>,
+<expr><operator>.</operator><name>bits</name> <operator>=</operator> <literal type="number">32</literal> <operator>|</operator> <literal type="number">64</literal></expr>,
+<expr><operator>.</operator><name>archinfo</name> <operator>=</operator> <name>archinfo</name></expr>,
+<expr><operator>.</operator><name>preludes</name> <operator>=</operator> <name>anal_preludes</name></expr>,
+<expr><operator>.</operator><name>op</name> <operator>=</operator> <operator>&amp;</operator><name>analop</name></expr>,
+<expr><operator>.</operator><name>set_reg_profile</name> <operator>=</operator> <operator>&amp;</operator><name>set_reg_profile</name></expr>,
+}</block></expr></init></decl>;</decl_stmt>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><operator>!</operator><call><name>defined</name><argument_list>(<argument><expr><name>R2_PLUGIN_INCORE</name></expr></argument>)</argument_list></call></expr></cpp:if>
+<decl_stmt><decl><type><name>R_API</name> <name>RLibStruct</name></type> <name>radare_plugin</name> <init>= <expr><block>{
+<expr><operator>.</operator><name>type</name> <operator>=</operator> <name>R_LIB_TYPE_ANAL</name></expr>,
+<expr><operator>.</operator><name>data</name> <operator>=</operator> <operator>&amp;</operator><name>r_anal_plugin_ppc_cs</name></expr>,
+<expr><operator>.</operator><name>version</name> <operator>=</operator> <name>R2_VERSION</name></expr>
+}</block></expr></init></decl>;</decl_stmt>
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+</unit>

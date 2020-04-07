@@ -1,0 +1,3 @@
+#define TX_FLOAT
+#include "tx_priv.h"
+#include "tx_template.c"

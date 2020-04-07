@@ -1,0 +1,403 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+#include <vlc_common.h>
+#include <vlc_access.h>
+#include "playlist.h"
+
+
+
+
+#define MAX_LINE 1024
+
+typedef struct
+{
+    char        *psz_uri;       
+    char        *psz_server;    
+    char        *psz_location;  
+    char        *psz_name;      
+    char        *psz_user;      
+    char        *psz_password;  
+    char        *psz_mcast_ip;  
+    int         i_mcast_port;   
+    int         i_packet_size;  
+    vlc_tick_t  i_duration;     
+    int         i_port;         
+    int         i_sid;          
+    bool  b_concert;      
+    bool  b_rtsp_kasenna; 
+} demux_sys_t;
+
+static int ReadDir( stream_t *, input_item_node_t * );
+
+
+
+
+int Import_SGIMB( vlc_object_t * p_this )
+{
+    stream_t *p_demux = (stream_t *)p_this;
+    const uint8_t *p_peek;
+    int i_size;
+
+    CHECK_FILE(p_demux);
+    
+    i_size = vlc_stream_Peek( p_demux->s, &p_peek, MAX_LINE );
+    i_size -= sizeof("sgiNameServerHost=") - 1;
+    if ( i_size > 0 )
+    {
+        unsigned int i_len = sizeof("sgiNameServerHost=") - 1;
+        while ( i_size && strncasecmp( (char *)p_peek, "sgiNameServerHost=", i_len ) )
+        {
+            p_peek++;
+            i_size--;
+        }
+        if ( !strncasecmp( (char *)p_peek, "sgiNameServerHost=", i_len ) )
+        {
+            demux_sys_t *p_sys = malloc(sizeof (*p_sys));
+            if( unlikely(p_sys == NULL) )
+                return VLC_ENOMEM;
+
+            msg_Dbg( p_demux, "using SGIMB playlist reader" );
+            p_demux->pf_readdir = ReadDir;
+            p_demux->pf_control = access_vaDirectoryControlHelper;
+            p_demux->p_sys = p_sys;
+            p_sys->psz_uri = NULL;
+            p_sys->psz_server = NULL;
+            p_sys->psz_location = NULL;
+            p_sys->psz_name = NULL;
+            p_sys->psz_user = NULL;
+            p_sys->psz_password = NULL;
+            p_sys->psz_mcast_ip = NULL;
+            p_sys->i_mcast_port = 0;
+            p_sys->i_packet_size = 0;
+            p_sys->i_duration = 0;
+            p_sys->i_port = 0;
+            p_sys->i_sid = 0;
+            p_sys->b_rtsp_kasenna = false;
+            p_sys->b_concert = false;
+
+            return VLC_SUCCESS;
+        }
+    }
+    return VLC_EGENERIC;
+}
+
+
+
+
+void Close_SGIMB( vlc_object_t *p_this )
+{
+    stream_t *p_demux = (stream_t*)p_this;
+    demux_sys_t *p_sys = p_demux->p_sys;
+    free( p_sys->psz_uri );
+    free( p_sys->psz_server );
+    free( p_sys->psz_location );
+    free( p_sys->psz_name );
+    free( p_sys->psz_user );
+    free( p_sys->psz_password );
+    free( p_sys->psz_mcast_ip );
+    free( p_demux->p_sys );
+    return;
+}
+
+static int ParseLine ( stream_t *p_demux, char *psz_line )
+{
+    char        *psz_bol;
+    demux_sys_t *p_sys = p_demux->p_sys;
+
+    psz_bol = psz_line;
+
+    
+    while( *psz_bol == ' ' || *psz_bol == '\t' ||
+           *psz_bol == '\n' || *psz_bol == '\r' )
+    {
+        psz_bol++;
+    }
+
+    if( !strncasecmp( psz_bol, "rtsp://", sizeof("rtsp://") - 1 ) )
+    {
+        
+        free( p_sys->psz_uri );
+        p_sys->psz_uri = strdup( psz_bol );
+    }
+    else if( !strncasecmp( psz_bol, "Stream=\"", sizeof("Stream=\"") - 1 ) )
+    {
+        psz_bol += sizeof("Stream=\"") - 1;
+        char* psz_tmp = strrchr( psz_bol, '"' );
+        if( !psz_tmp )
+            return 0;
+        psz_tmp[0] = '\0';
+        
+        if( !strncasecmp( psz_bol, "xdma://", sizeof("xdma://") - 1 ) )
+        {
+            psz_bol[0] = 'r';
+            psz_bol[1] = 't';
+            psz_bol[2] = 's';
+            psz_bol[3] = 'p';
+        }
+        free( p_sys->psz_uri );
+        p_sys->psz_uri = strdup( psz_bol );
+    }
+    else if( !strncasecmp( psz_bol, "sgiNameServerHost=", sizeof("sgiNameServerHost=") - 1 ) )
+    {
+        psz_bol += sizeof("sgiNameServerHost=") - 1;
+        free( p_sys->psz_server );
+        p_sys->psz_server = strdup( psz_bol );
+    }
+    else if( !strncasecmp( psz_bol, "sgiMovieName=", sizeof("sgiMovieName=") - 1 ) )
+    {
+        psz_bol += sizeof("sgiMovieName=") - 1;
+        free( p_sys->psz_location );
+        p_sys->psz_location = strdup( psz_bol );
+    }
+    else if( !strncasecmp( psz_bol, "sgiUserAccount=", sizeof("sgiUserAccount=") - 1 ) )
+    {
+        psz_bol += sizeof("sgiUserAccount=") - 1;
+        free( p_sys->psz_user );
+        p_sys->psz_user = strdup( psz_bol );
+    }
+    else if( !strncasecmp( psz_bol, "sgiUserPassword=", sizeof("sgiUserPassword=") - 1 ) )
+    {
+        psz_bol += sizeof("sgiUserPassword=") - 1;
+        free( p_sys->psz_password );
+        p_sys->psz_password = strdup( psz_bol );
+    }
+    else if( !strncasecmp( psz_bol, "sgiShowingName=", sizeof("sgiShowingName=") - 1 ) )
+    {
+        psz_bol += sizeof("sgiShowingName=") - 1;
+        free( p_sys->psz_name );
+        p_sys->psz_name = strdup( psz_bol );
+    }
+    else if( !strncasecmp( psz_bol, "sgiFormatName=", sizeof("sgiFormatName=") - 1 ) )
+    {
+        psz_bol += sizeof("sgiFormatName=") - 1;
+        if( strcasestr( psz_bol, "MPEG-4") == NULL ) 
+            p_sys->b_rtsp_kasenna = true;
+    }
+    else if( !strncasecmp( psz_bol, "sgiMulticastAddress=", sizeof("sgiMulticastAddress=") - 1 ) )
+    {
+        psz_bol += sizeof("sgiMulticastAddress=") - 1;
+        free( p_sys->psz_mcast_ip );
+        p_sys->psz_mcast_ip = strdup( psz_bol );
+    }
+    else if( !strncasecmp( psz_bol, "sgiMulticastPort=", sizeof("sgiMulticastPort=") - 1 ) )
+    {
+        psz_bol += sizeof("sgiMulticastPort=") - 1;
+        p_sys->i_mcast_port = (int) strtol( psz_bol, NULL, 0 );
+    }
+    else if( !strncasecmp( psz_bol, "sgiPacketSize=", sizeof("sgiPacketSize=") - 1 ) )
+    {
+        psz_bol += sizeof("sgiPacketSize=") - 1;
+        p_sys->i_packet_size = (int) strtol( psz_bol, NULL, 0 );
+    }
+    else if( !strncasecmp( psz_bol, "sgiDuration=", sizeof("sgiDuration=") - 1 ) )
+    {
+        psz_bol += sizeof("sgiDuration=") - 1;
+        p_sys->i_duration = VLC_TICK_FROM_US( strtol( psz_bol, NULL, 0 ) );
+    }
+    else if( !strncasecmp( psz_bol, "sgiRtspPort=", sizeof("sgiRtspPort=") - 1 ) )
+    {
+        psz_bol += sizeof("sgiRtspPort=") - 1;
+        p_sys->i_port = (int) strtol( psz_bol, NULL, 0 );
+    }
+    else if( !strncasecmp( psz_bol, "sgiSid=", sizeof("sgiSid=") - 1 ) )
+    {
+        psz_bol += sizeof("sgiSid=") - 1;
+        p_sys->i_sid = (int) strtol( psz_bol, NULL, 0 );
+    }
+    else if( !strncasecmp( psz_bol, "DeliveryService=cds", sizeof("DeliveryService=cds") - 1 ) )
+    {
+        p_sys->b_concert = true;
+    }
+    else
+    {
+        
+        return 0;
+    }
+    return VLC_SUCCESS;
+}
+
+static int ReadDir( stream_t *p_demux, input_item_node_t *node )
+{
+    demux_sys_t     *p_sys = p_demux->p_sys;
+    input_item_t    *p_child = NULL;
+    char            *psz_line;
+
+    while( ( psz_line = vlc_stream_ReadLine( p_demux->s ) ) )
+    {
+        ParseLine( p_demux, psz_line );
+        free( psz_line );
+    }
+
+    if( p_sys->psz_mcast_ip )
+    {
+        
+        
+        free( p_sys->psz_uri );
+        if( asprintf( &p_sys->psz_uri, "udp://@" "%s:%i", p_sys->psz_mcast_ip, p_sys->i_mcast_port ) == -1 )
+        {
+            p_sys->psz_uri = NULL;
+            return -1;
+        }
+    }
+
+    if( p_sys->psz_uri == NULL )
+    {
+        if( p_sys->psz_server && p_sys->psz_location )
+        {
+            if( asprintf( &p_sys->psz_uri, "rtsp://" "%s:%i%s",
+                     p_sys->psz_server, p_sys->i_port > 0 ? p_sys->i_port : 554, p_sys->psz_location ) == -1 )
+            {
+                p_sys->psz_uri = NULL;
+                return -1;
+            }
+        }
+    }
+
+    if( p_sys->b_concert )
+    {
+        
+        
+        if( p_sys->psz_uri == NULL )
+        {
+            msg_Err( p_demux, "no URI was found" );
+            return -1;
+        }
+
+        char *uri;
+        if( asprintf( &uri, "%s%%3FMeDiAbAsEshowingId=%d%%26MeDiAbAsEconcert"
+                      "%%3FMeDiAbAsE", p_sys->psz_uri, p_sys->i_sid ) == -1 )
+            return -1;
+        free( p_sys->psz_uri );
+        p_sys->psz_uri = uri;
+    }
+
+    p_child = input_item_NewStream( p_sys->psz_uri,
+                      p_sys->psz_name ? p_sys->psz_name : p_sys->psz_uri,
+                      p_sys->i_duration  );
+
+    if( !p_child )
+    {
+        msg_Err( p_demux, "A valid playlistitem could not be created" );
+        return -1;
+    }
+
+    if( p_sys->i_packet_size && p_sys->psz_mcast_ip )
+    {
+        char *psz_option;
+        p_sys->i_packet_size += 1000;
+        if( asprintf( &psz_option, "mtu=%i", p_sys->i_packet_size ) != -1 )
+        {
+            input_item_AddOption( p_child, psz_option, VLC_INPUT_OPTION_TRUSTED );
+            free( psz_option );
+        }
+    }
+    if( !p_sys->psz_mcast_ip )
+        input_item_AddOption( p_child, "rtsp-caching=5000", VLC_INPUT_OPTION_TRUSTED );
+    if( !p_sys->psz_mcast_ip && p_sys->b_rtsp_kasenna )
+        input_item_AddOption( p_child, "rtsp-kasenna", VLC_INPUT_OPTION_TRUSTED );
+
+    input_item_node_AppendItem( node, p_child );
+    input_item_Release( p_child );
+    return VLC_SUCCESS;
+}

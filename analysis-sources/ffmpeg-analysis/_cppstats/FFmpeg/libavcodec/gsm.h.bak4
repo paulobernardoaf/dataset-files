@@ -1,0 +1,45 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#if !defined(AVCODEC_GSM_H)
+#define AVCODEC_GSM_H
+
+
+#define GSM_BLOCK_SIZE 33
+#define GSM_MS_BLOCK_SIZE 65
+#define MSN_MIN_BLOCK_SIZE 41
+
+
+#define GSM_FRAME_SIZE 160
+
+enum GSMModes {
+GSM_13000 = 0,
+MSN_12400,
+MSN_11800,
+MSN_11200,
+MSN_10600,
+MSN_10000,
+MSN_9400,
+MSN_8800,
+MSN_8200,
+NUM_GSM_MODES
+};
+
+#endif 

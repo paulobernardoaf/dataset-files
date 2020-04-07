@@ -1,0 +1,8 @@
+#if defined(HAVE_CONFIG_H)
+#include <config.h>
+#endif
+lldiv_t lldiv (long long num, long long denom)
+{
+lldiv_t d = { num / denom, num % demon, };
+return d;
+}

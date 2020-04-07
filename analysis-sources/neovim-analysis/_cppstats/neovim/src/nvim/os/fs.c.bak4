@@ -1,0 +1,1236 @@
+
+
+
+
+#include <stdbool.h>
+#include <stddef.h>
+#include <assert.h>
+#include <limits.h>
+#include <fcntl.h>
+#include <errno.h>
+
+#include "auto/config.h"
+
+#if defined(HAVE_SYS_UIO_H)
+#include <sys/uio.h>
+#endif
+
+#include <uv.h>
+
+#include "nvim/os/os.h"
+#include "nvim/os/os_defs.h"
+#include "nvim/ascii.h"
+#include "nvim/memory.h"
+#include "nvim/message.h"
+#include "nvim/assert.h"
+#include "nvim/misc1.h"
+#include "nvim/option.h"
+#include "nvim/path.h"
+#include "nvim/strings.h"
+
+#if defined(WIN32)
+#include "nvim/mbyte.h" 
+#endif
+
+#if defined(INCLUDE_GENERATED_DECLARATIONS)
+#include "os/fs.c.generated.h"
+#endif
+
+#define RUN_UV_FS_FUNC(ret, func, ...) do { bool did_try_to_free = false; uv_call_start: {} uv_fs_t req; ret = func(&fs_loop, &req, __VA_ARGS__); uv_fs_req_cleanup(&req); if (ret == UV_ENOMEM && !did_try_to_free) { try_to_free_memory(); did_try_to_free = true; goto uv_call_start; } } while (0)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+static const int kLibuvSuccess = 0;
+static uv_loop_t fs_loop;
+
+
+
+void fs_init(void)
+{
+uv_loop_init(&fs_loop);
+}
+
+
+
+
+
+int os_chdir(const char *path)
+FUNC_ATTR_NONNULL_ALL
+{
+if (p_verbose >= 5) {
+verbose_enter();
+smsg("chdir(%s)", path);
+verbose_leave();
+}
+return uv_chdir(path);
+}
+
+
+
+
+
+
+int os_dirname(char_u *buf, size_t len)
+FUNC_ATTR_NONNULL_ALL
+{
+int error_number;
+if ((error_number = uv_cwd((char *)buf, &len)) != kLibuvSuccess) {
+STRLCPY(buf, uv_strerror(error_number), len);
+return FAIL;
+}
+return OK;
+}
+
+
+
+
+bool os_isrealdir(const char *name)
+FUNC_ATTR_NONNULL_ALL
+{
+uv_fs_t request;
+if (uv_fs_lstat(&fs_loop, &request, name, NULL) != kLibuvSuccess) {
+return false;
+}
+if (S_ISLNK(request.statbuf.st_mode)) {
+return false;
+} else {
+return S_ISDIR(request.statbuf.st_mode);
+}
+}
+
+
+
+
+bool os_isdir(const char_u *name)
+FUNC_ATTR_NONNULL_ALL
+{
+int32_t mode = os_getperm((const char *)name);
+if (mode < 0) {
+return false;
+}
+
+if (!S_ISDIR(mode)) {
+return false;
+}
+
+return true;
+}
+
+
+
+
+
+bool os_isdir_executable(const char *name)
+FUNC_ATTR_NONNULL_ALL
+{
+int32_t mode = os_getperm((const char *)name);
+if (mode < 0) {
+return false;
+}
+
+#if defined(WIN32)
+return (S_ISDIR(mode));
+#else
+return (S_ISDIR(mode) && (S_IXUSR & mode));
+#endif
+}
+
+
+
+
+
+int os_nodetype(const char *name)
+FUNC_ATTR_NONNULL_ALL
+{
+#if !defined(WIN32)
+uv_stat_t statbuf;
+if (0 != os_stat(name, &statbuf)) {
+return NODE_NORMAL; 
+}
+
+
+if (S_ISREG(statbuf.st_mode) || S_ISDIR(statbuf.st_mode)) {
+return NODE_NORMAL;
+}
+if (S_ISBLK(statbuf.st_mode)) { 
+return NODE_OTHER;
+}
+
+
+return NODE_WRITABLE;
+#else 
+
+
+
+if (STRNCMP(name, "\\\\.\\", 4) == 0) {
+return NODE_WRITABLE;
+}
+
+
+
+
+
+
+
+
+
+int fd = os_open(name, O_RDONLY
+#if defined(O_NONBLOCK)
+| O_NONBLOCK
+#endif
+, 0);
+if (fd < 0) { 
+return NODE_NORMAL;
+}
+int guess = uv_guess_handle(fd);
+if (close(fd) == -1) {
+ELOG("close(%d) failed. name='%s'", fd, name);
+}
+
+switch (guess) {
+case UV_TTY: 
+return NODE_WRITABLE;
+case UV_FILE: 
+return NODE_NORMAL;
+case UV_NAMED_PIPE: 
+case UV_UDP: 
+case UV_TCP: 
+case UV_UNKNOWN_HANDLE:
+default:
+return NODE_OTHER; 
+}
+#endif
+}
+
+
+
+
+
+
+
+
+
+int os_exepath(char *buffer, size_t *size)
+FUNC_ATTR_NONNULL_ALL
+{
+return uv_exepath(buffer, size);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+bool os_can_exe(const char *name, char **abspath, bool use_path)
+FUNC_ATTR_NONNULL_ARG(1)
+{
+if (!use_path || gettail_dir(name) != name) {
+#if defined(WIN32)
+if (is_executable_ext(name, abspath)) {
+#else
+
+if ((use_path || gettail_dir(name) != name)
+&& is_executable(name, abspath)) {
+#endif
+return true;
+} else {
+return false;
+}
+}
+
+return is_executable_in_path(name, abspath);
+}
+
+
+
+
+
+static bool is_executable(const char *name, char **abspath)
+FUNC_ATTR_NONNULL_ARG(1)
+{
+int32_t mode = os_getperm(name);
+
+if (mode < 0) {
+return false;
+}
+
+#if defined(WIN32)
+
+
+const bool ok = S_ISREG(mode);
+#else
+int r = -1;
+if (S_ISREG(mode)) {
+RUN_UV_FS_FUNC(r, uv_fs_access, name, X_OK, NULL);
+}
+const bool ok = (r == 0);
+#endif
+if (ok && abspath != NULL) {
+*abspath = save_abs_path(name);
+}
+return ok;
+}
+
+#if defined(WIN32)
+
+
+
+static bool is_executable_ext(const char *name, char **abspath)
+FUNC_ATTR_NONNULL_ARG(1)
+{
+const bool is_unix_shell = strstr((char *)path_tail(p_sh), "sh") != NULL;
+char *nameext = strrchr(name, '.');
+size_t nameext_len = nameext ? strlen(nameext) : 0;
+xstrlcpy(os_buf, name, sizeof(os_buf));
+char *buf_end = xstrchrnul(os_buf, '\0');
+const char *pathext = os_getenv("PATHEXT");
+if (!pathext) {
+pathext = ".com;.exe;.bat;.cmd";
+}
+const char *ext = pathext;
+while (*ext) {
+
+if (ext[0] == '.' && (ext[1] == '\0' || ext[1] == ENV_SEPCHAR)) {
+if (is_executable(name, abspath)) {
+return true;
+}
+
+ext++;
+if (*ext) {
+ext++;
+}
+continue;
+}
+
+const char *ext_end = ext;
+size_t ext_len =
+copy_option_part((char_u **)&ext_end, (char_u *)buf_end,
+sizeof(os_buf) - (size_t)(buf_end - os_buf), ENV_SEPSTR);
+if (ext_len != 0) {
+bool in_pathext = nameext_len == ext_len
+&& 0 == mb_strnicmp((char_u *)nameext, (char_u *)ext, ext_len);
+
+if (((in_pathext || is_unix_shell) && is_executable(name, abspath))
+|| is_executable(os_buf, abspath)) {
+return true;
+}
+}
+ext = ext_end;
+}
+return false;
+}
+#endif
+
+
+
+
+
+
+
+static bool is_executable_in_path(const char *name, char **abspath)
+FUNC_ATTR_NONNULL_ARG(1)
+{
+const char *path_env = os_getenv("PATH");
+if (path_env == NULL) {
+return false;
+}
+
+#if defined(WIN32)
+
+size_t pathlen = strlen(path_env);
+char *path = memcpy(xmallocz(pathlen + 2), "." ENV_SEPSTR, 2);
+memcpy(path + 2, path_env, pathlen);
+#else
+char *path = xstrdup(path_env);
+#endif
+
+size_t buf_len = strlen(name) + strlen(path) + 2;
+char *buf = xmalloc(buf_len);
+
+
+
+char *p = path;
+bool rv = false;
+for (;; ) {
+char *e = xstrchrnul(p, ENV_SEPCHAR);
+
+
+STRLCPY(buf, p, e - p + 1);
+append_path(buf, name, buf_len);
+
+#if defined(WIN32)
+if (is_executable_ext(buf, abspath)) {
+#else
+if (is_executable(buf, abspath)) {
+#endif
+rv = true;
+goto end;
+}
+
+if (*e != ENV_SEPCHAR) {
+
+goto end;
+}
+
+p = e + 1;
+}
+
+end:
+xfree(buf);
+xfree(path);
+return rv;
+}
+
+
+
+
+
+
+
+
+
+
+
+int os_open(const char *path, int flags, int mode)
+{
+if (path == NULL) { 
+return UV_EINVAL;
+}
+int r;
+RUN_UV_FS_FUNC(r, uv_fs_open, path, flags, mode, NULL);
+return r;
+}
+
+
+
+
+
+
+
+
+
+
+
+FILE *os_fopen(const char *path, const char *flags)
+{
+assert(flags != NULL && strlen(flags) > 0 && strlen(flags) <= 2);
+int iflags = 0;
+
+if (flags[1] == '\0' || flags[1] == 'b') {
+switch (flags[0]) {
+case 'r':
+iflags = O_RDONLY;
+break;
+case 'w':
+iflags = O_WRONLY | O_CREAT | O_TRUNC;
+break;
+case 'a':
+iflags = O_WRONLY | O_CREAT | O_APPEND;
+break;
+default:
+abort();
+}
+#if defined(WIN32)
+if (flags[1] == 'b') {
+iflags |= O_BINARY;
+}
+#endif
+} else {
+
+
+assert(flags[1] == '+');
+switch (flags[0]) {
+case 'r':
+iflags = O_RDWR;
+break;
+case 'w':
+iflags = O_RDWR | O_CREAT | O_TRUNC;
+break;
+case 'a':
+iflags = O_RDWR | O_CREAT | O_APPEND;
+break;
+default:
+abort();
+}
+}
+
+assert((iflags|O_RDONLY) || (iflags|O_WRONLY) || (iflags|O_RDWR));
+
+int fd = os_open(path, iflags, 0666);
+if (fd < 0) {
+return NULL;
+}
+return fdopen(fd, flags);
+}
+
+
+
+
+int os_set_cloexec(const int fd)
+{
+#if defined(HAVE_FD_CLOEXEC)
+int e;
+int fdflags = fcntl(fd, F_GETFD);
+if (fdflags < 0) {
+e = errno;
+ELOG("Failed to get flags on descriptor %d: %s", fd, strerror(e));
+errno = e;
+return -1;
+}
+if ((fdflags & FD_CLOEXEC) == 0
+&& fcntl(fd, F_SETFD, fdflags | FD_CLOEXEC) == -1) {
+e = errno;
+ELOG("Failed to set CLOEXEC on descriptor %d: %s", fd, strerror(e));
+errno = e;
+return -1;
+}
+return 0;
+#endif
+
+
+
+return -1;
+}
+
+
+
+
+int os_close(const int fd)
+{
+int r;
+RUN_UV_FS_FUNC(r, uv_fs_close, fd, NULL);
+return r;
+}
+
+
+
+
+
+
+int os_dup(const int fd)
+FUNC_ATTR_WARN_UNUSED_RESULT
+{
+int ret;
+os_dup_dup:
+ret = dup(fd);
+if (ret < 0) {
+const int error = os_translate_sys_error(errno);
+errno = 0;
+if (error == UV_EINTR) {
+goto os_dup_dup;
+} else {
+return error;
+}
+}
+return ret;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+ptrdiff_t os_read(const int fd, bool *const ret_eof, char *const ret_buf,
+const size_t size, const bool non_blocking)
+FUNC_ATTR_WARN_UNUSED_RESULT
+{
+*ret_eof = false;
+if (ret_buf == NULL) {
+assert(size == 0);
+return 0;
+}
+size_t read_bytes = 0;
+bool did_try_to_free = false;
+while (read_bytes != size) {
+assert(size >= read_bytes);
+const ptrdiff_t cur_read_bytes = read(fd, ret_buf + read_bytes,
+IO_COUNT(size - read_bytes));
+if (cur_read_bytes > 0) {
+read_bytes += (size_t)cur_read_bytes;
+}
+if (cur_read_bytes < 0) {
+const int error = os_translate_sys_error(errno);
+errno = 0;
+if (non_blocking && error == UV_EAGAIN) {
+break;
+} else if (error == UV_EINTR || error == UV_EAGAIN) {
+continue;
+} else if (error == UV_ENOMEM && !did_try_to_free) {
+try_to_free_memory();
+did_try_to_free = true;
+continue;
+} else {
+return (ptrdiff_t)error;
+}
+}
+if (cur_read_bytes == 0) {
+*ret_eof = true;
+break;
+}
+}
+return (ptrdiff_t)read_bytes;
+}
+
+#if defined(HAVE_READV)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ptrdiff_t os_readv(const int fd, bool *const ret_eof, struct iovec *iov,
+size_t iov_size, const bool non_blocking)
+FUNC_ATTR_NONNULL_ALL
+{
+*ret_eof = false;
+size_t read_bytes = 0;
+bool did_try_to_free = false;
+size_t toread = 0;
+for (size_t i = 0; i < iov_size; i++) {
+
+assert(toread <= SIZE_MAX - iov[i].iov_len);
+toread += iov[i].iov_len;
+}
+while (read_bytes < toread && iov_size && !*ret_eof) {
+ptrdiff_t cur_read_bytes = readv(fd, iov, (int)iov_size);
+if (cur_read_bytes == 0) {
+*ret_eof = true;
+}
+if (cur_read_bytes > 0) {
+read_bytes += (size_t)cur_read_bytes;
+while (iov_size && cur_read_bytes) {
+if (cur_read_bytes < (ptrdiff_t)iov->iov_len) {
+iov->iov_len -= (size_t)cur_read_bytes;
+iov->iov_base = (char *)iov->iov_base + cur_read_bytes;
+cur_read_bytes = 0;
+} else {
+cur_read_bytes -= (ptrdiff_t)iov->iov_len;
+iov_size--;
+iov++;
+}
+}
+} else if (cur_read_bytes < 0) {
+const int error = os_translate_sys_error(errno);
+errno = 0;
+if (non_blocking && error == UV_EAGAIN) {
+break;
+} else if (error == UV_EINTR || error == UV_EAGAIN) {
+continue;
+} else if (error == UV_ENOMEM && !did_try_to_free) {
+try_to_free_memory();
+did_try_to_free = true;
+continue;
+} else {
+return (ptrdiff_t)error;
+}
+}
+}
+return (ptrdiff_t)read_bytes;
+}
+#endif 
+
+
+
+
+
+
+
+
+
+ptrdiff_t os_write(const int fd, const char *const buf, const size_t size,
+const bool non_blocking)
+FUNC_ATTR_WARN_UNUSED_RESULT
+{
+if (buf == NULL) {
+assert(size == 0);
+return 0;
+}
+size_t written_bytes = 0;
+while (written_bytes != size) {
+assert(size >= written_bytes);
+const ptrdiff_t cur_written_bytes = write(fd, buf + written_bytes,
+IO_COUNT(size - written_bytes));
+if (cur_written_bytes > 0) {
+written_bytes += (size_t)cur_written_bytes;
+}
+if (cur_written_bytes < 0) {
+const int error = os_translate_sys_error(errno);
+errno = 0;
+if (non_blocking && error == UV_EAGAIN) {
+break;
+} else if (error == UV_EINTR || error == UV_EAGAIN) {
+continue;
+} else {
+return error;
+}
+}
+if (cur_written_bytes == 0) {
+return UV_UNKNOWN;
+}
+}
+return (ptrdiff_t)written_bytes;
+}
+
+
+
+
+
+
+
+
+
+int os_copy(const char *path, const char *new_path, int flags)
+{
+int r;
+RUN_UV_FS_FUNC(r, uv_fs_copyfile, path, new_path, flags, NULL);
+return r;
+}
+
+
+
+
+
+
+int os_fsync(int fd)
+{
+int r;
+RUN_UV_FS_FUNC(r, uv_fs_fsync, fd, NULL);
+g_stats.fsync++;
+return r;
+}
+
+
+
+
+static int os_stat(const char *name, uv_stat_t *statbuf)
+FUNC_ATTR_NONNULL_ARG(2)
+{
+if (!name) {
+return UV_EINVAL;
+}
+uv_fs_t request;
+int result = uv_fs_stat(&fs_loop, &request, name, NULL);
+*statbuf = request.statbuf;
+uv_fs_req_cleanup(&request);
+return result;
+}
+
+
+
+
+int32_t os_getperm(const char *name)
+{
+uv_stat_t statbuf;
+int stat_result = os_stat(name, &statbuf);
+if (stat_result == kLibuvSuccess) {
+return (int32_t)statbuf.st_mode;
+} else {
+return stat_result;
+}
+}
+
+
+
+
+int os_setperm(const char *const name, int perm)
+FUNC_ATTR_NONNULL_ALL
+{
+int r;
+RUN_UV_FS_FUNC(r, uv_fs_chmod, name, perm, NULL);
+return (r == kLibuvSuccess ? OK : FAIL);
+}
+
+
+
+
+
+
+int os_chown(const char *path, uv_uid_t owner, uv_gid_t group)
+{
+int r;
+RUN_UV_FS_FUNC(r, uv_fs_chown, path, owner, group, NULL);
+return r;
+}
+
+
+
+
+
+
+
+int os_fchown(int fd, uv_uid_t owner, uv_gid_t group)
+{
+int r;
+RUN_UV_FS_FUNC(r, uv_fs_fchown, fd, owner, group, NULL);
+return r;
+}
+
+
+
+
+bool os_path_exists(const char_u *path)
+{
+uv_stat_t statbuf;
+return os_stat((char *)path, &statbuf) == kLibuvSuccess;
+}
+
+
+
+
+
+
+
+
+
+
+int os_file_settime(const char *path, double atime, double mtime)
+{
+int r;
+RUN_UV_FS_FUNC(r, uv_fs_utime, path, atime, mtime, NULL);
+return r;
+}
+
+
+
+
+bool os_file_is_readable(const char *name)
+FUNC_ATTR_NONNULL_ALL FUNC_ATTR_WARN_UNUSED_RESULT
+{
+int r;
+RUN_UV_FS_FUNC(r, uv_fs_access, name, R_OK, NULL);
+return (r == 0);
+}
+
+
+
+
+
+
+int os_file_is_writable(const char *name)
+FUNC_ATTR_NONNULL_ALL FUNC_ATTR_WARN_UNUSED_RESULT
+{
+int r;
+RUN_UV_FS_FUNC(r, uv_fs_access, name, W_OK, NULL);
+if (r == 0) {
+return os_isdir((char_u *)name) ? 2 : 1;
+}
+return 0;
+}
+
+
+
+
+int os_rename(const char_u *path, const char_u *new_path)
+FUNC_ATTR_NONNULL_ALL
+{
+int r;
+RUN_UV_FS_FUNC(r, uv_fs_rename, (const char *)path, (const char *)new_path,
+NULL);
+return (r == kLibuvSuccess ? OK : FAIL);
+}
+
+
+
+
+int os_mkdir(const char *path, int32_t mode)
+FUNC_ATTR_NONNULL_ALL
+{
+int r;
+RUN_UV_FS_FUNC(r, uv_fs_mkdir, path, mode, NULL);
+return r;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+int os_mkdir_recurse(const char *const dir, int32_t mode,
+char **const failed_dir)
+FUNC_ATTR_NONNULL_ALL FUNC_ATTR_WARN_UNUSED_RESULT
+{
+
+
+const size_t dirlen = strlen(dir);
+char *const curdir = xmemdupz(dir, dirlen);
+char *const past_head = (char *)get_past_head((char_u *)curdir);
+char *e = curdir + dirlen;
+const char *const real_end = e;
+const char past_head_save = *past_head;
+while (!os_isdir((char_u *)curdir)) {
+e = (char *)path_tail_with_sep((char_u *)curdir);
+if (e <= past_head) {
+*past_head = NUL;
+break;
+}
+*e = NUL;
+}
+while (e != real_end) {
+if (e > past_head) {
+*e = PATHSEP;
+} else {
+*past_head = past_head_save;
+}
+const size_t component_len = strlen(e);
+e += component_len;
+if (e == real_end
+&& memcnt(e - component_len, PATHSEP, component_len) == component_len) {
+
+break;
+}
+int ret;
+if ((ret = os_mkdir(curdir, mode)) != 0) {
+*failed_dir = curdir;
+return ret;
+}
+}
+xfree(curdir);
+return 0;
+}
+
+
+
+
+
+
+
+
+int os_mkdtemp(const char *template, char *path)
+FUNC_ATTR_NONNULL_ALL
+{
+uv_fs_t request;
+int result = uv_fs_mkdtemp(&fs_loop, &request, template, NULL);
+if (result == kLibuvSuccess) {
+STRNCPY(path, request.path, TEMP_FILE_PATH_MAXLEN);
+}
+uv_fs_req_cleanup(&request);
+return result;
+}
+
+
+
+
+int os_rmdir(const char *path)
+FUNC_ATTR_NONNULL_ALL
+{
+int r;
+RUN_UV_FS_FUNC(r, uv_fs_rmdir, path, NULL);
+return r;
+}
+
+
+
+
+
+
+bool os_scandir(Directory *dir, const char *path)
+FUNC_ATTR_NONNULL_ALL
+{
+int r = uv_fs_scandir(&fs_loop, &dir->request, path, 0, NULL);
+if (r < 0) {
+os_closedir(dir);
+}
+return r >= 0;
+}
+
+
+
+
+const char *os_scandir_next(Directory *dir)
+FUNC_ATTR_NONNULL_ALL
+{
+int err = uv_fs_scandir_next(&dir->request, &dir->ent);
+return err != UV_EOF ? dir->ent.name : NULL;
+}
+
+
+
+void os_closedir(Directory *dir)
+FUNC_ATTR_NONNULL_ALL
+{
+uv_fs_req_cleanup(&dir->request);
+}
+
+
+
+
+int os_remove(const char *path)
+FUNC_ATTR_NONNULL_ALL
+{
+int r;
+RUN_UV_FS_FUNC(r, uv_fs_unlink, path, NULL);
+return r;
+}
+
+
+
+
+
+
+bool os_fileinfo(const char *path, FileInfo *file_info)
+FUNC_ATTR_NONNULL_ARG(2)
+{
+return os_stat(path, &(file_info->stat)) == kLibuvSuccess;
+}
+
+
+
+
+
+
+bool os_fileinfo_link(const char *path, FileInfo *file_info)
+FUNC_ATTR_NONNULL_ARG(2)
+{
+if (path == NULL) {
+return false;
+}
+uv_fs_t request;
+int result = uv_fs_lstat(&fs_loop, &request, path, NULL);
+file_info->stat = request.statbuf;
+uv_fs_req_cleanup(&request);
+return (result == kLibuvSuccess);
+}
+
+
+
+
+
+
+bool os_fileinfo_fd(int file_descriptor, FileInfo *file_info)
+FUNC_ATTR_NONNULL_ALL
+{
+uv_fs_t request;
+int result = uv_fs_fstat(&fs_loop, &request, file_descriptor, NULL);
+file_info->stat = request.statbuf;
+uv_fs_req_cleanup(&request);
+return (result == kLibuvSuccess);
+}
+
+
+
+
+bool os_fileinfo_id_equal(const FileInfo *file_info_1,
+const FileInfo *file_info_2)
+FUNC_ATTR_NONNULL_ALL
+{
+return file_info_1->stat.st_ino == file_info_2->stat.st_ino
+&& file_info_1->stat.st_dev == file_info_2->stat.st_dev;
+}
+
+
+
+
+
+void os_fileinfo_id(const FileInfo *file_info, FileID *file_id)
+FUNC_ATTR_NONNULL_ALL
+{
+file_id->inode = file_info->stat.st_ino;
+file_id->device_id = file_info->stat.st_dev;
+}
+
+
+
+
+
+
+uint64_t os_fileinfo_inode(const FileInfo *file_info)
+FUNC_ATTR_NONNULL_ALL
+{
+return file_info->stat.st_ino;
+}
+
+
+
+
+uint64_t os_fileinfo_size(const FileInfo *file_info)
+FUNC_ATTR_NONNULL_ALL
+{
+return file_info->stat.st_size;
+}
+
+
+
+
+uint64_t os_fileinfo_hardlinks(const FileInfo *file_info)
+FUNC_ATTR_NONNULL_ALL
+{
+return file_info->stat.st_nlink;
+}
+
+
+
+
+uint64_t os_fileinfo_blocksize(const FileInfo *file_info)
+FUNC_ATTR_NONNULL_ALL
+{
+return file_info->stat.st_blksize;
+}
+
+
+
+
+
+
+bool os_fileid(const char *path, FileID *file_id)
+FUNC_ATTR_NONNULL_ALL
+{
+uv_stat_t statbuf;
+if (os_stat(path, &statbuf) == kLibuvSuccess) {
+file_id->inode = statbuf.st_ino;
+file_id->device_id = statbuf.st_dev;
+return true;
+}
+return false;
+}
+
+
+
+
+
+
+bool os_fileid_equal(const FileID *file_id_1, const FileID *file_id_2)
+FUNC_ATTR_NONNULL_ALL
+{
+return file_id_1->inode == file_id_2->inode
+&& file_id_1->device_id == file_id_2->device_id;
+}
+
+
+
+
+
+
+bool os_fileid_equal_fileinfo(const FileID *file_id,
+const FileInfo *file_info)
+FUNC_ATTR_NONNULL_ALL
+{
+return file_id->inode == file_info->stat.st_ino
+&& file_id->device_id == file_info->stat.st_dev;
+}
+
+#if defined(WIN32)
+#include <shlobj.h>
+
+
+
+
+char *os_resolve_shortcut(const char *fname)
+FUNC_ATTR_WARN_UNUSED_RESULT FUNC_ATTR_MALLOC
+{
+HRESULT hr;
+IPersistFile *ppf = NULL;
+OLECHAR wsz[MAX_PATH];
+char *rfname = NULL;
+IShellLinkW *pslw = NULL;
+WIN32_FIND_DATAW ffdw;
+
+
+
+if (fname == NULL) {
+return rfname;
+}
+const size_t len = strlen(fname);
+if (len <= 4 || STRNICMP(fname + len - 4, ".lnk", 4) != 0) {
+return rfname;
+}
+
+CoInitialize(NULL);
+
+
+hr = CoCreateInstance(&CLSID_ShellLink, NULL, CLSCTX_INPROC_SERVER,
+&IID_IShellLinkW, (void **)&pslw);
+if (hr == S_OK) {
+wchar_t *p;
+const int r = utf8_to_utf16(fname, -1, &p);
+if (r != 0) {
+EMSG2("utf8_to_utf16 failed: %d", r);
+} else if (p != NULL) {
+
+hr = pslw->lpVtbl->QueryInterface(
+pslw, &IID_IPersistFile, (void **)&ppf);
+if (hr != S_OK) {
+goto shortcut_errorw;
+}
+
+
+hr = ppf->lpVtbl->Load(ppf, p, STGM_READ);
+if (hr != S_OK) {
+goto shortcut_errorw;
+}
+
+#if 0 
+hr = pslw->lpVtbl->Resolve(pslw, NULL, SLR_NO_UI);
+if (hr != S_OK) {
+goto shortcut_errorw;
+}
+#endif
+
+
+ZeroMemory(wsz, MAX_PATH * sizeof(wchar_t));
+hr = pslw->lpVtbl->GetPath(pslw, wsz, MAX_PATH, &ffdw, 0);
+if (hr == S_OK && wsz[0] != NUL) {
+const int r2 = utf16_to_utf8(wsz, -1, &rfname);
+if (r2 != 0) {
+EMSG2("utf16_to_utf8 failed: %d", r2);
+}
+}
+
+shortcut_errorw:
+xfree(p);
+goto shortcut_end;
+}
+}
+
+shortcut_end:
+
+if (ppf != NULL) {
+ppf->lpVtbl->Release(ppf);
+}
+if (pslw != NULL) {
+pslw->lpVtbl->Release(pslw);
+}
+
+CoUninitialize();
+return rfname;
+}
+
+#endif

@@ -1,0 +1,451 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#include <vlc_bits.h>
+
+#define CC_PKT_BYTE0(field) (0xFC | (0x03 & field))
+
+
+#define CC_MAX_DATA_SIZE (2 * 3*600)
+enum cc_payload_type_e
+{
+CC_PAYLOAD_NONE,
+CC_PAYLOAD_RAW,
+CC_PAYLOAD_GA94,
+CC_PAYLOAD_DVD,
+CC_PAYLOAD_REPLAYTV,
+CC_PAYLOAD_SCTE20,
+};
+typedef struct
+{
+
+uint64_t i_708channels;
+uint8_t i_608channels;
+
+
+bool b_reorder;
+struct
+{
+uint8_t pktsize;
+uint8_t seq;
+uint8_t sid_bs;
+enum
+{
+CEA708_PKT_END,
+CEA708_PKT_WAIT_BLOCK_HEADER,
+CEA708_PKT_WAIT_EXT_BLOCK_HEADER,
+CEA708_PKT_IN_BLOCK,
+} state;
+} cea708;
+
+
+enum cc_payload_type_e i_payload_type;
+int i_payload_other_count;
+
+
+
+
+
+
+size_t i_data;
+uint8_t p_data[CC_MAX_DATA_SIZE];
+} cc_data_t;
+
+static inline void cc_Init( cc_data_t *c )
+{
+c->i_608channels = 0;
+c->i_708channels = 0;
+c->i_data = 0;
+c->b_reorder = false;
+c->cea708.pktsize = 0;
+c->cea708.seq = 0;
+c->cea708.sid_bs = 0;
+c->cea708.state = CEA708_PKT_END;
+c->i_payload_type = CC_PAYLOAD_NONE;
+c->i_payload_other_count = 0;
+}
+static inline void cc_Exit( cc_data_t *c )
+{
+VLC_UNUSED(c);
+return;
+}
+static inline void cc_Flush( cc_data_t *c )
+{
+c->i_data = 0;
+c->cea708.state = CEA708_PKT_END;
+}
+
+static inline void cc_ProbeCEA708OneByte( cc_data_t *c, bool b_start, const uint8_t cc )
+{
+if( b_start )
+{
+const uint8_t i_pkt_sequence = cc >> 6;
+if( i_pkt_sequence > 0 && ((c->cea708.seq + 1) % 4) != i_pkt_sequence )
+{
+c->cea708.pktsize = 0;
+c->cea708.seq = i_pkt_sequence;
+c->cea708.state = CEA708_PKT_END;
+}
+else
+{
+c->cea708.seq = i_pkt_sequence;
+c->cea708.pktsize = cc & 63;
+if( c->cea708.pktsize == 0 )
+c->cea708.pktsize = 127;
+else
+c->cea708.pktsize = c->cea708.pktsize * 2 - 1;
+c->cea708.state = CEA708_PKT_WAIT_BLOCK_HEADER;
+}
+}
+else if( c->cea708.pktsize == 0 ) 
+{
+c->cea708.state = CEA708_PKT_END;
+}
+else if( c->cea708.state != CEA708_PKT_END )
+{
+switch( c->cea708.state )
+{
+case CEA708_PKT_WAIT_BLOCK_HEADER: 
+{
+uint8_t i_sid = cc >> 5;
+c->cea708.sid_bs = cc & 0x1F;
+if( i_sid != 0x00 && c->cea708.sid_bs != 0 )
+{
+if( i_sid != 0x07 )
+{
+const uint8_t mask = (1 << --i_sid);
+c->i_708channels |= (mask + (mask - 1));
+c->cea708.state = CEA708_PKT_IN_BLOCK;
+}
+else if( c->cea708.sid_bs < 2 )
+{
+c->cea708.state = CEA708_PKT_END;
+}
+else
+{
+
+c->cea708.state = CEA708_PKT_WAIT_EXT_BLOCK_HEADER;
+}
+}
+else c->cea708.state = CEA708_PKT_END;
+} break;
+
+case CEA708_PKT_WAIT_EXT_BLOCK_HEADER:
+{
+uint8_t i_extsid = cc & 0x3F;
+if( i_extsid >= 0x07 )
+{
+const uint8_t mask = (1 << --i_extsid);
+c->i_708channels |= (mask + (mask - 1));
+}
+if( c->cea708.sid_bs == 0 )
+c->cea708.state = CEA708_PKT_WAIT_BLOCK_HEADER;
+else
+c->cea708.state = CEA708_PKT_IN_BLOCK;
+} break;
+
+case CEA708_PKT_IN_BLOCK:
+{
+c->cea708.sid_bs--;
+if( c->cea708.sid_bs == 0 )
+c->cea708.state = CEA708_PKT_WAIT_BLOCK_HEADER;
+} break;
+
+default:
+vlc_assert_unreachable();
+break;
+}
+c->cea708.pktsize--;
+
+if(c->cea708.pktsize == 0)
+c->cea708.state = CEA708_PKT_END;
+}
+}
+
+static inline void cc_ProbeCEA708( cc_data_t *c, uint8_t i_field, const uint8_t cc[2] )
+{
+if( i_field == 3 ) 
+cc_ProbeCEA708OneByte( c, true, cc[0] );
+else 
+cc_ProbeCEA708OneByte( c, false, cc[0] );
+cc_ProbeCEA708OneByte( c, false, cc[1] );
+}
+
+static inline void cc_AppendData( cc_data_t *c, uint8_t cc_preamble, const uint8_t cc[2] )
+{
+const uint8_t i_field = cc_preamble & 0x03;
+if( i_field == 0 || i_field == 1 ) 
+{
+c->i_608channels |= (3 << (2 * i_field));
+}
+else
+{
+cc_ProbeCEA708( c, i_field, cc );
+
+c->i_708channels |= 1;
+}
+
+c->p_data[c->i_data++] = cc_preamble;
+c->p_data[c->i_data++] = cc[0];
+c->p_data[c->i_data++] = cc[1];
+}
+
+static inline void cc_Extract( cc_data_t *c, enum cc_payload_type_e i_payload_type,
+bool b_top_field_first, const uint8_t *p_src, int i_src )
+{
+if( c->i_payload_type != CC_PAYLOAD_NONE && c->i_payload_type != i_payload_type )
+{
+c->i_payload_other_count++;
+if( c->i_payload_other_count < 50 )
+return;
+}
+c->i_payload_type = i_payload_type;
+c->i_payload_other_count = 0;
+
+if( i_payload_type == CC_PAYLOAD_RAW )
+{
+for( int i = 0; i + 2 < i_src; i += 3 )
+{
+if( c->i_data + 3 > CC_MAX_DATA_SIZE )
+break;
+
+const uint8_t *cc = &p_src[i];
+cc_AppendData( c, cc[0], &cc[1] );
+}
+c->b_reorder = true;
+}
+else if( i_payload_type == CC_PAYLOAD_GA94 )
+{
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+const uint8_t *cc = &p_src[0];
+const int i_count_cc = cc[0]&0x1f;
+int i;
+
+if( !(cc[0]&0x40) ) 
+return;
+if( i_src < 1+1 + i_count_cc*3 + 1) 
+return;
+if( i_count_cc <= 0 ) 
+return;
+if( cc[2+i_count_cc * 3] != 0xff ) 
+return;
+cc += 2;
+
+for( i = 0; i < i_count_cc; i++, cc += 3 )
+{
+if( c->i_data + 3 > CC_MAX_DATA_SIZE )
+break;
+
+cc_AppendData( c, cc[0], &cc[1] );
+}
+c->b_reorder = true;
+}
+else if( i_payload_type == CC_PAYLOAD_DVD )
+{
+
+
+
+
+
+
+
+
+
+
+
+
+
+const int b_truncate = p_src[4] & 0x01;
+const int i_field_first = (p_src[4] & 0x80) ? 0 : 1;
+const int i_count_cc2 = (p_src[4] >> 1) & 0xf;
+const uint8_t *cc = &p_src[5];
+int i;
+
+if( i_src < 4+1+6*i_count_cc2 - ( b_truncate ? 3 : 0) )
+return;
+for( i = 0; i < i_count_cc2; i++ )
+{
+int j;
+for( j = 0; j < 2; j++, cc += 3 )
+{
+const int i_field = j == i_field_first ? 0 : 1;
+
+if( b_truncate && i == i_count_cc2 - 1 && j == 1 )
+break;
+if( (cc[0] & 0xfe) != 0xfe )
+continue;
+if( c->i_data + 3 > CC_MAX_DATA_SIZE )
+continue;
+
+cc_AppendData( c, CC_PKT_BYTE0(i_field), &cc[1] );
+}
+}
+c->b_reorder = false;
+}
+else if( i_payload_type == CC_PAYLOAD_REPLAYTV )
+{
+const uint8_t *cc = &p_src[0];
+for( int i_cc_count = i_src >> 2; i_cc_count > 0;
+i_cc_count--, cc += 4 )
+{
+if( c->i_data + 3 > CC_MAX_DATA_SIZE )
+return;
+uint8_t i_field = (cc[0] & 0x02) >> 1;
+cc_AppendData( c, CC_PKT_BYTE0(i_field), &cc[2] );
+}
+c->b_reorder = false;
+}
+else 
+{
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+bs_t s;
+bs_init( &s, &p_src[2], i_src - 2 );
+const int i_cc_count = bs_read( &s, 5 );
+for( int i = 0; i < i_cc_count; i++ )
+{
+bs_skip( &s, 2 );
+const int i_field_idx = bs_read( &s, 2 );
+bs_skip( &s, 5 );
+uint8_t cc[2];
+for( int j = 0; j < 2; j++ )
+{
+cc[j] = 0;
+for( int k = 0; k < 8; k++ )
+cc[j] |= bs_read( &s, 1 ) << k;
+}
+bs_skip( &s, 1 );
+
+if( i_field_idx == 0 )
+continue;
+if( c->i_data + 2*3 > CC_MAX_DATA_SIZE )
+continue;
+
+
+int i_field = ((i_field_idx - 1) & 1);
+if (!b_top_field_first)
+i_field ^= 1;
+
+cc_AppendData( c, CC_PKT_BYTE0(i_field), &cc[0] );
+}
+c->b_reorder = true;
+}
+}
+
+
+static inline void cc_ProbeAndExtract( cc_data_t *c, bool b_top_field_first, const uint8_t *p_src, int i_src )
+{
+static const uint8_t p_cc_ga94[4] = { 0x47, 0x41, 0x39, 0x34 };
+static const uint8_t p_cc_dvd[4] = { 0x43, 0x43, 0x01, 0xf8 }; 
+static const uint8_t p_cc_replaytv4a[2] = { 0xbb, 0x02 };
+static const uint8_t p_cc_replaytv4b[2] = { 0xcc, 0x02 };
+static const uint8_t p_cc_replaytv5a[2] = { 0x99, 0x02 };
+static const uint8_t p_cc_replaytv5b[2] = { 0xaa, 0x02 };
+static const uint8_t p_cc_scte20[2] = { 0x03, 0x81 }; 
+static const uint8_t p_cc_scte20_old[2] = { 0x03, 0x01 };
+
+if( i_src < 4 )
+return;
+
+enum cc_payload_type_e i_payload_type;
+if( !memcmp( p_cc_ga94, p_src, 4 ) && i_src >= 5+1+1+1 && p_src[4] == 0x03 )
+{
+
+i_payload_type = CC_PAYLOAD_GA94;
+i_src -= 5;
+p_src += 5;
+}
+else if( !memcmp( p_cc_dvd, p_src, 4 ) && i_src > 4+1 )
+{
+i_payload_type = CC_PAYLOAD_DVD;
+}
+else if( i_src >= 2+2 + 2+2 &&
+( ( !memcmp( p_cc_replaytv4a, &p_src[0], 2 ) && !memcmp( p_cc_replaytv4b, &p_src[4], 2 ) ) ||
+( !memcmp( p_cc_replaytv5a, &p_src[0], 2 ) && !memcmp( p_cc_replaytv5b, &p_src[4], 2 ) ) ) )
+{
+i_payload_type = CC_PAYLOAD_REPLAYTV;
+}
+else if( ( !memcmp( p_cc_scte20, p_src, 2 ) ||
+!memcmp( p_cc_scte20_old, p_src, 2 ) ) && i_src > 2 )
+{
+i_payload_type = CC_PAYLOAD_SCTE20;
+}
+else if (p_src[0] == 0x03 && p_src[1] == i_src - 2) 
+{
+i_payload_type = CC_PAYLOAD_GA94;
+i_src -= 2;
+p_src += 2;
+}
+else
+{
+#if 0
+#define V(x) ( ( x < 0x20 || x >= 0x7f ) ? '?' : x )
+fprintf( stderr, "-------------- unknown user data " );
+for( int i = 0; i < i_src; i++ )
+fprintf( stderr, "%2.2x ", p_src[i] );
+for( int i = 0; i < i_src; i++ )
+fprintf( stderr, "%c ", V(p_src[i]) );
+fprintf( stderr, "\n" );
+#undef V
+#endif
+return;
+}
+
+cc_Extract( c, i_payload_type, b_top_field_first, p_src, i_src );
+}
+
+
+

@@ -1,0 +1,906 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" revision="1.0.0" language="C" filename="D:\Pesquisa\Projects\vlc-analysis\_cppstats_featurelocations\vlc\modules\video_output\win32\d3d11_shaders.c">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><call><name>defined</name><argument_list>(<argument><expr><name>HAVE_CONFIG_H</name></expr></argument>)</argument_list></call></expr></cpp:if>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"config.h"</cpp:file></cpp:include>
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><operator>!</operator><call><name>defined</name><argument_list>(<argument><expr><name>_WIN32_WINNT</name></expr></argument>)</argument_list></call> <operator>||</operator> <name>_WIN32_WINNT</name> <operator>&lt;</operator> <literal type="number">0x0601</literal></expr></cpp:if> 
+<cpp:undef>#<cpp:directive>undef</cpp:directive> <name>_WIN32_WINNT</name></cpp:undef>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>_WIN32_WINNT</name></cpp:macro> <cpp:value>0x0601</cpp:value></cpp:define> 
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;vlc_common.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;assert.h&gt;</cpp:file></cpp:include>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>COBJMACROS</name></cpp:macro></cpp:define>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;d3d11.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"d3d11_shaders.h"</cpp:file></cpp:include>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><operator>!</operator><name>VLC_WINSTORE_APP</name></expr></cpp:if>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>D3DCompile</name><parameter_list>(<parameter><type><name>args</name><modifier>...</modifier></type></parameter>)</parameter_list></cpp:macro> <cpp:value>shaders-&gt;OurD3DCompile(args)</cpp:value></cpp:define>
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>ST2084_PQ_CONSTANTS</name></cpp:macro> <cpp:value>"const float ST2084_m1 = 2610.0 / (4096.0 * 4);\nconst float ST2084_m2 = (2523.0 / 4096.0) * 128.0;\nconst float ST2084_c1 = 3424.0 / 4096.0;\nconst float ST2084_c2 = (2413.0 / 4096.0) * 32.0;\nconst float ST2084_c3 = (2392.0 / 4096.0) * 32.0;\n"</cpp:value></cpp:define>
+
+
+
+
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>STRINGIZE2</name><parameter_list>(<parameter><type><name>s</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>#s</cpp:value></cpp:define>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>STRINGIZE</name><parameter_list>(<parameter><type><name>s</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>STRINGIZE2(s)</cpp:value></cpp:define>
+
+<decl_stmt><decl><type><specifier>static</specifier> <specifier>const</specifier> <name>char</name><modifier>*</modifier></type> <name>globPixelShaderDefault</name> <init>= <expr><literal type="string">"\
+cbuffer PS_CONSTANT_BUFFER : register(b0)\n\
+{\n\
+float Opacity;\n\
+float BoundaryX;\n\
+float BoundaryY;\n\
+float LuminanceScale;\n\
+};\n\
+cbuffer PS_COLOR_TRANSFORM : register(b1)\n\
+{\n\
+float4x4 WhitePoint;\n\
+float4x4 Colorspace;\n\
+float4x4 Primaries;\n\
+};\n\
+Texture2D%s shaderTexture["</literal> <call><name>STRINGIZE</name><argument_list>(<argument><expr><name>D3D11_MAX_SHADER_VIEW</name></expr></argument>)</argument_list></call> <literal type="string">"];\n\
+SamplerState SamplerStates[2];\n\
+\n\
+struct PS_INPUT\n\
+{\n\
+float4 Position : SV_POSITION;\n\
+float3 Texture : TEXCOORD0;\n\
+};\n\
+\n\
+/* see http://filmicworlds.com/blog/filmic-tonemapping-operators/ */\n\
+inline float4 hable(float4 x) {\n\
+const float A = 0.15, B = 0.50, C = 0.10, D = 0.20, E = 0.02, F = 0.30;\n\
+return ((x * (A*x + (C*B))+(D*E))/(x * (A*x + B) + (D*F))) - E/F;\n\
+}\n\
+\n\
+/* https://en.wikipedia.org/wiki/Hybrid_Log-Gamma#Technical_details */\n\
+inline float inverse_HLG(float x){\n\
+const float B67_a = 0.17883277;\n\
+const float B67_b = 0.28466892;\n\
+const float B67_c = 0.55991073;\n\
+const float B67_inv_r2 = 4.0; /* 1/0.5Â² */\n\
+if (x &lt;= 0.5)\n\
+x = x * x * B67_inv_r2;\n\
+else\n\
+x = exp((x - B67_c) / B67_a) + B67_b;\n\
+return x;\n\
+}\n\
+\n\
+inline float4 sourceToLinear(float4 rgb) {\n\
+%s;\n\
+}\n\
+\n\
+inline float4 linearToDisplay(float4 rgb) {\n\
+%s;\n\
+}\n\
+\n\
+inline float4 transformPrimaries(float4 rgb) {\n\
+%s;\n\
+}\n\
+\n\
+inline float4 toneMapping(float4 rgb) {\n\
+%s;\n\
+}\n\
+\n\
+inline float4 adjustRange(float4 rgb) {\n\
+%s;\n\
+}\n\
+\n\
+inline float4 reorderPlanes(float4 rgb) {\n\
+%s;\n\
+}\n\
+\n\
+inline float4 sampleTexture(SamplerState samplerState, float3 coords) {\n\
+float4 sample;\n\
+%s /* sampling routine in sample */\n\
+return sample;\n\
+}\n\
+\n\
+float4 main( PS_INPUT In ) : SV_TARGET\n\
+{\n\
+float4 sample;\n\
+\n\
+if (In.Texture.x &gt; BoundaryX || In.Texture.y &gt; BoundaryY) \n\
+sample = sampleTexture( SamplerStates[1], In.Texture );\n\
+else\n\
+sample = sampleTexture( SamplerStates[0], In.Texture );\n\
+float4 rgba = max(mul(mul(sample, WhitePoint), Colorspace),0);\n\
+float opacity = rgba.a * Opacity;\n\
+float4 rgb = rgba; rgb.a = 0;\n\
+rgb = sourceToLinear(rgb);\n\
+rgb = transformPrimaries(rgb);\n\
+rgb = toneMapping(rgb);\n\
+rgb = linearToDisplay(rgb);\n\
+rgb = adjustRange(rgb);\n\
+rgb = reorderPlanes(rgb);\n\
+return float4(rgb.rgb, saturate(opacity));\n\
+}\n\
+"</literal></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>char</name><modifier>*</modifier></type> <name>globVertexShaderFlat</name> <init>= <expr><literal type="string">"\
+struct VS_INPUT\n\
+{\n\
+float4 Position : POSITION;\n\
+float4 Texture : TEXCOORD0;\n\
+};\n\
+\n\
+struct VS_OUTPUT\n\
+{\n\
+float4 Position : SV_POSITION;\n\
+float4 Texture : TEXCOORD0;\n\
+};\n\
+\n\
+VS_OUTPUT main( VS_INPUT In )\n\
+{\n\
+return In;\n\
+}\n\
+"</literal></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>char</name><modifier>*</modifier></type> <name>globVertexShaderProjection</name> <init>= <expr><literal type="string">"\n\
+cbuffer VS_PROJECTION_CONST : register(b0)\n\
+{\n\
+float4x4 View;\n\
+float4x4 Zoom;\n\
+float4x4 Projection;\n\
+};\n\
+struct VS_INPUT\n\
+{\n\
+float4 Position : POSITION;\n\
+float4 Texture : TEXCOORD0;\n\
+};\n\
+\n\
+struct VS_OUTPUT\n\
+{\n\
+float4 Position : SV_POSITION;\n\
+float4 Texture : TEXCOORD0;\n\
+};\n\
+\n\
+VS_OUTPUT main( VS_INPUT In )\n\
+{\n\
+VS_OUTPUT Output;\n\
+float4 pos = In.Position;\n\
+pos = mul(View, pos);\n\
+pos = mul(Zoom, pos);\n\
+pos = mul(Projection, pos);\n\
+Output.Position = pos;\n\
+Output.Texture = In.Texture;\n\
+return Output;\n\
+}\n\
+"</literal></expr></init></decl>;</decl_stmt>
+
+<function_decl><type><specifier>static</specifier> <name>ID3DBlob</name><modifier>*</modifier></type> <name>D3D11_CompileShader</name><parameter_list>(<parameter><decl><type><name>vlc_object_t</name> <modifier>*</modifier></type></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>d3d11_shaders_t</name> <modifier>*</modifier></type></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>d3d11_device_t</name> <modifier>*</modifier></type></decl></parameter>,
+<parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>psz_shader</name></decl></parameter>, <parameter><decl><type><name>bool</name></type> <name>pixel</name></decl></parameter>)</parameter_list>;</function_decl>
+
+<function><type><name>bool</name></type> <name>IsRGBShader</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name>d3d_format_t</name> <modifier>*</modifier></type><name>cfg</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<return>return <expr><name><name>cfg</name><operator>-&gt;</operator><name>resourceFormat</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>!=</operator> <name>DXGI_FORMAT_R8_UNORM</name> <operator>&amp;&amp;</operator>
+<name><name>cfg</name><operator>-&gt;</operator><name>resourceFormat</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>!=</operator> <name>DXGI_FORMAT_R16_UNORM</name> <operator>&amp;&amp;</operator>
+<name><name>cfg</name><operator>-&gt;</operator><name>formatTexture</name></name> <operator>!=</operator> <name>DXGI_FORMAT_YUY2</name> <operator>&amp;&amp;</operator>
+<name><name>cfg</name><operator>-&gt;</operator><name>formatTexture</name></name> <operator>!=</operator> <name>DXGI_FORMAT_AYUV</name> <operator>&amp;&amp;</operator>
+<name><name>cfg</name><operator>-&gt;</operator><name>formatTexture</name></name> <operator>!=</operator> <name>DXGI_FORMAT_Y210</name> <operator>&amp;&amp;</operator>
+<name><name>cfg</name><operator>-&gt;</operator><name>formatTexture</name></name> <operator>!=</operator> <name>DXGI_FORMAT_Y410</name> <operator>&amp;&amp;</operator>
+<name><name>cfg</name><operator>-&gt;</operator><name>formatTexture</name></name> <operator>!=</operator> <name>DXGI_FORMAT_420_OPAQUE</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>HRESULT</name></type> <name>CompileTargetShader</name><parameter_list>(<parameter><decl><type><name>vlc_object_t</name> <modifier>*</modifier></type><name>o</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>d3d11_shaders_t</name> <modifier>*</modifier></type><name>shaders</name></decl></parameter>, <parameter><decl><type><name>bool</name></type> <name>legacy_shader</name></decl></parameter>,
+<parameter><decl><type><name>d3d11_device_t</name> <modifier>*</modifier></type><name>d3d_dev</name></decl></parameter>,
+<parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>psz_sampler</name></decl></parameter>,
+<parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>psz_src_to_linear</name></decl></parameter>,
+<parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>psz_primaries_transform</name></decl></parameter>,
+<parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>psz_linear_to_display</name></decl></parameter>,
+<parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>psz_tone_mapping</name></decl></parameter>,
+<parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>psz_adjust_range</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>psz_move_planes</name></decl></parameter>,
+<parameter><decl><type><name>ID3D11PixelShader</name> <modifier>*</modifier><modifier>*</modifier></type><name>output</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>char</name> <modifier>*</modifier></type><name>shader</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>allocated</name> <init>= <expr><call><name>asprintf</name><argument_list>(<argument><expr><operator>&amp;</operator><name>shader</name></expr></argument>, <argument><expr><name>globPixelShaderDefault</name></expr></argument>, <argument><expr><ternary><condition><expr><name>legacy_shader</name></expr> ?</condition><then> <expr><literal type="string">""</literal></expr> </then><else>: <expr><literal type="string">"Array"</literal></expr></else></ternary></expr></argument>,
+<argument><expr><name>psz_src_to_linear</name></expr></argument>, <argument><expr><name>psz_linear_to_display</name></expr></argument>,
+<argument><expr><name>psz_primaries_transform</name></expr></argument>, <argument><expr><name>psz_tone_mapping</name></expr></argument>,
+<argument><expr><name>psz_adjust_range</name></expr></argument>, <argument><expr><name>psz_move_planes</name></expr></argument>, <argument><expr><name>psz_sampler</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<if_stmt><if>if <condition>(<expr><name>allocated</name> <operator>&lt;=</operator> <literal type="number">0</literal></expr>)</condition>
+<block>{<block_content>
+<expr_stmt><expr><call><name>msg_Err</name><argument_list>(<argument><expr><name>o</name></expr></argument>, <argument><expr><literal type="string">"no room for the Pixel Shader"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>E_OUTOFMEMORY</name></expr>;</return>
+</block_content>}</block></if></if_stmt>
+<if_stmt><if>if <condition>(<expr><call><name>var_InheritInteger</name><argument_list>(<argument><expr><name>o</name></expr></argument>, <argument><expr><literal type="string">"verbose"</literal></expr></argument>)</argument_list></call> <operator>&gt;=</operator> <literal type="number">4</literal></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>msg_Dbg</name><argument_list>(<argument><expr><name>o</name></expr></argument>, <argument><expr><literal type="string">"shader %s"</literal></expr></argument>, <argument><expr><name>shader</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if>
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><operator>!</operator><call><name>defined</name><argument_list>(<argument><expr><name>NDEBUG</name></expr></argument>)</argument_list></call></expr></cpp:if>
+<else>else <block>{<block_content>
+<expr_stmt><expr><call><name>msg_Dbg</name><argument_list>(<argument><expr><name>o</name></expr></argument>,<argument><expr><literal type="string">"psz_src_to_linear %s"</literal></expr></argument>, <argument><expr><name>psz_src_to_linear</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>msg_Dbg</name><argument_list>(<argument><expr><name>o</name></expr></argument>,<argument><expr><literal type="string">"psz_primaries_transform %s"</literal></expr></argument>, <argument><expr><name>psz_primaries_transform</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>msg_Dbg</name><argument_list>(<argument><expr><name>o</name></expr></argument>,<argument><expr><literal type="string">"psz_tone_mapping %s"</literal></expr></argument>, <argument><expr><name>psz_tone_mapping</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>msg_Dbg</name><argument_list>(<argument><expr><name>o</name></expr></argument>,<argument><expr><literal type="string">"psz_linear_to_display %s"</literal></expr></argument>, <argument><expr><name>psz_linear_to_display</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>msg_Dbg</name><argument_list>(<argument><expr><name>o</name></expr></argument>,<argument><expr><literal type="string">"psz_adjust_range %s"</literal></expr></argument>, <argument><expr><name>psz_adjust_range</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>msg_Dbg</name><argument_list>(<argument><expr><name>o</name></expr></argument>,<argument><expr><literal type="string">"psz_sampler %s"</literal></expr></argument>, <argument><expr><name>psz_sampler</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>msg_Dbg</name><argument_list>(<argument><expr><name>o</name></expr></argument>,<argument><expr><literal type="string">"psz_move_planes %s"</literal></expr></argument>, <argument><expr><name>psz_move_planes</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></else></if_stmt>
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+<decl_stmt><decl><type><name>ID3DBlob</name> <modifier>*</modifier></type><name>pPSBlob</name> <init>= <expr><call><name>D3D11_CompileShader</name><argument_list>(<argument><expr><name>o</name></expr></argument>, <argument><expr><name>shaders</name></expr></argument>, <argument><expr><name>d3d_dev</name></expr></argument>, <argument><expr><name>shader</name></expr></argument>, <argument><expr><name>true</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><call><name>free</name><argument_list>(<argument><expr><name>shader</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>pPSBlob</name></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><name>E_INVALIDARG</name></expr>;</return></block_content></block></if></if_stmt>
+
+<decl_stmt><decl><type><name>HRESULT</name></type> <name>hr</name> <init>= <expr><call><name>ID3D11Device_CreatePixelShader</name><argument_list>(<argument><expr><name><name>d3d_dev</name><operator>-&gt;</operator><name>d3ddevice</name></name></expr></argument>,
+<argument><expr><operator>(</operator><name>void</name> <operator>*</operator><operator>)</operator><call><name>ID3D10Blob_GetBufferPointer</name><argument_list>(<argument><expr><name>pPSBlob</name></expr></argument>)</argument_list></call></expr></argument>,
+<argument><expr><call><name>ID3D10Blob_GetBufferSize</name><argument_list>(<argument><expr><name>pPSBlob</name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name>NULL</name></expr></argument>, <argument><expr><name>output</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>ID3D10Blob_Release</name><argument_list>(<argument><expr><name>pPSBlob</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>hr</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><name>HRESULT</name></type> (<name>D3D11_CompilePixelShader</name>)<parameter_list>(<parameter><decl><type><name>vlc_object_t</name> <modifier>*</modifier></type><name>o</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>d3d11_shaders_t</name> <modifier>*</modifier></type><name>shaders</name></decl></parameter>, <parameter><decl><type><name>bool</name></type> <name>legacy_shader</name></decl></parameter>,
+<parameter><decl><type><name>d3d11_device_t</name> <modifier>*</modifier></type><name>d3d_dev</name></decl></parameter>,
+<parameter><decl><type><specifier>const</specifier> <name>display_info_t</name> <modifier>*</modifier></type><name>display</name></decl></parameter>,
+<parameter><decl><type><name>video_transfer_func_t</name></type> <name>transfer</name></decl></parameter>,
+<parameter><decl><type><name>video_color_primaries_t</name></type> <name>primaries</name></decl></parameter>, <parameter><decl><type><name>bool</name></type> <name>src_full_range</name></decl></parameter>,
+<parameter><decl><type><name>d3d_quad_t</name> <modifier>*</modifier></type><name>quad</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><specifier>static</specifier> <specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>DEFAULT_NOOP</name> <init>= <expr><literal type="string">"return rgb"</literal></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name><name>psz_sampler</name><index>[<expr><literal type="number">2</literal></expr>]</index></name> <init>= <expr><block>{<expr><name>NULL</name></expr>, <expr><name>NULL</name></expr>}</block></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>psz_src_to_linear</name> <init>= <expr><name>DEFAULT_NOOP</name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>psz_linear_to_display</name> <init>= <expr><name>DEFAULT_NOOP</name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>psz_primaries_transform</name> <init>= <expr><name>DEFAULT_NOOP</name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>psz_tone_mapping</name> <init>= <expr><literal type="string">"return rgb * LuminanceScale"</literal></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>psz_adjust_range</name> <init>= <expr><name>DEFAULT_NOOP</name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name><name>psz_move_planes</name><index>[<expr><literal type="number">2</literal></expr>]</index></name> <init>= <expr><block>{<expr><name>DEFAULT_NOOP</name></expr>, <expr><name>DEFAULT_NOOP</name></expr>}</block></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>char</name> <modifier>*</modifier></type><name>psz_range</name> <init>= <expr><name>NULL</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>D3D11_SAMPLER_DESC</name></type> <name>sampDesc</name></decl>;</decl_stmt>
+<expr_stmt><expr><call><name>memset</name><argument_list>(<argument><expr><operator>&amp;</operator><name>sampDesc</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr><name>sampDesc</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>sampDesc</name><operator>.</operator><name>Filter</name></name> <operator>=</operator> <name>D3D11_FILTER_MIN_MAG_LINEAR_MIP_POINT</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>sampDesc</name><operator>.</operator><name>AddressU</name></name> <operator>=</operator> <name>D3D11_TEXTURE_ADDRESS_CLAMP</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>sampDesc</name><operator>.</operator><name>AddressV</name></name> <operator>=</operator> <name>D3D11_TEXTURE_ADDRESS_CLAMP</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>sampDesc</name><operator>.</operator><name>AddressW</name></name> <operator>=</operator> <name>D3D11_TEXTURE_ADDRESS_CLAMP</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>sampDesc</name><operator>.</operator><name>ComparisonFunc</name></name> <operator>=</operator> <name>D3D11_COMPARISON_ALWAYS</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>sampDesc</name><operator>.</operator><name>MinLOD</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>sampDesc</name><operator>.</operator><name>MaxLOD</name></name> <operator>=</operator> <name>D3D11_FLOAT32_MAX</name></expr>;</expr_stmt>
+
+<decl_stmt><decl><type><name>HRESULT</name></type> <name>hr</name></decl>;</decl_stmt>
+<expr_stmt><expr><name>hr</name> <operator>=</operator> <call><name>ID3D11Device_CreateSamplerState</name><argument_list>(<argument><expr><name><name>d3d_dev</name><operator>-&gt;</operator><name>d3ddevice</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name>sampDesc</name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>quad</name><operator>-&gt;</operator><name>d3dsampState</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><call><name>FAILED</name><argument_list>(<argument><expr><name>hr</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>msg_Err</name><argument_list>(<argument><expr><name>o</name></expr></argument>, <argument><expr><literal type="string">"Could not Create the D3d11 Sampler State. (hr=0x%lX)"</literal></expr></argument>, <argument><expr><name>hr</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>hr</name></expr>;</return>
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>sampDesc</name><operator>.</operator><name>Filter</name></name> <operator>=</operator> <name>D3D11_FILTER_MIN_MAG_MIP_POINT</name></expr>;</expr_stmt>
+<expr_stmt><expr><name>hr</name> <operator>=</operator> <call><name>ID3D11Device_CreateSamplerState</name><argument_list>(<argument><expr><name><name>d3d_dev</name><operator>-&gt;</operator><name>d3ddevice</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name>sampDesc</name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>quad</name><operator>-&gt;</operator><name>d3dsampState</name><index>[<expr><literal type="number">1</literal></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><call><name>FAILED</name><argument_list>(<argument><expr><name>hr</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>msg_Err</name><argument_list>(<argument><expr><name>o</name></expr></argument>, <argument><expr><literal type="string">"Could not Create the D3d11 Sampler State. (hr=0x%lX)"</literal></expr></argument>, <argument><expr><name>hr</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ID3D11SamplerState_Release</name><argument_list>(<argument><expr><name><name>quad</name><operator>-&gt;</operator><name>d3dsampState</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>hr</name></expr>;</return>
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>( <expr><name><name>display</name><operator>-&gt;</operator><name>pixelFormat</name><operator>-&gt;</operator><name>formatTexture</name></name> <operator>==</operator> <name>DXGI_FORMAT_NV12</name> <operator>||</operator>
+<name><name>display</name><operator>-&gt;</operator><name>pixelFormat</name><operator>-&gt;</operator><name>formatTexture</name></name> <operator>==</operator> <name>DXGI_FORMAT_P010</name></expr> )</condition>
+<block>{<block_content>
+
+<switch>switch <condition>(<expr><name><name>quad</name><operator>-&gt;</operator><name>textureFormat</name><operator>-&gt;</operator><name>formatTexture</name></name></expr>)</condition>
+<block>{<block_content>
+<case>case <expr><name>DXGI_FORMAT_NV12</name></expr>:</case>
+<case>case <expr><name>DXGI_FORMAT_P010</name></expr>:</case>
+<expr_stmt><expr><name><name>psz_sampler</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>=</operator>
+<literal type="string">"sample.x = shaderTexture[0].Sample(samplerState, coords).x;\n"</literal>
+<literal type="string">"sample.y = 0.0;\n"</literal>
+<literal type="string">"sample.z = 0.0;\n"</literal>
+<literal type="string">"sample.a = 1;"</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>psz_sampler</name><index>[<expr><literal type="number">1</literal></expr>]</index></name> <operator>=</operator>
+<literal type="string">"sample.xy = shaderTexture[1].Sample(samplerState, coords).xy;\n"</literal>
+<literal type="string">"sample.z = 0.0;\n"</literal>
+<literal type="string">"sample.a = 1;"</literal></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>DXGI_FORMAT_R8G8B8A8_UNORM</name></expr>:</case>
+<case>case <expr><name>DXGI_FORMAT_B8G8R8A8_UNORM</name></expr>:</case>
+<case>case <expr><name>DXGI_FORMAT_B8G8R8X8_UNORM</name></expr>:</case>
+<case>case <expr><name>DXGI_FORMAT_R10G10B10A2_UNORM</name></expr>:</case>
+<case>case <expr><name>DXGI_FORMAT_R16G16B16A16_UNORM</name></expr>:</case>
+<case>case <expr><name>DXGI_FORMAT_B5G6R5_UNORM</name></expr>:</case>
+
+<expr_stmt><expr><name><name>psz_sampler</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>=</operator>
+<literal type="string">"sample = shaderTexture[0].Sample(samplerState, coords);\n"</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>psz_move_planes</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>=</operator> <literal type="string">"return rgb"</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>psz_sampler</name><index>[<expr><literal type="number">1</literal></expr>]</index></name> <operator>=</operator>
+<literal type="string">"sample = shaderTexture[0].Sample(samplerState, coords);\n"</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>psz_move_planes</name><index>[<expr><literal type="number">1</literal></expr>]</index></name> <operator>=</operator>
+<literal type="string">"rgb.x = rgb.y;\n"</literal>
+<literal type="string">"rgb.y = rgb.z;\n"</literal>
+<literal type="string">"rgb.z = 0;\n"</literal>
+<literal type="string">"return rgb"</literal></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>DXGI_FORMAT_UNKNOWN</name></expr>:</case>
+<switch>switch <condition>(<expr><name><name>quad</name><operator>-&gt;</operator><name>textureFormat</name><operator>-&gt;</operator><name>fourcc</name></name></expr>)</condition>
+<block>{<block_content>
+<case>case <expr><name>VLC_CODEC_YUVA</name></expr>:</case>
+
+<expr_stmt><expr><name><name>psz_sampler</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>=</operator>
+<literal type="string">"sample.x = shaderTexture[0].Sample(samplerState, coords).x;\n"</literal>
+<literal type="string">"sample.y = 0.0;\n"</literal>
+<literal type="string">"sample.z = 0.0;\n"</literal>
+<literal type="string">"sample.a = shaderTexture[3].Sample(samplerState, coords).x;"</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>psz_sampler</name><index>[<expr><literal type="number">1</literal></expr>]</index></name> <operator>=</operator>
+<literal type="string">"sample.x = shaderTexture[1].Sample(samplerState, coords).x;\n"</literal>
+<literal type="string">"sample.y = shaderTexture[2].Sample(samplerState, coords).x;\n"</literal>
+<literal type="string">"sample.z = 0.0;\n"</literal>
+<literal type="string">"sample.a = shaderTexture[3].Sample(samplerState, coords).x;"</literal></expr>;</expr_stmt>
+<break>break;</break>
+<default>default:</default>
+<expr_stmt><expr><call><name>vlc_assert_unreachable</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></switch>
+<break>break;</break>
+<default>default:</default>
+<expr_stmt><expr><call><name>vlc_assert_unreachable</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></switch>
+</block_content>}</block></if>
+<else>else
+<block>{<block_content>
+<switch>switch <condition>(<expr><name><name>quad</name><operator>-&gt;</operator><name>textureFormat</name><operator>-&gt;</operator><name>formatTexture</name></name></expr>)</condition>
+<block>{<block_content>
+<case>case <expr><name>DXGI_FORMAT_NV12</name></expr>:</case>
+<case>case <expr><name>DXGI_FORMAT_P010</name></expr>:</case>
+<expr_stmt><expr><name><name>psz_sampler</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>=</operator>
+<literal type="string">"sample.x = shaderTexture[0].Sample(samplerState, coords).x;\n"</literal>
+<literal type="string">"sample.yz = shaderTexture[1].Sample(samplerState, coords).xy;\n"</literal>
+<literal type="string">"sample.a = 1;"</literal></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>DXGI_FORMAT_YUY2</name></expr>:</case>
+<expr_stmt><expr><name><name>psz_sampler</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>=</operator>
+<literal type="string">"sample.x = shaderTexture[0].Sample(samplerState, coords).x;\n"</literal>
+<literal type="string">"sample.y = shaderTexture[0].Sample(samplerState, coords).y;\n"</literal>
+<literal type="string">"sample.z = shaderTexture[0].Sample(samplerState, coords).a;\n"</literal>
+<literal type="string">"sample.a = 1;"</literal></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>DXGI_FORMAT_Y210</name></expr>:</case>
+<expr_stmt><expr><name><name>psz_sampler</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>=</operator>
+<literal type="string">"sample.x = shaderTexture[0].Sample(samplerState, coords).r;\n"</literal>
+<literal type="string">"sample.y = shaderTexture[0].Sample(samplerState, coords).g;\n"</literal>
+<literal type="string">"sample.z = shaderTexture[0].Sample(samplerState, coords).a;\n"</literal>
+<literal type="string">"sample.a = 1;"</literal></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>DXGI_FORMAT_Y410</name></expr>:</case>
+<expr_stmt><expr><name><name>psz_sampler</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>=</operator>
+<literal type="string">"sample.x = shaderTexture[0].Sample(samplerState, coords).g;\n"</literal>
+<literal type="string">"sample.y = shaderTexture[0].Sample(samplerState, coords).r;\n"</literal>
+<literal type="string">"sample.z = shaderTexture[0].Sample(samplerState, coords).b;\n"</literal>
+<literal type="string">"sample.a = 1;"</literal></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>DXGI_FORMAT_AYUV</name></expr>:</case>
+<expr_stmt><expr><name><name>psz_sampler</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>=</operator>
+<literal type="string">"sample.x = shaderTexture[0].Sample(samplerState, coords).z;\n"</literal>
+<literal type="string">"sample.y = shaderTexture[0].Sample(samplerState, coords).y;\n"</literal>
+<literal type="string">"sample.z = shaderTexture[0].Sample(samplerState, coords).x;\n"</literal>
+<literal type="string">"sample.a = 1;"</literal></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>DXGI_FORMAT_R8G8B8A8_UNORM</name></expr>:</case>
+<case>case <expr><name>DXGI_FORMAT_B8G8R8A8_UNORM</name></expr>:</case>
+<case>case <expr><name>DXGI_FORMAT_B8G8R8X8_UNORM</name></expr>:</case>
+<case>case <expr><name>DXGI_FORMAT_R10G10B10A2_UNORM</name></expr>:</case>
+<case>case <expr><name>DXGI_FORMAT_R16G16B16A16_UNORM</name></expr>:</case>
+<case>case <expr><name>DXGI_FORMAT_B5G6R5_UNORM</name></expr>:</case>
+<expr_stmt><expr><name><name>psz_sampler</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>=</operator>
+<literal type="string">"sample = shaderTexture[0].Sample(samplerState, coords);"</literal></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>DXGI_FORMAT_UNKNOWN</name></expr>:</case>
+<switch>switch <condition>(<expr><name><name>quad</name><operator>-&gt;</operator><name>textureFormat</name><operator>-&gt;</operator><name>fourcc</name></name></expr>)</condition>
+<block>{<block_content>
+<case>case <expr><name>VLC_CODEC_I420_10L</name></expr>:</case>
+<expr_stmt><expr><name><name>psz_sampler</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>=</operator>
+<literal type="string">"float3 coords_2 = float3(coords.x/2, coords.y, coords.z);\n"</literal>
+<literal type="string">"sample.x = shaderTexture[0].Sample(samplerState, coords_2).x * 64;\n"</literal>
+<literal type="string">"sample.y = shaderTexture[1].Sample(samplerState, coords_2).x * 64;\n"</literal>
+<literal type="string">"sample.z = shaderTexture[2].Sample(samplerState, coords_2).x * 64;\n"</literal>
+<literal type="string">"sample.a = 1;"</literal></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>VLC_CODEC_I444_16L</name></expr>:</case>
+<expr_stmt><expr><name><name>psz_sampler</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>=</operator>
+<literal type="string">"float3 coords_2 = float3(coords.x/2, coords.y, coords.z);\n"</literal>
+<literal type="string">"sample.x = shaderTexture[0].Sample(samplerState, coords_2).x;\n"</literal>
+<literal type="string">"sample.y = shaderTexture[1].Sample(samplerState, coords_2).x;\n"</literal>
+<literal type="string">"sample.z = shaderTexture[2].Sample(samplerState, coords_2).x;\n"</literal>
+<literal type="string">"sample.a = 1;"</literal></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>VLC_CODEC_I420</name></expr>:</case>
+<expr_stmt><expr><name><name>psz_sampler</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>=</operator>
+<literal type="string">"sample.x = shaderTexture[0].Sample(samplerState, coords).x;\n"</literal>
+<literal type="string">"sample.y = shaderTexture[1].Sample(samplerState, coords).x;\n"</literal>
+<literal type="string">"sample.z = shaderTexture[2].Sample(samplerState, coords).x;\n"</literal>
+<literal type="string">"sample.a = 1;"</literal></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>VLC_CODEC_YUVA</name></expr>:</case>
+<expr_stmt><expr><name><name>psz_sampler</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>=</operator>
+<literal type="string">"sample.x = shaderTexture[0].Sample(samplerState, coords).x;\n"</literal>
+<literal type="string">"sample.y = shaderTexture[1].Sample(samplerState, coords).x;\n"</literal>
+<literal type="string">"sample.z = shaderTexture[2].Sample(samplerState, coords).x;\n"</literal>
+<literal type="string">"sample.a = shaderTexture[3].Sample(samplerState, coords).x;"</literal></expr>;</expr_stmt>
+<break>break;</break>
+<default>default:</default>
+<expr_stmt><expr><call><name>vlc_assert_unreachable</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></switch>
+<break>break;</break>
+<default>default:</default>
+<expr_stmt><expr><call><name>vlc_assert_unreachable</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></switch>
+</block_content>}</block></else></if_stmt>
+
+<decl_stmt><decl><type><name>video_transfer_func_t</name></type> <name>src_transfer</name></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>transfer</name> <operator>!=</operator> <name><name>display</name><operator>-&gt;</operator><name>transfer</name></name></expr>)</condition>
+<block>{<block_content>
+
+<switch>switch <condition>(<expr><name>transfer</name></expr>)</condition>
+<block>{<block_content>
+<case>case <expr><name>TRANSFER_FUNC_SMPTE_ST2084</name></expr>:</case>
+
+<expr_stmt><expr><name>psz_src_to_linear</name> <operator>=</operator>
+<name>ST2084_PQ_CONSTANTS</name>
+<literal type="string">"rgb = pow(max(rgb, 0), 1.0/ST2084_m2);\n"</literal>
+<literal type="string">"rgb = max(rgb - ST2084_c1, 0.0) / (ST2084_c2 - ST2084_c3 * rgb);\n"</literal>
+<literal type="string">"rgb = pow(rgb, 1.0/ST2084_m1);\n"</literal>
+<literal type="string">"return rgb * 10000"</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name>src_transfer</name> <operator>=</operator> <name>TRANSFER_FUNC_LINEAR</name></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>TRANSFER_FUNC_HLG</name></expr>:</case>
+<expr_stmt><expr><name>psz_src_to_linear</name> <operator>=</operator> <literal type="string">"const float alpha_gain = 2000; /* depends on the display output */\n"</literal>
+<literal type="string">"/* TODO: in one call */\n"</literal>
+<literal type="string">"rgb.r = inverse_HLG(rgb.r);\n"</literal>
+<literal type="string">"rgb.g = inverse_HLG(rgb.g);\n"</literal>
+<literal type="string">"rgb.b = inverse_HLG(rgb.b);\n"</literal>
+<literal type="string">"float3 ootf_2020 = float3(0.2627, 0.6780, 0.0593);\n"</literal>
+<literal type="string">"float ootf_ys = alpha_gain * dot(ootf_2020, rgb);\n"</literal>
+<literal type="string">"return rgb * pow(ootf_ys, 0.200)"</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name>src_transfer</name> <operator>=</operator> <name>TRANSFER_FUNC_LINEAR</name></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>TRANSFER_FUNC_BT709</name></expr>:</case>
+<expr_stmt><expr><name>psz_src_to_linear</name> <operator>=</operator> <literal type="string">"return pow(rgb, 1.0 / 0.45)"</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name>src_transfer</name> <operator>=</operator> <name>TRANSFER_FUNC_LINEAR</name></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>TRANSFER_FUNC_BT470_M</name></expr>:</case>
+<case>case <expr><name>TRANSFER_FUNC_SRGB</name></expr>:</case>
+<expr_stmt><expr><name>psz_src_to_linear</name> <operator>=</operator> <literal type="string">"return pow(rgb, 2.2)"</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name>src_transfer</name> <operator>=</operator> <name>TRANSFER_FUNC_LINEAR</name></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>TRANSFER_FUNC_BT470_BG</name></expr>:</case>
+<expr_stmt><expr><name>psz_src_to_linear</name> <operator>=</operator> <literal type="string">"return pow(rgb, 2.8)"</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name>src_transfer</name> <operator>=</operator> <name>TRANSFER_FUNC_LINEAR</name></expr>;</expr_stmt>
+<break>break;</break>
+<default>default:</default>
+<expr_stmt><expr><call><name>msg_Dbg</name><argument_list>(<argument><expr><name>o</name></expr></argument>, <argument><expr><literal type="string">"unhandled source transfer %d"</literal></expr></argument>, <argument><expr><name>transfer</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>src_transfer</name> <operator>=</operator> <name>transfer</name></expr>;</expr_stmt>
+<break>break;</break>
+</block_content>}</block></switch>
+
+<switch>switch <condition>(<expr><name><name>display</name><operator>-&gt;</operator><name>transfer</name></name></expr>)</condition>
+<block>{<block_content>
+<case>case <expr><name>TRANSFER_FUNC_SRGB</name></expr>:</case>
+<if_stmt><if>if <condition>(<expr><name>src_transfer</name> <operator>==</operator> <name>TRANSFER_FUNC_LINEAR</name></expr>)</condition>
+<block>{<block_content>
+
+<expr_stmt><expr><name>psz_linear_to_display</name> <operator>=</operator> <literal type="string">"return pow(rgb, 1.0 / 2.2)"</literal></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>transfer</name> <operator>==</operator> <name>TRANSFER_FUNC_SMPTE_ST2084</name> <operator>||</operator> <name>transfer</name> <operator>==</operator> <name>TRANSFER_FUNC_HLG</name></expr>)</condition>
+<block>{<block_content>
+
+<expr_stmt><expr><name>psz_tone_mapping</name> <operator>=</operator>
+<literal type="string">"static const float4 HABLE_DIV = hable(11.2);\n"</literal>
+<literal type="string">"rgb = hable(rgb * LuminanceScale) / HABLE_DIV;\n"</literal>
+<literal type="string">"return rgb"</literal></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block></if>
+<else>else<block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>msg_Warn</name><argument_list>(<argument><expr><name>o</name></expr></argument>, <argument><expr><literal type="string">"don't know how to transfer from %d to sRGB"</literal></expr></argument>, <argument><expr><name>src_transfer</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></else></if_stmt>
+<break>break;</break>
+
+<case>case <expr><name>TRANSFER_FUNC_SMPTE_ST2084</name></expr>:</case>
+<if_stmt><if>if <condition>(<expr><name>src_transfer</name> <operator>==</operator> <name>TRANSFER_FUNC_LINEAR</name></expr>)</condition>
+<block>{<block_content>
+
+<expr_stmt><expr><name>psz_linear_to_display</name> <operator>=</operator>
+<name>ST2084_PQ_CONSTANTS</name>
+<literal type="string">"rgb = pow(rgb / 10000, ST2084_m1);\n"</literal>
+<literal type="string">"rgb = (ST2084_c1 + ST2084_c2 * rgb) / (1 + ST2084_c3 * rgb);\n"</literal>
+<literal type="string">"rgb = pow(rgb, ST2084_m2);\n"</literal>
+<literal type="string">"return rgb"</literal></expr>;</expr_stmt>
+</block_content>}</block></if>
+<else>else<block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>msg_Warn</name><argument_list>(<argument><expr><name>o</name></expr></argument>, <argument><expr><literal type="string">"don't know how to transfer from %d to SMPTE ST 2084"</literal></expr></argument>, <argument><expr><name>src_transfer</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></else></if_stmt>
+<break>break;</break>
+<default>default:</default>
+<expr_stmt><expr><call><name>msg_Warn</name><argument_list>(<argument><expr><name>o</name></expr></argument>, <argument><expr><literal type="string">"don't know how to transfer from %d to %d"</literal></expr></argument>, <argument><expr><name>src_transfer</name></expr></argument>, <argument><expr><name><name>display</name><operator>-&gt;</operator><name>transfer</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+</block_content>}</block></switch>
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>display</name><operator>-&gt;</operator><name>primaries</name></name> <operator>!=</operator> <name>primaries</name></expr>)</condition>
+<block>{<block_content>
+<switch>switch <condition>(<expr><name>primaries</name></expr>)</condition>
+<block>{<block_content>
+<case>case <expr><name>COLOR_PRIMARIES_BT601_525</name></expr>:</case>
+<case>case <expr><name>COLOR_PRIMARIES_BT601_625</name></expr>:</case>
+<case>case <expr><name>COLOR_PRIMARIES_BT709</name></expr>:</case>
+<case>case <expr><name>COLOR_PRIMARIES_BT2020</name></expr>:</case>
+<case>case <expr><name>COLOR_PRIMARIES_DCI_P3</name></expr>:</case>
+<case>case <expr><name>COLOR_PRIMARIES_FCC1953</name></expr>:</case>
+<expr_stmt><expr><name>psz_primaries_transform</name> <operator>=</operator> <literal type="string">"return max(mul(rgb, Primaries), 0)"</literal></expr>;</expr_stmt>
+<break>break;</break>
+<default>default:</default>
+
+<expr_stmt><expr><call><name>msg_Warn</name><argument_list>(<argument><expr><name>o</name></expr></argument>, <argument><expr><literal type="string">"unhandled color primaries %d"</literal></expr></argument>, <argument><expr><name>primaries</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></switch>
+</block_content>}</block></if></if_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>range_adjust</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>display</name><operator>-&gt;</operator><name>b_full_range</name></name></expr>)</condition> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>src_full_range</name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name>range_adjust</name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt></block_content></block></if></if_stmt> 
+</block_content>}</block></if> <else>else <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name>src_full_range</name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name>range_adjust</name> <operator>=</operator> <operator>-</operator><literal type="number">1</literal></expr>;</expr_stmt></block_content></block></if></if_stmt> 
+</block_content>}</block></else></if_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>IsRGBShader</name><argument_list>(<argument><expr><name><name>quad</name><operator>-&gt;</operator><name>textureFormat</name></name></expr></argument>)</argument_list></call> <operator>&amp;&amp;</operator> <operator>!</operator><name>src_full_range</name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name>range_adjust</name><operator>--</operator></expr>;</expr_stmt></block_content></block></if></if_stmt> 
+
+<if_stmt><if>if <condition>(<expr><name>range_adjust</name> <operator>!=</operator> <literal type="number">0</literal></expr>)</condition>
+<block>{<block_content>
+<expr_stmt><expr><name>psz_range</name> <operator>=</operator> <call><name>malloc</name><argument_list>(<argument><expr><literal type="number">256</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><call><name>likely</name><argument_list>(<argument><expr><name>psz_range</name></expr></argument>)</argument_list></call></expr>)</condition>
+<block>{<block_content>
+<decl_stmt><decl><type><name>FLOAT</name></type> <name>itu_black_level</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>FLOAT</name></type> <name>itu_range_factor</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>FLOAT</name></type> <name>itu_white_level</name></decl>;</decl_stmt>
+<switch>switch <condition>(<expr><name><name>quad</name><operator>-&gt;</operator><name>textureFormat</name><operator>-&gt;</operator><name>bitsPerChannel</name></name></expr>)</condition>
+<block>{<block_content>
+<case>case <expr><literal type="number">8</literal></expr>:</case>
+
+<expr_stmt><expr><name>itu_black_level</name> <operator>=</operator> <literal type="number">16.f</literal> <operator>/</operator> <literal type="number">255.f</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name>itu_white_level</name> <operator>=</operator> <literal type="number">235.f</literal> <operator>/</operator> <literal type="number">255.f</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name>itu_range_factor</name> <operator>=</operator> <operator>(</operator><name>float</name><operator>)</operator><operator>(</operator><literal type="number">235</literal> <operator>-</operator> <literal type="number">16</literal><operator>)</operator> <operator>/</operator> <literal type="number">255.f</literal></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><literal type="number">10</literal></expr>:</case>
+
+<expr_stmt><expr><name>itu_black_level</name> <operator>=</operator> <literal type="number">64.f</literal> <operator>/</operator> <literal type="number">1023.f</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name>itu_white_level</name> <operator>=</operator> <literal type="number">940.f</literal> <operator>/</operator> <literal type="number">1023.f</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name>itu_range_factor</name> <operator>=</operator> <operator>(</operator><name>float</name><operator>)</operator><operator>(</operator><literal type="number">940</literal> <operator>-</operator> <literal type="number">64</literal><operator>)</operator> <operator>/</operator> <literal type="number">1023.f</literal></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><literal type="number">12</literal></expr>:</case>
+
+<expr_stmt><expr><name>itu_black_level</name> <operator>=</operator> <literal type="number">256.f</literal> <operator>/</operator> <literal type="number">4095.f</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name>itu_white_level</name> <operator>=</operator> <literal type="number">3760.f</literal> <operator>/</operator> <literal type="number">4095.f</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name>itu_range_factor</name> <operator>=</operator> <operator>(</operator><name>float</name><operator>)</operator><operator>(</operator><literal type="number">3760</literal> <operator>-</operator> <literal type="number">256</literal><operator>)</operator> <operator>/</operator> <literal type="number">4095.f</literal></expr>;</expr_stmt>
+<break>break;</break>
+<default>default:</default>
+
+<expr_stmt><expr><name>itu_black_level</name> <operator>=</operator> <literal type="number">16.f</literal> <operator>/</operator> <literal type="number">256.f</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name>itu_white_level</name> <operator>=</operator> <literal type="number">235.f</literal> <operator>/</operator> <literal type="number">256.f</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name>itu_range_factor</name> <operator>=</operator> <operator>(</operator><name>float</name><operator>)</operator><operator>(</operator><literal type="number">235</literal> <operator>-</operator> <literal type="number">16</literal><operator>)</operator> <operator>/</operator> <literal type="number">256.f</literal></expr>;</expr_stmt>
+<break>break;</break>
+</block_content>}</block></switch>
+
+<decl_stmt><decl><type><name>FLOAT</name></type> <name>black_level</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>FLOAT</name></type> <name>range_factor</name> <init>= <expr><literal type="number">1.0f</literal></expr></init></decl>;</decl_stmt>
+<if_stmt><if>if <condition>(<expr><name>range_adjust</name> <operator>&gt;</operator> <literal type="number">0</literal></expr>)</condition>
+<block>{<block_content>
+
+<while>while <condition>(<expr><name>range_adjust</name><operator>--</operator></expr>)</condition>
+<block>{<block_content>
+<expr_stmt><expr><name>black_level</name> <operator>-=</operator> <name>itu_black_level</name></expr>;</expr_stmt>
+<expr_stmt><expr><name>range_factor</name> <operator>/=</operator> <name>itu_range_factor</name></expr>;</expr_stmt>
+</block_content>}</block></while>
+<expr_stmt><expr><call><name>sprintf</name><argument_list>(<argument><expr><name>psz_range</name></expr></argument>, <argument><expr><literal type="string">"return clamp((rgb + %f) * %f, 0, 1)"</literal></expr></argument>,
+<argument><expr><name>black_level</name></expr></argument>, <argument><expr><name>range_factor</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if>
+<else>else
+<block>{<block_content>
+
+<while>while <condition>(<expr><name>range_adjust</name><operator>++</operator></expr>)</condition>
+<block>{<block_content>
+<expr_stmt><expr><name>black_level</name> <operator>+=</operator> <name>itu_black_level</name></expr>;</expr_stmt>
+<expr_stmt><expr><name>range_factor</name> <operator>*=</operator> <name>itu_range_factor</name></expr>;</expr_stmt>
+</block_content>}</block></while>
+<expr_stmt><expr><call><name>sprintf</name><argument_list>(<argument><expr><name>psz_range</name></expr></argument>, <argument><expr><literal type="string">"return clamp(rgb + %f * %f,%f,%f)"</literal></expr></argument>,
+<argument><expr><name>black_level</name></expr></argument>, <argument><expr><name>range_factor</name></expr></argument>, <argument><expr><name>itu_black_level</name></expr></argument>, <argument><expr><name>itu_white_level</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></else></if_stmt>
+<expr_stmt><expr><name>psz_adjust_range</name> <operator>=</operator> <name>psz_range</name></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name>hr</name> <operator>=</operator> <call><name>CompileTargetShader</name><argument_list>(<argument><expr><name>o</name></expr></argument>, <argument><expr><name>shaders</name></expr></argument>, <argument><expr><name>legacy_shader</name></expr></argument>, <argument><expr><name>d3d_dev</name></expr></argument>,
+<argument><expr><name><name>psz_sampler</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>, <argument><expr><name>psz_src_to_linear</name></expr></argument>,
+<argument><expr><name>psz_primaries_transform</name></expr></argument>,
+<argument><expr><name>psz_linear_to_display</name></expr></argument>, <argument><expr><name>psz_tone_mapping</name></expr></argument>,
+<argument><expr><name>psz_adjust_range</name></expr></argument>, <argument><expr><name><name>psz_move_planes</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>quad</name><operator>-&gt;</operator><name>d3dpixelShader</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>FAILED</name><argument_list>(<argument><expr><name>hr</name></expr></argument>)</argument_list></call> <operator>&amp;&amp;</operator> <name><name>psz_sampler</name><index>[<expr><literal type="number">1</literal></expr>]</index></name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name>hr</name> <operator>=</operator> <call><name>CompileTargetShader</name><argument_list>(<argument><expr><name>o</name></expr></argument>, <argument><expr><name>shaders</name></expr></argument>, <argument><expr><name>legacy_shader</name></expr></argument>, <argument><expr><name>d3d_dev</name></expr></argument>,
+<argument><expr><name><name>psz_sampler</name><index>[<expr><literal type="number">1</literal></expr>]</index></name></expr></argument>, <argument><expr><name>psz_src_to_linear</name></expr></argument>,
+<argument><expr><name>psz_primaries_transform</name></expr></argument>,
+<argument><expr><name>psz_linear_to_display</name></expr></argument>, <argument><expr><name>psz_tone_mapping</name></expr></argument>,
+<argument><expr><name>psz_adjust_range</name></expr></argument>, <argument><expr><name><name>psz_move_planes</name><index>[<expr><literal type="number">1</literal></expr>]</index></name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>quad</name><operator>-&gt;</operator><name>d3dpixelShader</name><index>[<expr><literal type="number">1</literal></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+<expr_stmt><expr><call><name>free</name><argument_list>(<argument><expr><name>psz_range</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>hr</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><name>void</name></type> <name>D3D11_ReleasePixelShader</name><parameter_list>(<parameter><decl><type><name>d3d_quad_t</name> <modifier>*</modifier></type><name>quad</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<for>for <control>(<init><decl><type><name>size_t</name></type> <name>i</name><init>=<expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>i</name><operator>&lt;</operator><name>D3D11_MAX_SHADER_VIEW</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control>
+<block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name><name>quad</name><operator>-&gt;</operator><name>d3dpixelShader</name><index>[<expr><name>i</name></expr>]</index></name></expr>)</condition>
+<block>{<block_content>
+<expr_stmt><expr><call><name>ID3D11PixelShader_Release</name><argument_list>(<argument><expr><name><name>quad</name><operator>-&gt;</operator><name>d3dpixelShader</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>quad</name><operator>-&gt;</operator><name>d3dpixelShader</name><index>[<expr><name>i</name></expr>]</index></name> <operator>=</operator> <name>NULL</name></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block></for>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>ID3DBlob</name><modifier>*</modifier></type> <name>D3D11_CompileShader</name><parameter_list>(<parameter><decl><type><name>vlc_object_t</name> <modifier>*</modifier></type><name>obj</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>d3d11_shaders_t</name> <modifier>*</modifier></type><name>shaders</name></decl></parameter>,
+<parameter><decl><type><specifier>const</specifier> <name>d3d11_device_t</name> <modifier>*</modifier></type><name>d3d_dev</name></decl></parameter>,
+<parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>psz_shader</name></decl></parameter>, <parameter><decl><type><name>bool</name></type> <name>pixel</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>ID3DBlob</name><modifier>*</modifier></type> <name>pShaderBlob</name> <init>= <expr><name>NULL</name></expr></init></decl>, <decl><type ref="prev"><modifier>*</modifier></type><name>pErrBlob</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>target</name></decl>;</decl_stmt>
+<if_stmt><if>if <condition>(<expr><name>pixel</name></expr>)</condition>
+<block>{<block_content>
+<if_stmt><if>if <condition>(<expr><call><name>likely</name><argument_list>(<argument><expr><name><name>d3d_dev</name><operator>-&gt;</operator><name>feature_level</name></name> <operator>&gt;=</operator> <name>D3D_FEATURE_LEVEL_10_0</name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name>target</name> <operator>=</operator> <literal type="string">"ps_4_0"</literal></expr>;</expr_stmt></block_content></block></if>
+<if type="elseif">else if <condition>(<expr><name><name>d3d_dev</name><operator>-&gt;</operator><name>feature_level</name></name> <operator>&gt;=</operator> <name>D3D_FEATURE_LEVEL_9_3</name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name>target</name> <operator>=</operator> <literal type="string">"ps_4_0_level_9_3"</literal></expr>;</expr_stmt></block_content></block></if>
+<else>else<block type="pseudo"><block_content>
+<expr_stmt><expr><name>target</name> <operator>=</operator> <literal type="string">"ps_4_0_level_9_1"</literal></expr>;</expr_stmt></block_content></block></else></if_stmt>
+</block_content>}</block></if>
+<else>else
+<block>{<block_content>
+<if_stmt><if>if <condition>(<expr><call><name>likely</name><argument_list>(<argument><expr><name><name>d3d_dev</name><operator>-&gt;</operator><name>feature_level</name></name> <operator>&gt;=</operator> <name>D3D_FEATURE_LEVEL_10_0</name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name>target</name> <operator>=</operator> <literal type="string">"vs_4_0"</literal></expr>;</expr_stmt></block_content></block></if>
+<if type="elseif">else if <condition>(<expr><name><name>d3d_dev</name><operator>-&gt;</operator><name>feature_level</name></name> <operator>&gt;=</operator> <name>D3D_FEATURE_LEVEL_9_3</name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name>target</name> <operator>=</operator> <literal type="string">"vs_4_0_level_9_3"</literal></expr>;</expr_stmt></block_content></block></if>
+<else>else<block type="pseudo"><block_content>
+<expr_stmt><expr><name>target</name> <operator>=</operator> <literal type="string">"vs_4_0_level_9_1"</literal></expr>;</expr_stmt></block_content></block></else></if_stmt>
+</block_content>}</block></else></if_stmt>
+
+<decl_stmt><decl><type><name>HRESULT</name></type> <name>hr</name> <init>= <expr><call><name>D3DCompile</name><argument_list>(<argument><expr><name>psz_shader</name></expr></argument>, <argument><expr><call><name>strlen</name><argument_list>(<argument><expr><name>psz_shader</name></expr></argument>)</argument_list></call></expr></argument>,
+<argument><expr><name>NULL</name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>, <argument><expr><literal type="string">"main"</literal></expr></argument>, <argument><expr><name>target</name></expr></argument>,
+<argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><operator>&amp;</operator><name>pShaderBlob</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>pErrBlob</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>FAILED</name><argument_list>(<argument><expr><name>hr</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+<decl_stmt><decl><type><name>char</name> <modifier>*</modifier></type><name>err</name> <init>= <expr><ternary><condition><expr><name>pErrBlob</name></expr> ?</condition><then> <expr><call><name>ID3D10Blob_GetBufferPointer</name><argument_list>(<argument><expr><name>pErrBlob</name></expr></argument>)</argument_list></call></expr> </then><else>: <expr><name>NULL</name></expr></else></ternary></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><call><name>msg_Err</name><argument_list>(<argument><expr><name>obj</name></expr></argument>, <argument><expr><literal type="string">"invalid %s Shader (hr=0x%lX): %s"</literal></expr></argument>, <argument><expr><ternary><condition><expr><name>pixel</name></expr>?</condition><then><expr><literal type="string">"Pixel"</literal></expr></then><else>:<expr><literal type="string">"Vertex"</literal></expr></else></ternary></expr></argument>, <argument><expr><name>hr</name></expr></argument>, <argument><expr><name>err</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name>pErrBlob</name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>ID3D10Blob_Release</name><argument_list>(<argument><expr><name>pErrBlob</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+<return>return <expr><name>NULL</name></expr>;</return>
+</block_content>}</block></if></if_stmt>
+<return>return <expr><name>pShaderBlob</name></expr>;</return>
+</block_content>}</block></function>
+
+<cpp:undef>#<cpp:directive>undef</cpp:directive> <name>GetFormatLuminance</name></cpp:undef>
+<function><type><name>float</name></type> <name>GetFormatLuminance</name><parameter_list>(<parameter><decl><type><name>vlc_object_t</name> <modifier>*</modifier></type><name>o</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>video_format_t</name> <modifier>*</modifier></type><name>fmt</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<switch>switch <condition>(<expr><name><name>fmt</name><operator>-&gt;</operator><name>transfer</name></name></expr>)</condition>
+<block>{<block_content>
+<case>case <expr><name>TRANSFER_FUNC_SMPTE_ST2084</name></expr>:</case>
+
+<return>return <expr><name>MAX_PQ_BRIGHTNESS</name></expr>;</return>
+<case>case <expr><name>TRANSFER_FUNC_HLG</name></expr>:</case>
+<return>return <expr><name>MAX_HLG_BRIGHTNESS</name></expr>;</return>
+<case>case <expr><name>TRANSFER_FUNC_BT470_BG</name></expr>:</case>
+<case>case <expr><name>TRANSFER_FUNC_BT470_M</name></expr>:</case>
+<case>case <expr><name>TRANSFER_FUNC_BT709</name></expr>:</case>
+<case>case <expr><name>TRANSFER_FUNC_SRGB</name></expr>:</case>
+<return>return <expr><name>DEFAULT_BRIGHTNESS</name></expr>;</return>
+<default>default:</default>
+<expr_stmt><expr><call><name>msg_Dbg</name><argument_list>(<argument><expr><name>o</name></expr></argument>, <argument><expr><literal type="string">"unhandled source transfer %d"</literal></expr></argument>, <argument><expr><name><name>fmt</name><operator>-&gt;</operator><name>transfer</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>DEFAULT_BRIGHTNESS</name></expr>;</return>
+</block_content>}</block></switch>
+</block_content>}</block></function>
+
+<function><type><name>HRESULT</name></type> <name>D3D11_CreateRenderTargets</name><parameter_list>( <parameter><decl><type><name>d3d11_device_t</name> <modifier>*</modifier></type><name>d3d_dev</name></decl></parameter>, <parameter><decl><type><name>ID3D11Resource</name> <modifier>*</modifier></type><name>texture</name></decl></parameter>,
+<parameter><decl><type><specifier>const</specifier> <name>d3d_format_t</name> <modifier>*</modifier></type><name>cfg</name></decl></parameter>, <parameter><decl><type><name>ID3D11RenderTargetView</name> <modifier>*</modifier></type><name><name>output</name><index>[<expr><name>D3D11_MAX_RENDER_TARGET</name></expr>]</index></name></decl></parameter> )</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>D3D11_RENDER_TARGET_VIEW_DESC</name></type> <name>renderTargetViewDesc</name></decl>;</decl_stmt>
+<expr_stmt><expr><name><name>renderTargetViewDesc</name><operator>.</operator><name>ViewDimension</name></name> <operator>=</operator> <name>D3D11_RTV_DIMENSION_TEXTURE2D</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>renderTargetViewDesc</name><operator>.</operator><name>Texture2D</name><operator>.</operator><name>MipSlice</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<for>for <control>(<init><decl><type><name>size_t</name></type> <name>i</name><init>=<expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>i</name><operator>&lt;</operator><name>D3D11_MAX_SHADER_VIEW</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control>
+<block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name><name>cfg</name><operator>-&gt;</operator><name>resourceFormat</name><index>[<expr><name>i</name></expr>]</index></name></expr>)</condition>
+<block>{<block_content>
+<expr_stmt><expr><name><name>renderTargetViewDesc</name><operator>.</operator><name>Format</name></name> <operator>=</operator> <name><name>cfg</name><operator>-&gt;</operator><name>resourceFormat</name><index>[<expr><name>i</name></expr>]</index></name></expr>;</expr_stmt>
+<decl_stmt><decl><type><name>HRESULT</name></type> <name>hr</name> <init>= <expr><call><name>ID3D11Device_CreateRenderTargetView</name><argument_list>(<argument><expr><name><name>d3d_dev</name><operator>-&gt;</operator><name>d3ddevice</name></name></expr></argument>, <argument><expr><name>texture</name></expr></argument>,
+<argument><expr><operator>&amp;</operator><name>renderTargetViewDesc</name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>output</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<if_stmt><if>if <condition>(<expr><call><name>FAILED</name><argument_list>(<argument><expr><name>hr</name></expr></argument>)</argument_list></call></expr>)</condition>
+<block>{<block_content>
+<return>return <expr><name>hr</name></expr>;</return>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block></for>
+<return>return <expr><name>S_OK</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><name>void</name></type> <name>D3D11_ClearRenderTargets</name><parameter_list>(<parameter><decl><type><name>d3d11_device_t</name> <modifier>*</modifier></type><name>d3d_dev</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>d3d_format_t</name> <modifier>*</modifier></type><name>cfg</name></decl></parameter>,
+<parameter><decl><type><name>ID3D11RenderTargetView</name> <modifier>*</modifier></type><name><name>targets</name><index>[<expr><name>D3D11_MAX_RENDER_TARGET</name></expr>]</index></name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><specifier>static</specifier> <specifier>const</specifier> <name>FLOAT</name></type> <name><name>blackY</name><index>[<expr><literal type="number">1</literal></expr>]</index></name> <init>= <expr><block>{<expr><literal type="number">0.0f</literal></expr>}</block></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><specifier>static</specifier> <specifier>const</specifier> <name>FLOAT</name></type> <name><name>blackUV</name><index>[<expr><literal type="number">2</literal></expr>]</index></name> <init>= <expr><block>{<expr><literal type="number">0.5f</literal></expr>, <expr><literal type="number">0.5f</literal></expr>}</block></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><specifier>static</specifier> <specifier>const</specifier> <name>FLOAT</name></type> <name><name>blackRGBA</name><index>[<expr><literal type="number">4</literal></expr>]</index></name> <init>= <expr><block>{<expr><literal type="number">0.0f</literal></expr>, <expr><literal type="number">0.0f</literal></expr>, <expr><literal type="number">0.0f</literal></expr>, <expr><literal type="number">1.0f</literal></expr>}</block></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><specifier>static</specifier> <specifier>const</specifier> <name>FLOAT</name></type> <name><name>blackYUY2</name><index>[<expr><literal type="number">4</literal></expr>]</index></name> <init>= <expr><block>{<expr><literal type="number">0.0f</literal></expr>, <expr><literal type="number">0.5f</literal></expr>, <expr><literal type="number">0.0f</literal></expr>, <expr><literal type="number">0.5f</literal></expr>}</block></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><specifier>static</specifier> <specifier>const</specifier> <name>FLOAT</name></type> <name><name>blackVUYA</name><index>[<expr><literal type="number">4</literal></expr>]</index></name> <init>= <expr><block>{<expr><literal type="number">0.5f</literal></expr>, <expr><literal type="number">0.5f</literal></expr>, <expr><literal type="number">0.0f</literal></expr>, <expr><literal type="number">1.0f</literal></expr>}</block></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><specifier>static</specifier> <specifier>const</specifier> <name>FLOAT</name></type> <name><name>blackY210</name><index>[<expr><literal type="number">4</literal></expr>]</index></name> <init>= <expr><block>{<expr><literal type="number">0.0f</literal></expr>, <expr><literal type="number">0.5f</literal></expr>, <expr><literal type="number">0.5f</literal></expr>, <expr><literal type="number">0.0f</literal></expr>}</block></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>static_assert</name><argument_list>(<argument><expr><name>D3D11_MAX_RENDER_TARGET</name> <operator>&gt;=</operator> <literal type="number">2</literal></expr></argument>, <argument><expr><literal type="string">"we need at least 2 RenderTargetView for NV12/P010"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<switch>switch <condition>(<expr><name><name>cfg</name><operator>-&gt;</operator><name>formatTexture</name></name></expr>)</condition>
+<block>{<block_content>
+<case>case <expr><name>DXGI_FORMAT_NV12</name></expr>:</case>
+<case>case <expr><name>DXGI_FORMAT_P010</name></expr>:</case>
+<expr_stmt><expr><call><name>ID3D11DeviceContext_ClearRenderTargetView</name><argument_list>( <argument><expr><name><name>d3d_dev</name><operator>-&gt;</operator><name>d3dcontext</name></name></expr></argument>, <argument><expr><name><name>targets</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>, <argument><expr><name>blackY</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ID3D11DeviceContext_ClearRenderTargetView</name><argument_list>( <argument><expr><name><name>d3d_dev</name><operator>-&gt;</operator><name>d3dcontext</name></name></expr></argument>, <argument><expr><name><name>targets</name><index>[<expr><literal type="number">1</literal></expr>]</index></name></expr></argument>, <argument><expr><name>blackUV</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>DXGI_FORMAT_R8G8B8A8_UNORM</name></expr>:</case>
+<case>case <expr><name>DXGI_FORMAT_B8G8R8A8_UNORM</name></expr>:</case>
+<case>case <expr><name>DXGI_FORMAT_B8G8R8X8_UNORM</name></expr>:</case>
+<case>case <expr><name>DXGI_FORMAT_R10G10B10A2_UNORM</name></expr>:</case>
+<case>case <expr><name>DXGI_FORMAT_B5G6R5_UNORM</name></expr>:</case>
+<expr_stmt><expr><call><name>ID3D11DeviceContext_ClearRenderTargetView</name><argument_list>( <argument><expr><name><name>d3d_dev</name><operator>-&gt;</operator><name>d3dcontext</name></name></expr></argument>, <argument><expr><name><name>targets</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>, <argument><expr><name>blackRGBA</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>DXGI_FORMAT_YUY2</name></expr>:</case>
+<expr_stmt><expr><call><name>ID3D11DeviceContext_ClearRenderTargetView</name><argument_list>( <argument><expr><name><name>d3d_dev</name><operator>-&gt;</operator><name>d3dcontext</name></name></expr></argument>, <argument><expr><name><name>targets</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>, <argument><expr><name>blackYUY2</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>DXGI_FORMAT_Y410</name></expr>:</case>
+<expr_stmt><expr><call><name>ID3D11DeviceContext_ClearRenderTargetView</name><argument_list>( <argument><expr><name><name>d3d_dev</name><operator>-&gt;</operator><name>d3dcontext</name></name></expr></argument>, <argument><expr><name><name>targets</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>, <argument><expr><name>blackVUYA</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>DXGI_FORMAT_Y210</name></expr>:</case>
+<expr_stmt><expr><call><name>ID3D11DeviceContext_ClearRenderTargetView</name><argument_list>( <argument><expr><name><name>d3d_dev</name><operator>-&gt;</operator><name>d3dcontext</name></name></expr></argument>, <argument><expr><name><name>targets</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>, <argument><expr><name>blackY210</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+<case>case <expr><name>DXGI_FORMAT_AYUV</name></expr>:</case>
+<expr_stmt><expr><call><name>ID3D11DeviceContext_ClearRenderTargetView</name><argument_list>( <argument><expr><name><name>d3d_dev</name><operator>-&gt;</operator><name>d3dcontext</name></name></expr></argument>, <argument><expr><name><name>targets</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>, <argument><expr><name>blackVUYA</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+<default>default:</default>
+<expr_stmt><expr><call><name>vlc_assert_unreachable</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></switch>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>HRESULT</name></type> <name>D3D11_CompileVertexShader</name><parameter_list>(<parameter><decl><type><name>vlc_object_t</name> <modifier>*</modifier></type><name>obj</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>d3d11_shaders_t</name> <modifier>*</modifier></type><name>shaders</name></decl></parameter>,
+<parameter><decl><type><name>d3d11_device_t</name> <modifier>*</modifier></type><name>d3d_dev</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>psz_shader</name></decl></parameter>,
+<parameter><decl><type><name>d3d_vshader_t</name> <modifier>*</modifier></type><name>output</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>HRESULT</name></type> <name>hr</name> <init>= <expr><name>E_FAIL</name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>ID3DBlob</name> <modifier>*</modifier></type><name>pVSBlob</name> <init>= <expr><call><name>D3D11_CompileShader</name><argument_list>(<argument><expr><name>obj</name></expr></argument>, <argument><expr><name>shaders</name></expr></argument>, <argument><expr><name>d3d_dev</name></expr></argument>, <argument><expr><name>psz_shader</name></expr></argument>, <argument><expr><name>false</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>pVSBlob</name></expr>)</condition><block type="pseudo"><block_content>
+<goto>goto <name>error</name>;</goto></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>hr</name> <operator>=</operator> <call><name>ID3D11Device_CreateVertexShader</name><argument_list>(<argument><expr><name><name>d3d_dev</name><operator>-&gt;</operator><name>d3ddevice</name></name></expr></argument>, <argument><expr><operator>(</operator><name>void</name> <operator>*</operator><operator>)</operator><call><name>ID3D10Blob_GetBufferPointer</name><argument_list>(<argument><expr><name>pVSBlob</name></expr></argument>)</argument_list></call></expr></argument>,
+<argument><expr><call><name>ID3D10Blob_GetBufferSize</name><argument_list>(<argument><expr><name>pVSBlob</name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name>NULL</name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>output</name><operator>-&gt;</operator><name>shader</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if<condition>(<expr><call><name>FAILED</name><argument_list>(<argument><expr><name>hr</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>msg_Err</name><argument_list>(<argument><expr><name>obj</name></expr></argument>, <argument><expr><literal type="string">"Failed to create the flat vertex shader. (hr=0x%lX)"</literal></expr></argument>, <argument><expr><name>hr</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<goto>goto <name>error</name>;</goto>
+</block_content>}</block></if></if_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>D3D11_INPUT_ELEMENT_DESC</name></type> <name><name>layout</name><index>[]</index></name> <init>= <expr><block>{
+<expr><block>{ <expr><literal type="string">"POSITION"</literal></expr>, <expr><literal type="number">0</literal></expr>, <expr><name>DXGI_FORMAT_R32G32B32_FLOAT</name></expr>, <expr><literal type="number">0</literal></expr>, <expr><name>D3D11_APPEND_ALIGNED_ELEMENT</name></expr>, <expr><name>D3D11_INPUT_PER_VERTEX_DATA</name></expr>, <expr><literal type="number">0</literal></expr>}</block></expr>,
+<expr><block>{ <expr><literal type="string">"TEXCOORD"</literal></expr>, <expr><literal type="number">0</literal></expr>, <expr><name>DXGI_FORMAT_R32G32_FLOAT</name></expr>, <expr><literal type="number">0</literal></expr>, <expr><name>D3D11_APPEND_ALIGNED_ELEMENT</name></expr>, <expr><name>D3D11_INPUT_PER_VERTEX_DATA</name></expr>, <expr><literal type="number">0</literal></expr>}</block></expr>,
+}</block></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>hr</name> <operator>=</operator> <call><name>ID3D11Device_CreateInputLayout</name><argument_list>(<argument><expr><name><name>d3d_dev</name><operator>-&gt;</operator><name>d3ddevice</name></name></expr></argument>, <argument><expr><name>layout</name></expr></argument>, <argument><expr><literal type="number">2</literal></expr></argument>, <argument><expr><operator>(</operator><name>void</name> <operator>*</operator><operator>)</operator><call><name>ID3D10Blob_GetBufferPointer</name><argument_list>(<argument><expr><name>pVSBlob</name></expr></argument>)</argument_list></call></expr></argument>,
+<argument><expr><call><name>ID3D10Blob_GetBufferSize</name><argument_list>(<argument><expr><name>pVSBlob</name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>output</name><operator>-&gt;</operator><name>layout</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>ID3D10Blob_Release</name><argument_list>(<argument><expr><name>pVSBlob</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>pVSBlob</name> <operator>=</operator> <name>NULL</name></expr>;</expr_stmt>
+<if_stmt><if>if<condition>(<expr><call><name>FAILED</name><argument_list>(<argument><expr><name>hr</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>msg_Err</name><argument_list>(<argument><expr><name>obj</name></expr></argument>, <argument><expr><literal type="string">"Failed to create the vertex input layout. (hr=0x%lX)"</literal></expr></argument>, <argument><expr><name>hr</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<goto>goto <name>error</name>;</goto>
+</block_content>}</block></if></if_stmt>
+
+<return>return <expr><name>S_OK</name></expr>;</return>
+<label><name>error</name>:</label>
+<return>return <expr><name>hr</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><name>void</name></type> <name>D3D11_SetVertexShader</name><parameter_list>(<parameter><decl><type><name>d3d_vshader_t</name> <modifier>*</modifier></type><name>dst</name></decl></parameter>, <parameter><decl><type><name>d3d_vshader_t</name> <modifier>*</modifier></type><name>src</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<expr_stmt><expr><name><name>dst</name><operator>-&gt;</operator><name>layout</name></name> <operator>=</operator> <name><name>src</name><operator>-&gt;</operator><name>layout</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ID3D11InputLayout_AddRef</name><argument_list>(<argument><expr><name><name>dst</name><operator>-&gt;</operator><name>layout</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>dst</name><operator>-&gt;</operator><name>shader</name></name> <operator>=</operator> <name><name>src</name><operator>-&gt;</operator><name>shader</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ID3D11VertexShader_AddRef</name><argument_list>(<argument><expr><name><name>dst</name><operator>-&gt;</operator><name>shader</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><name>void</name></type> <name>D3D11_ReleaseVertexShader</name><parameter_list>(<parameter><decl><type><name>d3d_vshader_t</name> <modifier>*</modifier></type><name>shader</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name><name>shader</name><operator>-&gt;</operator><name>layout</name></name></expr>)</condition>
+<block>{<block_content>
+<expr_stmt><expr><call><name>ID3D11InputLayout_Release</name><argument_list>(<argument><expr><name><name>shader</name><operator>-&gt;</operator><name>layout</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>shader</name><operator>-&gt;</operator><name>layout</name></name> <operator>=</operator> <name>NULL</name></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>shader</name><operator>-&gt;</operator><name>shader</name></name></expr>)</condition>
+<block>{<block_content>
+<expr_stmt><expr><call><name>ID3D11VertexShader_Release</name><argument_list>(<argument><expr><name><name>shader</name><operator>-&gt;</operator><name>shader</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>shader</name><operator>-&gt;</operator><name>shader</name></name> <operator>=</operator> <name>NULL</name></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block></function>
+
+<function><type><name>HRESULT</name></type> (<name>D3D11_CompileFlatVertexShader</name>)<parameter_list>(<parameter><decl><type><name>vlc_object_t</name> <modifier>*</modifier></type><name>obj</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>d3d11_shaders_t</name> <modifier>*</modifier></type><name>shaders</name></decl></parameter>,
+<parameter><decl><type><name>d3d11_device_t</name> <modifier>*</modifier></type><name>d3d_dev</name></decl></parameter>, <parameter><decl><type><name>d3d_vshader_t</name> <modifier>*</modifier></type><name>output</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<return>return <expr><call><name>D3D11_CompileVertexShader</name><argument_list>(<argument><expr><name>obj</name></expr></argument>, <argument><expr><name>shaders</name></expr></argument>, <argument><expr><name>d3d_dev</name></expr></argument>, <argument><expr><name>globVertexShaderFlat</name></expr></argument>, <argument><expr><name>output</name></expr></argument>)</argument_list></call></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><name>HRESULT</name></type> (<name>D3D11_CompileProjectionVertexShader</name>)<parameter_list>(<parameter><decl><type><name>vlc_object_t</name> <modifier>*</modifier></type><name>obj</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>d3d11_shaders_t</name> <modifier>*</modifier></type><name>shaders</name></decl></parameter>,
+<parameter><decl><type><name>d3d11_device_t</name> <modifier>*</modifier></type><name>d3d_dev</name></decl></parameter>, <parameter><decl><type><name>d3d_vshader_t</name> <modifier>*</modifier></type><name>output</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<return>return <expr><call><name>D3D11_CompileVertexShader</name><argument_list>(<argument><expr><name>obj</name></expr></argument>, <argument><expr><name>shaders</name></expr></argument>, <argument><expr><name>d3d_dev</name></expr></argument>, <argument><expr><name>globVertexShaderProjection</name></expr></argument>, <argument><expr><name>output</name></expr></argument>)</argument_list></call></expr>;</return>
+</block_content>}</block></function>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><operator>!</operator><name>VLC_WINSTORE_APP</name></expr></cpp:if>
+<function><type><specifier>static</specifier> <name>HINSTANCE</name></type> <name>Direct3D11LoadShaderLibrary</name><parameter_list>(<parameter><decl><type><name>void</name></type></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>HINSTANCE</name></type> <name>instance</name> <init>= <expr><name>NULL</name></expr></init></decl>;</decl_stmt>
+
+<for>for <control>(<init><decl><type><name>int</name></type> <name>i</name> <init>= <expr><literal type="number">47</literal></expr></init></decl>;</init> <condition><expr><name>i</name> <operator>&gt;</operator> <literal type="number">41</literal></expr>;</condition> <incr><expr><operator>--</operator><name>i</name></expr></incr>)</control> <block>{<block_content>
+<decl_stmt><decl><type><name>WCHAR</name></type> <name><name>filename</name><index>[<expr><literal type="number">19</literal></expr>]</index></name></decl>;</decl_stmt>
+<expr_stmt><expr><call><name>_snwprintf</name><argument_list>(<argument><expr><name>filename</name></expr></argument>, <argument><expr><literal type="number">19</literal></expr></argument>, <argument><expr><call><name>TEXT</name><argument_list>(<argument><expr><literal type="string">"D3DCOMPILER_%d.dll"</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name>i</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>instance</name> <operator>=</operator> <call><name>LoadLibrary</name><argument_list>(<argument><expr><name>filename</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name>instance</name></expr>)</condition><block type="pseudo"><block_content> <break>break;</break></block_content></block></if></if_stmt>
+</block_content>}</block></for>
+<return>return <expr><name>instance</name></expr>;</return>
+</block_content>}</block></function>
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif> 
+
+<function><type><name>int</name></type> (<name>D3D11_InitShaders</name>)<parameter_list>(<parameter><decl><type><name>vlc_object_t</name> <modifier>*</modifier></type><name>obj</name></decl></parameter>, <parameter><decl><type><name>d3d11_shaders_t</name> <modifier>*</modifier></type><name>shaders</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><operator>!</operator><name>VLC_WINSTORE_APP</name></expr></cpp:if>
+<expr_stmt><expr><name><name>shaders</name><operator>-&gt;</operator><name>compiler_dll</name></name> <operator>=</operator> <call><name>Direct3D11LoadShaderLibrary</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>shaders</name><operator>-&gt;</operator><name>compiler_dll</name></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>msg_Err</name><argument_list>(<argument><expr><name>obj</name></expr></argument>, <argument><expr><literal type="string">"cannot load d3dcompiler.dll, aborting"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>VLC_EGENERIC</name></expr>;</return>
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>shaders</name><operator>-&gt;</operator><name>OurD3DCompile</name></name> <operator>=</operator> <operator>(</operator><name>void</name> <operator>*</operator><operator>)</operator><call><name>GetProcAddress</name><argument_list>(<argument><expr><name><name>shaders</name><operator>-&gt;</operator><name>compiler_dll</name></name></expr></argument>, <argument><expr><literal type="string">"D3DCompile"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>shaders</name><operator>-&gt;</operator><name>OurD3DCompile</name></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>msg_Err</name><argument_list>(<argument><expr><name>obj</name></expr></argument>, <argument><expr><literal type="string">"Cannot locate reference to D3DCompile in d3dcompiler DLL"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>FreeLibrary</name><argument_list>(<argument><expr><name><name>shaders</name><operator>-&gt;</operator><name>compiler_dll</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>VLC_EGENERIC</name></expr>;</return>
+</block_content>}</block></if></if_stmt>
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif> 
+
+<return>return <expr><name>VLC_SUCCESS</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><name>void</name></type> <name>D3D11_ReleaseShaders</name><parameter_list>(<parameter><decl><type><name>d3d11_shaders_t</name> <modifier>*</modifier></type><name>shaders</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><operator>!</operator><name>VLC_WINSTORE_APP</name></expr></cpp:if>
+<if_stmt><if>if <condition>(<expr><name><name>shaders</name><operator>-&gt;</operator><name>compiler_dll</name></name></expr>)</condition>
+<block>{<block_content>
+<expr_stmt><expr><call><name>FreeLibrary</name><argument_list>(<argument><expr><name><name>shaders</name><operator>-&gt;</operator><name>compiler_dll</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>shaders</name><operator>-&gt;</operator><name>compiler_dll</name></name> <operator>=</operator> <name>NULL</name></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+<expr_stmt><expr><name><name>shaders</name><operator>-&gt;</operator><name>OurD3DCompile</name></name> <operator>=</operator> <name>NULL</name></expr>;</expr_stmt>
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif> 
+</block_content>}</block></function>
+</unit>

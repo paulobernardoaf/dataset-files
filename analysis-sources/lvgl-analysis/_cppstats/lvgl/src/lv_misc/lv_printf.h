@@ -1,0 +1,19 @@
+#if defined(__cplusplus)
+extern "C" {
+#endif
+#if defined(LV_CONF_INCLUDE_SIMPLE)
+#include "lv_conf.h"
+#else
+#include "../../../lv_conf.h"
+#endif
+#if LV_SPRINTF_CUSTOM == 0
+#include <stdarg.h>
+#include <stddef.h>
+int lv_snprintf(char* buffer, size_t count, const char* format, ...);
+int lv_vsnprintf(char* buffer, size_t count, const char* format, va_list va);
+#else
+#include LV_SPRINTF_INCLUDE
+#endif
+#if defined(__cplusplus)
+}
+#endif

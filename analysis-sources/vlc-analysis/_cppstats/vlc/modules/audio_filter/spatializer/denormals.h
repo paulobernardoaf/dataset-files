@@ -1,0 +1,4 @@
+#if defined(__cplusplus)
+extern "C"
+#endif
+float undenormalise( float );

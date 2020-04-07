@@ -1,0 +1,3 @@
+void parse_omap_stream(void *stream, R_STREAM_FILE *stream_file);
+void free_omap_stream(void *stream);
+int omap_remap(void *stream, int address);

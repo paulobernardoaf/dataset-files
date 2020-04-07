@@ -1,0 +1,254 @@
+
+
+
+
+
+
+
+
+
+
+
+
+#include "index_encoder.h"
+#include "index.h"
+#include "check.h"
+
+
+struct lzma_coder_s {
+enum {
+SEQ_INDICATOR,
+SEQ_COUNT,
+SEQ_UNPADDED,
+SEQ_UNCOMPRESSED,
+SEQ_NEXT,
+SEQ_PADDING,
+SEQ_CRC32,
+} sequence;
+
+
+const lzma_index *index;
+
+
+lzma_index_iter iter;
+
+
+size_t pos;
+
+
+uint32_t crc32;
+};
+
+
+static lzma_ret
+index_encode(lzma_coder *coder,
+lzma_allocator *allocator lzma_attribute((__unused__)),
+const uint8_t *restrict in lzma_attribute((__unused__)),
+size_t *restrict in_pos lzma_attribute((__unused__)),
+size_t in_size lzma_attribute((__unused__)),
+uint8_t *restrict out, size_t *restrict out_pos,
+size_t out_size,
+lzma_action action lzma_attribute((__unused__)))
+{
+
+
+const size_t out_start = *out_pos;
+
+
+
+
+
+lzma_ret ret = LZMA_OK;
+
+while (*out_pos < out_size)
+switch (coder->sequence) {
+case SEQ_INDICATOR:
+out[*out_pos] = 0x00;
+++*out_pos;
+coder->sequence = SEQ_COUNT;
+break;
+
+case SEQ_COUNT: {
+const lzma_vli count = lzma_index_block_count(coder->index);
+ret = lzma_vli_encode(count, &coder->pos,
+out, out_pos, out_size);
+if (ret != LZMA_STREAM_END)
+goto out;
+
+ret = LZMA_OK;
+coder->pos = 0;
+coder->sequence = SEQ_NEXT;
+break;
+}
+
+case SEQ_NEXT:
+if (lzma_index_iter_next(
+&coder->iter, LZMA_INDEX_ITER_BLOCK)) {
+
+coder->pos = lzma_index_padding_size(coder->index);
+assert(coder->pos <= 3);
+coder->sequence = SEQ_PADDING;
+break;
+}
+
+coder->sequence = SEQ_UNPADDED;
+
+
+
+case SEQ_UNPADDED:
+case SEQ_UNCOMPRESSED: {
+const lzma_vli size = coder->sequence == SEQ_UNPADDED
+? coder->iter.block.unpadded_size
+: coder->iter.block.uncompressed_size;
+
+ret = lzma_vli_encode(size, &coder->pos,
+out, out_pos, out_size);
+if (ret != LZMA_STREAM_END)
+goto out;
+
+ret = LZMA_OK;
+coder->pos = 0;
+
+
+++coder->sequence;
+break;
+}
+
+case SEQ_PADDING:
+if (coder->pos > 0) {
+--coder->pos;
+out[(*out_pos)++] = 0x00;
+break;
+}
+
+
+coder->crc32 = lzma_crc32(out + out_start,
+*out_pos - out_start, coder->crc32);
+
+coder->sequence = SEQ_CRC32;
+
+
+
+case SEQ_CRC32:
+
+
+do {
+if (*out_pos == out_size)
+return LZMA_OK;
+
+out[*out_pos] = (coder->crc32 >> (coder->pos * 8))
+& 0xFF;
+++*out_pos;
+
+} while (++coder->pos < 4);
+
+return LZMA_STREAM_END;
+
+default:
+assert(0);
+return LZMA_PROG_ERROR;
+}
+
+out:
+
+coder->crc32 = lzma_crc32(out + out_start,
+*out_pos - out_start, coder->crc32);
+
+return ret;
+}
+
+
+static void
+index_encoder_end(lzma_coder *coder, lzma_allocator *allocator)
+{
+lzma_free(coder, allocator);
+return;
+}
+
+
+static void
+index_encoder_reset(lzma_coder *coder, const lzma_index *i)
+{
+lzma_index_iter_init(&coder->iter, i);
+
+coder->sequence = SEQ_INDICATOR;
+coder->index = i;
+coder->pos = 0;
+coder->crc32 = 0;
+
+return;
+}
+
+
+extern lzma_ret
+lzma_index_encoder_init(lzma_next_coder *next, lzma_allocator *allocator,
+const lzma_index *i)
+{
+lzma_next_coder_init(&lzma_index_encoder_init, next, allocator);
+
+if (i == NULL)
+return LZMA_PROG_ERROR;
+
+if (next->coder == NULL) {
+next->coder = lzma_alloc(sizeof(lzma_coder), allocator);
+if (next->coder == NULL)
+return LZMA_MEM_ERROR;
+
+next->code = &index_encode;
+next->end = &index_encoder_end;
+}
+
+index_encoder_reset(next->coder, i);
+
+return LZMA_OK;
+}
+
+
+extern LZMA_API(lzma_ret)
+lzma_index_encoder(lzma_stream *strm, const lzma_index *i)
+{
+lzma_next_strm_init(lzma_index_encoder_init, strm, i);
+
+strm->internal->supported_actions[LZMA_RUN] = true;
+strm->internal->supported_actions[LZMA_FINISH] = true;
+
+return LZMA_OK;
+}
+
+
+extern LZMA_API(lzma_ret)
+lzma_index_buffer_encode(const lzma_index *i,
+uint8_t *out, size_t *out_pos, size_t out_size)
+{
+
+if (i == NULL || out == NULL || out_pos == NULL || *out_pos > out_size)
+return LZMA_PROG_ERROR;
+
+
+if (out_size - *out_pos < lzma_index_size(i))
+return LZMA_BUF_ERROR;
+
+
+
+lzma_coder coder;
+index_encoder_reset(&coder, i);
+
+
+
+const size_t out_start = *out_pos;
+lzma_ret ret = index_encode(&coder, NULL, NULL, NULL, 0,
+out, out_pos, out_size, LZMA_RUN);
+
+if (ret == LZMA_STREAM_END) {
+ret = LZMA_OK;
+} else {
+
+
+
+assert(0);
+*out_pos = out_start;
+ret = LZMA_PROG_ERROR;
+}
+
+return ret;
+}

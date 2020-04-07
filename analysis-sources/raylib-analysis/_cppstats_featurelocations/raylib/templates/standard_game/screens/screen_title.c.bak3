@@ -1,0 +1,81 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#include "raylib.h"
+#include "screens.h"
+
+
+
+
+
+
+static int framesCounter;
+static int finishScreen;
+
+
+
+
+
+
+void InitTitleScreen(void)
+{
+
+framesCounter = 0;
+finishScreen = 0;
+}
+
+
+void UpdateTitleScreen(void)
+{
+
+
+
+if (IsKeyPressed(KEY_ENTER) || IsGestureDetected(GESTURE_TAP))
+{
+
+finishScreen = 2; 
+}
+}
+
+
+void DrawTitleScreen(void)
+{
+
+DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(), GREEN);
+DrawText("TITLE SCREEN", 20, 20, 40, DARKGREEN);
+DrawText("PRESS ENTER or TAP to JUMP to GAMEPLAY SCREEN", 120, 220, 20, DARKGREEN);
+}
+
+
+void UnloadTitleScreen(void)
+{
+
+}
+
+
+int FinishTitleScreen(void)
+{
+return finishScreen;
+}

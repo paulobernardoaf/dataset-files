@@ -1,0 +1,77 @@
+#if defined(__cplusplus)
+extern "C" {
+#endif
+typedef struct r_pkcs7_certificaterevocationlists_t {
+ut32 length;
+RX509CertificateRevocationList **elements;
+} RPKCS7CertificateRevocationLists;
+typedef struct r_pkcs7_extendedcertificatesandcertificates_t {
+ut32 length;
+RX509Certificate **elements;
+} RPKCS7ExtendedCertificatesAndCertificates;
+typedef struct r_pkcs7_digestalgorithmidentifiers_t {
+ut32 length;
+RX509AlgorithmIdentifier **elements;
+} RPKCS7DigestAlgorithmIdentifiers;
+typedef struct r_pkcs7_contentinfo_t {
+RASN1String *contentType; 
+RASN1Binary *content; 
+} RPKCS7ContentInfo;
+typedef struct r_pkcs7_issuerandserialnumber_t {
+RX509Name issuer;
+RASN1Binary *serialNumber;
+} RPKCS7IssuerAndSerialNumber;
+typedef struct r_pkcs7_attribute_t {
+RASN1String *oid; 
+RASN1Binary *data; 
+} RPKCS7Attribute;
+typedef struct r_pkcs7_attributes_t {
+ut32 length;
+RPKCS7Attribute **elements;
+} RPKCS7Attributes;
+typedef struct r_pkcs7_signerinfo_t {
+ut32 version;
+RPKCS7IssuerAndSerialNumber issuerAndSerialNumber;
+RX509AlgorithmIdentifier digestAlgorithm;
+RPKCS7Attributes authenticatedAttributes; 
+RX509AlgorithmIdentifier digestEncryptionAlgorithm;
+RASN1Binary *encryptedDigest;
+RPKCS7Attributes unauthenticatedAttributes; 
+} RPKCS7SignerInfo;
+typedef struct r_pkcs7_signerinfos_t {
+ut32 length;
+RPKCS7SignerInfo **elements;
+} RPKCS7SignerInfos;
+typedef struct r_pkcs7_signeddata_t {
+ut32 version;
+RPKCS7DigestAlgorithmIdentifiers digestAlgorithms;
+RPKCS7ContentInfo contentInfo;
+RPKCS7ExtendedCertificatesAndCertificates certificates; 
+RPKCS7CertificateRevocationLists crls; 
+RPKCS7SignerInfos signerinfos;
+} RPKCS7SignedData;
+typedef struct r_pkcs7_container_t {
+RASN1String *contentType;
+RPKCS7SignedData signedData;
+} RCMS;
+typedef struct {
+RASN1String *type; 
+RASN1Binary *data; 
+} SpcAttributeTypeAndOptionalValue;
+typedef struct {
+RX509AlgorithmIdentifier digestAlgorithm;
+RASN1Binary *digest;
+} SpcDigestInfo;
+typedef struct {
+SpcAttributeTypeAndOptionalValue data;
+SpcDigestInfo messageDigest;
+} SpcIndirectDataContent;
+R_API RCMS *r_pkcs7_parse_cms(const ut8 *buffer, ut32 length);
+R_API void r_pkcs7_free_cms(RCMS* container);
+R_API char *r_pkcs7_cms_to_string(RCMS* container);
+R_API PJ *r_pkcs7_cms_json(RCMS* container);
+R_API SpcIndirectDataContent *r_pkcs7_parse_spcinfo(RCMS *cms);
+R_API void r_pkcs7_free_spcinfo(SpcIndirectDataContent *spcinfo);
+#if defined(__cplusplus)
+}
+#endif

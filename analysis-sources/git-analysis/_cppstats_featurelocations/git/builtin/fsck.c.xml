@@ -1,0 +1,962 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" revision="1.0.0" language="C" filename="D:\Pesquisa\Projects\git-analysis\_cppstats_featurelocations\git\builtin\fsck.c"><cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>USE_THE_INDEX_COMPATIBILITY_MACROS</name></cpp:macro></cpp:define>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"builtin.h"</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"cache.h"</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"repository.h"</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"config.h"</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"commit.h"</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"tree.h"</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"blob.h"</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"tag.h"</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"refs.h"</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"pack.h"</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"cache-tree.h"</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"tree-walk.h"</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"fsck.h"</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"parse-options.h"</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"dir.h"</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"progress.h"</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"streaming.h"</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"decorate.h"</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"packfile.h"</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"object-store.h"</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"run-command.h"</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"worktree.h"</cpp:file></cpp:include>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>REACHABLE</name></cpp:macro> <cpp:value>0x0001</cpp:value></cpp:define>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>SEEN</name></cpp:macro> <cpp:value>0x0002</cpp:value></cpp:define>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>HAS_OBJ</name></cpp:macro> <cpp:value>0x0004</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>USED</name></cpp:macro> <cpp:value>0x0008</cpp:value></cpp:define>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>int</name></type> <name>show_root</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><specifier>static</specifier> <name>int</name></type> <name>show_tags</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><specifier>static</specifier> <name>int</name></type> <name>show_unreachable</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><specifier>static</specifier> <name>int</name></type> <name>include_reflogs</name> <init>= <expr><literal type="number">1</literal></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><specifier>static</specifier> <name>int</name></type> <name>check_full</name> <init>= <expr><literal type="number">1</literal></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><specifier>static</specifier> <name>int</name></type> <name>connectivity_only</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><specifier>static</specifier> <name>int</name></type> <name>check_strict</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><specifier>static</specifier> <name>int</name></type> <name>keep_cache_objects</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><specifier>static</specifier> <name><name>struct</name> <name>fsck_options</name></name></type> <name>fsck_walk_options</name> <init>= <expr><name>FSCK_OPTIONS_DEFAULT</name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><specifier>static</specifier> <name><name>struct</name> <name>fsck_options</name></name></type> <name>fsck_obj_options</name> <init>= <expr><name>FSCK_OPTIONS_DEFAULT</name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><specifier>static</specifier> <name>int</name></type> <name>errors_found</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><specifier>static</specifier> <name>int</name></type> <name>write_lost_and_found</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><specifier>static</specifier> <name>int</name></type> <name>verbose</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><specifier>static</specifier> <name>int</name></type> <name>show_progress</name> <init>= <expr><operator>-</operator><literal type="number">1</literal></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><specifier>static</specifier> <name>int</name></type> <name>show_dangling</name> <init>= <expr><literal type="number">1</literal></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><specifier>static</specifier> <name>int</name></type> <name>name_objects</name></decl>;</decl_stmt>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>ERROR_OBJECT</name></cpp:macro> <cpp:value>01</cpp:value></cpp:define>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>ERROR_REACHABLE</name></cpp:macro> <cpp:value>02</cpp:value></cpp:define>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>ERROR_PACK</name></cpp:macro> <cpp:value>04</cpp:value></cpp:define>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>ERROR_REFS</name></cpp:macro> <cpp:value>010</cpp:value></cpp:define>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>ERROR_COMMIT_GRAPH</name></cpp:macro> <cpp:value>020</cpp:value></cpp:define>
+
+<function><type><specifier>static</specifier> <specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>describe_object</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name><name>struct</name> <name>object_id</name></name> <modifier>*</modifier></type><name>oid</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<return>return <expr><call><name>fsck_describe_object</name><argument_list>(<argument><expr><operator>&amp;</operator><name>fsck_walk_options</name></expr></argument>, <argument><expr><name>oid</name></expr></argument>)</argument_list></call></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>printable_type</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name><name>struct</name> <name>object_id</name></name> <modifier>*</modifier></type><name>oid</name></decl></parameter>,
+<parameter><decl><type><name><name>enum</name> <name>object_type</name></name></type> <name>type</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>ret</name></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>type</name> <operator>==</operator> <name>OBJ_NONE</name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name>type</name> <operator>=</operator> <call><name>oid_object_info</name><argument_list>(<argument><expr><name>the_repository</name></expr></argument>, <argument><expr><name>oid</name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <call><name>type_name</name><argument_list>(<argument><expr><name>type</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>ret</name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <call><name>_</name><argument_list>(<argument><expr><literal type="string">"unknown"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<return>return <expr><name>ret</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>fsck_config</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>var</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>value</name></decl></parameter>, <parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>cb</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<if_stmt><if>if <condition>(<expr><call><name>strcmp</name><argument_list>(<argument><expr><name>var</name></expr></argument>, <argument><expr><literal type="string">"fsck.skiplist"</literal></expr></argument>)</argument_list></call> <operator>==</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+<decl_stmt><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>path</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name><name>struct</name> <name>strbuf</name></name></type> <name>sb</name> <init>= <expr><name>STRBUF_INIT</name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>git_config_pathname</name><argument_list>(<argument><expr><operator>&amp;</operator><name>path</name></expr></argument>, <argument><expr><name>var</name></expr></argument>, <argument><expr><name>value</name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><literal type="number">1</literal></expr>;</return></block_content></block></if></if_stmt>
+<expr_stmt><expr><call><name>strbuf_addf</name><argument_list>(<argument><expr><operator>&amp;</operator><name>sb</name></expr></argument>, <argument><expr><literal type="string">"skiplist=%s"</literal></expr></argument>, <argument><expr><name>path</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>free</name><argument_list>(<argument><expr><operator>(</operator><name>char</name> <operator>*</operator><operator>)</operator><name>path</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>fsck_set_msg_types</name><argument_list>(<argument><expr><operator>&amp;</operator><name>fsck_obj_options</name></expr></argument>, <argument><expr><name><name>sb</name><operator>.</operator><name>buf</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>strbuf_release</name><argument_list>(<argument><expr><operator>&amp;</operator><name>sb</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>skip_prefix</name><argument_list>(<argument><expr><name>var</name></expr></argument>, <argument><expr><literal type="string">"fsck."</literal></expr></argument>, <argument><expr><operator>&amp;</operator><name>var</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>fsck_set_msg_type</name><argument_list>(<argument><expr><operator>&amp;</operator><name>fsck_obj_options</name></expr></argument>, <argument><expr><name>var</name></expr></argument>, <argument><expr><name>value</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+</block_content>}</block></if></if_stmt>
+
+<return>return <expr><call><name>git_default_config</name><argument_list>(<argument><expr><name>var</name></expr></argument>, <argument><expr><name>value</name></expr></argument>, <argument><expr><name>cb</name></expr></argument>)</argument_list></call></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>objerror</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>object</name></name> <modifier>*</modifier></type><name>obj</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>err</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<expr_stmt><expr><name>errors_found</name> <operator>|=</operator> <name>ERROR_OBJECT</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>fprintf_ln</name><argument_list>(<argument><expr><name>stderr</name></expr></argument>, <argument><expr><call><name>_</name><argument_list>(<argument><expr><literal type="string">"error in %s %s: %s"</literal></expr></argument>)</argument_list></call></expr></argument>,
+<argument><expr><call><name>printable_type</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>obj</name><operator>-&gt;</operator><name>oid</name></name></expr></argument>, <argument><expr><name><name>obj</name><operator>-&gt;</operator><name>type</name></name></expr></argument>)</argument_list></call></expr></argument>,
+<argument><expr><call><name>describe_object</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>obj</name><operator>-&gt;</operator><name>oid</name></name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name>err</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><operator>-</operator><literal type="number">1</literal></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>fsck_error_func</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>fsck_options</name></name> <modifier>*</modifier></type><name>o</name></decl></parameter>,
+<parameter><decl><type><specifier>const</specifier> <name><name>struct</name> <name>object_id</name></name> <modifier>*</modifier></type><name>oid</name></decl></parameter>,
+<parameter><decl><type><name><name>enum</name> <name>object_type</name></name></type> <name>object_type</name></decl></parameter>,
+<parameter><decl><type><name>int</name></type> <name>msg_type</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>message</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<switch>switch <condition>(<expr><name>msg_type</name></expr>)</condition> <block>{<block_content>
+<case>case <expr><name>FSCK_WARN</name></expr>:</case>
+
+<expr_stmt><expr><call><name>fprintf_ln</name><argument_list>(<argument><expr><name>stderr</name></expr></argument>, <argument><expr><call><name>_</name><argument_list>(<argument><expr><literal type="string">"warning in %s %s: %s"</literal></expr></argument>)</argument_list></call></expr></argument>,
+<argument><expr><call><name>printable_type</name><argument_list>(<argument><expr><name>oid</name></expr></argument>, <argument><expr><name>object_type</name></expr></argument>)</argument_list></call></expr></argument>,
+<argument><expr><call><name>describe_object</name><argument_list>(<argument><expr><name>oid</name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name>message</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+<case>case <expr><name>FSCK_ERROR</name></expr>:</case>
+
+<expr_stmt><expr><call><name>fprintf_ln</name><argument_list>(<argument><expr><name>stderr</name></expr></argument>, <argument><expr><call><name>_</name><argument_list>(<argument><expr><literal type="string">"error in %s %s: %s"</literal></expr></argument>)</argument_list></call></expr></argument>,
+<argument><expr><call><name>printable_type</name><argument_list>(<argument><expr><name>oid</name></expr></argument>, <argument><expr><name>object_type</name></expr></argument>)</argument_list></call></expr></argument>,
+<argument><expr><call><name>describe_object</name><argument_list>(<argument><expr><name>oid</name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name>message</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><literal type="number">1</literal></expr>;</return>
+<default>default:</default>
+<expr_stmt><expr><call><name>BUG</name><argument_list>(<argument><expr><literal type="string">"%d (FSCK_IGNORE?) should never trigger this callback"</literal></expr></argument>,
+<argument><expr><name>msg_type</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></switch>
+</block_content>}</block></function>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name><name>struct</name> <name>object_array</name></name></type> <name>pending</name></decl>;</decl_stmt>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>mark_object</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>object</name></name> <modifier>*</modifier></type><name>obj</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>type</name></decl></parameter>, <parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>, <parameter><decl><type><name><name>struct</name> <name>fsck_options</name></name> <modifier>*</modifier></type><name>options</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>object</name></name> <modifier>*</modifier></type><name>parent</name> <init>= <expr><name>data</name></expr></init></decl>;</decl_stmt>
+
+
+
+
+
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>obj</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>printf_ln</name><argument_list>(<argument><expr><call><name>_</name><argument_list>(<argument><expr><literal type="string">"broken link from %7s %s"</literal></expr></argument>)</argument_list></call></expr></argument>,
+<argument><expr><call><name>printable_type</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>parent</name><operator>-&gt;</operator><name>oid</name></name></expr></argument>, <argument><expr><name><name>parent</name><operator>-&gt;</operator><name>type</name></name></expr></argument>)</argument_list></call></expr></argument>,
+<argument><expr><call><name>describe_object</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>parent</name><operator>-&gt;</operator><name>oid</name></name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>printf_ln</name><argument_list>(<argument><expr><call><name>_</name><argument_list>(<argument><expr><literal type="string">"broken link from %7s %s"</literal></expr></argument>)</argument_list></call></expr></argument>,
+<argument><expr><operator>(</operator><ternary><condition><expr><name>type</name> <operator>==</operator> <name>OBJ_ANY</name></expr> ?</condition><then> <expr><call><name>_</name><argument_list>(<argument><expr><literal type="string">"unknown"</literal></expr></argument>)</argument_list></call></expr> </then><else>: <expr><call><name>type_name</name><argument_list>(<argument><expr><name>type</name></expr></argument>)</argument_list></call></expr></else></ternary><operator>)</operator></expr></argument>,
+<argument><expr><call><name>_</name><argument_list>(<argument><expr><literal type="string">"unknown"</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>errors_found</name> <operator>|=</operator> <name>ERROR_REACHABLE</name></expr>;</expr_stmt>
+<return>return <expr><literal type="number">1</literal></expr>;</return>
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>type</name> <operator>!=</operator> <name>OBJ_ANY</name> <operator>&amp;&amp;</operator> <name><name>obj</name><operator>-&gt;</operator><name>type</name></name> <operator>!=</operator> <name>type</name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>objerror</name><argument_list>(<argument><expr><name>parent</name></expr></argument>, <argument><expr><call><name>_</name><argument_list>(<argument><expr><literal type="string">"wrong object type in link"</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>obj</name><operator>-&gt;</operator><name>flags</name></name> <operator>&amp;</operator> <name>REACHABLE</name></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><literal type="number">0</literal></expr>;</return></block_content></block></if></if_stmt>
+<expr_stmt><expr><name><name>obj</name><operator>-&gt;</operator><name>flags</name></name> <operator>|=</operator> <name>REACHABLE</name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>is_promisor_object</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>obj</name><operator>-&gt;</operator><name>oid</name></name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+
+
+
+
+
+<return>return <expr><literal type="number">0</literal></expr>;</return></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><operator>(</operator><name><name>obj</name><operator>-&gt;</operator><name>flags</name></name> <operator>&amp;</operator> <name>HAS_OBJ</name><operator>)</operator></expr>)</condition> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name>parent</name> <operator>&amp;&amp;</operator> <operator>!</operator><call><name>has_object_file</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>obj</name><operator>-&gt;</operator><name>oid</name></name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>printf_ln</name><argument_list>(<argument><expr><call><name>_</name><argument_list>(<argument><expr><literal type="string">"broken link from %7s %s\n"</literal>
+<literal type="string">" to %7s %s"</literal></expr></argument>)</argument_list></call></expr></argument>,
+<argument><expr><call><name>printable_type</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>parent</name><operator>-&gt;</operator><name>oid</name></name></expr></argument>, <argument><expr><name><name>parent</name><operator>-&gt;</operator><name>type</name></name></expr></argument>)</argument_list></call></expr></argument>,
+<argument><expr><call><name>describe_object</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>parent</name><operator>-&gt;</operator><name>oid</name></name></expr></argument>)</argument_list></call></expr></argument>,
+<argument><expr><call><name>printable_type</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>obj</name><operator>-&gt;</operator><name>oid</name></name></expr></argument>, <argument><expr><name><name>obj</name><operator>-&gt;</operator><name>type</name></name></expr></argument>)</argument_list></call></expr></argument>,
+<argument><expr><call><name>describe_object</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>obj</name><operator>-&gt;</operator><name>oid</name></name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>errors_found</name> <operator>|=</operator> <name>ERROR_REACHABLE</name></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+<return>return <expr><literal type="number">1</literal></expr>;</return>
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>add_object_array</name><argument_list>(<argument><expr><name>obj</name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>pending</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>mark_object_reachable</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>object</name></name> <modifier>*</modifier></type><name>obj</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<expr_stmt><expr><call><name>mark_object</name><argument_list>(<argument><expr><name>obj</name></expr></argument>, <argument><expr><name>OBJ_ANY</name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>traverse_one_object</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>object</name></name> <modifier>*</modifier></type><name>obj</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>int</name></type> <name>result</name> <init>= <expr><call><name>fsck_walk</name><argument_list>(<argument><expr><name>obj</name></expr></argument>, <argument><expr><name>obj</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>fsck_walk_options</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>obj</name><operator>-&gt;</operator><name>type</name></name> <operator>==</operator> <name>OBJ_TREE</name></expr>)</condition> <block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>tree</name></name> <modifier>*</modifier></type><name>tree</name> <init>= <expr><operator>(</operator>struct <name>tree</name> <operator>*</operator><operator>)</operator><name>obj</name></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><call><name>free_tree_buffer</name><argument_list>(<argument><expr><name>tree</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+<return>return <expr><name>result</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>traverse_reachable</name><parameter_list>(<parameter><decl><type><name>void</name></type></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>progress</name></name> <modifier>*</modifier></type><name>progress</name> <init>= <expr><name>NULL</name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>unsigned</name> <name>int</name></type> <name>nr</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>result</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+<if_stmt><if>if <condition>(<expr><name>show_progress</name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name>progress</name> <operator>=</operator> <call><name>start_delayed_progress</name><argument_list>(<argument><expr><call><name>_</name><argument_list>(<argument><expr><literal type="string">"Checking connectivity"</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+<while>while <condition>(<expr><name><name>pending</name><operator>.</operator><name>nr</name></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name>result</name> <operator>|=</operator> <call><name>traverse_one_object</name><argument_list>(<argument><expr><call><name>object_array_pop</name><argument_list>(<argument><expr><operator>&amp;</operator><name>pending</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>display_progress</name><argument_list>(<argument><expr><name>progress</name></expr></argument>, <argument><expr><operator>++</operator><name>nr</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></while>
+<expr_stmt><expr><call><name>stop_progress</name><argument_list>(<argument><expr><operator>&amp;</operator><name>progress</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><operator>!</operator><operator>!</operator><name>result</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>mark_used</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>object</name></name> <modifier>*</modifier></type><name>obj</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>type</name></decl></parameter>, <parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>, <parameter><decl><type><name><name>struct</name> <name>fsck_options</name></name> <modifier>*</modifier></type><name>options</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>obj</name></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><literal type="number">1</literal></expr>;</return></block_content></block></if></if_stmt>
+<expr_stmt><expr><name><name>obj</name><operator>-&gt;</operator><name>flags</name></name> <operator>|=</operator> <name>USED</name></expr>;</expr_stmt>
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>mark_unreachable_referents</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name><name>struct</name> <name>object_id</name></name> <modifier>*</modifier></type><name>oid</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>fsck_options</name></name></type> <name>options</name> <init>= <expr><name>FSCK_OPTIONS_DEFAULT</name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name><name>struct</name> <name>object</name></name> <modifier>*</modifier></type><name>obj</name> <init>= <expr><call><name>lookup_object</name><argument_list>(<argument><expr><name>the_repository</name></expr></argument>, <argument><expr><name>oid</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>obj</name> <operator>||</operator> <operator>!</operator><operator>(</operator><name><name>obj</name><operator>-&gt;</operator><name>flags</name></name> <operator>&amp;</operator> <name>HAS_OBJ</name><operator>)</operator></expr>)</condition><block type="pseudo"><block_content>
+<return>return;</return></block_content></block></if></if_stmt> 
+<if_stmt><if>if <condition>(<expr><name><name>obj</name><operator>-&gt;</operator><name>flags</name></name> <operator>&amp;</operator> <name>REACHABLE</name></expr>)</condition><block type="pseudo"><block_content>
+<return>return;</return></block_content></block></if></if_stmt> 
+
+
+
+
+
+<if_stmt><if>if <condition>(<expr><name><name>obj</name><operator>-&gt;</operator><name>type</name></name> <operator>==</operator> <name>OBJ_NONE</name></expr>)</condition> <block>{<block_content>
+<decl_stmt><decl><type><name><name>enum</name> <name>object_type</name></name></type> <name>type</name> <init>= <expr><call><name>oid_object_info</name><argument_list>(<argument><expr><name>the_repository</name></expr></argument>,
+<argument><expr><operator>&amp;</operator><name><name>obj</name><operator>-&gt;</operator><name>oid</name></name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<if_stmt><if>if <condition>(<expr><name>type</name> <operator>&gt;</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>object_as_type</name><argument_list>(<argument><expr><name>the_repository</name></expr></argument>, <argument><expr><name>obj</name></expr></argument>, <argument><expr><name>type</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>options</name><operator>.</operator><name>walk</name></name> <operator>=</operator> <name>mark_used</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>fsck_walk</name><argument_list>(<argument><expr><name>obj</name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>options</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>mark_loose_unreachable_referents</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name><name>struct</name> <name>object_id</name></name> <modifier>*</modifier></type><name>oid</name></decl></parameter>,
+<parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>path</name></decl></parameter>,
+<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<expr_stmt><expr><call><name>mark_unreachable_referents</name><argument_list>(<argument><expr><name>oid</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>mark_packed_unreachable_referents</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name><name>struct</name> <name>object_id</name></name> <modifier>*</modifier></type><name>oid</name></decl></parameter>,
+<parameter><decl><type><name><name>struct</name> <name>packed_git</name></name> <modifier>*</modifier></type><name>pack</name></decl></parameter>,
+<parameter><decl><type><name>uint32_t</name></type> <name>pos</name></decl></parameter>,
+<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<expr_stmt><expr><call><name>mark_unreachable_referents</name><argument_list>(<argument><expr><name>oid</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+</block_content>}</block></function>
+
+
+
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>check_reachable_object</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>object</name></name> <modifier>*</modifier></type><name>obj</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+
+
+
+
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><operator>(</operator><name><name>obj</name><operator>-&gt;</operator><name>flags</name></name> <operator>&amp;</operator> <name>HAS_OBJ</name><operator>)</operator></expr>)</condition> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><call><name>is_promisor_object</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>obj</name><operator>-&gt;</operator><name>oid</name></name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+<return>return;</return></block_content></block></if></if_stmt>
+<if_stmt><if>if <condition>(<expr><call><name>has_object_pack</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>obj</name><operator>-&gt;</operator><name>oid</name></name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+<return>return;</return></block_content></block></if></if_stmt> 
+<expr_stmt><expr><call><name>printf_ln</name><argument_list>(<argument><expr><call><name>_</name><argument_list>(<argument><expr><literal type="string">"missing %s %s"</literal></expr></argument>)</argument_list></call></expr></argument>,
+<argument><expr><call><name>printable_type</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>obj</name><operator>-&gt;</operator><name>oid</name></name></expr></argument>, <argument><expr><name><name>obj</name><operator>-&gt;</operator><name>type</name></name></expr></argument>)</argument_list></call></expr></argument>,
+<argument><expr><call><name>describe_object</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>obj</name><operator>-&gt;</operator><name>oid</name></name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>errors_found</name> <operator>|=</operator> <name>ERROR_REACHABLE</name></expr>;</expr_stmt>
+<return>return;</return>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block></function>
+
+
+
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>check_unreachable_object</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>object</name></name> <modifier>*</modifier></type><name>obj</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+
+
+
+
+
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><operator>(</operator><name><name>obj</name><operator>-&gt;</operator><name>flags</name></name> <operator>&amp;</operator> <name>HAS_OBJ</name><operator>)</operator></expr>)</condition><block type="pseudo"><block_content>
+<return>return;</return></block_content></block></if></if_stmt>
+
+
+
+
+
+<if_stmt><if>if <condition>(<expr><name>show_unreachable</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>printf_ln</name><argument_list>(<argument><expr><call><name>_</name><argument_list>(<argument><expr><literal type="string">"unreachable %s %s"</literal></expr></argument>)</argument_list></call></expr></argument>,
+<argument><expr><call><name>printable_type</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>obj</name><operator>-&gt;</operator><name>oid</name></name></expr></argument>, <argument><expr><name><name>obj</name><operator>-&gt;</operator><name>type</name></name></expr></argument>)</argument_list></call></expr></argument>,
+<argument><expr><call><name>describe_object</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>obj</name><operator>-&gt;</operator><name>oid</name></name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return;</return>
+</block_content>}</block></if></if_stmt>
+
+
+
+
+
+
+
+
+
+
+
+
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><operator>(</operator><name><name>obj</name><operator>-&gt;</operator><name>flags</name></name> <operator>&amp;</operator> <name>USED</name><operator>)</operator></expr>)</condition> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name>show_dangling</name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>printf_ln</name><argument_list>(<argument><expr><call><name>_</name><argument_list>(<argument><expr><literal type="string">"dangling %s %s"</literal></expr></argument>)</argument_list></call></expr></argument>,
+<argument><expr><call><name>printable_type</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>obj</name><operator>-&gt;</operator><name>oid</name></name></expr></argument>, <argument><expr><name><name>obj</name><operator>-&gt;</operator><name>type</name></name></expr></argument>)</argument_list></call></expr></argument>,
+<argument><expr><call><name>describe_object</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>obj</name><operator>-&gt;</operator><name>oid</name></name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+<if_stmt><if>if <condition>(<expr><name>write_lost_and_found</name></expr>)</condition> <block>{<block_content>
+<decl_stmt><decl><type><name>char</name> <modifier>*</modifier></type><name>filename</name> <init>= <expr><call><name>git_pathdup</name><argument_list>(<argument><expr><literal type="string">"lost-found/%s/%s"</literal></expr></argument>,
+<argument><expr><ternary><condition><expr><name><name>obj</name><operator>-&gt;</operator><name>type</name></name> <operator>==</operator> <name>OBJ_COMMIT</name></expr> ?</condition><then> <expr><literal type="string">"commit"</literal></expr> </then><else>: <expr><literal type="string">"other"</literal></expr></else></ternary></expr></argument>,
+<argument><expr><call><name>describe_object</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>obj</name><operator>-&gt;</operator><name>oid</name></name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>FILE</name> <modifier>*</modifier></type><name>f</name></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>safe_create_leading_directories_const</name><argument_list>(<argument><expr><name>filename</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>error</name><argument_list>(<argument><expr><call><name>_</name><argument_list>(<argument><expr><literal type="string">"could not create lost-found"</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>free</name><argument_list>(<argument><expr><name>filename</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return;</return>
+</block_content>}</block></if></if_stmt>
+<expr_stmt><expr><name>f</name> <operator>=</operator> <call><name>xfopen</name><argument_list>(<argument><expr><name>filename</name></expr></argument>, <argument><expr><literal type="string">"w"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>obj</name><operator>-&gt;</operator><name>type</name></name> <operator>==</operator> <name>OBJ_BLOB</name></expr>)</condition> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><call><name>stream_blob_to_fd</name><argument_list>(<argument><expr><call><name>fileno</name><argument_list>(<argument><expr><name>f</name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>obj</name><operator>-&gt;</operator><name>oid</name></name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>die_errno</name><argument_list>(<argument><expr><call><name>_</name><argument_list>(<argument><expr><literal type="string">"could not write '%s'"</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name>filename</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+</block_content>}</block></if> <else>else<block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>fprintf</name><argument_list>(<argument><expr><name>f</name></expr></argument>, <argument><expr><literal type="string">"%s\n"</literal></expr></argument>, <argument><expr><call><name>describe_object</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>obj</name><operator>-&gt;</operator><name>oid</name></name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></else></if_stmt>
+<if_stmt><if>if <condition>(<expr><call><name>fclose</name><argument_list>(<argument><expr><name>f</name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>die_errno</name><argument_list>(<argument><expr><call><name>_</name><argument_list>(<argument><expr><literal type="string">"could not finish '%s'"</literal></expr></argument>)</argument_list></call></expr></argument>,
+<argument><expr><name>filename</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+<expr_stmt><expr><call><name>free</name><argument_list>(<argument><expr><name>filename</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+<return>return;</return>
+</block_content>}</block></if></if_stmt>
+
+
+
+
+
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>check_object</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>object</name></name> <modifier>*</modifier></type><name>obj</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name>verbose</name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>fprintf_ln</name><argument_list>(<argument><expr><name>stderr</name></expr></argument>, <argument><expr><call><name>_</name><argument_list>(<argument><expr><literal type="string">"Checking %s"</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>describe_object</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>obj</name><operator>-&gt;</operator><name>oid</name></name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>obj</name><operator>-&gt;</operator><name>flags</name></name> <operator>&amp;</operator> <name>REACHABLE</name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>check_reachable_object</name><argument_list>(<argument><expr><name>obj</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if>
+<else>else<block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>check_unreachable_object</name><argument_list>(<argument><expr><name>obj</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></else></if_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>check_connectivity</name><parameter_list>(<parameter><decl><type><name>void</name></type></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>int</name></type> <name>i</name></decl>, <decl><type ref="prev"/><name>max</name></decl>;</decl_stmt>
+
+
+<expr_stmt><expr><call><name>traverse_reachable</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+
+
+
+
+
+<if_stmt><if>if <condition>(<expr><name>connectivity_only</name> <operator>&amp;&amp;</operator> <operator>(</operator><name>show_dangling</name> <operator>||</operator> <name>write_lost_and_found</name><operator>)</operator></expr>)</condition> <block>{<block_content>
+
+
+
+
+
+
+
+
+
+
+<expr_stmt><expr><call><name>for_each_loose_object</name><argument_list>(<argument><expr><name>mark_loose_unreachable_referents</name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>for_each_packed_object</name><argument_list>(<argument><expr><name>mark_packed_unreachable_referents</name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+
+
+<expr_stmt><expr><name>max</name> <operator>=</operator> <call><name>get_max_object_index</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name>verbose</name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>fprintf_ln</name><argument_list>(<argument><expr><name>stderr</name></expr></argument>, <argument><expr><call><name>_</name><argument_list>(<argument><expr><literal type="string">"Checking connectivity (%d objects)"</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name>max</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>max</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>object</name></name> <modifier>*</modifier></type><name>obj</name> <init>= <expr><call><name>get_indexed_object</name><argument_list>(<argument><expr><name>i</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>obj</name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>check_object</name><argument_list>(<argument><expr><name>obj</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+</block_content>}</block></for>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>fsck_obj</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>object</name></name> <modifier>*</modifier></type><name>obj</name></decl></parameter>, <parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>buffer</name></decl></parameter>, <parameter><decl><type><name>unsigned</name> <name>long</name></type> <name>size</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>int</name></type> <name>err</name></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>obj</name><operator>-&gt;</operator><name>flags</name></name> <operator>&amp;</operator> <name>SEEN</name></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><literal type="number">0</literal></expr>;</return></block_content></block></if></if_stmt>
+<expr_stmt><expr><name><name>obj</name><operator>-&gt;</operator><name>flags</name></name> <operator>|=</operator> <name>SEEN</name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>verbose</name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>fprintf_ln</name><argument_list>(<argument><expr><name>stderr</name></expr></argument>, <argument><expr><call><name>_</name><argument_list>(<argument><expr><literal type="string">"Checking %s %s"</literal></expr></argument>)</argument_list></call></expr></argument>,
+<argument><expr><call><name>printable_type</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>obj</name><operator>-&gt;</operator><name>oid</name></name></expr></argument>, <argument><expr><name><name>obj</name><operator>-&gt;</operator><name>type</name></name></expr></argument>)</argument_list></call></expr></argument>,
+<argument><expr><call><name>describe_object</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>obj</name><operator>-&gt;</operator><name>oid</name></name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>fsck_walk</name><argument_list>(<argument><expr><name>obj</name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>fsck_obj_options</name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>objerror</name><argument_list>(<argument><expr><name>obj</name></expr></argument>, <argument><expr><call><name>_</name><argument_list>(<argument><expr><literal type="string">"broken links"</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+<expr_stmt><expr><name>err</name> <operator>=</operator> <call><name>fsck_object</name><argument_list>(<argument><expr><name>obj</name></expr></argument>, <argument><expr><name>buffer</name></expr></argument>, <argument><expr><name>size</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>fsck_obj_options</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name>err</name></expr>)</condition><block type="pseudo"><block_content>
+<goto>goto <name>out</name>;</goto></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>obj</name><operator>-&gt;</operator><name>type</name></name> <operator>==</operator> <name>OBJ_COMMIT</name></expr>)</condition> <block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>commit</name></name> <modifier>*</modifier></type><name>commit</name> <init>= <expr><operator>(</operator>struct <name>commit</name> <operator>*</operator><operator>)</operator> <name>obj</name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>commit</name><operator>-&gt;</operator><name>parents</name></name> <operator>&amp;&amp;</operator> <name>show_root</name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>printf_ln</name><argument_list>(<argument><expr><call><name>_</name><argument_list>(<argument><expr><literal type="string">"root %s"</literal></expr></argument>)</argument_list></call></expr></argument>,
+<argument><expr><call><name>describe_object</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>commit</name><operator>-&gt;</operator><name>object</name><operator>.</operator><name>oid</name></name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>obj</name><operator>-&gt;</operator><name>type</name></name> <operator>==</operator> <name>OBJ_TAG</name></expr>)</condition> <block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>tag</name></name> <modifier>*</modifier></type><name>tag</name> <init>= <expr><operator>(</operator>struct <name>tag</name> <operator>*</operator><operator>)</operator> <name>obj</name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>show_tags</name> <operator>&amp;&amp;</operator> <name><name>tag</name><operator>-&gt;</operator><name>tagged</name></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>printf_ln</name><argument_list>(<argument><expr><call><name>_</name><argument_list>(<argument><expr><literal type="string">"tagged %s %s (%s) in %s"</literal></expr></argument>)</argument_list></call></expr></argument>,
+<argument><expr><call><name>printable_type</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>tag</name><operator>-&gt;</operator><name>tagged</name><operator>-&gt;</operator><name>oid</name></name></expr></argument>, <argument><expr><name><name>tag</name><operator>-&gt;</operator><name>tagged</name><operator>-&gt;</operator><name>type</name></name></expr></argument>)</argument_list></call></expr></argument>,
+<argument><expr><call><name>describe_object</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>tag</name><operator>-&gt;</operator><name>tagged</name><operator>-&gt;</operator><name>oid</name></name></expr></argument>)</argument_list></call></expr></argument>,
+<argument><expr><name><name>tag</name><operator>-&gt;</operator><name>tag</name></name></expr></argument>,
+<argument><expr><call><name>describe_object</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>tag</name><operator>-&gt;</operator><name>object</name><operator>.</operator><name>oid</name></name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block></if></if_stmt>
+
+<label><name>out</name>:</label>
+<if_stmt><if>if <condition>(<expr><name><name>obj</name><operator>-&gt;</operator><name>type</name></name> <operator>==</operator> <name>OBJ_TREE</name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>free_tree_buffer</name><argument_list>(<argument><expr><operator>(</operator>struct <name>tree</name> <operator>*</operator><operator>)</operator><name>obj</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>obj</name><operator>-&gt;</operator><name>type</name></name> <operator>==</operator> <name>OBJ_COMMIT</name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>free_commit_buffer</name><argument_list>(<argument><expr><name><name>the_repository</name><operator>-&gt;</operator><name>parsed_objects</name></name></expr></argument>,
+<argument><expr><operator>(</operator>struct <name>commit</name> <operator>*</operator><operator>)</operator><name>obj</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+<return>return <expr><name>err</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>fsck_obj_buffer</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name><name>struct</name> <name>object_id</name></name> <modifier>*</modifier></type><name>oid</name></decl></parameter>, <parameter><decl><type><name><name>enum</name> <name>object_type</name></name></type> <name>type</name></decl></parameter>,
+<parameter><decl><type><name>unsigned</name> <name>long</name></type> <name>size</name></decl></parameter>, <parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>buffer</name></decl></parameter>, <parameter><decl><type><name>int</name> <modifier>*</modifier></type><name>eaten</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+
+
+
+
+<decl_stmt><decl><type><name><name>struct</name> <name>object</name></name> <modifier>*</modifier></type><name>obj</name></decl>;</decl_stmt>
+<expr_stmt><expr><name>obj</name> <operator>=</operator> <call><name>parse_object_buffer</name><argument_list>(<argument><expr><name>the_repository</name></expr></argument>, <argument><expr><name>oid</name></expr></argument>, <argument><expr><name>type</name></expr></argument>, <argument><expr><name>size</name></expr></argument>, <argument><expr><name>buffer</name></expr></argument>,
+<argument><expr><name>eaten</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>obj</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name>errors_found</name> <operator>|=</operator> <name>ERROR_OBJECT</name></expr>;</expr_stmt>
+<return>return <expr><call><name>error</name><argument_list>(<argument><expr><call><name>_</name><argument_list>(<argument><expr><literal type="string">"%s: object corrupt or missing"</literal></expr></argument>)</argument_list></call></expr></argument>,
+<argument><expr><call><name>oid_to_hex</name><argument_list>(<argument><expr><name>oid</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+</block_content>}</block></if></if_stmt>
+<expr_stmt><expr><name><name>obj</name><operator>-&gt;</operator><name>flags</name></name> <operator>&amp;=</operator> <operator>~</operator><operator>(</operator><name>REACHABLE</name> <operator>|</operator> <name>SEEN</name><operator>)</operator></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>obj</name><operator>-&gt;</operator><name>flags</name></name> <operator>|=</operator> <name>HAS_OBJ</name></expr>;</expr_stmt>
+<return>return <expr><call><name>fsck_obj</name><argument_list>(<argument><expr><name>obj</name></expr></argument>, <argument><expr><name>buffer</name></expr></argument>, <argument><expr><name>size</name></expr></argument>)</argument_list></call></expr>;</return>
+</block_content>}</block></function>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>int</name></type> <name>default_refs</name></decl>;</decl_stmt>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>fsck_handle_reflog_oid</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>refname</name></decl></parameter>, <parameter><decl><type><name><name>struct</name> <name>object_id</name></name> <modifier>*</modifier></type><name>oid</name></decl></parameter>,
+<parameter><decl><type><name>timestamp_t</name></type> <name>timestamp</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>object</name></name> <modifier>*</modifier></type><name>obj</name></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>is_null_oid</name><argument_list>(<argument><expr><name>oid</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name>obj</name> <operator>=</operator> <call><name>lookup_object</name><argument_list>(<argument><expr><name>the_repository</name></expr></argument>, <argument><expr><name>oid</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name>obj</name> <operator>&amp;&amp;</operator> <operator>(</operator><name><name>obj</name><operator>-&gt;</operator><name>flags</name></name> <operator>&amp;</operator> <name>HAS_OBJ</name><operator>)</operator></expr>)</condition> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name>timestamp</name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>fsck_put_object_name</name><argument_list>(<argument><expr><operator>&amp;</operator><name>fsck_walk_options</name></expr></argument>, <argument><expr><name>oid</name></expr></argument>,
+<argument><expr><literal type="string">"%s@{%"</literal><name>PRItime</name><literal type="string">"}"</literal></expr></argument>,
+<argument><expr><name>refname</name></expr></argument>, <argument><expr><name>timestamp</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+<expr_stmt><expr><name><name>obj</name><operator>-&gt;</operator><name>flags</name></name> <operator>|=</operator> <name>USED</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>mark_object_reachable</name><argument_list>(<argument><expr><name>obj</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if> <if type="elseif">else if <condition>(<expr><operator>!</operator><call><name>is_promisor_object</name><argument_list>(<argument><expr><name>oid</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>error</name><argument_list>(<argument><expr><call><name>_</name><argument_list>(<argument><expr><literal type="string">"%s: invalid reflog entry %s"</literal></expr></argument>)</argument_list></call></expr></argument>,
+<argument><expr><name>refname</name></expr></argument>, <argument><expr><call><name>oid_to_hex</name><argument_list>(<argument><expr><name>oid</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>errors_found</name> <operator>|=</operator> <name>ERROR_REACHABLE</name></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>fsck_handle_reflog_ent</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>object_id</name></name> <modifier>*</modifier></type><name>ooid</name></decl></parameter>, <parameter><decl><type><name><name>struct</name> <name>object_id</name></name> <modifier>*</modifier></type><name>noid</name></decl></parameter>,
+<parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>email</name></decl></parameter>, <parameter><decl><type><name>timestamp_t</name></type> <name>timestamp</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>tz</name></decl></parameter>,
+<parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>message</name></decl></parameter>, <parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>cb_data</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>refname</name> <init>= <expr><name>cb_data</name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>verbose</name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>fprintf_ln</name><argument_list>(<argument><expr><name>stderr</name></expr></argument>, <argument><expr><call><name>_</name><argument_list>(<argument><expr><literal type="string">"Checking reflog %s-&gt;%s"</literal></expr></argument>)</argument_list></call></expr></argument>,
+<argument><expr><call><name>oid_to_hex</name><argument_list>(<argument><expr><name>ooid</name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>oid_to_hex</name><argument_list>(<argument><expr><name>noid</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>fsck_handle_reflog_oid</name><argument_list>(<argument><expr><name>refname</name></expr></argument>, <argument><expr><name>ooid</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>fsck_handle_reflog_oid</name><argument_list>(<argument><expr><name>refname</name></expr></argument>, <argument><expr><name>noid</name></expr></argument>, <argument><expr><name>timestamp</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>fsck_handle_reflog</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>logname</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name><name>struct</name> <name>object_id</name></name> <modifier>*</modifier></type><name>oid</name></decl></parameter>,
+<parameter><decl><type><name>int</name></type> <name>flag</name></decl></parameter>, <parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>cb_data</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>strbuf</name></name></type> <name>refname</name> <init>= <expr><name>STRBUF_INIT</name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>strbuf_worktree_ref</name><argument_list>(<argument><expr><name>cb_data</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>refname</name></expr></argument>, <argument><expr><name>logname</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>for_each_reflog_ent</name><argument_list>(<argument><expr><name><name>refname</name><operator>.</operator><name>buf</name></name></expr></argument>, <argument><expr><name>fsck_handle_reflog_ent</name></expr></argument>, <argument><expr><name><name>refname</name><operator>.</operator><name>buf</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>strbuf_release</name><argument_list>(<argument><expr><operator>&amp;</operator><name>refname</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>fsck_handle_ref</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>refname</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name><name>struct</name> <name>object_id</name></name> <modifier>*</modifier></type><name>oid</name></decl></parameter>,
+<parameter><decl><type><name>int</name></type> <name>flag</name></decl></parameter>, <parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>cb_data</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>object</name></name> <modifier>*</modifier></type><name>obj</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>obj</name> <operator>=</operator> <call><name>parse_object</name><argument_list>(<argument><expr><name>the_repository</name></expr></argument>, <argument><expr><name>oid</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>obj</name></expr>)</condition> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><call><name>is_promisor_object</name><argument_list>(<argument><expr><name>oid</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+
+
+
+<expr_stmt><expr><name>default_refs</name><operator>++</operator></expr>;</expr_stmt>
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+</block_content>}</block></if></if_stmt>
+<expr_stmt><expr><call><name>error</name><argument_list>(<argument><expr><call><name>_</name><argument_list>(<argument><expr><literal type="string">"%s: invalid sha1 pointer %s"</literal></expr></argument>)</argument_list></call></expr></argument>,
+<argument><expr><name>refname</name></expr></argument>, <argument><expr><call><name>oid_to_hex</name><argument_list>(<argument><expr><name>oid</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>errors_found</name> <operator>|=</operator> <name>ERROR_REACHABLE</name></expr>;</expr_stmt>
+
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+</block_content>}</block></if></if_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>obj</name><operator>-&gt;</operator><name>type</name></name> <operator>!=</operator> <name>OBJ_COMMIT</name> <operator>&amp;&amp;</operator> <call><name>is_branch</name><argument_list>(<argument><expr><name>refname</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>error</name><argument_list>(<argument><expr><call><name>_</name><argument_list>(<argument><expr><literal type="string">"%s: not a commit"</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name>refname</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>errors_found</name> <operator>|=</operator> <name>ERROR_REFS</name></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+<expr_stmt><expr><name>default_refs</name><operator>++</operator></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>obj</name><operator>-&gt;</operator><name>flags</name></name> <operator>|=</operator> <name>USED</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>fsck_put_object_name</name><argument_list>(<argument><expr><operator>&amp;</operator><name>fsck_walk_options</name></expr></argument>,
+<argument><expr><name>oid</name></expr></argument>, <argument><expr><literal type="string">"%s"</literal></expr></argument>, <argument><expr><name>refname</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>mark_object_reachable</name><argument_list>(<argument><expr><name>obj</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+</block_content>}</block></function>
+
+<function_decl><type><specifier>static</specifier> <name>int</name></type> <name>fsck_head_link</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>head_ref_name</name></decl></parameter>,
+<parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier><modifier>*</modifier></type><name>head_points_at</name></decl></parameter>,
+<parameter><decl><type><name><name>struct</name> <name>object_id</name></name> <modifier>*</modifier></type><name>head_oid</name></decl></parameter>)</parameter_list>;</function_decl>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>get_default_heads</name><parameter_list>(<parameter><decl><type><name>void</name></type></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>worktree</name></name> <modifier>*</modifier><modifier>*</modifier></type><name>worktrees</name></decl>, <decl><type ref="prev"><modifier>*</modifier><modifier>*</modifier></type><name>p</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>head_points_at</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name><name>struct</name> <name>object_id</name></name></type> <name>head_oid</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>for_each_rawref</name><argument_list>(<argument><expr><name>fsck_handle_ref</name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>worktrees</name> <operator>=</operator> <call><name>get_worktrees</name><argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<for>for <control>(<init><expr><name>p</name> <operator>=</operator> <name>worktrees</name></expr>;</init> <condition><expr><operator>*</operator><name>p</name></expr>;</condition> <incr><expr><name>p</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>worktree</name></name> <modifier>*</modifier></type><name>wt</name> <init>= <expr><operator>*</operator><name>p</name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name><name>struct</name> <name>strbuf</name></name></type> <name>ref</name> <init>= <expr><name>STRBUF_INIT</name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>strbuf_worktree_ref</name><argument_list>(<argument><expr><name>wt</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>ref</name></expr></argument>, <argument><expr><literal type="string">"HEAD"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>fsck_head_link</name><argument_list>(<argument><expr><name><name>ref</name><operator>.</operator><name>buf</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name>head_points_at</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>head_oid</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name>head_points_at</name> <operator>&amp;&amp;</operator> <operator>!</operator><call><name>is_null_oid</name><argument_list>(<argument><expr><operator>&amp;</operator><name>head_oid</name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>fsck_handle_ref</name><argument_list>(<argument><expr><name><name>ref</name><operator>.</operator><name>buf</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name>head_oid</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+<expr_stmt><expr><call><name>strbuf_release</name><argument_list>(<argument><expr><operator>&amp;</operator><name>ref</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>include_reflogs</name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>refs_for_each_reflog</name><argument_list>(<argument><expr><call><name>get_worktree_ref_store</name><argument_list>(<argument><expr><name>wt</name></expr></argument>)</argument_list></call></expr></argument>,
+<argument><expr><name>fsck_handle_reflog</name></expr></argument>, <argument><expr><name>wt</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+</block_content>}</block></for>
+<expr_stmt><expr><call><name>free_worktrees</name><argument_list>(<argument><expr><name>worktrees</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+
+
+
+
+
+
+
+
+
+
+
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>default_refs</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>fprintf_ln</name><argument_list>(<argument><expr><name>stderr</name></expr></argument>, <argument><expr><call><name>_</name><argument_list>(<argument><expr><literal type="string">"notice: No default references"</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>show_unreachable</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>fsck_loose</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name><name>struct</name> <name>object_id</name></name> <modifier>*</modifier></type><name>oid</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>path</name></decl></parameter>, <parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>object</name></name> <modifier>*</modifier></type><name>obj</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name><name>enum</name> <name>object_type</name></name></type> <name>type</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>unsigned</name> <name>long</name></type> <name>size</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>void</name> <modifier>*</modifier></type><name>contents</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>eaten</name></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>read_loose_object</name><argument_list>(<argument><expr><name>path</name></expr></argument>, <argument><expr><name>oid</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>type</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>size</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>contents</name></expr></argument>)</argument_list></call> <operator>&lt;</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name>errors_found</name> <operator>|=</operator> <name>ERROR_OBJECT</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>error</name><argument_list>(<argument><expr><call><name>_</name><argument_list>(<argument><expr><literal type="string">"%s: object corrupt or missing: %s"</literal></expr></argument>)</argument_list></call></expr></argument>,
+<argument><expr><call><name>oid_to_hex</name><argument_list>(<argument><expr><name>oid</name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name>path</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><literal type="number">0</literal></expr>;</return> 
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>contents</name> <operator>&amp;&amp;</operator> <name>type</name> <operator>!=</operator> <name>OBJ_BLOB</name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>BUG</name><argument_list>(<argument><expr><literal type="string">"read_loose_object streamed a non-blob"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>obj</name> <operator>=</operator> <call><name>parse_object_buffer</name><argument_list>(<argument><expr><name>the_repository</name></expr></argument>, <argument><expr><name>oid</name></expr></argument>, <argument><expr><name>type</name></expr></argument>, <argument><expr><name>size</name></expr></argument>,
+<argument><expr><name>contents</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>eaten</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>obj</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name>errors_found</name> <operator>|=</operator> <name>ERROR_OBJECT</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>error</name><argument_list>(<argument><expr><call><name>_</name><argument_list>(<argument><expr><literal type="string">"%s: object could not be parsed: %s"</literal></expr></argument>)</argument_list></call></expr></argument>,
+<argument><expr><call><name>oid_to_hex</name><argument_list>(<argument><expr><name>oid</name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name>path</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>eaten</name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>free</name><argument_list>(<argument><expr><name>contents</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+<return>return <expr><literal type="number">0</literal></expr>;</return> 
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>obj</name><operator>-&gt;</operator><name>flags</name></name> <operator>&amp;=</operator> <operator>~</operator><operator>(</operator><name>REACHABLE</name> <operator>|</operator> <name>SEEN</name><operator>)</operator></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>obj</name><operator>-&gt;</operator><name>flags</name></name> <operator>|=</operator> <name>HAS_OBJ</name></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><call><name>fsck_obj</name><argument_list>(<argument><expr><name>obj</name></expr></argument>, <argument><expr><name>contents</name></expr></argument>, <argument><expr><name>size</name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name>errors_found</name> <operator>|=</operator> <name>ERROR_OBJECT</name></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>eaten</name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>free</name><argument_list>(<argument><expr><name>contents</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+<return>return <expr><literal type="number">0</literal></expr>;</return> 
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>fsck_cruft</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>basename</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>path</name></decl></parameter>, <parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>starts_with</name><argument_list>(<argument><expr><name>basename</name></expr></argument>, <argument><expr><literal type="string">"tmp_obj_"</literal></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>fprintf_ln</name><argument_list>(<argument><expr><name>stderr</name></expr></argument>, <argument><expr><call><name>_</name><argument_list>(<argument><expr><literal type="string">"bad sha1 file: %s"</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name>path</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>fsck_subdir</name><parameter_list>(<parameter><decl><type><name>unsigned</name> <name>int</name></type> <name>nr</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>path</name></decl></parameter>, <parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>progress</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<expr_stmt><expr><call><name>display_progress</name><argument_list>(<argument><expr><name>progress</name></expr></argument>, <argument><expr><name>nr</name> <operator>+</operator> <literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>fsck_object_dir</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>path</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>progress</name></name> <modifier>*</modifier></type><name>progress</name> <init>= <expr><name>NULL</name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>verbose</name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>fprintf_ln</name><argument_list>(<argument><expr><name>stderr</name></expr></argument>, <argument><expr><call><name>_</name><argument_list>(<argument><expr><literal type="string">"Checking object directory"</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>show_progress</name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name>progress</name> <operator>=</operator> <call><name>start_progress</name><argument_list>(<argument><expr><call><name>_</name><argument_list>(<argument><expr><literal type="string">"Checking object directories"</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><literal type="number">256</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>for_each_loose_file_in_objdir</name><argument_list>(<argument><expr><name>path</name></expr></argument>, <argument><expr><name>fsck_loose</name></expr></argument>, <argument><expr><name>fsck_cruft</name></expr></argument>, <argument><expr><name>fsck_subdir</name></expr></argument>,
+<argument><expr><name>progress</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>display_progress</name><argument_list>(<argument><expr><name>progress</name></expr></argument>, <argument><expr><literal type="number">256</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>stop_progress</name><argument_list>(<argument><expr><operator>&amp;</operator><name>progress</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>fsck_head_link</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>head_ref_name</name></decl></parameter>,
+<parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier><modifier>*</modifier></type><name>head_points_at</name></decl></parameter>,
+<parameter><decl><type><name><name>struct</name> <name>object_id</name></name> <modifier>*</modifier></type><name>head_oid</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>int</name></type> <name>null_is_error</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>verbose</name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>fprintf_ln</name><argument_list>(<argument><expr><name>stderr</name></expr></argument>, <argument><expr><call><name>_</name><argument_list>(<argument><expr><literal type="string">"Checking %s link"</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name>head_ref_name</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><operator>*</operator><name>head_points_at</name> <operator>=</operator> <call><name>resolve_ref_unsafe</name><argument_list>(<argument><expr><name>head_ref_name</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><name>head_oid</name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><operator>*</operator><name>head_points_at</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name>errors_found</name> <operator>|=</operator> <name>ERROR_REFS</name></expr>;</expr_stmt>
+<return>return <expr><call><name>error</name><argument_list>(<argument><expr><call><name>_</name><argument_list>(<argument><expr><literal type="string">"invalid %s"</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name>head_ref_name</name></expr></argument>)</argument_list></call></expr>;</return>
+</block_content>}</block></if></if_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>strcmp</name><argument_list>(<argument><expr><operator>*</operator><name>head_points_at</name></expr></argument>, <argument><expr><name>head_ref_name</name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name>null_is_error</name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt></block_content></block></if>
+<if type="elseif">else if <condition>(<expr><operator>!</operator><call><name>starts_with</name><argument_list>(<argument><expr><operator>*</operator><name>head_points_at</name></expr></argument>, <argument><expr><literal type="string">"refs/heads/"</literal></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name>errors_found</name> <operator>|=</operator> <name>ERROR_REFS</name></expr>;</expr_stmt>
+<return>return <expr><call><name>error</name><argument_list>(<argument><expr><call><name>_</name><argument_list>(<argument><expr><literal type="string">"%s points to something strange (%s)"</literal></expr></argument>)</argument_list></call></expr></argument>,
+<argument><expr><name>head_ref_name</name></expr></argument>, <argument><expr><operator>*</operator><name>head_points_at</name></expr></argument>)</argument_list></call></expr>;</return>
+</block_content>}</block></if></if_stmt>
+<if_stmt><if>if <condition>(<expr><call><name>is_null_oid</name><argument_list>(<argument><expr><name>head_oid</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name>null_is_error</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name>errors_found</name> <operator>|=</operator> <name>ERROR_REFS</name></expr>;</expr_stmt>
+<return>return <expr><call><name>error</name><argument_list>(<argument><expr><call><name>_</name><argument_list>(<argument><expr><literal type="string">"%s: detached HEAD points at nothing"</literal></expr></argument>)</argument_list></call></expr></argument>,
+<argument><expr><name>head_ref_name</name></expr></argument>)</argument_list></call></expr>;</return>
+</block_content>}</block></if></if_stmt>
+<expr_stmt><expr><call><name>fprintf_ln</name><argument_list>(<argument><expr><name>stderr</name></expr></argument>,
+<argument><expr><call><name>_</name><argument_list>(<argument><expr><literal type="string">"notice: %s points to an unborn branch (%s)"</literal></expr></argument>)</argument_list></call></expr></argument>,
+<argument><expr><name>head_ref_name</name></expr></argument>, <argument><expr><operator>*</operator><name>head_points_at</name> <operator>+</operator> <literal type="number">11</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>fsck_cache_tree</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>cache_tree</name></name> <modifier>*</modifier></type><name>it</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>int</name></type> <name>i</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>err</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>verbose</name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>fprintf_ln</name><argument_list>(<argument><expr><name>stderr</name></expr></argument>, <argument><expr><call><name>_</name><argument_list>(<argument><expr><literal type="string">"Checking cache tree"</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><literal type="number">0</literal> <operator>&lt;=</operator> <name><name>it</name><operator>-&gt;</operator><name>entry_count</name></name></expr>)</condition> <block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>object</name></name> <modifier>*</modifier></type><name>obj</name> <init>= <expr><call><name>parse_object</name><argument_list>(<argument><expr><name>the_repository</name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>it</name><operator>-&gt;</operator><name>oid</name></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>obj</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>error</name><argument_list>(<argument><expr><call><name>_</name><argument_list>(<argument><expr><literal type="string">"%s: invalid sha1 pointer in cache-tree"</literal></expr></argument>)</argument_list></call></expr></argument>,
+<argument><expr><call><name>oid_to_hex</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>it</name><operator>-&gt;</operator><name>oid</name></name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>errors_found</name> <operator>|=</operator> <name>ERROR_REFS</name></expr>;</expr_stmt>
+<return>return <expr><literal type="number">1</literal></expr>;</return>
+</block_content>}</block></if></if_stmt>
+<expr_stmt><expr><name><name>obj</name><operator>-&gt;</operator><name>flags</name></name> <operator>|=</operator> <name>USED</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>fsck_put_object_name</name><argument_list>(<argument><expr><operator>&amp;</operator><name>fsck_walk_options</name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>it</name><operator>-&gt;</operator><name>oid</name></name></expr></argument>, <argument><expr><literal type="string">":"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>mark_object_reachable</name><argument_list>(<argument><expr><name>obj</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>obj</name><operator>-&gt;</operator><name>type</name></name> <operator>!=</operator> <name>OBJ_TREE</name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name>err</name> <operator>|=</operator> <call><name>objerror</name><argument_list>(<argument><expr><name>obj</name></expr></argument>, <argument><expr><call><name>_</name><argument_list>(<argument><expr><literal type="string">"non-tree in cache-tree"</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+</block_content>}</block></if></if_stmt>
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name><name>it</name><operator>-&gt;</operator><name>subtree_nr</name></name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control><block type="pseudo"><block_content>
+<expr_stmt><expr><name>err</name> <operator>|=</operator> <call><name>fsck_cache_tree</name><argument_list>(<argument><expr><name><name>it</name><operator>-&gt;</operator><name>down</name><index>[<expr><name>i</name></expr>]</index></name><operator>-&gt;</operator><name>cache_tree</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></for>
+<return>return <expr><name>err</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>mark_object_for_connectivity</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name><name>struct</name> <name>object_id</name></name> <modifier>*</modifier></type><name>oid</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>object</name></name> <modifier>*</modifier></type><name>obj</name> <init>= <expr><call><name>lookup_unknown_object</name><argument_list>(<argument><expr><name>oid</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><name><name>obj</name><operator>-&gt;</operator><name>flags</name></name> <operator>|=</operator> <name>HAS_OBJ</name></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>mark_loose_for_connectivity</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name><name>struct</name> <name>object_id</name></name> <modifier>*</modifier></type><name>oid</name></decl></parameter>,
+<parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>path</name></decl></parameter>,
+<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<expr_stmt><expr><call><name>mark_object_for_connectivity</name><argument_list>(<argument><expr><name>oid</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type> <name>mark_packed_for_connectivity</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name><name>struct</name> <name>object_id</name></name> <modifier>*</modifier></type><name>oid</name></decl></parameter>,
+<parameter><decl><type><name><name>struct</name> <name>packed_git</name></name> <modifier>*</modifier></type><name>pack</name></decl></parameter>,
+<parameter><decl><type><name>uint32_t</name></type> <name>pos</name></decl></parameter>,
+<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<expr_stmt><expr><call><name>mark_object_for_connectivity</name><argument_list>(<argument><expr><name>oid</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+</block_content>}</block></function>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>char</name> <specifier>const</specifier> <modifier>*</modifier> <specifier>const</specifier></type> <name><name>fsck_usage</name><index>[]</index></name> <init>= <expr><block>{
+<expr><call><name>N_</name><argument_list>(<argument><expr><literal type="string">"git fsck [&lt;options&gt;] [&lt;object&gt;...]"</literal></expr></argument>)</argument_list></call></expr>,
+<expr><name>NULL</name></expr>
+}</block></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name><name>struct</name> <name>option</name></name></type> <name><name>fsck_opts</name><index>[]</index></name> <init>= <expr><block>{
+<expr><call><name>OPT__VERBOSE</name><argument_list>(<argument><expr><operator>&amp;</operator><name>verbose</name></expr></argument>, <argument><expr><call><name>N_</name><argument_list>(<argument><expr><literal type="string">"be verbose"</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>,
+<expr><call><name>OPT_BOOL</name><argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><literal type="string">"unreachable"</literal></expr></argument>, <argument><expr><operator>&amp;</operator><name>show_unreachable</name></expr></argument>, <argument><expr><call><name>N_</name><argument_list>(<argument><expr><literal type="string">"show unreachable objects"</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>,
+<expr><call><name>OPT_BOOL</name><argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><literal type="string">"dangling"</literal></expr></argument>, <argument><expr><operator>&amp;</operator><name>show_dangling</name></expr></argument>, <argument><expr><call><name>N_</name><argument_list>(<argument><expr><literal type="string">"show dangling objects"</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>,
+<expr><call><name>OPT_BOOL</name><argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><literal type="string">"tags"</literal></expr></argument>, <argument><expr><operator>&amp;</operator><name>show_tags</name></expr></argument>, <argument><expr><call><name>N_</name><argument_list>(<argument><expr><literal type="string">"report tags"</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>,
+<expr><call><name>OPT_BOOL</name><argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><literal type="string">"root"</literal></expr></argument>, <argument><expr><operator>&amp;</operator><name>show_root</name></expr></argument>, <argument><expr><call><name>N_</name><argument_list>(<argument><expr><literal type="string">"report root nodes"</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>,
+<expr><call><name>OPT_BOOL</name><argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><literal type="string">"cache"</literal></expr></argument>, <argument><expr><operator>&amp;</operator><name>keep_cache_objects</name></expr></argument>, <argument><expr><call><name>N_</name><argument_list>(<argument><expr><literal type="string">"make index objects head nodes"</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>,
+<expr><call><name>OPT_BOOL</name><argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><literal type="string">"reflogs"</literal></expr></argument>, <argument><expr><operator>&amp;</operator><name>include_reflogs</name></expr></argument>, <argument><expr><call><name>N_</name><argument_list>(<argument><expr><literal type="string">"make reflogs head nodes (default)"</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>,
+<expr><call><name>OPT_BOOL</name><argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><literal type="string">"full"</literal></expr></argument>, <argument><expr><operator>&amp;</operator><name>check_full</name></expr></argument>, <argument><expr><call><name>N_</name><argument_list>(<argument><expr><literal type="string">"also consider packs and alternate objects"</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>,
+<expr><call><name>OPT_BOOL</name><argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><literal type="string">"connectivity-only"</literal></expr></argument>, <argument><expr><operator>&amp;</operator><name>connectivity_only</name></expr></argument>, <argument><expr><call><name>N_</name><argument_list>(<argument><expr><literal type="string">"check only connectivity"</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>,
+<expr><call><name>OPT_BOOL</name><argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><literal type="string">"strict"</literal></expr></argument>, <argument><expr><operator>&amp;</operator><name>check_strict</name></expr></argument>, <argument><expr><call><name>N_</name><argument_list>(<argument><expr><literal type="string">"enable more strict checking"</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>,
+<expr><call><name>OPT_BOOL</name><argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><literal type="string">"lost-found"</literal></expr></argument>, <argument><expr><operator>&amp;</operator><name>write_lost_and_found</name></expr></argument>,
+<argument><expr><call><name>N_</name><argument_list>(<argument><expr><literal type="string">"write dangling objects in .git/lost-found"</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>,
+<expr><call><name>OPT_BOOL</name><argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><literal type="string">"progress"</literal></expr></argument>, <argument><expr><operator>&amp;</operator><name>show_progress</name></expr></argument>, <argument><expr><call><name>N_</name><argument_list>(<argument><expr><literal type="string">"show progress"</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>,
+<expr><call><name>OPT_BOOL</name><argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><literal type="string">"name-objects"</literal></expr></argument>, <argument><expr><operator>&amp;</operator><name>name_objects</name></expr></argument>, <argument><expr><call><name>N_</name><argument_list>(<argument><expr><literal type="string">"show verbose names for reachable objects"</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>,
+<expr><call><name>OPT_END</name><argument_list>()</argument_list></call></expr>,
+}</block></expr></init></decl>;</decl_stmt>
+
+<function><type><name>int</name></type> <name>cmd_fsck</name><parameter_list>(<parameter><decl><type><name>int</name></type> <name>argc</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier><modifier>*</modifier></type><name>argv</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>prefix</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>int</name></type> <name>i</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name><name>struct</name> <name>object_directory</name></name> <modifier>*</modifier></type><name>odb</name></decl>;</decl_stmt>
+
+
+<expr_stmt><expr><name>fetch_if_missing</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>errors_found</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name>read_replace_refs</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>argc</name> <operator>=</operator> <call><name>parse_options</name><argument_list>(<argument><expr><name>argc</name></expr></argument>, <argument><expr><name>argv</name></expr></argument>, <argument><expr><name>prefix</name></expr></argument>, <argument><expr><name>fsck_opts</name></expr></argument>, <argument><expr><name>fsck_usage</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>fsck_walk_options</name><operator>.</operator><name>walk</name></name> <operator>=</operator> <name>mark_object</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>fsck_obj_options</name><operator>.</operator><name>walk</name></name> <operator>=</operator> <name>mark_used</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>fsck_obj_options</name><operator>.</operator><name>error_func</name></name> <operator>=</operator> <name>fsck_error_func</name></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name>check_strict</name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name><name>fsck_obj_options</name><operator>.</operator><name>strict</name></name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>show_progress</name> <operator>==</operator> <operator>-</operator><literal type="number">1</literal></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name>show_progress</name> <operator>=</operator> <call><name>isatty</name><argument_list>(<argument><expr><literal type="number">2</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+<if_stmt><if>if <condition>(<expr><name>verbose</name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name>show_progress</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>write_lost_and_found</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name>check_full</name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name>include_reflogs</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>name_objects</name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>fsck_enable_object_names</name><argument_list>(<argument><expr><operator>&amp;</operator><name>fsck_walk_options</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>git_config</name><argument_list>(<argument><expr><name>fsck_config</name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>connectivity_only</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>for_each_loose_object</name><argument_list>(<argument><expr><name>mark_loose_for_connectivity</name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>for_each_packed_object</name><argument_list>(<argument><expr><name>mark_packed_for_connectivity</name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<expr_stmt><expr><call><name>prepare_alt_odb</name><argument_list>(<argument><expr><name>the_repository</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<for>for <control>(<init><expr><name>odb</name> <operator>=</operator> <name><name>the_repository</name><operator>-&gt;</operator><name>objects</name><operator>-&gt;</operator><name>odb</name></name></expr>;</init> <condition><expr><name>odb</name></expr>;</condition> <incr><expr><name>odb</name> <operator>=</operator> <name><name>odb</name><operator>-&gt;</operator><name>next</name></name></expr></incr>)</control><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>fsck_object_dir</name><argument_list>(<argument><expr><name><name>odb</name><operator>-&gt;</operator><name>path</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></for>
+
+<if_stmt><if>if <condition>(<expr><name>check_full</name></expr>)</condition> <block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>packed_git</name></name> <modifier>*</modifier></type><name>p</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>uint32_t</name></type> <name>total</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>, <decl><type ref="prev"/><name>count</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name><name>struct</name> <name>progress</name></name> <modifier>*</modifier></type><name>progress</name> <init>= <expr><name>NULL</name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>show_progress</name></expr>)</condition> <block>{<block_content>
+<for>for <control>(<init><expr><name>p</name> <operator>=</operator> <call><name>get_all_packs</name><argument_list>(<argument><expr><name>the_repository</name></expr></argument>)</argument_list></call></expr>;</init> <condition><expr><name>p</name></expr>;</condition>
+<incr><expr><name>p</name> <operator>=</operator> <name><name>p</name><operator>-&gt;</operator><name>next</name></name></expr></incr>)</control> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><call><name>open_pack_index</name><argument_list>(<argument><expr><name>p</name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+<continue>continue;</continue></block_content></block></if></if_stmt>
+<expr_stmt><expr><name>total</name> <operator>+=</operator> <name><name>p</name><operator>-&gt;</operator><name>num_objects</name></name></expr>;</expr_stmt>
+</block_content>}</block></for>
+
+<expr_stmt><expr><name>progress</name> <operator>=</operator> <call><name>start_progress</name><argument_list>(<argument><expr><call><name>_</name><argument_list>(<argument><expr><literal type="string">"Checking objects"</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name>total</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+<for>for <control>(<init><expr><name>p</name> <operator>=</operator> <call><name>get_all_packs</name><argument_list>(<argument><expr><name>the_repository</name></expr></argument>)</argument_list></call></expr>;</init> <condition><expr><name>p</name></expr>;</condition>
+<incr><expr><name>p</name> <operator>=</operator> <name><name>p</name><operator>-&gt;</operator><name>next</name></name></expr></incr>)</control> <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><call><name>verify_pack</name><argument_list>(<argument><expr><name>the_repository</name></expr></argument>,
+<argument><expr><name>p</name></expr></argument>, <argument><expr><name>fsck_obj_buffer</name></expr></argument>,
+<argument><expr><name>progress</name></expr></argument>, <argument><expr><name>count</name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name>errors_found</name> <operator>|=</operator> <name>ERROR_PACK</name></expr>;</expr_stmt></block_content></block></if></if_stmt>
+<expr_stmt><expr><name>count</name> <operator>+=</operator> <name><name>p</name><operator>-&gt;</operator><name>num_objects</name></name></expr>;</expr_stmt>
+</block_content>}</block></for>
+<expr_stmt><expr><call><name>stop_progress</name><argument_list>(<argument><expr><operator>&amp;</operator><name>progress</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>fsck_finish</name><argument_list>(<argument><expr><operator>&amp;</operator><name>fsck_obj_options</name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name>errors_found</name> <operator>|=</operator> <name>ERROR_OBJECT</name></expr>;</expr_stmt></block_content></block></if></if_stmt>
+</block_content>}</block></else></if_stmt>
+
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>argc</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<decl_stmt><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>arg</name> <init>= <expr><name><name>argv</name><index>[<expr><name>i</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name><name>struct</name> <name>object_id</name></name></type> <name>oid</name></decl>;</decl_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>get_oid</name><argument_list>(<argument><expr><name>arg</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>oid</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>object</name></name> <modifier>*</modifier></type><name>obj</name> <init>= <expr><call><name>lookup_object</name><argument_list>(<argument><expr><name>the_repository</name></expr></argument>,
+<argument><expr><operator>&amp;</operator><name>oid</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>obj</name> <operator>||</operator> <operator>!</operator><operator>(</operator><name><name>obj</name><operator>-&gt;</operator><name>flags</name></name> <operator>&amp;</operator> <name>HAS_OBJ</name><operator>)</operator></expr>)</condition> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><call><name>is_promisor_object</name><argument_list>(<argument><expr><operator>&amp;</operator><name>oid</name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+<continue>continue;</continue></block_content></block></if></if_stmt>
+<expr_stmt><expr><call><name>error</name><argument_list>(<argument><expr><call><name>_</name><argument_list>(<argument><expr><literal type="string">"%s: object missing"</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>oid_to_hex</name><argument_list>(<argument><expr><operator>&amp;</operator><name>oid</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>errors_found</name> <operator>|=</operator> <name>ERROR_OBJECT</name></expr>;</expr_stmt>
+<continue>continue;</continue>
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>obj</name><operator>-&gt;</operator><name>flags</name></name> <operator>|=</operator> <name>USED</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>fsck_put_object_name</name><argument_list>(<argument><expr><operator>&amp;</operator><name>fsck_walk_options</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>oid</name></expr></argument>,
+<argument><expr><literal type="string">"%s"</literal></expr></argument>, <argument><expr><name>arg</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>mark_object_reachable</name><argument_list>(<argument><expr><name>obj</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<continue>continue;</continue>
+</block_content>}</block></if></if_stmt>
+<expr_stmt><expr><call><name>error</name><argument_list>(<argument><expr><call><name>_</name><argument_list>(<argument><expr><literal type="string">"invalid parameter: expected sha1, got '%s'"</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name>arg</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>errors_found</name> <operator>|=</operator> <name>ERROR_OBJECT</name></expr>;</expr_stmt>
+</block_content>}</block></for>
+
+
+
+
+
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>argc</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>get_default_heads</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>keep_cache_objects</name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>keep_cache_objects</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name>verify_index_checksum</name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name>verify_ce_order</name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>read_cache</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>active_nr</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<decl_stmt><decl><type><name>unsigned</name> <name>int</name></type> <name>mode</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name><name>struct</name> <name>blob</name></name> <modifier>*</modifier></type><name>blob</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name><name>struct</name> <name>object</name></name> <modifier>*</modifier></type><name>obj</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>mode</name> <operator>=</operator> <name><name>active_cache</name><index>[<expr><name>i</name></expr>]</index></name><operator>-&gt;</operator><name>ce_mode</name></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><call><name>S_ISGITLINK</name><argument_list>(<argument><expr><name>mode</name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+<continue>continue;</continue></block_content></block></if></if_stmt>
+<expr_stmt><expr><name>blob</name> <operator>=</operator> <call><name>lookup_blob</name><argument_list>(<argument><expr><name>the_repository</name></expr></argument>,
+<argument><expr><operator>&amp;</operator><name><name>active_cache</name><index>[<expr><name>i</name></expr>]</index></name><operator>-&gt;</operator><name>oid</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>blob</name></expr>)</condition><block type="pseudo"><block_content>
+<continue>continue;</continue></block_content></block></if></if_stmt>
+<expr_stmt><expr><name>obj</name> <operator>=</operator> <operator>&amp;</operator><name><name>blob</name><operator>-&gt;</operator><name>object</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>obj</name><operator>-&gt;</operator><name>flags</name></name> <operator>|=</operator> <name>USED</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>fsck_put_object_name</name><argument_list>(<argument><expr><operator>&amp;</operator><name>fsck_walk_options</name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>obj</name><operator>-&gt;</operator><name>oid</name></name></expr></argument>,
+<argument><expr><literal type="string">":%s"</literal></expr></argument>, <argument><expr><name><name>active_cache</name><index>[<expr><name>i</name></expr>]</index></name><operator>-&gt;</operator><name>name</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>mark_object_reachable</name><argument_list>(<argument><expr><name>obj</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></for>
+<if_stmt><if>if <condition>(<expr><name>active_cache_tree</name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>fsck_cache_tree</name><argument_list>(<argument><expr><name>active_cache_tree</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>check_connectivity</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>git_config_get_bool</name><argument_list>(<argument><expr><literal type="string">"core.commitgraph"</literal></expr></argument>, <argument><expr><operator>&amp;</operator><name>i</name></expr></argument>)</argument_list></call> <operator>&amp;&amp;</operator> <name>i</name></expr>)</condition> <block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>child_process</name></name></type> <name>commit_graph_verify</name> <init>= <expr><name>CHILD_PROCESS_INIT</name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name><name>verify_argv</name><index>[]</index></name> <init>= <expr><block>{ <expr><literal type="string">"commit-graph"</literal></expr>, <expr><literal type="string">"verify"</literal></expr>, <expr><name>NULL</name></expr>, <expr><name>NULL</name></expr>, <expr><name>NULL</name></expr> }</block></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>prepare_alt_odb</name><argument_list>(<argument><expr><name>the_repository</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<for>for <control>(<init><expr><name>odb</name> <operator>=</operator> <name><name>the_repository</name><operator>-&gt;</operator><name>objects</name><operator>-&gt;</operator><name>odb</name></name></expr>;</init> <condition><expr><name>odb</name></expr>;</condition> <incr><expr><name>odb</name> <operator>=</operator> <name><name>odb</name><operator>-&gt;</operator><name>next</name></name></expr></incr>)</control> <block>{<block_content>
+<expr_stmt><expr><call><name>child_process_init</name><argument_list>(<argument><expr><operator>&amp;</operator><name>commit_graph_verify</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>commit_graph_verify</name><operator>.</operator><name>argv</name></name> <operator>=</operator> <name>verify_argv</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>commit_graph_verify</name><operator>.</operator><name>git_cmd</name></name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>verify_argv</name><index>[<expr><literal type="number">2</literal></expr>]</index></name> <operator>=</operator> <literal type="string">"--object-dir"</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>verify_argv</name><index>[<expr><literal type="number">3</literal></expr>]</index></name> <operator>=</operator> <name><name>odb</name><operator>-&gt;</operator><name>path</name></name></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><call><name>run_command</name><argument_list>(<argument><expr><operator>&amp;</operator><name>commit_graph_verify</name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name>errors_found</name> <operator>|=</operator> <name>ERROR_COMMIT_GRAPH</name></expr>;</expr_stmt></block_content></block></if></if_stmt>
+</block_content>}</block></for>
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>git_config_get_bool</name><argument_list>(<argument><expr><literal type="string">"core.multipackindex"</literal></expr></argument>, <argument><expr><operator>&amp;</operator><name>i</name></expr></argument>)</argument_list></call> <operator>&amp;&amp;</operator> <name>i</name></expr>)</condition> <block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>child_process</name></name></type> <name>midx_verify</name> <init>= <expr><name>CHILD_PROCESS_INIT</name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name><name>midx_argv</name><index>[]</index></name> <init>= <expr><block>{ <expr><literal type="string">"multi-pack-index"</literal></expr>, <expr><literal type="string">"verify"</literal></expr>, <expr><name>NULL</name></expr>, <expr><name>NULL</name></expr>, <expr><name>NULL</name></expr> }</block></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>prepare_alt_odb</name><argument_list>(<argument><expr><name>the_repository</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<for>for <control>(<init><expr><name>odb</name> <operator>=</operator> <name><name>the_repository</name><operator>-&gt;</operator><name>objects</name><operator>-&gt;</operator><name>odb</name></name></expr>;</init> <condition><expr><name>odb</name></expr>;</condition> <incr><expr><name>odb</name> <operator>=</operator> <name><name>odb</name><operator>-&gt;</operator><name>next</name></name></expr></incr>)</control> <block>{<block_content>
+<expr_stmt><expr><call><name>child_process_init</name><argument_list>(<argument><expr><operator>&amp;</operator><name>midx_verify</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>midx_verify</name><operator>.</operator><name>argv</name></name> <operator>=</operator> <name>midx_argv</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>midx_verify</name><operator>.</operator><name>git_cmd</name></name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>midx_argv</name><index>[<expr><literal type="number">2</literal></expr>]</index></name> <operator>=</operator> <literal type="string">"--object-dir"</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>midx_argv</name><index>[<expr><literal type="number">3</literal></expr>]</index></name> <operator>=</operator> <name><name>odb</name><operator>-&gt;</operator><name>path</name></name></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><call><name>run_command</name><argument_list>(<argument><expr><operator>&amp;</operator><name>midx_verify</name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name>errors_found</name> <operator>|=</operator> <name>ERROR_COMMIT_GRAPH</name></expr>;</expr_stmt></block_content></block></if></if_stmt>
+</block_content>}</block></for>
+</block_content>}</block></if></if_stmt>
+
+<return>return <expr><name>errors_found</name></expr>;</return>
+</block_content>}</block></function>
+</unit>

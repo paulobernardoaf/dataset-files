@@ -1,0 +1,17 @@
+#import <Cocoa/Cocoa.h>
+#if defined(HAVE_CONFIG_H)
+#include "config.h"
+#endif
+#import "VLCExtensionsDialogProvider.h"
+@interface VLCExtensionsManager : NSObject
+- (void)buildMenu:(NSMenu *)extMenu;
+- (BOOL)loadExtensions;
+- (void)unloadExtensions;
+- (void)reloadExtensions;
+- (void)triggerMenu:(id)sender;
+- (void)playingChanged:(int)state;
+- (void)metaChanged:(input_item_t *)p_input;
+- (BOOL)isLoaded;
+- (BOOL)cannotLoad;
+@property (readonly) BOOL isUnloading;
+@end

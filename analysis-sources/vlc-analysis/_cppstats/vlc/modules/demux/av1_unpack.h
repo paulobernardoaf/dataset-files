@@ -1,0 +1,76 @@
+#include "../packetizer/av1_obu.h"
+#include <vlc_common.h>
+#include <vlc_block.h>
+static inline uint8_t leb128_expected(uint32_t v)
+{
+if (v < (1U << 7)) return 1;
+else if(v < (1U << 14)) return 2;
+else if(v < (1U << 21)) return 3;
+else if(v < (1U << 28)) return 4;
+else return 5;
+}
+static inline void leb128_write(uint32_t v, uint8_t *p)
+{
+for(;;)
+{
+*p = v & 0x7F;
+v >>= 7;
+if(v == 0)
+break;
+*p++ |= 0x80;
+}
+}
+static inline block_t * AV1_Unpack_Sample_ExpandSize(block_t *p_block)
+{
+AV1_OBU_iterator_ctx_t ctx;
+AV1_OBU_iterator_init(&ctx, p_block->p_buffer, p_block->i_buffer);
+const uint8_t *p_obu = NULL; size_t i_obu;
+while(AV1_OBU_iterate_next(&ctx, &p_obu, &i_obu))
+{
+if(AV1_OBUHasSizeField(p_obu))
+continue;
+const uint8_t i_header = 1 + AV1_OBUHasExtensionField(p_obu);
+const uint8_t i_sizelen = leb128_expected(i_obu - i_header);
+const size_t i_obu_offset = p_obu - p_block->p_buffer;
+if(2 * (i_obu_offset + i_header) + i_sizelen < p_block->i_buffer)
+{
+p_block = block_Realloc(p_block, i_sizelen, p_block->i_buffer);
+if(p_block)
+memmove(p_block->p_buffer, &p_block->p_buffer[i_sizelen],
+i_obu_offset + i_header);
+}
+else
+{
+p_block = block_Realloc(p_block, 0, p_block->i_buffer + i_sizelen);
+if(p_block)
+{
+const size_t i_off = i_obu_offset + i_header;
+memmove(&p_block->p_buffer[i_off + i_sizelen], &p_block->p_buffer[i_off],
+p_block->i_buffer - i_off - i_sizelen);
+}
+}
+if(likely(p_block))
+{
+leb128_write(i_obu - i_header, &p_block->p_buffer[i_obu_offset + i_header]);
+p_block->p_buffer[i_obu_offset] |= 0x02;
+}
+break;
+}
+return p_block;
+}
+static inline block_t * AV1_Unpack_Sample(block_t *p_block)
+{
+p_block = AV1_Unpack_Sample_ExpandSize(p_block);
+if(p_block &&
+(p_block->p_buffer[0] & 0x81) == 0 && 
+(p_block->p_buffer[0] & 0x7A) != 0x12) 
+{
+p_block = block_Realloc(p_block, 2, p_block->i_buffer);
+if(p_block)
+{
+p_block->p_buffer[0] = 0x12;
+p_block->p_buffer[1] = 0x00;
+}
+}
+return p_block;
+}

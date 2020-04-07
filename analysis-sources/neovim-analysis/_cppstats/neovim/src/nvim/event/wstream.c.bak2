@@ -1,0 +1,167 @@
+
+
+
+#include <assert.h>
+#include <stdint.h>
+#include <stdbool.h>
+#include <stdlib.h>
+
+#include <uv.h>
+
+#include "nvim/log.h"
+#include "nvim/event/loop.h"
+#include "nvim/event/wstream.h"
+#include "nvim/vim.h"
+#include "nvim/memory.h"
+
+#define DEFAULT_MAXMEM 1024 * 1024 * 2000
+
+typedef struct {
+  Stream *stream;
+  WBuffer *buffer;
+  uv_write_t uv_req;
+} WRequest;
+
+#ifdef INCLUDE_GENERATED_DECLARATIONS
+# include "event/wstream.c.generated.h"
+#endif
+
+void wstream_init_fd(Loop *loop, Stream *stream, int fd, size_t maxmem)
+  FUNC_ATTR_NONNULL_ARG(1) FUNC_ATTR_NONNULL_ARG(2)
+{
+  stream_init(loop, stream, fd, NULL);
+  wstream_init(stream, maxmem);
+}
+
+void wstream_init_stream(Stream *stream, uv_stream_t *uvstream, size_t maxmem)
+  FUNC_ATTR_NONNULL_ARG(1) FUNC_ATTR_NONNULL_ARG(2)
+{
+  stream_init(NULL, stream, -1, uvstream);
+  wstream_init(stream, maxmem);
+}
+
+void wstream_init(Stream *stream, size_t maxmem)
+{
+  stream->maxmem = maxmem ? maxmem : DEFAULT_MAXMEM;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+void wstream_set_write_cb(Stream *stream, stream_write_cb cb, void *data)
+  FUNC_ATTR_NONNULL_ARG(1, 2)
+{
+  stream->write_cb = cb;
+  stream->cb_data = data;
+}
+
+
+
+
+
+
+
+
+bool wstream_write(Stream *stream, WBuffer *buffer)
+  FUNC_ATTR_NONNULL_ALL
+{
+  assert(stream->maxmem);
+  
+  assert(!stream->closed);
+
+  if (stream->curmem > stream->maxmem) {
+    goto err;
+  }
+
+  stream->curmem += buffer->size;
+
+  WRequest *data = xmalloc(sizeof(WRequest));
+  data->stream = stream;
+  data->buffer = buffer;
+  data->uv_req.data = data;
+
+  uv_buf_t uvbuf;
+  uvbuf.base = buffer->data;
+  uvbuf.len = UV_BUF_LEN(buffer->size);
+
+  if (uv_write(&data->uv_req, stream->uvstream, &uvbuf, 1, write_cb)) {
+    xfree(data);
+    goto err;
+  }
+
+  stream->pending_reqs++;
+  return true;
+
+err:
+  wstream_release_wbuffer(buffer);
+  return false;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+WBuffer *wstream_new_buffer(char *data,
+                            size_t size,
+                            size_t refcount,
+                            wbuffer_data_finalizer cb)
+  FUNC_ATTR_NONNULL_ARG(1)
+{
+  WBuffer *rv = xmalloc(sizeof(WBuffer));
+  rv->size = size;
+  rv->refcount = refcount;
+  rv->cb = cb;
+  rv->data = data;
+
+  return rv;
+}
+
+static void write_cb(uv_write_t *req, int status)
+{
+  WRequest *data = req->data;
+
+  data->stream->curmem -= data->buffer->size;
+
+  wstream_release_wbuffer(data->buffer);
+
+  if (data->stream->write_cb) {
+    data->stream->write_cb(data->stream, data->stream->cb_data, status);
+  }
+
+  data->stream->pending_reqs--;
+
+  if (data->stream->closed && data->stream->pending_reqs == 0) {
+    
+    stream_close_handle(data->stream);
+  }
+
+  xfree(data);
+}
+
+void wstream_release_wbuffer(WBuffer *buffer)
+  FUNC_ATTR_NONNULL_ALL
+{
+  if (!--buffer->refcount) {
+    if (buffer->cb) {
+      buffer->cb(buffer->data);
+    }
+
+    xfree(buffer);
+  }
+}

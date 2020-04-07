@@ -1,0 +1,159 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#ifndef VLC_TS_H
+#define VLC_TS_H
+
+#ifdef HAVE_ARIBB24
+    typedef struct arib_instance_t arib_instance_t;
+#endif
+typedef struct csa_t csa_t;
+
+#define TS_USER_PMT_NUMBER (0)
+
+#define TS_PSI_PAT_PID 0x00
+
+#if (VLC_TICK_INVALID + 1 != VLC_TICK_0)
+#   error "can't define TS_UNKNOWN reference"
+#else
+#   define TS_TICK_UNKNOWN (VLC_TICK_INVALID - 1)
+#endif
+#define SETANDVALID(a) (a != TS_TICK_UNKNOWN && a != VLC_TICK_INVALID)
+
+typedef enum ts_standards_e
+{
+    TS_STANDARD_AUTO = 0,
+    TS_STANDARD_MPEG,
+    TS_STANDARD_DVB,
+    TS_STANDARD_ARIB,
+    TS_STANDARD_ATSC,
+    TS_STANDARD_TDMB,
+} ts_standards_e;
+
+typedef struct
+{
+    int i_service;
+} vdr_info_t;
+
+struct demux_sys_t
+{
+    stream_t   *stream;
+    bool        b_canseek;
+    bool        b_canfastseek;
+    bool        b_lowdelay;
+    int         current_title;
+    int         current_seekpoint;
+    unsigned    updates;
+    vlc_mutex_t     csa_lock;
+
+    
+    unsigned    i_packet_size;
+
+    
+    unsigned    i_packet_header_size;
+
+    
+    unsigned    i_ts_read;
+
+    bool        b_cc_check;
+    bool        b_ignore_time_for_positions;
+
+    ts_standards_e standard;
+
+    struct
+    {
+#ifdef HAVE_ARIBB24
+        arib_instance_t *p_instance;
+#endif
+        stream_t     *b25stream;
+    } arib;
+
+    
+    ts_pid_list_t pids;
+
+    bool        b_user_pmt;
+    int         i_pmt_es;
+
+    enum
+    {
+        DELAY_ES,
+        CREATE_ES
+    } es_creation;
+
+    
+    bool        b_es_id_pid;
+    uint16_t    i_next_extraid;
+
+    csa_t       *csa;
+    int         i_csa_pkt_size;
+    bool        b_split_es;
+    bool        b_valid_scrambling;
+
+    bool        b_trust_pcr;
+    bool        b_check_pcr_offset;
+    unsigned    i_generated_pcr_dpb_offset;
+
+    
+    bool        b_access_control;
+    bool        b_end_preparse;
+
+    
+    time_t      i_network_time;
+    time_t      i_network_time_update; 
+    bool        b_broken_charset; 
+
+    
+    enum
+    {
+        PROGRAM_AUTO_DEFAULT, 
+        PROGRAM_LIST, 
+        PROGRAM_ALL, 
+    } seltype; 
+    DECL_ARRAY( int ) programs; 
+    bool        b_default_selection; 
+
+    struct
+    {
+        stime_t i_first_dts;     
+        int     i_timesourcepid; 
+        enum { PAT_WAITING = 0, PAT_MISSING, PAT_FIXTRIED } status; 
+    } patfix;
+
+    vdr_info_t  vdr;
+
+    
+    vlc_dictionary_t attachments;
+
+    
+    bool        b_start_record;
+};
+
+void TsChangeStandard( demux_sys_t *, ts_standards_e );
+
+bool ProgramIsSelected( demux_sys_t *, uint16_t i_pgrm );
+
+void UpdatePESFilters( demux_t *p_demux, bool b_all );
+
+int ProbeStart( demux_t *p_demux, int i_program );
+int ProbeEnd( demux_t *p_demux, int i_program );
+
+void AddAndCreateES( demux_t *p_demux, ts_pid_t *pid, bool b_create_delayed );
+int FindPCRCandidate( ts_pmt_t *p_pmt );
+
+#endif

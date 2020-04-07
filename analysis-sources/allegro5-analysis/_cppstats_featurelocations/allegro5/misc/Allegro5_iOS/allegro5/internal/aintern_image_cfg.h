@@ -1,0 +1,14 @@
+
+
+
+
+
+
+
+
+
+#define ALLEGRO_CFG_IIO_HAVE_PNG
+
+
+#define ALLEGRO_CFG_IIO_SUPPORT_PNG
+

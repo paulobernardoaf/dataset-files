@@ -1,0 +1,743 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" revision="1.0.0" language="C" filename="D:\Pesquisa\Projects\vlc-analysis\_cppstats\vlc\modules\codec\synchro.c"><cpp:if>#<cpp:directive>if</cpp:directive> <expr><call><name>defined</name><argument_list>(<argument><expr><name>HAVE_CONFIG_H</name></expr></argument>)</argument_list></call></expr></cpp:if>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"config.h"</cpp:file></cpp:include>
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;vlc_common.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;vlc_codec.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"synchro.h"</cpp:file></cpp:include>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>synchro_msg_Dbg</name><parameter_list>(<parameter><type><name>p_this</name></type></parameter>, <parameter><type><modifier>...</modifier></type></parameter>)</parameter_list></cpp:macro> <cpp:value>do { if( !p_this-&gt;b_quiet ) msg_Generic(p_this-&gt;p_dec, VLC_MSG_DBG, __VA_ARGS__); } while (0)</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>synchro_msg_Warn</name><parameter_list>(<parameter><type><name>p_this</name></type></parameter>, <parameter><type><modifier>...</modifier></type></parameter>)</parameter_list></cpp:macro> <cpp:value>do { if( !p_this-&gt;b_quiet ) msg_Generic(p_this-&gt;p_dec, VLC_MSG_WARN, __VA_ARGS__); } while (0)</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>MAX_PIC_AVERAGE</name></cpp:macro> <cpp:value>8</cpp:value></cpp:define>
+
+<struct>struct <name>decoder_synchro_t</name>
+
+<block>{
+
+<decl_stmt><decl><type><name>decoder_t</name> <modifier>*</modifier></type><name>p_dec</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>i_frame_rate</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>bool</name></type> <name>b_no_skip</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>bool</name></type> <name>b_quiet</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>vlc_tick_t</name></type> <name>decoding_start</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>unsigned</name> <name>int</name></type> <name>i_n_p</name></decl>, <decl><type ref="prev"/><name>i_n_b</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>vlc_tick_t</name></type> <name><name>p_tau</name><index>[<expr><literal type="number">4</literal></expr>]</index></name></decl>;</decl_stmt> 
+
+<decl_stmt><decl><type><name>unsigned</name> <name>int</name></type> <name><name>pi_meaningful</name><index>[<expr><literal type="number">4</literal></expr>]</index></name></decl>;</decl_stmt> 
+
+<decl_stmt><decl><type><name>vlc_tick_t</name></type> <name>i_render_time</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>i_nb_ref</name></decl>;</decl_stmt> 
+
+<decl_stmt><decl><type><name>int</name></type> <name>i_dec_nb_ref</name></decl>;</decl_stmt> 
+
+<decl_stmt><decl><type><name>int</name></type> <name>i_trash_nb_ref</name></decl>;</decl_stmt> 
+
+<decl_stmt><decl><type><name>unsigned</name> <name>int</name></type> <name>i_eta_p</name></decl>, <decl><type ref="prev"/><name>i_eta_b</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>vlc_tick_t</name></type> <name>backward_pts</name></decl>, <decl><type ref="prev"/><name>current_pts</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>i_current_period</name></decl>;</decl_stmt> 
+
+<decl_stmt><decl><type><name>int</name></type> <name>i_backward_period</name></decl>;</decl_stmt> 
+
+<decl_stmt><decl><type><name>unsigned</name> <name>int</name></type> <name>i_trashed_pic</name></decl>, <decl><type ref="prev"/><name>i_not_chosen_pic</name></decl>, <decl><type ref="prev"/><name>i_pic</name></decl>;</decl_stmt>
+
+}</block>;</struct>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>DELTA</name></cpp:macro> <cpp:value>VLC_TICK_FROM_MS(75)</cpp:value></cpp:define> 
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>MAX_VALID_TAU</name></cpp:macro> <cpp:value>VLC_TICK_FROM_MS(300)</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>DEFAULT_NB_P</name></cpp:macro> <cpp:value>5</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>DEFAULT_NB_B</name></cpp:macro> <cpp:value>1</cpp:value></cpp:define>
+
+<function><type><name>decoder_synchro_t</name> <modifier>*</modifier></type> <name>decoder_SynchroInit</name><parameter_list>( <parameter><decl><type><name>decoder_t</name> <modifier>*</modifier></type><name>p_dec</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>i_frame_rate</name></decl></parameter> )</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>decoder_synchro_t</name> <modifier>*</modifier></type> <name>p_synchro</name> <init>= <expr><call><name>calloc</name><argument_list>( <argument><expr><literal type="number">1</literal></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr><operator>*</operator><name>p_synchro</name></expr></argument>)</argument_list></sizeof></expr></argument> )</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if<condition>( <expr><operator>!</operator><name>p_synchro</name></expr> )</condition><block type="pseudo"><block_content>
+
+<return>return <expr><name>NULL</name></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name><name>p_synchro</name><operator>-&gt;</operator><name>p_dec</name></name> <operator>=</operator> <name>p_dec</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>p_synchro</name><operator>-&gt;</operator><name>b_no_skip</name></name> <operator>=</operator> <operator>!</operator><call><name>var_InheritBool</name><argument_list>( <argument><expr><name>p_dec</name></expr></argument>, <argument><expr><literal type="string">"skip-frames"</literal></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>p_synchro</name><operator>-&gt;</operator><name>b_quiet</name></name> <operator>=</operator> <call><name>var_InheritBool</name><argument_list>( <argument><expr><name>p_dec</name></expr></argument>, <argument><expr><literal type="string">"quiet-synchro"</literal></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>p_synchro</name><operator>-&gt;</operator><name>i_n_p</name></name> <operator>=</operator> <name><name>p_synchro</name><operator>-&gt;</operator><name>i_eta_p</name></name> <operator>=</operator> <name>DEFAULT_NB_P</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>p_synchro</name><operator>-&gt;</operator><name>i_n_b</name></name> <operator>=</operator> <name><name>p_synchro</name><operator>-&gt;</operator><name>i_eta_b</name></name> <operator>=</operator> <name>DEFAULT_NB_B</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>memset</name><argument_list>( <argument><expr><name><name>p_synchro</name><operator>-&gt;</operator><name>p_tau</name></name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><literal type="number">4</literal> <operator>*</operator> <sizeof>sizeof<argument_list>(<argument><expr><name>vlc_tick_t</name></expr></argument>)</argument_list></sizeof></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>memset</name><argument_list>( <argument><expr><name><name>p_synchro</name><operator>-&gt;</operator><name>pi_meaningful</name></name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><literal type="number">4</literal> <operator>*</operator> sizeof<operator>(</operator><name>unsigned</name> <name>int</name><operator>)</operator></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>p_synchro</name><operator>-&gt;</operator><name>i_nb_ref</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>p_synchro</name><operator>-&gt;</operator><name>i_trash_nb_ref</name></name> <operator>=</operator> <name><name>p_synchro</name><operator>-&gt;</operator><name>i_dec_nb_ref</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>p_synchro</name><operator>-&gt;</operator><name>current_pts</name></name> <operator>=</operator> <literal type="number">1</literal></expr><operator>,</operator>
+
+<expr><name><name>p_synchro</name><operator>-&gt;</operator><name>backward_pts</name></name> <operator>=</operator> <name>VLC_TICK_INVALID</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>p_synchro</name><operator>-&gt;</operator><name>i_current_period</name></name> <operator>=</operator> <name><name>p_synchro</name><operator>-&gt;</operator><name>i_backward_period</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>p_synchro</name><operator>-&gt;</operator><name>i_trashed_pic</name></name> <operator>=</operator> <name><name>p_synchro</name><operator>-&gt;</operator><name>i_not_chosen_pic</name></name> <operator>=</operator>
+
+<name><name>p_synchro</name><operator>-&gt;</operator><name>i_pic</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>p_synchro</name><operator>-&gt;</operator><name>i_frame_rate</name></name> <operator>=</operator> <name>i_frame_rate</name></expr>;</expr_stmt>
+
+<return>return <expr><name>p_synchro</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><name>void</name></type> <name>decoder_SynchroRelease</name><parameter_list>( <parameter><decl><type><name>decoder_synchro_t</name> <modifier>*</modifier></type> <name>p_synchro</name></decl></parameter> )</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>free</name><argument_list>( <argument><expr><name>p_synchro</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><name>void</name></type> <name>decoder_SynchroReset</name><parameter_list>( <parameter><decl><type><name>decoder_synchro_t</name> <modifier>*</modifier></type> <name>p_synchro</name></decl></parameter> )</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><name><name>p_synchro</name><operator>-&gt;</operator><name>i_nb_ref</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>p_synchro</name><operator>-&gt;</operator><name>i_trash_nb_ref</name></name> <operator>=</operator> <name><name>p_synchro</name><operator>-&gt;</operator><name>i_dec_nb_ref</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><name>bool</name></type> <name>decoder_SynchroChoose</name><parameter_list>( <parameter><decl><type><name>decoder_synchro_t</name> <modifier>*</modifier></type> <name>p_synchro</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>i_coding_type</name></decl></parameter>,
+
+<parameter><decl><type><name>vlc_tick_t</name></type> <name>i_render_time</name></decl></parameter>, <parameter><decl><type><name>bool</name></type> <name>b_low_delay</name></decl></parameter> )</parameter_list>
+
+<block>{<block_content>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>TAU_PRIME</name><parameter_list>( <parameter><type><name>coding_type</name></type></parameter> )</parameter_list></cpp:macro> <cpp:value>(p_synchro-&gt;p_tau[(coding_type)] + (p_synchro-&gt;p_tau[(coding_type)] &gt;&gt; 1) + p_synchro-&gt;i_render_time)</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>S</name></cpp:macro> <cpp:value>(*p_synchro)</cpp:value></cpp:define>
+
+<decl_stmt><decl><type><name>vlc_tick_t</name></type> <name>now</name></decl>, <decl><type ref="prev"/><name>period</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>vlc_tick_t</name></type> <name>pts</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>bool</name></type> <name>b_decode</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>float</name></type> <name>i_current_rate</name></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>( <expr><name><name>p_synchro</name><operator>-&gt;</operator><name>b_no_skip</name></name></expr> )</condition><block type="pseudo"><block_content>
+
+<return>return <expr><literal type="number">1</literal></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>i_current_rate</name> <operator>=</operator> <call><name>decoder_GetDisplayRate</name><argument_list>( <argument><expr><name><name>p_synchro</name><operator>-&gt;</operator><name>p_dec</name></name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>now</name> <operator>=</operator> <call><name>vlc_tick_now</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>period</name> <operator>=</operator> <call><name>vlc_tick_from_samples</name><argument_list>(<argument><expr><literal type="number">1001</literal></expr></argument>, <argument><expr><name><name>p_synchro</name><operator>-&gt;</operator><name>i_frame_rate</name></name></expr></argument>)</argument_list></call> <operator>*</operator> <name>i_current_rate</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>p_synchro</name><operator>-&gt;</operator><name>i_render_time</name></name> <operator>=</operator> <name>i_render_time</name></expr>;</expr_stmt>
+
+<switch>switch<condition>( <expr><name>i_coding_type</name></expr> )</condition>
+
+<block>{<block_content>
+
+<case>case <expr><name>I_CODING_TYPE</name></expr>:</case>
+
+<if_stmt><if>if<condition>( <expr><name>b_low_delay</name></expr> )</condition>
+
+<block>{<block_content>
+
+<expr_stmt><expr><name>pts</name> <operator>=</operator> <call><name>decoder_GetDisplayDate</name><argument_list>( <argument><expr><name><name>p_synchro</name><operator>-&gt;</operator><name>p_dec</name></name></expr></argument>, <argument><expr><name>now</name></expr></argument>, <argument><expr><name><name>S</name><operator>.</operator><name>current_pts</name></name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if>
+
+<if type="elseif">else if<condition>( <expr><name><name>S</name><operator>.</operator><name>backward_pts</name></name> <operator>!=</operator> <name>VLC_TICK_INVALID</name></expr> )</condition>
+
+<block>{<block_content>
+
+<expr_stmt><expr><name>pts</name> <operator>=</operator> <call><name>decoder_GetDisplayDate</name><argument_list>( <argument><expr><name><name>p_synchro</name><operator>-&gt;</operator><name>p_dec</name></name></expr></argument>, <argument><expr><name>now</name></expr></argument>, <argument><expr><name><name>S</name><operator>.</operator><name>backward_pts</name></name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if>
+
+<else>else
+
+<block>{<block_content>
+
+<expr_stmt><expr><name>pts</name> <operator>=</operator> <call><name>decoder_GetDisplayDate</name><argument_list>( <argument><expr><name><name>p_synchro</name><operator>-&gt;</operator><name>p_dec</name></name></expr></argument>, <argument><expr><name>now</name></expr></argument>, <argument><expr><name><name>S</name><operator>.</operator><name>current_pts</name></name></expr></argument> )</argument_list></call> <operator>+</operator> <name>period</name> <operator>*</operator> <operator>(</operator><name><name>S</name><operator>.</operator><name>i_n_b</name></name> <operator>+</operator> <literal type="number">2</literal><operator>)</operator></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+<if_stmt><if>if<condition>( <expr><operator>(</operator><literal type="number">1</literal> <operator>+</operator> <name><name>S</name><operator>.</operator><name>i_n_p</name></name> <operator>*</operator> <operator>(</operator><name><name>S</name><operator>.</operator><name>i_n_b</name></name> <operator>+</operator> <literal type="number">1</literal><operator>)</operator><operator>)</operator> <operator>*</operator> <name>period</name> <operator>&gt;</operator> <name><name>S</name><operator>.</operator><name>p_tau</name><index>[<expr><name>I_CODING_TYPE</name></expr>]</index></name></expr> )</condition>
+
+<block>{<block_content>
+
+<expr_stmt><expr><name>b_decode</name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+
+</block_content>}</block></if>
+
+<else>else
+
+<block>{<block_content>
+
+<expr_stmt><expr><name>b_decode</name> <operator>=</operator> <operator>(</operator><name>pts</name> <operator>-</operator> <name>now</name><operator>)</operator> <operator>&gt;</operator> <operator>(</operator><call><name>TAU_PRIME</name><argument_list>(<argument><expr><name>I_CODING_TYPE</name></expr></argument>)</argument_list></call> <operator>+</operator> <name>DELTA</name><operator>)</operator></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+<if_stmt><if>if<condition>( <expr><name>pts</name> <operator>==</operator> <name>VLC_TICK_INVALID</name></expr> )</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name>b_decode</name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<if_stmt><if>if<condition>( <expr><operator>!</operator><name>b_decode</name></expr> )</condition>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>synchro_msg_Warn</name><argument_list>( <argument><expr><name>p_synchro</name></expr></argument>,
+
+<argument><expr><literal type="string">"synchro trashing I (%"</literal><name>PRId64</name><literal type="string">")"</literal></expr></argument>, <argument><expr><name>pts</name> <operator>-</operator> <name>now</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<break>break;</break>
+
+<case>case <expr><name>P_CODING_TYPE</name></expr>:</case>
+
+<if_stmt><if>if<condition>( <expr><name>b_low_delay</name></expr> )</condition>
+
+<block>{<block_content>
+
+<expr_stmt><expr><name>pts</name> <operator>=</operator> <call><name>decoder_GetDisplayDate</name><argument_list>( <argument><expr><name><name>p_synchro</name><operator>-&gt;</operator><name>p_dec</name></name></expr></argument>, <argument><expr><name>now</name></expr></argument>, <argument><expr><name><name>S</name><operator>.</operator><name>current_pts</name></name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if>
+
+<if type="elseif">else if<condition>( <expr><name><name>S</name><operator>.</operator><name>backward_pts</name></name> <operator>!=</operator> <name>VLC_TICK_INVALID</name></expr> )</condition>
+
+<block>{<block_content>
+
+<expr_stmt><expr><name>pts</name> <operator>=</operator> <call><name>decoder_GetDisplayDate</name><argument_list>( <argument><expr><name><name>p_synchro</name><operator>-&gt;</operator><name>p_dec</name></name></expr></argument>, <argument><expr><name>now</name></expr></argument>, <argument><expr><name><name>S</name><operator>.</operator><name>backward_pts</name></name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if>
+
+<else>else
+
+<block>{<block_content>
+
+<expr_stmt><expr><name>pts</name> <operator>=</operator> <call><name>decoder_GetDisplayDate</name><argument_list>( <argument><expr><name><name>p_synchro</name><operator>-&gt;</operator><name>p_dec</name></name></expr></argument>, <argument><expr><name>now</name></expr></argument>, <argument><expr><name><name>S</name><operator>.</operator><name>current_pts</name></name> <operator>+</operator> <name>period</name> <operator>*</operator> <operator>(</operator><name><name>S</name><operator>.</operator><name>i_n_b</name></name> <operator>+</operator> <literal type="number">1</literal><operator>)</operator></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+<if_stmt><if>if<condition>( <expr><name><name>p_synchro</name><operator>-&gt;</operator><name>i_nb_ref</name></name> <operator>&lt;</operator> <literal type="number">1</literal></expr> )</condition>
+
+<block>{<block_content>
+
+<expr_stmt><expr><name>b_decode</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+</block_content>}</block></if>
+
+<if type="elseif">else if<condition>( <expr><operator>(</operator><literal type="number">1</literal> <operator>+</operator> <name><name>S</name><operator>.</operator><name>i_n_p</name></name> <operator>*</operator> <operator>(</operator><name><name>S</name><operator>.</operator><name>i_n_b</name></name> <operator>+</operator> <literal type="number">1</literal><operator>)</operator><operator>)</operator> <operator>*</operator> <name>period</name> <operator>&gt;</operator>
+
+<name><name>S</name><operator>.</operator><name>p_tau</name><index>[<expr><name>I_CODING_TYPE</name></expr>]</index></name></expr> )</condition>
+
+<block>{<block_content>
+
+<if_stmt><if>if<condition>( <expr><operator>(</operator><name><name>S</name><operator>.</operator><name>i_n_b</name></name> <operator>+</operator> <literal type="number">1</literal><operator>)</operator> <operator>*</operator> <name>period</name> <operator>&gt;</operator> <name><name>S</name><operator>.</operator><name>p_tau</name><index>[<expr><name>P_CODING_TYPE</name></expr>]</index></name></expr> )</condition>
+
+<block>{<block_content>
+
+<expr_stmt><expr><name>b_decode</name> <operator>=</operator> <operator>(</operator><name>pts</name> <operator>-</operator> <name>now</name> <operator>&gt;</operator> <literal type="number">0</literal><operator>)</operator></expr>;</expr_stmt>
+
+</block_content>}</block></if>
+
+<else>else
+
+<block>{<block_content>
+
+<expr_stmt><expr><name>b_decode</name> <operator>=</operator> <operator>(</operator><name>pts</name> <operator>-</operator> <name>now</name><operator>)</operator> <operator>&gt;</operator> <operator>(</operator><call><name>TAU_PRIME</name><argument_list>(<argument><expr><name>P_CODING_TYPE</name></expr></argument>)</argument_list></call> <operator>+</operator> <name>DELTA</name><operator>)</operator></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>b_decode</name> <operator>&amp;=</operator> <operator>(</operator><name>pts</name> <operator>-</operator> <name>now</name>
+
+<operator>+</operator> <name>period</name>
+
+<operator>*</operator> <operator>(</operator> <operator>(</operator><name><name>S</name><operator>.</operator><name>i_n_p</name></name> <operator>-</operator> <name><name>S</name><operator>.</operator><name>i_eta_p</name></name><operator>)</operator> <operator>*</operator> <operator>(</operator><literal type="number">1</literal> <operator>+</operator> <name><name>S</name><operator>.</operator><name>i_n_b</name></name><operator>)</operator> <operator>-</operator> <literal type="number">1</literal> <operator>)</operator><operator>)</operator>
+
+<operator>&gt;</operator> <operator>(</operator><call><name>TAU_PRIME</name><argument_list>(<argument><expr><name>P_CODING_TYPE</name></expr></argument>)</argument_list></call>
+
+<operator>+</operator> <call><name>TAU_PRIME</name><argument_list>(<argument><expr><name>I_CODING_TYPE</name></expr></argument>)</argument_list></call> <operator>+</operator> <name>DELTA</name><operator>)</operator></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+</block_content>}</block></if>
+
+<else>else
+
+<block>{<block_content>
+
+<expr_stmt><expr><name>b_decode</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+<if_stmt><if>if<condition>( <expr><name><name>p_synchro</name><operator>-&gt;</operator><name>i_nb_ref</name></name> <operator>&gt;=</operator> <literal type="number">1</literal> <operator>&amp;&amp;</operator> <name>pts</name> <operator>==</operator> <name>VLC_TICK_INVALID</name></expr> )</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name>b_decode</name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<break>break;</break>
+
+<case>case <expr><name>B_CODING_TYPE</name></expr>:</case>
+
+<expr_stmt><expr><name>pts</name> <operator>=</operator> <call><name>decoder_GetDisplayDate</name><argument_list>( <argument><expr><name><name>p_synchro</name><operator>-&gt;</operator><name>p_dec</name></name></expr></argument>, <argument><expr><name>now</name></expr></argument>, <argument><expr><name><name>S</name><operator>.</operator><name>current_pts</name></name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if<condition>( <expr><name><name>p_synchro</name><operator>-&gt;</operator><name>i_nb_ref</name></name> <operator>&lt;</operator> <literal type="number">2</literal></expr> )</condition>
+
+<block>{<block_content>
+
+<expr_stmt><expr><name>b_decode</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+</block_content>}</block></if>
+
+<if type="elseif">else if<condition>( <expr><operator>(</operator><name><name>S</name><operator>.</operator><name>i_n_b</name></name> <operator>+</operator> <literal type="number">1</literal><operator>)</operator> <operator>*</operator> <name>period</name> <operator>&gt;</operator> <name><name>S</name><operator>.</operator><name>p_tau</name><index>[<expr><name>P_CODING_TYPE</name></expr>]</index></name></expr> )</condition>
+
+<block>{<block_content>
+
+<expr_stmt><expr><name>b_decode</name> <operator>=</operator> <operator>(</operator><name>pts</name> <operator>-</operator> <name>now</name><operator>)</operator> <operator>&gt;</operator> <operator>(</operator><call><name>TAU_PRIME</name><argument_list>(<argument><expr><name>B_CODING_TYPE</name></expr></argument>)</argument_list></call> <operator>+</operator> <name>DELTA</name><operator>)</operator></expr>;</expr_stmt>
+
+</block_content>}</block></if>
+
+<else>else
+
+<block>{<block_content>
+
+<expr_stmt><expr><name>b_decode</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+<if_stmt><if>if<condition>( <expr><name><name>p_synchro</name><operator>-&gt;</operator><name>i_nb_ref</name></name> <operator>&gt;=</operator> <literal type="number">2</literal> <operator>&amp;&amp;</operator> <name>pts</name> <operator>==</operator> <name>VLC_TICK_INVALID</name></expr> )</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name>b_decode</name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<break>break;</break>
+
+</block_content>}</block></switch>
+
+<if_stmt><if>if<condition>( <expr><operator>!</operator><name>b_decode</name></expr> )</condition>
+
+<block>{<block_content>
+
+<expr_stmt><expr><name><name>S</name><operator>.</operator><name>i_not_chosen_pic</name></name><operator>++</operator></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<return>return<expr><operator>(</operator> <name>b_decode</name> <operator>)</operator></expr>;</return>
+
+<cpp:undef>#<cpp:directive>undef</cpp:directive> <name>S</name></cpp:undef>
+
+<cpp:undef>#<cpp:directive>undef</cpp:directive> <name>TAU_PRIME</name></cpp:undef>
+
+</block_content>}</block></function>
+
+<function><type><name>void</name></type> <name>decoder_SynchroTrash</name><parameter_list>( <parameter><decl><type><name>decoder_synchro_t</name> <modifier>*</modifier></type> <name>p_synchro</name></decl></parameter> )</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><name><name>p_synchro</name><operator>-&gt;</operator><name>i_trashed_pic</name></name><operator>++</operator></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>p_synchro</name><operator>-&gt;</operator><name>i_nb_ref</name></name> <operator>=</operator> <name><name>p_synchro</name><operator>-&gt;</operator><name>i_trash_nb_ref</name></name></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><name>void</name></type> <name>decoder_SynchroDecode</name><parameter_list>( <parameter><decl><type><name>decoder_synchro_t</name> <modifier>*</modifier></type> <name>p_synchro</name></decl></parameter> )</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><name><name>p_synchro</name><operator>-&gt;</operator><name>decoding_start</name></name> <operator>=</operator> <call><name>vlc_tick_now</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>p_synchro</name><operator>-&gt;</operator><name>i_nb_ref</name></name> <operator>=</operator> <name><name>p_synchro</name><operator>-&gt;</operator><name>i_dec_nb_ref</name></name></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><name>void</name></type> <name>decoder_SynchroEnd</name><parameter_list>( <parameter><decl><type><name>decoder_synchro_t</name> <modifier>*</modifier></type> <name>p_synchro</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>i_coding_type</name></decl></parameter>,
+
+<parameter><decl><type><name>bool</name></type> <name>b_garbage</name></decl></parameter> )</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>vlc_tick_t</name></type> <name>tau</name></decl>;</decl_stmt>
+
+<if_stmt><if>if<condition>( <expr><name>b_garbage</name></expr> )</condition><block type="pseudo"><block_content>
+
+<return>return;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>tau</name> <operator>=</operator> <call><name>vlc_tick_now</name><argument_list>()</argument_list></call> <operator>-</operator> <name><name>p_synchro</name><operator>-&gt;</operator><name>decoding_start</name></name></expr>;</expr_stmt>
+
+<if_stmt><if>if<condition>( <expr><name>tau</name> <operator>&lt;</operator> <literal type="number">3</literal> <operator>*</operator> <name><name>p_synchro</name><operator>-&gt;</operator><name>p_tau</name><index>[<expr><name>i_coding_type</name></expr>]</index></name> <operator>||</operator>
+
+<operator>(</operator> <operator>!</operator><name><name>p_synchro</name><operator>-&gt;</operator><name>pi_meaningful</name><index>[<expr><name>i_coding_type</name></expr>]</index></name> <operator>&amp;&amp;</operator> <name>tau</name> <operator>&lt;</operator> <name>MAX_VALID_TAU</name> <operator>)</operator></expr> )</condition>
+
+<block>{<block_content>
+
+<expr_stmt><expr><name><name>p_synchro</name><operator>-&gt;</operator><name>p_tau</name><index>[<expr><name>i_coding_type</name></expr>]</index></name> <operator>=</operator>
+
+<operator>(</operator><name><name>p_synchro</name><operator>-&gt;</operator><name>pi_meaningful</name><index>[<expr><name>i_coding_type</name></expr>]</index></name>
+
+<operator>*</operator> <name><name>p_synchro</name><operator>-&gt;</operator><name>p_tau</name><index>[<expr><name>i_coding_type</name></expr>]</index></name> <operator>+</operator> <name>tau</name><operator>)</operator>
+
+<operator>/</operator> <operator>(</operator><name><name>p_synchro</name><operator>-&gt;</operator><name>pi_meaningful</name><index>[<expr><name>i_coding_type</name></expr>]</index></name> <operator>+</operator> <literal type="number">1</literal><operator>)</operator></expr>;</expr_stmt>
+
+<if_stmt><if>if<condition>( <expr><name><name>p_synchro</name><operator>-&gt;</operator><name>pi_meaningful</name><index>[<expr><name>i_coding_type</name></expr>]</index></name> <operator>&lt;</operator> <name>MAX_PIC_AVERAGE</name></expr> )</condition>
+
+<block>{<block_content>
+
+<expr_stmt><expr><name><name>p_synchro</name><operator>-&gt;</operator><name>pi_meaningful</name><index>[<expr><name>i_coding_type</name></expr>]</index></name><operator>++</operator></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></function>
+
+<function><type><name>vlc_tick_t</name></type> <name>decoder_SynchroDate</name><parameter_list>( <parameter><decl><type><name>decoder_synchro_t</name> <modifier>*</modifier></type> <name>p_synchro</name></decl></parameter> )</parameter_list>
+
+<block>{<block_content>
+
+<return>return <expr><name><name>p_synchro</name><operator>-&gt;</operator><name>current_pts</name></name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><name>void</name></type> <name>decoder_SynchroNewPicture</name><parameter_list>( <parameter><decl><type><name>decoder_synchro_t</name> <modifier>*</modifier></type> <name>p_synchro</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>i_coding_type</name></decl></parameter>,
+
+<parameter><decl><type><name>int</name></type> <name>i_repeat_field</name></decl></parameter>, <parameter><decl><type><name>vlc_tick_t</name></type> <name>next_pts</name></decl></parameter>,
+
+<parameter><decl><type><name>vlc_tick_t</name></type> <name>next_dts</name></decl></parameter>, <parameter><decl><type><name>bool</name></type> <name>b_low_delay</name></decl></parameter> )</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>vlc_tick_t</name></type> <name>period</name> <init>= <expr><call><name>vlc_tick_from_samples</name><argument_list>(<argument><expr><literal type="number">1001</literal></expr></argument>, <argument><expr><name><name>p_synchro</name><operator>-&gt;</operator><name>i_frame_rate</name></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><literal type="number">0</literal></expr></cpp:if>
+
+vlc_tick_t now = vlc_tick_now();
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+<switch>switch<condition>( <expr><name>i_coding_type</name></expr> )</condition>
+
+<block>{<block_content>
+
+<case>case <expr><name>I_CODING_TYPE</name></expr>:</case>
+
+<if_stmt><if>if<condition>( <expr><name><name>p_synchro</name><operator>-&gt;</operator><name>i_eta_p</name></name> <operator>&amp;&amp;</operator> <name><name>p_synchro</name><operator>-&gt;</operator><name>i_eta_p</name></name> <operator>!=</operator> <name><name>p_synchro</name><operator>-&gt;</operator><name>i_n_p</name></name></expr> )</condition>
+
+<block>{<block_content>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><literal type="number">0</literal></expr></cpp:if>
+
+synchro_msg_Dbg( p_synchro,
+
+"stream periodicity changed from P[%d] to P[%d]",
+
+p_synchro-&gt;i_n_p, p_synchro-&gt;i_eta_p );
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+<expr_stmt><expr><name><name>p_synchro</name><operator>-&gt;</operator><name>i_n_p</name></name> <operator>=</operator> <name><name>p_synchro</name><operator>-&gt;</operator><name>i_eta_p</name></name></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>p_synchro</name><operator>-&gt;</operator><name>i_eta_p</name></name> <operator>=</operator> <name><name>p_synchro</name><operator>-&gt;</operator><name>i_eta_b</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>p_synchro</name><operator>-&gt;</operator><name>i_trash_nb_ref</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<if_stmt><if>if<condition>( <expr><name><name>p_synchro</name><operator>-&gt;</operator><name>i_nb_ref</name></name> <operator>&lt;</operator> <literal type="number">2</literal></expr> )</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name><name>p_synchro</name><operator>-&gt;</operator><name>i_dec_nb_ref</name></name> <operator>=</operator> <name><name>p_synchro</name><operator>-&gt;</operator><name>i_nb_ref</name></name> <operator>+</operator> <literal type="number">1</literal></expr>;</expr_stmt></block_content></block></if>
+
+<else>else<block type="pseudo"><block_content>
+
+<expr_stmt><expr><name><name>p_synchro</name><operator>-&gt;</operator><name>i_dec_nb_ref</name></name> <operator>=</operator> <name><name>p_synchro</name><operator>-&gt;</operator><name>i_nb_ref</name></name></expr>;</expr_stmt></block_content></block></else></if_stmt>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><literal type="number">0</literal></expr></cpp:if>
+
+synchro_msg_Dbg( p_synchro, "I(%"PRId64") P(%"PRId64")[%d] B(%"PRId64")"
+
+"[%d] YUV(%"PRId64") : trashed %d:%d/%d",
+
+p_synchro-&gt;p_tau[I_CODING_TYPE],
+
+p_synchro-&gt;p_tau[P_CODING_TYPE],
+
+p_synchro-&gt;i_n_p,
+
+p_synchro-&gt;p_tau[B_CODING_TYPE],
+
+p_synchro-&gt;i_n_b,
+
+p_synchro-&gt;i_render_time,
+
+p_synchro-&gt;i_not_chosen_pic,
+
+p_synchro-&gt;i_trashed_pic -
+
+p_synchro-&gt;i_not_chosen_pic,
+
+p_synchro-&gt;i_pic );
+
+p_synchro-&gt;i_trashed_pic = p_synchro-&gt;i_not_chosen_pic
+
+= p_synchro-&gt;i_pic = 0;
+
+<cpp:else>#<cpp:directive>else</cpp:directive></cpp:else>
+
+<if_stmt><if>if<condition>( <expr><name><name>p_synchro</name><operator>-&gt;</operator><name>i_pic</name></name> <operator>&gt;=</operator> <literal type="number">100</literal></expr> )</condition>
+
+<block>{<block_content>
+
+<if_stmt><if>if<condition>( <expr><name><name>p_synchro</name><operator>-&gt;</operator><name>i_trashed_pic</name></name> <operator>!=</operator> <literal type="number">0</literal></expr> )</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>synchro_msg_Dbg</name><argument_list>( <argument><expr><name>p_synchro</name></expr></argument>, <argument><expr><literal type="string">"decoded %d/%d pictures"</literal></expr></argument>,
+
+<argument><expr><name><name>p_synchro</name><operator>-&gt;</operator><name>i_pic</name></name>
+
+<operator>-</operator> <name><name>p_synchro</name><operator>-&gt;</operator><name>i_trashed_pic</name></name></expr></argument>,
+
+<argument><expr><name><name>p_synchro</name><operator>-&gt;</operator><name>i_pic</name></name></expr></argument> )</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name><name>p_synchro</name><operator>-&gt;</operator><name>i_trashed_pic</name></name> <operator>=</operator> <name><name>p_synchro</name><operator>-&gt;</operator><name>i_not_chosen_pic</name></name>
+
+<operator>=</operator> <name><name>p_synchro</name><operator>-&gt;</operator><name>i_pic</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+<break>break;</break>
+
+<case>case <expr><name>P_CODING_TYPE</name></expr>:</case>
+
+<expr_stmt><expr><name><name>p_synchro</name><operator>-&gt;</operator><name>i_eta_p</name></name><operator>++</operator></expr>;</expr_stmt>
+
+<if_stmt><if>if<condition>( <expr><name><name>p_synchro</name><operator>-&gt;</operator><name>i_eta_b</name></name>
+
+<operator>&amp;&amp;</operator> <name><name>p_synchro</name><operator>-&gt;</operator><name>i_eta_b</name></name> <operator>!=</operator> <name><name>p_synchro</name><operator>-&gt;</operator><name>i_n_b</name></name></expr> )</condition>
+
+<block>{<block_content>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><literal type="number">0</literal></expr></cpp:if>
+
+synchro_msg_Dbg( p_synchro,
+
+"stream periodicity changed from B[%d] to B[%d]",
+
+p_synchro-&gt;i_n_b, p_synchro-&gt;i_eta_b );
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+<expr_stmt><expr><name><name>p_synchro</name><operator>-&gt;</operator><name>i_n_b</name></name> <operator>=</operator> <name><name>p_synchro</name><operator>-&gt;</operator><name>i_eta_b</name></name></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>p_synchro</name><operator>-&gt;</operator><name>i_eta_b</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>p_synchro</name><operator>-&gt;</operator><name>i_dec_nb_ref</name></name> <operator>=</operator> <literal type="number">2</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>p_synchro</name><operator>-&gt;</operator><name>i_trash_nb_ref</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<break>break;</break>
+
+<case>case <expr><name>B_CODING_TYPE</name></expr>:</case>
+
+<expr_stmt><expr><name><name>p_synchro</name><operator>-&gt;</operator><name>i_eta_b</name></name><operator>++</operator></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>p_synchro</name><operator>-&gt;</operator><name>i_dec_nb_ref</name></name> <operator>=</operator> <name><name>p_synchro</name><operator>-&gt;</operator><name>i_trash_nb_ref</name></name>
+
+<operator>=</operator> <name><name>p_synchro</name><operator>-&gt;</operator><name>i_nb_ref</name></name></expr>;</expr_stmt>
+
+<break>break;</break>
+
+</block_content>}</block></switch>
+
+<expr_stmt><expr><name><name>p_synchro</name><operator>-&gt;</operator><name>current_pts</name></name> <operator>+=</operator> <name><name>p_synchro</name><operator>-&gt;</operator><name>i_current_period</name></name>
+
+<operator>*</operator> <operator>(</operator><name>period</name> <operator>&gt;&gt;</operator> <literal type="number">1</literal><operator>)</operator></expr>;</expr_stmt>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>PTS_THRESHOLD</name></cpp:macro> <cpp:value>(period &gt;&gt; 2)</cpp:value></cpp:define>
+
+<if_stmt><if>if<condition>( <expr><name>i_coding_type</name> <operator>==</operator> <name>B_CODING_TYPE</name> <operator>||</operator> <name>b_low_delay</name></expr> )</condition>
+
+<block>{<block_content>
+
+<expr_stmt><expr><name><name>p_synchro</name><operator>-&gt;</operator><name>i_current_period</name></name> <operator>=</operator> <name>i_repeat_field</name></expr>;</expr_stmt>
+
+<if_stmt><if>if<condition>( <expr><name>next_pts</name> <operator>!=</operator> <name>VLC_TICK_INVALID</name></expr> )</condition>
+
+<block>{<block_content>
+
+<if_stmt><if>if<condition>( <expr><name>next_pts</name> <operator>-</operator> <name><name>p_synchro</name><operator>-&gt;</operator><name>current_pts</name></name>
+
+<operator>&gt;</operator> <name>PTS_THRESHOLD</name>
+
+<operator>||</operator> <name><name>p_synchro</name><operator>-&gt;</operator><name>current_pts</name></name> <operator>-</operator> <name>next_pts</name>
+
+<operator>&gt;</operator> <name>PTS_THRESHOLD</name></expr> )</condition>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>synchro_msg_Warn</name><argument_list>( <argument><expr><name>p_synchro</name></expr></argument>, <argument><expr><literal type="string">"decoder synchro warning: pts != "</literal>
+
+<literal type="string">"current_date (%"</literal><name>PRId64</name><literal type="string">")"</literal></expr></argument>,
+
+<argument><expr><name><name>p_synchro</name><operator>-&gt;</operator><name>current_pts</name></name>
+
+<operator>-</operator> <name>next_pts</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>p_synchro</name><operator>-&gt;</operator><name>current_pts</name></name> <operator>=</operator> <name>next_pts</name></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></if>
+
+<else>else
+
+<block>{<block_content>
+
+<expr_stmt><expr><name><name>p_synchro</name><operator>-&gt;</operator><name>i_current_period</name></name> <operator>=</operator> <name><name>p_synchro</name><operator>-&gt;</operator><name>i_backward_period</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>p_synchro</name><operator>-&gt;</operator><name>i_backward_period</name></name> <operator>=</operator> <name>i_repeat_field</name></expr>;</expr_stmt>
+
+<if_stmt><if>if<condition>( <expr><name><name>p_synchro</name><operator>-&gt;</operator><name>backward_pts</name></name> <operator>!=</operator> <name>VLC_TICK_INVALID</name></expr> )</condition>
+
+<block>{<block_content>
+
+<if_stmt><if>if<condition>( <expr><name>next_dts</name> <operator>!=</operator> <name>VLC_TICK_INVALID</name> <operator>&amp;&amp;</operator>
+
+<operator>(</operator><name>next_dts</name> <operator>-</operator> <name><name>p_synchro</name><operator>-&gt;</operator><name>backward_pts</name></name>
+
+<operator>&gt;</operator> <name>PTS_THRESHOLD</name>
+
+<operator>||</operator> <name><name>p_synchro</name><operator>-&gt;</operator><name>backward_pts</name></name> <operator>-</operator> <name>next_dts</name>
+
+<operator>&gt;</operator> <name>PTS_THRESHOLD</name><operator>)</operator></expr> )</condition>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>synchro_msg_Warn</name><argument_list>( <argument><expr><name>p_synchro</name></expr></argument>, <argument><expr><literal type="string">"backward_pts != dts (%"</literal><name>PRId64</name><literal type="string">")"</literal></expr></argument>,
+
+<argument><expr><name>next_dts</name>
+
+<operator>-</operator> <name><name>p_synchro</name><operator>-&gt;</operator><name>backward_pts</name></name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if<condition>( <expr><name><name>p_synchro</name><operator>-&gt;</operator><name>backward_pts</name></name> <operator>-</operator> <name><name>p_synchro</name><operator>-&gt;</operator><name>current_pts</name></name>
+
+<operator>&gt;</operator> <name>PTS_THRESHOLD</name>
+
+<operator>||</operator> <name><name>p_synchro</name><operator>-&gt;</operator><name>current_pts</name></name> <operator>-</operator> <name><name>p_synchro</name><operator>-&gt;</operator><name>backward_pts</name></name>
+
+<operator>&gt;</operator> <name>PTS_THRESHOLD</name></expr> )</condition>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>synchro_msg_Warn</name><argument_list>( <argument><expr><name>p_synchro</name></expr></argument>,
+
+<argument><expr><literal type="string">"backward_pts != current_pts (%"</literal><name>PRId64</name><literal type="string">")"</literal></expr></argument>,
+
+<argument><expr><name><name>p_synchro</name><operator>-&gt;</operator><name>current_pts</name></name>
+
+<operator>-</operator> <name><name>p_synchro</name><operator>-&gt;</operator><name>backward_pts</name></name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>p_synchro</name><operator>-&gt;</operator><name>current_pts</name></name> <operator>=</operator> <name><name>p_synchro</name><operator>-&gt;</operator><name>backward_pts</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>p_synchro</name><operator>-&gt;</operator><name>backward_pts</name></name> <operator>=</operator> <name>VLC_TICK_INVALID</name></expr>;</expr_stmt>
+
+</block_content>}</block></if>
+
+<if type="elseif">else if<condition>( <expr><name>next_dts</name> <operator>!=</operator> <name>VLC_TICK_INVALID</name></expr> )</condition>
+
+<block>{<block_content>
+
+<if_stmt><if>if<condition>( <expr><name>next_dts</name> <operator>-</operator> <name><name>p_synchro</name><operator>-&gt;</operator><name>current_pts</name></name>
+
+<operator>&gt;</operator> <name>PTS_THRESHOLD</name>
+
+<operator>||</operator> <name><name>p_synchro</name><operator>-&gt;</operator><name>current_pts</name></name> <operator>-</operator> <name>next_dts</name>
+
+<operator>&gt;</operator> <name>PTS_THRESHOLD</name></expr> )</condition>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>synchro_msg_Warn</name><argument_list>( <argument><expr><name>p_synchro</name></expr></argument>, <argument><expr><literal type="string">"dts != current_pts (%"</literal><name>PRId64</name><literal type="string">")"</literal></expr></argument>,
+
+<argument><expr><name><name>p_synchro</name><operator>-&gt;</operator><name>current_pts</name></name>
+
+<operator>-</operator> <name>next_dts</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>p_synchro</name><operator>-&gt;</operator><name>current_pts</name></name> <operator>=</operator> <name>next_dts</name></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if<condition>( <expr><name>next_pts</name> <operator>!=</operator> <name>VLC_TICK_INVALID</name></expr> )</condition>
+
+<block>{<block_content>
+
+<expr_stmt><expr><name><name>p_synchro</name><operator>-&gt;</operator><name>backward_pts</name></name> <operator>=</operator> <name>next_pts</name></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+<cpp:undef>#<cpp:directive>undef</cpp:directive> <name>PTS_THRESHOLD</name></cpp:undef>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><literal type="number">0</literal></expr></cpp:if>
+
+if( p_synchro-&gt;current_pts + DEFAULT_PTS_DELAY &lt; now )
+
+{
+
+synchro_msg_Warn( p_synchro, "PTS &lt;&lt; now (%"PRId64"), resetting",
+
+now - p_synchro-&gt;current_pts - DEFAULT_PTS_DELAY );
+
+p_synchro-&gt;current_pts = now + DEFAULT_PTS_DELAY;
+
+}
+
+if( p_synchro-&gt;backward_pts != VLC_TICK_INVALID
+
+&amp;&amp; p_synchro-&gt;backward_pts + DEFAULT_PTS_DELAY &lt; now )
+
+{
+
+p_synchro-&gt;backward_pts = VLC_TICK_INVALID;
+
+}
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+<expr_stmt><expr><name><name>p_synchro</name><operator>-&gt;</operator><name>i_pic</name></name><operator>++</operator></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+</unit>

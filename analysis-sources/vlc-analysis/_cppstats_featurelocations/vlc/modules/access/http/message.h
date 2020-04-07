@@ -1,0 +1,423 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#include <stdint.h>
+
+
+
+
+
+
+
+
+
+struct vlc_http_msg;
+struct block_t;
+struct vlc_http_cookie_jar_t;
+
+
+
+
+
+
+
+
+
+
+
+
+struct vlc_http_msg *
+vlc_http_req_create(const char *method, const char *scheme,
+const char *authority, const char *path) VLC_USED;
+
+
+
+
+
+
+
+
+
+struct vlc_http_msg *vlc_http_resp_create(unsigned status) VLC_USED;
+
+
+
+
+void vlc_http_msg_destroy(struct vlc_http_msg *);
+
+
+
+
+
+
+
+
+
+
+
+int vlc_http_msg_add_header(struct vlc_http_msg *, const char *name,
+const char *fmt, ...) VLC_FORMAT(3,4);
+
+
+
+
+
+
+int vlc_http_msg_add_agent(struct vlc_http_msg *, const char *);
+
+
+
+
+
+
+const char *vlc_http_msg_get_agent(const struct vlc_http_msg *);
+
+
+
+
+
+
+
+time_t vlc_http_msg_get_time(const struct vlc_http_msg *, const char *name);
+
+
+
+
+
+
+
+
+int vlc_http_msg_add_time(struct vlc_http_msg *, const char *name,
+const time_t *t);
+
+
+
+
+int vlc_http_msg_add_atime(struct vlc_http_msg *);
+
+
+
+
+
+
+
+
+time_t vlc_http_msg_get_atime(const struct vlc_http_msg *);
+
+
+
+
+
+
+
+
+
+time_t vlc_http_msg_get_mtime(const struct vlc_http_msg *);
+
+
+
+
+
+
+
+
+
+
+unsigned vlc_http_msg_get_retry_after(const struct vlc_http_msg *);
+
+void vlc_http_msg_get_cookies(const struct vlc_http_msg *,
+struct vlc_http_cookie_jar_t *,
+const char *host, const char *path);
+int vlc_http_msg_add_cookies(struct vlc_http_msg *,
+struct vlc_http_cookie_jar_t *);
+
+char *vlc_http_msg_get_basic_realm(const struct vlc_http_msg *);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+int vlc_http_msg_add_creds_basic(struct vlc_http_msg *, bool proxy,
+const char *username, const char *password);
+
+
+
+
+
+
+
+
+
+
+
+
+const char *vlc_http_msg_get_header(const struct vlc_http_msg *,
+const char *name);
+
+
+
+
+
+
+int vlc_http_msg_get_status(const struct vlc_http_msg *m);
+
+
+
+
+
+
+const char *vlc_http_msg_get_method(const struct vlc_http_msg *);
+
+
+
+
+
+
+const char *vlc_http_msg_get_scheme(const struct vlc_http_msg *);
+
+
+
+
+
+
+
+const char *vlc_http_msg_get_authority(const struct vlc_http_msg *);
+
+
+
+
+
+
+const char *vlc_http_msg_get_path(const struct vlc_http_msg *);
+
+
+
+
+
+
+
+
+
+
+const char *vlc_http_msg_get_token(const struct vlc_http_msg *,
+const char *field, const char *token);
+
+
+
+
+
+
+
+
+
+const char *vlc_http_next_token(const char *);
+
+
+
+
+
+
+
+
+
+uintmax_t vlc_http_msg_get_size(const struct vlc_http_msg *);
+
+
+
+
+
+
+
+
+
+
+
+
+struct vlc_http_msg *vlc_http_msg_iterate(struct vlc_http_msg *) VLC_USED;
+
+
+
+
+
+
+
+
+
+
+
+
+
+struct vlc_http_msg *vlc_http_msg_get_final(struct vlc_http_msg *) VLC_USED;
+
+
+
+
+
+
+
+
+
+
+
+
+struct block_t *vlc_http_msg_read(struct vlc_http_msg *) VLC_USED;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+struct vlc_http_stream;
+
+
+
+
+
+
+
+
+
+
+
+extern void *const vlc_http_error;
+
+void vlc_http_msg_attach(struct vlc_http_msg *m, struct vlc_http_stream *s);
+struct vlc_http_msg *vlc_http_msg_get_initial(struct vlc_http_stream *s)
+VLC_USED;
+
+
+
+
+
+struct vlc_http_stream_cbs
+{
+struct vlc_http_msg *(*read_headers)(struct vlc_http_stream *);
+struct block_t *(*read)(struct vlc_http_stream *);
+void (*close)(struct vlc_http_stream *, bool abort);
+};
+
+
+struct vlc_http_stream
+{
+const struct vlc_http_stream_cbs *cbs;
+};
+
+
+
+
+
+
+
+
+
+
+
+
+static inline
+struct vlc_http_msg *vlc_http_stream_read_headers(struct vlc_http_stream *s)
+{
+return s->cbs->read_headers(s);
+}
+
+
+
+
+
+
+
+
+
+
+static inline struct block_t *vlc_http_stream_read(struct vlc_http_stream *s)
+{
+return s->cbs->read(s);
+}
+
+
+
+
+
+
+
+static inline void vlc_http_stream_close(struct vlc_http_stream *s, bool abort)
+{
+s->cbs->close(s, abort);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+char *vlc_http_msg_format(const struct vlc_http_msg *m, size_t *restrict lenp,
+bool proxied) VLC_USED;
+
+
+
+
+struct vlc_http_msg *vlc_http_msg_headers(const char *msg) VLC_USED;
+
+struct vlc_h2_frame;
+
+
+
+
+struct vlc_h2_frame *vlc_http_msg_h2_frame(const struct vlc_http_msg *m,
+uint_fast32_t stream_id, bool eos);
+
+
+
+
+struct vlc_http_msg *vlc_http_msg_h2_headers(unsigned count,
+const char *const headers[][2]);

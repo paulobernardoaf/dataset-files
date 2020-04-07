@@ -1,0 +1,614 @@
+
+
+
+
+
+#include <png.h>
+#include <zlib.h>
+
+#include "allegro5/allegro.h"
+#include "allegro5/allegro_image.h"
+#include "allegro5/internal/aintern_image.h"
+
+#include "iio.h"
+
+ALLEGRO_DEBUG_CHANNEL("image")
+
+
+
+
+
+static double get_gamma(void)
+{
+double gamma = -1.0;
+const char* config = al_get_config_value(al_get_system_config(), "image", "png_screen_gamma");
+if (config) {
+gamma = strtod(config, NULL);
+}
+if (gamma == -1.0) {
+
+
+
+
+const char *gamma_str = getenv("SCREEN_GAMMA");
+return (gamma_str) ? strtod(gamma_str, NULL) : 2.2;
+}
+
+return gamma;
+}
+
+
+
+static void user_error_fn(png_structp png_ptr, png_const_charp message)
+{
+jmp_buf *jmpbuf = (jmp_buf *)png_get_error_ptr(png_ptr);
+ALLEGRO_DEBUG("PNG error: %s\n", message);
+longjmp(*jmpbuf, 1);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+static void read_data(png_structp png_ptr, png_bytep data, size_t length)
+{
+ALLEGRO_FILE *f = (ALLEGRO_FILE *)png_get_io_ptr(png_ptr);
+if ((png_uint_32) al_fread(f, data, length) != length)
+png_error(png_ptr, "read error (loadpng calling al_fs_entry_read)");
+}
+
+
+
+
+
+
+#define PNG_BYTES_TO_CHECK 4
+
+static int check_if_png(ALLEGRO_FILE *fp)
+{
+unsigned char buf[PNG_BYTES_TO_CHECK];
+
+ALLEGRO_ASSERT(fp);
+
+if (al_fread(fp, buf, PNG_BYTES_TO_CHECK) != PNG_BYTES_TO_CHECK)
+return 0;
+
+return (png_sig_cmp(buf, (png_size_t) 0, PNG_BYTES_TO_CHECK) == 0);
+}
+
+
+
+
+
+
+static ALLEGRO_BITMAP *really_load_png(png_structp png_ptr, png_infop info_ptr,
+int flags)
+{
+ALLEGRO_BITMAP *bmp;
+png_uint_32 width, height, rowbytes, real_rowbytes;
+int bit_depth, color_type, interlace_type;
+double image_gamma, screen_gamma;
+int intent;
+int bpp;
+int number_passes, pass;
+int num_trans = 0;
+PalEntry pal[256];
+png_bytep trans;
+ALLEGRO_LOCKED_REGION *lock;
+unsigned char *buf;
+unsigned char *dest;
+bool premul = !(flags & ALLEGRO_NO_PREMULTIPLIED_ALPHA);
+bool index_only;
+
+ALLEGRO_ASSERT(png_ptr && info_ptr);
+
+
+
+
+png_read_info(png_ptr, info_ptr);
+
+png_get_IHDR(png_ptr, info_ptr, &width, &height, &bit_depth,
+&color_type, &interlace_type, NULL, NULL);
+
+
+
+
+png_set_packing(png_ptr);
+
+
+if ((color_type == PNG_COLOR_TYPE_GRAY) && (bit_depth < 8))
+png_set_expand(png_ptr);
+
+
+
+
+if (png_get_valid(png_ptr, info_ptr, PNG_INFO_tRNS)) {
+if (!(color_type & PNG_COLOR_MASK_PALETTE))
+png_set_tRNS_to_alpha(png_ptr);
+png_get_tRNS(png_ptr, info_ptr, &trans, &num_trans, NULL);
+}
+
+
+if (bit_depth == 16)
+png_set_strip_16(png_ptr);
+
+
+if ((color_type == PNG_COLOR_TYPE_GRAY) ||
+(color_type == PNG_COLOR_TYPE_GRAY_ALPHA))
+png_set_gray_to_rgb(png_ptr);
+
+
+screen_gamma = get_gamma();
+if (screen_gamma != 0.0) {
+if (png_get_sRGB(png_ptr, info_ptr, &intent))
+png_set_gamma(png_ptr, screen_gamma, 0.45455);
+else {
+if (png_get_gAMA(png_ptr, info_ptr, &image_gamma))
+png_set_gamma(png_ptr, screen_gamma, image_gamma);
+else
+png_set_gamma(png_ptr, screen_gamma, 0.45455);
+}
+}
+
+
+number_passes = png_set_interlace_handling(png_ptr);
+
+
+
+
+png_read_update_info(png_ptr, info_ptr);
+
+
+if (color_type & PNG_COLOR_MASK_PALETTE) {
+int num_palette, i;
+png_colorp palette;
+
+if (png_get_PLTE(png_ptr, info_ptr, &palette, &num_palette)) {
+
+for (i = 0; ((i < num_palette) && (i < 256)); i++) {
+pal[i].r = palette[i].red;
+pal[i].g = palette[i].green;
+pal[i].b = palette[i].blue;
+}
+
+for (; i < 256; i++)
+pal[i].r = pal[i].g = pal[i].b = 0;
+}
+}
+
+rowbytes = png_get_rowbytes(png_ptr, info_ptr);
+
+
+bpp = rowbytes * 8 / width;
+
+
+if (bpp < 8)
+bpp = 8;
+
+
+if ((bpp == 24) || (bpp == 32)) {
+#if defined(ALLEGRO_BIG_ENDIAN)
+png_set_bgr(png_ptr);
+png_set_swap_alpha(png_ptr);
+#endif
+}
+
+bmp = al_create_bitmap(width, height);
+if (!bmp) {
+ALLEGRO_ERROR("al_create_bitmap failed while loading PNG.\n");
+return NULL;
+}
+
+
+real_rowbytes = ((bpp + 7) / 8) * width;
+if (interlace_type == PNG_INTERLACE_ADAM7)
+buf = al_malloc(real_rowbytes * height);
+else
+buf = al_malloc(real_rowbytes);
+
+if (bpp == 8 && (color_type & PNG_COLOR_MASK_PALETTE) &&
+(flags & ALLEGRO_KEEP_INDEX))
+{
+lock = al_lock_bitmap(bmp, ALLEGRO_PIXEL_FORMAT_SINGLE_CHANNEL_8,
+ALLEGRO_LOCK_WRITEONLY);
+index_only = true;
+}
+else {
+lock = al_lock_bitmap(bmp, ALLEGRO_PIXEL_FORMAT_ABGR_8888_LE,
+ALLEGRO_LOCK_WRITEONLY);
+index_only = false;
+}
+
+
+for (pass = 0; pass < number_passes; pass++) {
+png_uint_32 y;
+unsigned int i;
+unsigned char *ptr;
+dest = lock->data;
+
+for (y = 0; y < height; y++) {
+unsigned char *dest_row_start = dest;
+
+
+
+if (interlace_type == PNG_INTERLACE_ADAM7)
+ptr = buf + y * real_rowbytes;
+else
+ptr = buf;
+png_read_row(png_ptr, NULL, ptr);
+
+switch (bpp) {
+case 8:
+if (index_only) {
+for (i = 0; i < width; i++) {
+*(dest++) = *(ptr++);
+}
+}
+else if (color_type & PNG_COLOR_MASK_PALETTE) {
+for (i = 0; i < width; i++) {
+int pix = ptr[0];
+ptr++;
+dest[0] = pal[pix].r;
+dest[1] = pal[pix].g;
+dest[2] = pal[pix].b;
+if (pix < num_trans) {
+int a = trans[pix];
+dest[3] = a;
+if (premul) {
+dest[0] = dest[0] * a / 255;
+dest[1] = dest[1] * a / 255;
+dest[2] = dest[2] * a / 255;
+}
+} else {
+dest[3] = 255;
+}
+dest += 4;
+}
+}
+else {
+for (i = 0; i < width; i++) {
+int pix = ptr[0];
+ptr++;
+*(dest++) = pix;
+*(dest++) = pix;
+*(dest++) = pix;
+*(dest++) = 255;
+}
+}
+break;
+
+case 24:
+for (i = 0; i < width; i++) {
+uint32_t pix = _AL_READ3BYTES(ptr);
+ptr += 3;
+*(dest++) = pix & 0xff;
+*(dest++) = (pix >> 8) & 0xff;
+*(dest++) = (pix >> 16) & 0xff;
+*(dest++) = 255;
+}
+break;
+
+case 32:
+for (i = 0; i < width; i++) {
+uint32_t pix = *(uint32_t*)ptr;
+int r = pix & 0xff;
+int g = (pix >> 8) & 0xff;
+int b = (pix >> 16) & 0xff;
+int a = (pix >> 24) & 0xff;
+ptr += 4;
+
+if (premul) {
+r = r * a / 255;
+g = g * a / 255;
+b = b * a / 255;
+}
+
+*(dest++) = r;
+*(dest++) = g;
+*(dest++) = b;
+*(dest++) = a;
+}
+break;
+
+default:
+ALLEGRO_ASSERT(bpp == 8 || bpp == 24 || bpp == 32);
+break;
+}
+dest = dest_row_start + lock->pitch;
+}
+}
+
+al_unlock_bitmap(bmp);
+
+al_free(buf);
+
+
+png_read_end(png_ptr, info_ptr);
+
+return bmp;
+}
+
+
+
+
+ALLEGRO_BITMAP *_al_load_png_f(ALLEGRO_FILE *fp, int flags)
+{
+jmp_buf jmpbuf;
+ALLEGRO_BITMAP *bmp;
+png_structp png_ptr;
+png_infop info_ptr;
+
+ALLEGRO_ASSERT(fp);
+
+if (!check_if_png(fp)) {
+ALLEGRO_ERROR("Not a png.\n");
+return NULL;
+}
+
+
+
+
+
+
+
+png_ptr = png_create_read_struct(PNG_LIBPNG_VER_STRING,
+(void *)NULL, NULL, NULL);
+if (!png_ptr) {
+ALLEGRO_ERROR("png_ptr == NULL\n");
+return NULL;
+}
+
+
+info_ptr = png_create_info_struct(png_ptr);
+if (!info_ptr) {
+png_destroy_read_struct(&png_ptr, (png_infopp) NULL, (png_infopp) NULL);
+ALLEGRO_ERROR("png_create_info_struct failed\n");
+return NULL;
+}
+
+
+if (setjmp(jmpbuf)) {
+
+png_destroy_read_struct(&png_ptr, &info_ptr, (png_infopp) NULL);
+
+ALLEGRO_ERROR("Error reading PNG file\n");
+return NULL;
+}
+png_set_error_fn(png_ptr, jmpbuf, user_error_fn, NULL);
+
+
+png_set_read_fn(png_ptr, fp, (png_rw_ptr) read_data);
+
+
+png_set_sig_bytes(png_ptr, PNG_BYTES_TO_CHECK);
+
+
+bmp = really_load_png(png_ptr, info_ptr, flags);
+
+
+png_destroy_read_struct(&png_ptr, &info_ptr, (png_infopp) NULL);
+
+return bmp;
+}
+
+
+
+
+
+ALLEGRO_BITMAP *_al_load_png(const char *filename, int flags)
+{
+ALLEGRO_FILE *fp;
+ALLEGRO_BITMAP *bmp;
+
+ALLEGRO_ASSERT(filename);
+
+fp = al_fopen(filename, "rb");
+if (!fp) {
+ALLEGRO_ERROR("Unable to open %s for reading.\n", filename);
+return NULL;
+}
+
+bmp = _al_load_png_f(fp, flags);
+
+al_fclose(fp);
+
+return bmp;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+static void write_data(png_structp png_ptr, png_bytep data, size_t length)
+{
+ALLEGRO_FILE *f = (ALLEGRO_FILE *)png_get_io_ptr(png_ptr);
+if ((png_uint_32) al_fwrite(f, data, length) != length)
+png_error(png_ptr, "write error (loadpng calling al_fs_entry_write)");
+}
+
+
+
+
+static void flush_data(png_structp png_ptr)
+{
+(void)png_ptr;
+}
+
+
+
+
+
+static int translate_compression_level(const char* value) {
+if (!value || strcmp(value, "default") == 0) {
+return Z_DEFAULT_COMPRESSION;
+}
+if (strcmp(value, "best") == 0) {
+return Z_BEST_COMPRESSION;
+}
+if (strcmp(value, "fastest") == 0) {
+return Z_BEST_SPEED;
+}
+if (strcmp(value, "none") == 0) {
+return Z_NO_COMPRESSION;
+}
+return strtol(value, NULL, 10);
+}
+
+
+
+
+static int save_rgba(png_structp png_ptr, ALLEGRO_BITMAP *bmp)
+{
+const int bmp_h = al_get_bitmap_height(bmp);
+ALLEGRO_LOCKED_REGION *lock;
+int y;
+
+lock = al_lock_bitmap(bmp, ALLEGRO_PIXEL_FORMAT_ABGR_8888_LE,
+ALLEGRO_LOCK_READONLY);
+if (!lock)
+return 0;
+
+for (y = 0; y < bmp_h; y++) {
+unsigned char *p = (unsigned char *)lock->data + lock->pitch * y;
+png_write_row(png_ptr, p);
+}
+
+al_unlock_bitmap(bmp);
+
+return 1;
+}
+
+
+
+
+
+
+bool _al_save_png_f(ALLEGRO_FILE *fp, ALLEGRO_BITMAP *bmp)
+{
+jmp_buf jmpbuf;
+png_structp png_ptr = NULL;
+png_infop info_ptr = NULL;
+int colour_type;
+
+
+
+
+png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING,
+(void *)NULL, NULL, NULL);
+if (!png_ptr) {
+ALLEGRO_ERROR("Unable to create PNG write struct.\n");
+goto Error;
+}
+
+
+info_ptr = png_create_info_struct(png_ptr);
+if (!info_ptr) {
+ALLEGRO_ERROR("Unable to create PNG info struct.\n");
+goto Error;
+}
+
+
+if (setjmp(jmpbuf)) {
+ALLEGRO_ERROR("Failed to call setjmp.\n");
+goto Error;
+}
+png_set_error_fn(png_ptr, jmpbuf, user_error_fn, NULL);
+
+
+png_set_write_fn(png_ptr, fp, (png_rw_ptr) write_data, flush_data);
+
+
+
+
+
+
+
+
+
+colour_type = PNG_COLOR_TYPE_RGB_ALPHA;
+
+
+int z_level = translate_compression_level(
+al_get_config_value(al_get_system_config(), "image", "png_compression_level")
+);
+png_set_compression_level(png_ptr, z_level);
+
+png_set_IHDR(png_ptr, info_ptr,
+al_get_bitmap_width(bmp), al_get_bitmap_height(bmp),
+8, colour_type,
+PNG_INTERLACE_NONE, PNG_COMPRESSION_TYPE_BASE,
+PNG_FILTER_TYPE_BASE);
+
+
+
+
+png_write_info(png_ptr, info_ptr);
+
+
+
+
+
+
+if (!save_rgba(png_ptr, bmp)) {
+ALLEGRO_ERROR("save_rgba failed.\n");
+goto Error;
+}
+
+png_write_end(png_ptr, info_ptr);
+
+png_destroy_write_struct(&png_ptr, &info_ptr);
+
+return true;
+
+Error:
+
+if (png_ptr) {
+if (info_ptr)
+png_destroy_write_struct(&png_ptr, &info_ptr);
+else
+png_destroy_write_struct(&png_ptr, NULL);
+}
+
+return false;
+}
+
+
+bool _al_save_png(const char *filename, ALLEGRO_BITMAP *bmp)
+{
+ALLEGRO_FILE *fp;
+bool retsave;
+bool retclose;
+
+ALLEGRO_ASSERT(filename);
+ALLEGRO_ASSERT(bmp);
+
+fp = al_fopen(filename, "wb");
+if (!fp) {
+ALLEGRO_ERROR("Unable to open file %s for writing\n", filename);
+return false;
+}
+
+retsave = _al_save_png_f(fp, bmp);
+retclose = al_fclose(fp);
+
+return retsave && retclose;
+}
+
+

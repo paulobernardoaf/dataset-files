@@ -1,0 +1,1842 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" revision="1.0.0" language="C" filename="D:\Pesquisa\Projects\ruby-analysis\_cppstats\ruby\thread_sync.c"><cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"ccan/list/list.h"</cpp:file></cpp:include>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>VALUE</name></type> <name>rb_cMutex</name></decl>, <decl><type ref="prev"/><name>rb_cQueue</name></decl>, <decl><type ref="prev"/><name>rb_cSizedQueue</name></decl>, <decl><type ref="prev"/><name>rb_cConditionVariable</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>VALUE</name></type> <name>rb_eClosedQueueError</name></decl>;</decl_stmt>
+
+<struct>struct <name>sync_waiter</name> <block>{
+
+<decl_stmt><decl><type><name>rb_thread_t</name> <modifier>*</modifier></type><name>th</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>list_node</name></name></type> <name>node</name></decl>;</decl_stmt>
+
+}</block>;</struct>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>MUTEX_ALLOW_TRAP</name></cpp:macro> <cpp:value>FL_USER1</cpp:value></cpp:define>
+
+<function><type><specifier>static</specifier> <name>void</name></type>
+
+<name>sync_wakeup</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>list_head</name></name> <modifier>*</modifier></type><name>head</name></decl></parameter>, <parameter><decl><type><name>long</name></type> <name>max</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>sync_waiter</name></name> <modifier>*</modifier></type><name>cur</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>, <decl><type ref="prev"><modifier>*</modifier></type><name>next</name></decl>;</decl_stmt>
+
+<macro><name>list_for_each_safe</name><argument_list>(<argument>head</argument>, <argument>cur</argument>, <argument>next</argument>, <argument>node</argument>)</argument_list></macro> <block>{<block_content>
+
+<expr_stmt><expr><call><name>list_del_init</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>cur</name><operator>-&gt;</operator><name>node</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>cur</name><operator>-&gt;</operator><name>th</name><operator>-&gt;</operator><name>status</name></name> <operator>!=</operator> <name>THREAD_KILLED</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>rb_threadptr_interrupt</name><argument_list>(<argument><expr><name><name>cur</name><operator>-&gt;</operator><name>th</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>cur</name><operator>-&gt;</operator><name>th</name><operator>-&gt;</operator><name>status</name></name> <operator>=</operator> <name>THREAD_RUNNABLE</name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>--</operator><name>max</name> <operator>==</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content> <return>return;</return></block_content></block></if></if_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type>
+
+<name>wakeup_one</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>list_head</name></name> <modifier>*</modifier></type><name>head</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>sync_wakeup</name><argument_list>(<argument><expr><name>head</name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type>
+
+<name>wakeup_all</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>list_head</name></name> <modifier>*</modifier></type><name>head</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>sync_wakeup</name><argument_list>(<argument><expr><name>head</name></expr></argument>, <argument><expr><name>LONG_MAX</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<typedef>typedef <type><struct>struct <name>rb_mutex_struct</name> <block>{
+
+<decl_stmt><decl><type><name>rb_thread_t</name> <modifier>*</modifier></type><name>th</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>rb_mutex_struct</name></name> <modifier>*</modifier></type><name>next_mutex</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>list_head</name></name></type> <name>waitq</name></decl>;</decl_stmt> 
+
+}</block></struct></type> <name>rb_mutex_t</name>;</typedef>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><call><name>defined</name><argument_list>(<argument><expr><name>HAVE_WORKING_FORK</name></expr></argument>)</argument_list></call></expr></cpp:if>
+
+<function_decl><type><specifier>static</specifier> <name>void</name></type> <name>rb_mutex_abandon_all</name><parameter_list>(<parameter><decl><type><name>rb_mutex_t</name> <modifier>*</modifier></type><name>mutexes</name></decl></parameter>)</parameter_list>;</function_decl>
+
+<function_decl><type><specifier>static</specifier> <name>void</name></type> <name>rb_mutex_abandon_keeping_mutexes</name><parameter_list>(<parameter><decl><type><name>rb_thread_t</name> <modifier>*</modifier></type><name>th</name></decl></parameter>)</parameter_list>;</function_decl>
+
+<function_decl><type><specifier>static</specifier> <name>void</name></type> <name>rb_mutex_abandon_locking_mutex</name><parameter_list>(<parameter><decl><type><name>rb_thread_t</name> <modifier>*</modifier></type><name>th</name></decl></parameter>)</parameter_list>;</function_decl>
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+<function_decl><type><specifier>static</specifier> <specifier>const</specifier> <name>char</name><modifier>*</modifier></type> <name>rb_mutex_unlock_th</name><parameter_list>(<parameter><decl><type><name>rb_mutex_t</name> <modifier>*</modifier></type><name>mutex</name></decl></parameter>, <parameter><decl><type><name>rb_thread_t</name> <modifier>*</modifier></type><name>th</name></decl></parameter>)</parameter_list>;</function_decl>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>mutex_mark</name></cpp:macro> <cpp:value>((void(*)(void*))0)</cpp:value></cpp:define>
+
+<function><type><specifier>static</specifier> <name>size_t</name></type>
+
+<name>rb_mutex_num_waiting</name><parameter_list>(<parameter><decl><type><name>rb_mutex_t</name> <modifier>*</modifier></type><name>mutex</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>sync_waiter</name></name> <modifier>*</modifier></type><name>w</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>size_t</name></type> <name>n</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+
+<macro><name>list_for_each</name><argument_list>(<argument>&amp;mutex-&gt;waitq</argument>, <argument>w</argument>, <argument>node</argument>)</argument_list></macro> <block>{<block_content>
+
+<expr_stmt><expr><name>n</name><operator>++</operator></expr>;</expr_stmt>
+
+</block_content>}</block>
+
+<return>return <expr><name>n</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type>
+
+<name>mutex_free</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>ptr</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>rb_mutex_t</name> <modifier>*</modifier></type><name>mutex</name> <init>= <expr><name>ptr</name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>mutex</name><operator>-&gt;</operator><name>th</name></name></expr>)</condition> <block>{<block_content>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>err</name> <init>= <expr><call><name>rb_mutex_unlock_th</name><argument_list>(<argument><expr><name>mutex</name></expr></argument>, <argument><expr><name><name>mutex</name><operator>-&gt;</operator><name>th</name></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>err</name></expr>)</condition><block type="pseudo"><block_content> <expr_stmt><expr><call><name>rb_bug</name><argument_list>(<argument><expr><literal type="string">"%s"</literal></expr></argument>, <argument><expr><name>err</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>ruby_xfree</name><argument_list>(<argument><expr><name>ptr</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>size_t</name></type>
+
+<name>mutex_memsize</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name>void</name> <modifier>*</modifier></type><name>ptr</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<return>return <expr><sizeof>sizeof<argument_list>(<argument><expr><name>rb_mutex_t</name></expr></argument>)</argument_list></sizeof></expr>;</return>
+
+</block_content>}</block></function>
+
+<decl_stmt><decl><type><specifier>static</specifier> <specifier>const</specifier> <name>rb_data_type_t</name></type> <name>mutex_data_type</name> <init>= <expr><block>{
+
+<expr><literal type="string">"mutex"</literal></expr>,
+
+<expr><block>{<expr><name>mutex_mark</name></expr>, <expr><name>mutex_free</name></expr>, <expr><name>mutex_memsize</name></expr>,}</block></expr>,
+
+<expr><literal type="number">0</literal></expr>, <expr><literal type="number">0</literal></expr>, <expr><name>RUBY_TYPED_FREE_IMMEDIATELY</name></expr>
+
+}</block></expr></init></decl>;</decl_stmt>
+
+<function><type><specifier>static</specifier> <name>rb_mutex_t</name> <modifier>*</modifier></type>
+
+<name>mutex_ptr</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>obj</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>rb_mutex_t</name> <modifier>*</modifier></type><name>mutex</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>TypedData_Get_Struct</name><argument_list>(<argument><expr><name>obj</name></expr></argument>, <argument><expr><name>rb_mutex_t</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>mutex_data_type</name></expr></argument>, <argument><expr><name>mutex</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>mutex</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><name>VALUE</name></type>
+
+<name>rb_obj_is_mutex</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>obj</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><call><name>rb_typeddata_is_kind_of</name><argument_list>(<argument><expr><name>obj</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>mutex_data_type</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<return>return <expr><name>Qtrue</name></expr>;</return>
+
+</block_content>}</block></if>
+
+<else>else <block>{<block_content>
+
+<return>return <expr><name>Qfalse</name></expr>;</return>
+
+</block_content>}</block></else></if_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>mutex_alloc</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>klass</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>VALUE</name></type> <name>obj</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>rb_mutex_t</name> <modifier>*</modifier></type><name>mutex</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>obj</name> <operator>=</operator> <call><name>TypedData_Make_Struct</name><argument_list>(<argument><expr><name>klass</name></expr></argument>, <argument><expr><name>rb_mutex_t</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>mutex_data_type</name></expr></argument>, <argument><expr><name>mutex</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>list_head_init</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>mutex</name><operator>-&gt;</operator><name>waitq</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>obj</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>mutex_initialize</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>self</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<return>return <expr><name>self</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><name>VALUE</name></type>
+
+<name>rb_mutex_new</name><parameter_list>(<parameter><decl><type><name>void</name></type></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<return>return <expr><call><name>mutex_alloc</name><argument_list>(<argument><expr><name>rb_cMutex</name></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><name>VALUE</name></type>
+
+<name>rb_mutex_locked_p</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>self</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>rb_mutex_t</name> <modifier>*</modifier></type><name>mutex</name> <init>= <expr><call><name>mutex_ptr</name><argument_list>(<argument><expr><name>self</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<return>return <expr><ternary><condition><expr><name><name>mutex</name><operator>-&gt;</operator><name>th</name></name></expr> ?</condition><then> <expr><name>Qtrue</name></expr> </then><else>: <expr><name>Qfalse</name></expr></else></ternary></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type>
+
+<name>mutex_locked</name><parameter_list>(<parameter><decl><type><name>rb_thread_t</name> <modifier>*</modifier></type><name>th</name></decl></parameter>, <parameter><decl><type><name>VALUE</name></type> <name>self</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>rb_mutex_t</name> <modifier>*</modifier></type><name>mutex</name> <init>= <expr><call><name>mutex_ptr</name><argument_list>(<argument><expr><name>self</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>th</name><operator>-&gt;</operator><name>keeping_mutexes</name></name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name><name>mutex</name><operator>-&gt;</operator><name>next_mutex</name></name> <operator>=</operator> <name><name>th</name><operator>-&gt;</operator><name>keeping_mutexes</name></name></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>th</name><operator>-&gt;</operator><name>keeping_mutexes</name></name> <operator>=</operator> <name>mutex</name></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><name>VALUE</name></type>
+
+<name>rb_mutex_trylock</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>self</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>rb_mutex_t</name> <modifier>*</modifier></type><name>mutex</name> <init>= <expr><call><name>mutex_ptr</name><argument_list>(<argument><expr><name>self</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>VALUE</name></type> <name>locked</name> <init>= <expr><name>Qfalse</name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>mutex</name><operator>-&gt;</operator><name>th</name></name> <operator>==</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<decl_stmt><decl><type><name>rb_thread_t</name> <modifier>*</modifier></type><name>th</name> <init>= <expr><call><name>GET_THREAD</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>mutex</name><operator>-&gt;</operator><name>th</name></name> <operator>=</operator> <name>th</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>locked</name> <operator>=</operator> <name>Qtrue</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>mutex_locked</name><argument_list>(<argument><expr><name>th</name></expr></argument>, <argument><expr><name>self</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<return>return <expr><name>locked</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<decl_stmt><decl><type><specifier>static</specifier> <specifier>const</specifier> <name>rb_thread_t</name> <modifier>*</modifier></type><name>patrol_thread</name> <init>= <expr><name>NULL</name></expr></init></decl>;</decl_stmt>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>mutex_owned_p</name><parameter_list>(<parameter><decl><type><name>rb_thread_t</name> <modifier>*</modifier></type><name>th</name></decl></parameter>, <parameter><decl><type><name>rb_mutex_t</name> <modifier>*</modifier></type><name>mutex</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><name><name>mutex</name><operator>-&gt;</operator><name>th</name></name> <operator>==</operator> <name>th</name></expr>)</condition> <block>{<block_content>
+
+<return>return <expr><name>Qtrue</name></expr>;</return>
+
+</block_content>}</block></if>
+
+<else>else <block>{<block_content>
+
+<return>return <expr><name>Qfalse</name></expr>;</return>
+
+</block_content>}</block></else></if_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>do_mutex_lock</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>self</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>interruptible_p</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>rb_thread_t</name> <modifier>*</modifier></type><name>th</name> <init>= <expr><call><name>GET_THREAD</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>rb_mutex_t</name> <modifier>*</modifier></type><name>mutex</name> <init>= <expr><call><name>mutex_ptr</name><argument_list>(<argument><expr><name>self</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>FL_TEST_RAW</name><argument_list>(<argument><expr><name>self</name></expr></argument>, <argument><expr><name>MUTEX_ALLOW_TRAP</name></expr></argument>)</argument_list></call> <operator>&amp;&amp;</operator>
+
+<name><name>th</name><operator>-&gt;</operator><name>ec</name><operator>-&gt;</operator><name>interrupt_mask</name></name> <operator>&amp;</operator> <name>TRAP_INTERRUPT_MASK</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>rb_raise</name><argument_list>(<argument><expr><name>rb_eThreadError</name></expr></argument>, <argument><expr><literal type="string">"can't be called from trap context"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>rb_mutex_trylock</name><argument_list>(<argument><expr><name>self</name></expr></argument>)</argument_list></call> <operator>==</operator> <name>Qfalse</name></expr>)</condition> <block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>sync_waiter</name></name></type> <name>w</name></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>mutex</name><operator>-&gt;</operator><name>th</name></name> <operator>==</operator> <name>th</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>rb_raise</name><argument_list>(<argument><expr><name>rb_eThreadError</name></expr></argument>, <argument><expr><literal type="string">"deadlock; recursive locking"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>w</name><operator>.</operator><name>th</name></name> <operator>=</operator> <name>th</name></expr>;</expr_stmt>
+
+<while>while <condition>(<expr><name><name>mutex</name><operator>-&gt;</operator><name>th</name></name> <operator>!=</operator> <name>th</name></expr>)</condition> <block>{<block_content>
+
+<decl_stmt><decl><type><name><name>enum</name> <name>rb_thread_status</name></name></type> <name>prev_status</name> <init>= <expr><name><name>th</name><operator>-&gt;</operator><name>status</name></name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>rb_hrtime_t</name> <modifier>*</modifier></type><name>timeout</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>rb_hrtime_t</name></type> <name>rel</name> <init>= <expr><call><name>rb_msec2hrtime</name><argument_list>(<argument><expr><literal type="number">100</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>th</name><operator>-&gt;</operator><name>status</name></name> <operator>=</operator> <name>THREAD_STOPPED_FOREVER</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>th</name><operator>-&gt;</operator><name>locking_mutex</name></name> <operator>=</operator> <name>self</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>th</name><operator>-&gt;</operator><name>vm</name><operator>-&gt;</operator><name>sleeper</name></name><operator>++</operator></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>(</operator><call><name>vm_living_thread_num</name><argument_list>(<argument><expr><name><name>th</name><operator>-&gt;</operator><name>vm</name></name></expr></argument>)</argument_list></call> <operator>==</operator> <name><name>th</name><operator>-&gt;</operator><name>vm</name><operator>-&gt;</operator><name>sleeper</name></name><operator>)</operator> <operator>&amp;&amp;</operator>
+
+<operator>!</operator><name>patrol_thread</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>timeout</name> <operator>=</operator> <operator>&amp;</operator><name>rel</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>patrol_thread</name> <operator>=</operator> <name>th</name></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>list_add_tail</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>mutex</name><operator>-&gt;</operator><name>waitq</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>w</name><operator>.</operator><name>node</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>native_sleep</name><argument_list>(<argument><expr><name>th</name></expr></argument>, <argument><expr><name>timeout</name></expr></argument>)</argument_list></call></expr>;</expr_stmt> 
+
+<expr_stmt><expr><call><name>list_del</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>w</name><operator>.</operator><name>node</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>mutex</name><operator>-&gt;</operator><name>th</name></name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name><name>mutex</name><operator>-&gt;</operator><name>th</name></name> <operator>=</operator> <name>th</name></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>patrol_thread</name> <operator>==</operator> <name>th</name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><name>patrol_thread</name> <operator>=</operator> <name>NULL</name></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name><name>th</name><operator>-&gt;</operator><name>locking_mutex</name></name> <operator>=</operator> <name>Qfalse</name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>mutex</name><operator>-&gt;</operator><name>th</name></name> <operator>&amp;&amp;</operator> <name>timeout</name> <operator>&amp;&amp;</operator> <operator>!</operator><call><name>RUBY_VM_INTERRUPTED</name><argument_list>(<argument><expr><name><name>th</name><operator>-&gt;</operator><name>ec</name></name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>rb_check_deadlock</name><argument_list>(<argument><expr><name><name>th</name><operator>-&gt;</operator><name>vm</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>th</name><operator>-&gt;</operator><name>status</name></name> <operator>==</operator> <name>THREAD_STOPPED_FOREVER</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name><name>th</name><operator>-&gt;</operator><name>status</name></name> <operator>=</operator> <name>prev_status</name></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>th</name><operator>-&gt;</operator><name>vm</name><operator>-&gt;</operator><name>sleeper</name></name><operator>--</operator></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>interruptible_p</name></expr>)</condition> <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><name><name>mutex</name><operator>-&gt;</operator><name>th</name></name> <operator>==</operator> <name>th</name></expr>)</condition><block type="pseudo"><block_content> <expr_stmt><expr><name><name>mutex</name><operator>-&gt;</operator><name>th</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>RUBY_VM_CHECK_INTS_BLOCKING</name><argument_list>(<argument><expr><name><name>th</name><operator>-&gt;</operator><name>ec</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt> 
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>mutex</name><operator>-&gt;</operator><name>th</name></name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name><name>mutex</name><operator>-&gt;</operator><name>th</name></name> <operator>=</operator> <name>th</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>mutex_locked</name><argument_list>(<argument><expr><name>th</name></expr></argument>, <argument><expr><name>self</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></if>
+
+<else>else <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><name><name>mutex</name><operator>-&gt;</operator><name>th</name></name> <operator>==</operator> <name>th</name></expr>)</condition><block type="pseudo"><block_content> <expr_stmt><expr><call><name>mutex_locked</name><argument_list>(<argument><expr><name>th</name></expr></argument>, <argument><expr><name>self</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+</block_content>}</block></while>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>mutex_owned_p</name><argument_list>(<argument><expr><name>th</name></expr></argument>, <argument><expr><name>mutex</name></expr></argument>)</argument_list></call> <operator>==</operator> <name>Qfalse</name></expr>)</condition><block type="pseudo"><block_content> <expr_stmt><expr><call><name>rb_bug</name><argument_list>(<argument><expr><literal type="string">"do_mutex_lock: mutex is not owned."</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<return>return <expr><name>self</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>mutex_lock_uninterruptible</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>self</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<return>return <expr><call><name>do_mutex_lock</name><argument_list>(<argument><expr><name>self</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><name>VALUE</name></type>
+
+<name>rb_mutex_lock</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>self</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<return>return <expr><call><name>do_mutex_lock</name><argument_list>(<argument><expr><name>self</name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><name>VALUE</name></type>
+
+<name>rb_mutex_owned_p</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>self</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>rb_thread_t</name> <modifier>*</modifier></type><name>th</name> <init>= <expr><call><name>GET_THREAD</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>rb_mutex_t</name> <modifier>*</modifier></type><name>mutex</name> <init>= <expr><call><name>mutex_ptr</name><argument_list>(<argument><expr><name>self</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<return>return <expr><call><name>mutex_owned_p</name><argument_list>(<argument><expr><name>th</name></expr></argument>, <argument><expr><name>mutex</name></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <specifier>const</specifier> <name>char</name> <modifier>*</modifier></type>
+
+<name>rb_mutex_unlock_th</name><parameter_list>(<parameter><decl><type><name>rb_mutex_t</name> <modifier>*</modifier></type><name>mutex</name></decl></parameter>, <parameter><decl><type><name>rb_thread_t</name> <modifier>*</modifier></type><name>th</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>err</name> <init>= <expr><name>NULL</name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>mutex</name><operator>-&gt;</operator><name>th</name></name> <operator>==</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>err</name> <operator>=</operator> <literal type="string">"Attempt to unlock a mutex which is not locked"</literal></expr>;</expr_stmt>
+
+</block_content>}</block></if>
+
+<if type="elseif">else if <condition>(<expr><name><name>mutex</name><operator>-&gt;</operator><name>th</name></name> <operator>!=</operator> <name>th</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>err</name> <operator>=</operator> <literal type="string">"Attempt to unlock a mutex which is locked by another thread"</literal></expr>;</expr_stmt>
+
+</block_content>}</block></if>
+
+<else>else <block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>sync_waiter</name></name> <modifier>*</modifier></type><name>cur</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>, <decl><type ref="prev"><modifier>*</modifier></type><name>next</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>rb_mutex_t</name> <modifier>*</modifier><modifier>*</modifier></type><name>th_mutex</name> <init>= <expr><operator>&amp;</operator><name><name>th</name><operator>-&gt;</operator><name>keeping_mutexes</name></name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>mutex</name><operator>-&gt;</operator><name>th</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<macro><name>list_for_each_safe</name><argument_list>(<argument>&amp;mutex-&gt;waitq</argument>, <argument>cur</argument>, <argument>next</argument>, <argument>node</argument>)</argument_list></macro> <block>{<block_content>
+
+<expr_stmt><expr><call><name>list_del_init</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>cur</name><operator>-&gt;</operator><name>node</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<switch>switch <condition>(<expr><name><name>cur</name><operator>-&gt;</operator><name>th</name><operator>-&gt;</operator><name>status</name></name></expr>)</condition> <block>{<block_content>
+
+<case>case <expr><name>THREAD_RUNNABLE</name></expr>:</case> 
+
+<case>case <expr><name>THREAD_STOPPED_FOREVER</name></expr>:</case> 
+
+<expr_stmt><expr><call><name>rb_threadptr_interrupt</name><argument_list>(<argument><expr><name><name>cur</name><operator>-&gt;</operator><name>th</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<goto>goto <name>found</name>;</goto>
+
+<case>case <expr><name>THREAD_STOPPED</name></expr>:</case> 
+
+<expr_stmt><expr><call><name>rb_bug</name><argument_list>(<argument><expr><literal type="string">"unexpected THREAD_STOPPED"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<case>case <expr><name>THREAD_KILLED</name></expr>:</case>
+
+<expr_stmt><expr><call><name>rb_bug</name><argument_list>(<argument><expr><literal type="string">"unexpected THREAD_KILLED"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<continue>continue;</continue>
+
+</block_content>}</block></switch>
+
+</block_content>}</block>
+
+<label><name>found</name>:</label>
+
+<while>while <condition>(<expr><operator>*</operator><name>th_mutex</name> <operator>!=</operator> <name>mutex</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>th_mutex</name> <operator>=</operator> <operator>&amp;</operator><name><operator>(</operator><operator>*</operator><name>th_mutex</name><operator>)</operator><operator>-&gt;</operator><name>next_mutex</name></name></expr>;</expr_stmt>
+
+</block_content>}</block></while>
+
+<expr_stmt><expr><operator>*</operator><name>th_mutex</name> <operator>=</operator> <name><name>mutex</name><operator>-&gt;</operator><name>next_mutex</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>mutex</name><operator>-&gt;</operator><name>next_mutex</name></name> <operator>=</operator> <name>NULL</name></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+<return>return <expr><name>err</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><name>VALUE</name></type>
+
+<name>rb_mutex_unlock</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>self</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>err</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>rb_mutex_t</name> <modifier>*</modifier></type><name>mutex</name> <init>= <expr><call><name>mutex_ptr</name><argument_list>(<argument><expr><name>self</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>err</name> <operator>=</operator> <call><name>rb_mutex_unlock_th</name><argument_list>(<argument><expr><name>mutex</name></expr></argument>, <argument><expr><call><name>GET_THREAD</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>err</name></expr>)</condition><block type="pseudo"><block_content> <expr_stmt><expr><call><name>rb_raise</name><argument_list>(<argument><expr><name>rb_eThreadError</name></expr></argument>, <argument><expr><literal type="string">"%s"</literal></expr></argument>, <argument><expr><name>err</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<return>return <expr><name>self</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><call><name>defined</name><argument_list>(<argument><expr><name>HAVE_WORKING_FORK</name></expr></argument>)</argument_list></call></expr></cpp:if>
+
+<function><type><specifier>static</specifier> <name>void</name></type>
+
+<name>rb_mutex_abandon_keeping_mutexes</name><parameter_list>(<parameter><decl><type><name>rb_thread_t</name> <modifier>*</modifier></type><name>th</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>rb_mutex_abandon_all</name><argument_list>(<argument><expr><name><name>th</name><operator>-&gt;</operator><name>keeping_mutexes</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>th</name><operator>-&gt;</operator><name>keeping_mutexes</name></name> <operator>=</operator> <name>NULL</name></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type>
+
+<name>rb_mutex_abandon_locking_mutex</name><parameter_list>(<parameter><decl><type><name>rb_thread_t</name> <modifier>*</modifier></type><name>th</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><name><name>th</name><operator>-&gt;</operator><name>locking_mutex</name></name></expr>)</condition> <block>{<block_content>
+
+<decl_stmt><decl><type><name>rb_mutex_t</name> <modifier>*</modifier></type><name>mutex</name> <init>= <expr><call><name>mutex_ptr</name><argument_list>(<argument><expr><name><name>th</name><operator>-&gt;</operator><name>locking_mutex</name></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>list_head_init</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>mutex</name><operator>-&gt;</operator><name>waitq</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>th</name><operator>-&gt;</operator><name>locking_mutex</name></name> <operator>=</operator> <name>Qfalse</name></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type>
+
+<name>rb_mutex_abandon_all</name><parameter_list>(<parameter><decl><type><name>rb_mutex_t</name> <modifier>*</modifier></type><name>mutexes</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>rb_mutex_t</name> <modifier>*</modifier></type><name>mutex</name></decl>;</decl_stmt>
+
+<while>while <condition>(<expr><name>mutexes</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>mutex</name> <operator>=</operator> <name>mutexes</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>mutexes</name> <operator>=</operator> <name><name>mutex</name><operator>-&gt;</operator><name>next_mutex</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>mutex</name><operator>-&gt;</operator><name>th</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>mutex</name><operator>-&gt;</operator><name>next_mutex</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>list_head_init</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>mutex</name><operator>-&gt;</operator><name>waitq</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></while>
+
+</block_content>}</block></function>
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>rb_mutex_sleep_forever</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>time</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>rb_thread_sleep_deadly_allow_spurious_wakeup</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>Qnil</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>rb_mutex_wait_for</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>time</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>rb_hrtime_t</name> <modifier>*</modifier></type><name>rel</name> <init>= <expr><operator>(</operator><name>rb_hrtime_t</name> <operator>*</operator><operator>)</operator><name>time</name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>sleep_hrtime</name><argument_list>(<argument><expr><call><name>GET_THREAD</name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><operator>*</operator><name>rel</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>Qnil</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><name>VALUE</name></type>
+
+<name>rb_mutex_sleep</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>self</name></decl></parameter>, <parameter><decl><type><name>VALUE</name></type> <name>timeout</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>time_t</name></type> <name>beg</name></decl>, <decl><type ref="prev"/><name>end</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>timeval</name></name></type> <name>t</name></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>NIL_P</name><argument_list>(<argument><expr><name>timeout</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>t</name> <operator>=</operator> <call><name>rb_time_interval</name><argument_list>(<argument><expr><name>timeout</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>rb_mutex_unlock</name><argument_list>(<argument><expr><name>self</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>beg</name> <operator>=</operator> <call><name>time</name><argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>NIL_P</name><argument_list>(<argument><expr><name>timeout</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>rb_ensure</name><argument_list>(<argument><expr><name>rb_mutex_sleep_forever</name></expr></argument>, <argument><expr><name>Qnil</name></expr></argument>, <argument><expr><name>mutex_lock_uninterruptible</name></expr></argument>, <argument><expr><name>self</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if>
+
+<else>else <block>{<block_content>
+
+<decl_stmt><decl><type><name>rb_hrtime_t</name></type> <name>rel</name> <init>= <expr><call><name>rb_timeval2hrtime</name><argument_list>(<argument><expr><operator>&amp;</operator><name>t</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>rb_ensure</name><argument_list>(<argument><expr><name>rb_mutex_wait_for</name></expr></argument>, <argument><expr><operator>(</operator><name>VALUE</name><operator>)</operator><operator>&amp;</operator><name>rel</name></expr></argument>,
+
+<argument><expr><name>mutex_lock_uninterruptible</name></expr></argument>, <argument><expr><name>self</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+<expr_stmt><expr><call><name>RUBY_VM_CHECK_INTS_BLOCKING</name><argument_list>(<argument><expr><call><name>GET_EC</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>end</name> <operator>=</operator> <call><name>time</name><argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call> <operator>-</operator> <name>beg</name></expr>;</expr_stmt>
+
+<return>return <expr><call><name>INT2FIX</name><argument_list>(<argument><expr><name>end</name></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>mutex_sleep</name><parameter_list>(<parameter><decl><type><name>int</name></type> <name>argc</name></decl></parameter>, <parameter><decl><type><name>VALUE</name> <modifier>*</modifier></type><name>argv</name></decl></parameter>, <parameter><decl><type><name>VALUE</name></type> <name>self</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>VALUE</name></type> <name>timeout</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>timeout</name> <operator>=</operator> <ternary><condition><expr><call><name>rb_check_arity</name><argument_list>(<argument><expr><name>argc</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr> ?</condition><then> <expr><name><name>argv</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr> </then><else>: <expr><name>Qnil</name></expr></else></ternary></expr>;</expr_stmt>
+
+<return>return <expr><call><name>rb_mutex_sleep</name><argument_list>(<argument><expr><name>self</name></expr></argument>, <argument><expr><name>timeout</name></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><name>VALUE</name></type>
+
+<name>rb_mutex_synchronize</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>mutex</name></decl></parameter>, <parameter><function_decl><type><name>VALUE</name></type> (<modifier>*</modifier><name>func</name>)<parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>arg</name></decl></parameter>)</parameter_list></function_decl></parameter>, <parameter><decl><type><name>VALUE</name></type> <name>arg</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>rb_mutex_lock</name><argument_list>(<argument><expr><name>mutex</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><call><name>rb_ensure</name><argument_list>(<argument><expr><name>func</name></expr></argument>, <argument><expr><name>arg</name></expr></argument>, <argument><expr><name>rb_mutex_unlock</name></expr></argument>, <argument><expr><name>mutex</name></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>rb_mutex_synchronize_m</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>self</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>rb_block_given_p</name><argument_list>()</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>rb_raise</name><argument_list>(<argument><expr><name>rb_eThreadError</name></expr></argument>, <argument><expr><literal type="string">"must be called with a block"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<return>return <expr><call><name>rb_mutex_synchronize</name><argument_list>(<argument><expr><name>self</name></expr></argument>, <argument><expr><name>rb_yield</name></expr></argument>, <argument><expr><name>Qundef</name></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><name>void</name></type> <name>rb_mutex_allow_trap</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>self</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>val</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>Check_TypedStruct</name><argument_list>(<argument><expr><name>self</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>mutex_data_type</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>val</name></expr>)</condition><block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>FL_SET_RAW</name><argument_list>(<argument><expr><name>self</name></expr></argument>, <argument><expr><name>MUTEX_ALLOW_TRAP</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if>
+
+<else>else<block type="pseudo"><block_content>
+
+<expr_stmt><expr><call><name>FL_UNSET_RAW</name><argument_list>(<argument><expr><name>self</name></expr></argument>, <argument><expr><name>MUTEX_ALLOW_TRAP</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></else></if_stmt>
+
+</block_content>}</block></function>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>queue_waitq</name><parameter_list>(<parameter><type><name>q</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>UNALIGNED_MEMBER_PTR(q, waitq)</cpp:value></cpp:define>
+
+<macro><name>PACKED_STRUCT_UNALIGNED</name><argument_list>(<argument>struct rb_queue {
+
+struct list_head waitq;
+
+rb_serial_t fork_gen;
+
+const VALUE que;
+
+int num_waiting;
+
+}</argument>)</argument_list></macro><empty_stmt>;</empty_stmt>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>szqueue_waitq</name><parameter_list>(<parameter><type><name>sq</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>UNALIGNED_MEMBER_PTR(sq, q.waitq)</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>szqueue_pushq</name><parameter_list>(<parameter><type><name>sq</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>UNALIGNED_MEMBER_PTR(sq, pushq)</cpp:value></cpp:define>
+
+<macro><name>PACKED_STRUCT_UNALIGNED</name><argument_list>(<argument>struct rb_szqueue {
+
+struct rb_queue q;
+
+int num_waiting_push;
+
+struct list_head pushq;
+
+long max;
+
+}</argument>)</argument_list></macro><empty_stmt>;</empty_stmt>
+
+<function><type><specifier>static</specifier> <name>void</name></type>
+
+<name>queue_mark</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>ptr</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>rb_queue</name></name> <modifier>*</modifier></type><name>q</name> <init>= <expr><name>ptr</name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>rb_gc_mark</name><argument_list>(<argument><expr><name><name>q</name><operator>-&gt;</operator><name>que</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>size_t</name></type>
+
+<name>queue_memsize</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name>void</name> <modifier>*</modifier></type><name>ptr</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<return>return <expr><sizeof>sizeof<argument_list>(<argument><expr>struct <name>rb_queue</name></expr></argument>)</argument_list></sizeof></expr>;</return>
+
+</block_content>}</block></function>
+
+<decl_stmt><decl><type><specifier>static</specifier> <specifier>const</specifier> <name>rb_data_type_t</name></type> <name>queue_data_type</name> <init>= <expr><block>{
+
+<expr><literal type="string">"queue"</literal></expr>,
+
+<expr><block>{<expr><name>queue_mark</name></expr>, <expr><name>RUBY_TYPED_DEFAULT_FREE</name></expr>, <expr><name>queue_memsize</name></expr>,}</block></expr>,
+
+<expr><literal type="number">0</literal></expr>, <expr><literal type="number">0</literal></expr>, <expr><name>RUBY_TYPED_FREE_IMMEDIATELY</name><operator>|</operator><name>RUBY_TYPED_WB_PROTECTED</name></expr>
+
+}</block></expr></init></decl>;</decl_stmt>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>queue_alloc</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>klass</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>VALUE</name></type> <name>obj</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>rb_queue</name></name> <modifier>*</modifier></type><name>q</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>obj</name> <operator>=</operator> <call><name>TypedData_Make_Struct</name><argument_list>(<argument><expr><name>klass</name></expr></argument>, <argument><expr>struct <name>rb_queue</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>queue_data_type</name></expr></argument>, <argument><expr><name>q</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>list_head_init</name><argument_list>(<argument><expr><call><name>queue_waitq</name><argument_list>(<argument><expr><name>q</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>obj</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type>
+
+<name>queue_fork_check</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>rb_queue</name></name> <modifier>*</modifier></type><name>q</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>rb_serial_t</name></type> <name>fork_gen</name> <init>= <expr><call><name>GET_VM</name><argument_list>()</argument_list></call><operator>-&gt;</operator><name>fork_gen</name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>q</name><operator>-&gt;</operator><name>fork_gen</name></name> <operator>==</operator> <name>fork_gen</name></expr>)</condition> <block>{<block_content>
+
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>q</name><operator>-&gt;</operator><name>fork_gen</name></name> <operator>=</operator> <name>fork_gen</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>list_head_init</name><argument_list>(<argument><expr><call><name>queue_waitq</name><argument_list>(<argument><expr><name>q</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>q</name><operator>-&gt;</operator><name>num_waiting</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<return>return <expr><literal type="number">1</literal></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name><name>struct</name> <name>rb_queue</name></name> <modifier>*</modifier></type>
+
+<name>queue_ptr</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>obj</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>rb_queue</name></name> <modifier>*</modifier></type><name>q</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>TypedData_Get_Struct</name><argument_list>(<argument><expr><name>obj</name></expr></argument>, <argument><expr>struct <name>rb_queue</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>queue_data_type</name></expr></argument>, <argument><expr><name>q</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>queue_fork_check</name><argument_list>(<argument><expr><name>q</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>q</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>QUEUE_CLOSED</name></cpp:macro> <cpp:value>FL_USER5</cpp:value></cpp:define>
+
+<function><type><specifier>static</specifier> <name>void</name></type>
+
+<name>szqueue_mark</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>ptr</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>rb_szqueue</name></name> <modifier>*</modifier></type><name>sq</name> <init>= <expr><name>ptr</name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>queue_mark</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>sq</name><operator>-&gt;</operator><name>q</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>size_t</name></type>
+
+<name>szqueue_memsize</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name>void</name> <modifier>*</modifier></type><name>ptr</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<return>return <expr><sizeof>sizeof<argument_list>(<argument><expr>struct <name>rb_szqueue</name></expr></argument>)</argument_list></sizeof></expr>;</return>
+
+</block_content>}</block></function>
+
+<decl_stmt><decl><type><specifier>static</specifier> <specifier>const</specifier> <name>rb_data_type_t</name></type> <name>szqueue_data_type</name> <init>= <expr><block>{
+
+<expr><literal type="string">"sized_queue"</literal></expr>,
+
+<expr><block>{<expr><name>szqueue_mark</name></expr>, <expr><name>RUBY_TYPED_DEFAULT_FREE</name></expr>, <expr><name>szqueue_memsize</name></expr>,}</block></expr>,
+
+<expr><literal type="number">0</literal></expr>, <expr><literal type="number">0</literal></expr>, <expr><name>RUBY_TYPED_FREE_IMMEDIATELY</name><operator>|</operator><name>RUBY_TYPED_WB_PROTECTED</name></expr>
+
+}</block></expr></init></decl>;</decl_stmt>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>szqueue_alloc</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>klass</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>rb_szqueue</name></name> <modifier>*</modifier></type><name>sq</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>VALUE</name></type> <name>obj</name> <init>= <expr><call><name>TypedData_Make_Struct</name><argument_list>(<argument><expr><name>klass</name></expr></argument>, <argument><expr>struct <name>rb_szqueue</name></expr></argument>,
+
+<argument><expr><operator>&amp;</operator><name>szqueue_data_type</name></expr></argument>, <argument><expr><name>sq</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>list_head_init</name><argument_list>(<argument><expr><call><name>szqueue_waitq</name><argument_list>(<argument><expr><name>sq</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>list_head_init</name><argument_list>(<argument><expr><call><name>szqueue_pushq</name><argument_list>(<argument><expr><name>sq</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>obj</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name><name>struct</name> <name>rb_szqueue</name></name> <modifier>*</modifier></type>
+
+<name>szqueue_ptr</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>obj</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>rb_szqueue</name></name> <modifier>*</modifier></type><name>sq</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>TypedData_Get_Struct</name><argument_list>(<argument><expr><name>obj</name></expr></argument>, <argument><expr>struct <name>rb_szqueue</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>szqueue_data_type</name></expr></argument>, <argument><expr><name>sq</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>queue_fork_check</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>sq</name><operator>-&gt;</operator><name>q</name></name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>list_head_init</name><argument_list>(<argument><expr><call><name>szqueue_pushq</name><argument_list>(<argument><expr><name>sq</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>sq</name><operator>-&gt;</operator><name>num_waiting_push</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<return>return <expr><name>sq</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>ary_buf_new</name><parameter_list>(<parameter><decl><type><name>void</name></type></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<return>return <expr><call><name>rb_ary_tmp_new</name><argument_list>(<argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>check_array</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>obj</name></decl></parameter>, <parameter><decl><type><name>VALUE</name></type> <name>ary</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>RB_TYPE_P</name><argument_list>(<argument><expr><name>ary</name></expr></argument>, <argument><expr><name>T_ARRAY</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>rb_raise</name><argument_list>(<argument><expr><name>rb_eTypeError</name></expr></argument>, <argument><expr><literal type="string">"%+"</literal><name>PRIsVALUE</name><literal type="string">" not initialized"</literal></expr></argument>, <argument><expr><name>obj</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<return>return <expr><name>ary</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>long</name></type>
+
+<name>queue_length</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>self</name></decl></parameter>, <parameter><decl><type><name><name>struct</name> <name>rb_queue</name></name> <modifier>*</modifier></type><name>q</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<return>return <expr><call><name>RARRAY_LEN</name><argument_list>(<argument><expr><call><name>check_array</name><argument_list>(<argument><expr><name>self</name></expr></argument>, <argument><expr><name><name>q</name><operator>-&gt;</operator><name>que</name></name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type>
+
+<name>queue_closed_p</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>self</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<return>return <expr><call><name>FL_TEST_RAW</name><argument_list>(<argument><expr><name>self</name></expr></argument>, <argument><expr><name>QUEUE_CLOSED</name></expr></argument>)</argument_list></call> <operator>!=</operator> <literal type="number">0</literal></expr>;</return>
+
+</block_content>}</block></function>
+
+<macro><name>NORETURN</name><argument_list>(<argument>static void raise_closed_queue_error(VALUE self)</argument>)</argument_list></macro><empty_stmt>;</empty_stmt>
+
+<function><type><specifier>static</specifier> <name>void</name></type>
+
+<name>raise_closed_queue_error</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>self</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>rb_raise</name><argument_list>(<argument><expr><name>rb_eClosedQueueError</name></expr></argument>, <argument><expr><literal type="string">"queue closed"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>queue_closed_result</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>self</name></decl></parameter>, <parameter><decl><type><name><name>struct</name> <name>rb_queue</name></name> <modifier>*</modifier></type><name>q</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>assert</name><argument_list>(<argument><expr><call><name>queue_length</name><argument_list>(<argument><expr><name>self</name></expr></argument>, <argument><expr><name>q</name></expr></argument>)</argument_list></call> <operator>==</operator> <literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>Qnil</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>rb_queue_initialize</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>self</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>rb_queue</name></name> <modifier>*</modifier></type><name>q</name> <init>= <expr><call><name>queue_ptr</name><argument_list>(<argument><expr><name>self</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>RB_OBJ_WRITE</name><argument_list>(<argument><expr><name>self</name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>q</name><operator>-&gt;</operator><name>que</name></name></expr></argument>, <argument><expr><call><name>ary_buf_new</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>list_head_init</name><argument_list>(<argument><expr><call><name>queue_waitq</name><argument_list>(<argument><expr><name>q</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>self</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>queue_do_push</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>self</name></decl></parameter>, <parameter><decl><type><name><name>struct</name> <name>rb_queue</name></name> <modifier>*</modifier></type><name>q</name></decl></parameter>, <parameter><decl><type><name>VALUE</name></type> <name>obj</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><call><name>queue_closed_p</name><argument_list>(<argument><expr><name>self</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>raise_closed_queue_error</name><argument_list>(<argument><expr><name>self</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>rb_ary_push</name><argument_list>(<argument><expr><call><name>check_array</name><argument_list>(<argument><expr><name>self</name></expr></argument>, <argument><expr><name><name>q</name><operator>-&gt;</operator><name>que</name></name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name>obj</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>wakeup_one</name><argument_list>(<argument><expr><call><name>queue_waitq</name><argument_list>(<argument><expr><name>q</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>self</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>rb_queue_close</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>self</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>rb_queue</name></name> <modifier>*</modifier></type><name>q</name> <init>= <expr><call><name>queue_ptr</name><argument_list>(<argument><expr><name>self</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>queue_closed_p</name><argument_list>(<argument><expr><name>self</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>FL_SET</name><argument_list>(<argument><expr><name>self</name></expr></argument>, <argument><expr><name>QUEUE_CLOSED</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>wakeup_all</name><argument_list>(<argument><expr><call><name>queue_waitq</name><argument_list>(<argument><expr><name>q</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<return>return <expr><name>self</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>rb_queue_closed_p</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>self</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<return>return <expr><ternary><condition><expr><call><name>queue_closed_p</name><argument_list>(<argument><expr><name>self</name></expr></argument>)</argument_list></call></expr> ?</condition><then> <expr><name>Qtrue</name></expr> </then><else>: <expr><name>Qfalse</name></expr></else></ternary></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>rb_queue_push</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>self</name></decl></parameter>, <parameter><decl><type><name>VALUE</name></type> <name>obj</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<return>return <expr><call><name>queue_do_push</name><argument_list>(<argument><expr><name>self</name></expr></argument>, <argument><expr><call><name>queue_ptr</name><argument_list>(<argument><expr><name>self</name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name>obj</name></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>queue_sleep</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>arg</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>rb_thread_sleep_deadly_allow_spurious_wakeup</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>Qnil</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<struct>struct <name>queue_waiter</name> <block>{
+
+<decl_stmt><decl><type><name><name>struct</name> <name>sync_waiter</name></name></type> <name>w</name></decl>;</decl_stmt>
+
+<union>union <block>{
+
+<decl_stmt><decl><type><name><name>struct</name> <name>rb_queue</name></name> <modifier>*</modifier></type><name>q</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>rb_szqueue</name></name> <modifier>*</modifier></type><name>sq</name></decl>;</decl_stmt>
+
+}</block> <decl><name>as</name></decl>;</union>
+
+}</block>;</struct>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>queue_sleep_done</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>p</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>queue_waiter</name></name> <modifier>*</modifier></type><name>qw</name> <init>= <expr><operator>(</operator>struct <name>queue_waiter</name> <operator>*</operator><operator>)</operator><name>p</name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>list_del</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>qw</name><operator>-&gt;</operator><name>w</name><operator>.</operator><name>node</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>qw</name><operator>-&gt;</operator><name>as</name><operator>.</operator><name>q</name><operator>-&gt;</operator><name>num_waiting</name></name><operator>--</operator></expr>;</expr_stmt>
+
+<return>return <expr><name>Qfalse</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>szqueue_sleep_done</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>p</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>queue_waiter</name></name> <modifier>*</modifier></type><name>qw</name> <init>= <expr><operator>(</operator>struct <name>queue_waiter</name> <operator>*</operator><operator>)</operator><name>p</name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>list_del</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>qw</name><operator>-&gt;</operator><name>w</name><operator>.</operator><name>node</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>qw</name><operator>-&gt;</operator><name>as</name><operator>.</operator><name>sq</name><operator>-&gt;</operator><name>num_waiting_push</name></name><operator>--</operator></expr>;</expr_stmt>
+
+<return>return <expr><name>Qfalse</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>queue_do_pop</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>self</name></decl></parameter>, <parameter><decl><type><name><name>struct</name> <name>rb_queue</name></name> <modifier>*</modifier></type><name>q</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>should_block</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>check_array</name><argument_list>(<argument><expr><name>self</name></expr></argument>, <argument><expr><name><name>q</name><operator>-&gt;</operator><name>que</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<while>while <condition>(<expr><call><name>RARRAY_LEN</name><argument_list>(<argument><expr><name><name>q</name><operator>-&gt;</operator><name>que</name></name></expr></argument>)</argument_list></call> <operator>==</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>should_block</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>rb_raise</name><argument_list>(<argument><expr><name>rb_eThreadError</name></expr></argument>, <argument><expr><literal type="string">"queue empty"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if>
+
+<if type="elseif">else if <condition>(<expr><call><name>queue_closed_p</name><argument_list>(<argument><expr><name>self</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<return>return <expr><call><name>queue_closed_result</name><argument_list>(<argument><expr><name>self</name></expr></argument>, <argument><expr><name>q</name></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></if>
+
+<else>else <block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>queue_waiter</name></name></type> <name>qw</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>assert</name><argument_list>(<argument><expr><call><name>RARRAY_LEN</name><argument_list>(<argument><expr><name><name>q</name><operator>-&gt;</operator><name>que</name></name></expr></argument>)</argument_list></call> <operator>==</operator> <literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>assert</name><argument_list>(<argument><expr><call><name>queue_closed_p</name><argument_list>(<argument><expr><name>self</name></expr></argument>)</argument_list></call> <operator>==</operator> <literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>qw</name><operator>.</operator><name>w</name><operator>.</operator><name>th</name></name> <operator>=</operator> <call><name>GET_THREAD</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>qw</name><operator>.</operator><name>as</name><operator>.</operator><name>q</name></name> <operator>=</operator> <name>q</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>list_add_tail</name><argument_list>(<argument><expr><call><name>queue_waitq</name><argument_list>(<argument><expr><name><name>qw</name><operator>.</operator><name>as</name><operator>.</operator><name>q</name></name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>qw</name><operator>.</operator><name>w</name><operator>.</operator><name>node</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>qw</name><operator>.</operator><name>as</name><operator>.</operator><name>q</name><operator>-&gt;</operator><name>num_waiting</name></name><operator>++</operator></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_ensure</name><argument_list>(<argument><expr><name>queue_sleep</name></expr></argument>, <argument><expr><name>self</name></expr></argument>, <argument><expr><name>queue_sleep_done</name></expr></argument>, <argument><expr><operator>(</operator><name>VALUE</name><operator>)</operator><operator>&amp;</operator><name>qw</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+</block_content>}</block></while>
+
+<return>return <expr><call><name>rb_ary_shift</name><argument_list>(<argument><expr><name><name>q</name><operator>-&gt;</operator><name>que</name></name></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type>
+
+<name>queue_pop_should_block</name><parameter_list>(<parameter><decl><type><name>int</name></type> <name>argc</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>VALUE</name> <modifier>*</modifier></type><name>argv</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>int</name></type> <name>should_block</name> <init>= <expr><literal type="number">1</literal></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>rb_check_arity</name><argument_list>(<argument><expr><name>argc</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>argc</name> <operator>&gt;</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>should_block</name> <operator>=</operator> <operator>!</operator><call><name>RTEST</name><argument_list>(<argument><expr><name><name>argv</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<return>return <expr><name>should_block</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>rb_queue_pop</name><parameter_list>(<parameter><decl><type><name>int</name></type> <name>argc</name></decl></parameter>, <parameter><decl><type><name>VALUE</name> <modifier>*</modifier></type><name>argv</name></decl></parameter>, <parameter><decl><type><name>VALUE</name></type> <name>self</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>int</name></type> <name>should_block</name> <init>= <expr><call><name>queue_pop_should_block</name><argument_list>(<argument><expr><name>argc</name></expr></argument>, <argument><expr><name>argv</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<return>return <expr><call><name>queue_do_pop</name><argument_list>(<argument><expr><name>self</name></expr></argument>, <argument><expr><call><name>queue_ptr</name><argument_list>(<argument><expr><name>self</name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name>should_block</name></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>rb_queue_empty_p</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>self</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<return>return <expr><ternary><condition><expr><call><name>queue_length</name><argument_list>(<argument><expr><name>self</name></expr></argument>, <argument><expr><call><name>queue_ptr</name><argument_list>(<argument><expr><name>self</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call> <operator>==</operator> <literal type="number">0</literal></expr> ?</condition><then> <expr><name>Qtrue</name></expr> </then><else>: <expr><name>Qfalse</name></expr></else></ternary></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>rb_queue_clear</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>self</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>rb_queue</name></name> <modifier>*</modifier></type><name>q</name> <init>= <expr><call><name>queue_ptr</name><argument_list>(<argument><expr><name>self</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>rb_ary_clear</name><argument_list>(<argument><expr><call><name>check_array</name><argument_list>(<argument><expr><name>self</name></expr></argument>, <argument><expr><name><name>q</name><operator>-&gt;</operator><name>que</name></name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>self</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>rb_queue_length</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>self</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<return>return <expr><call><name>LONG2NUM</name><argument_list>(<argument><expr><call><name>queue_length</name><argument_list>(<argument><expr><name>self</name></expr></argument>, <argument><expr><call><name>queue_ptr</name><argument_list>(<argument><expr><name>self</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>rb_queue_num_waiting</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>self</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>rb_queue</name></name> <modifier>*</modifier></type><name>q</name> <init>= <expr><call><name>queue_ptr</name><argument_list>(<argument><expr><name>self</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<return>return <expr><call><name>INT2NUM</name><argument_list>(<argument><expr><name><name>q</name><operator>-&gt;</operator><name>num_waiting</name></name></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>rb_szqueue_initialize</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>self</name></decl></parameter>, <parameter><decl><type><name>VALUE</name></type> <name>vmax</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>long</name></type> <name>max</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>rb_szqueue</name></name> <modifier>*</modifier></type><name>sq</name> <init>= <expr><call><name>szqueue_ptr</name><argument_list>(<argument><expr><name>self</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>max</name> <operator>=</operator> <call><name>NUM2LONG</name><argument_list>(<argument><expr><name>vmax</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>max</name> <operator>&lt;=</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>rb_raise</name><argument_list>(<argument><expr><name>rb_eArgError</name></expr></argument>, <argument><expr><literal type="string">"queue size must be positive"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>RB_OBJ_WRITE</name><argument_list>(<argument><expr><name>self</name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>sq</name><operator>-&gt;</operator><name>q</name><operator>.</operator><name>que</name></name></expr></argument>, <argument><expr><call><name>ary_buf_new</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>list_head_init</name><argument_list>(<argument><expr><call><name>szqueue_waitq</name><argument_list>(<argument><expr><name>sq</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>list_head_init</name><argument_list>(<argument><expr><call><name>szqueue_pushq</name><argument_list>(<argument><expr><name>sq</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>sq</name><operator>-&gt;</operator><name>max</name></name> <operator>=</operator> <name>max</name></expr>;</expr_stmt>
+
+<return>return <expr><name>self</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>rb_szqueue_close</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>self</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>queue_closed_p</name><argument_list>(<argument><expr><name>self</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>rb_szqueue</name></name> <modifier>*</modifier></type><name>sq</name> <init>= <expr><call><name>szqueue_ptr</name><argument_list>(<argument><expr><name>self</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>FL_SET</name><argument_list>(<argument><expr><name>self</name></expr></argument>, <argument><expr><name>QUEUE_CLOSED</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>wakeup_all</name><argument_list>(<argument><expr><call><name>szqueue_waitq</name><argument_list>(<argument><expr><name>sq</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>wakeup_all</name><argument_list>(<argument><expr><call><name>szqueue_pushq</name><argument_list>(<argument><expr><name>sq</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<return>return <expr><name>self</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>rb_szqueue_max_get</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>self</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<return>return <expr><call><name>LONG2NUM</name><argument_list>(<argument><expr><call><name>szqueue_ptr</name><argument_list>(<argument><expr><name>self</name></expr></argument>)</argument_list></call><operator>-&gt;</operator><name>max</name></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>rb_szqueue_max_set</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>self</name></decl></parameter>, <parameter><decl><type><name>VALUE</name></type> <name>vmax</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>long</name></type> <name>max</name> <init>= <expr><call><name>NUM2LONG</name><argument_list>(<argument><expr><name>vmax</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>long</name></type> <name>diff</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>rb_szqueue</name></name> <modifier>*</modifier></type><name>sq</name> <init>= <expr><call><name>szqueue_ptr</name><argument_list>(<argument><expr><name>self</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>max</name> <operator>&lt;=</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>rb_raise</name><argument_list>(<argument><expr><name>rb_eArgError</name></expr></argument>, <argument><expr><literal type="string">"queue size must be positive"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>max</name> <operator>&gt;</operator> <name><name>sq</name><operator>-&gt;</operator><name>max</name></name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>diff</name> <operator>=</operator> <name>max</name> <operator>-</operator> <name><name>sq</name><operator>-&gt;</operator><name>max</name></name></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>sq</name><operator>-&gt;</operator><name>max</name></name> <operator>=</operator> <name>max</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>sync_wakeup</name><argument_list>(<argument><expr><call><name>szqueue_pushq</name><argument_list>(<argument><expr><name>sq</name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name>diff</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>vmax</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>int</name></type>
+
+<name>szqueue_push_should_block</name><parameter_list>(<parameter><decl><type><name>int</name></type> <name>argc</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>VALUE</name> <modifier>*</modifier></type><name>argv</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>int</name></type> <name>should_block</name> <init>= <expr><literal type="number">1</literal></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>rb_check_arity</name><argument_list>(<argument><expr><name>argc</name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>, <argument><expr><literal type="number">2</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>argc</name> <operator>&gt;</operator> <literal type="number">1</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>should_block</name> <operator>=</operator> <operator>!</operator><call><name>RTEST</name><argument_list>(<argument><expr><name><name>argv</name><index>[<expr><literal type="number">1</literal></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<return>return <expr><name>should_block</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>rb_szqueue_push</name><parameter_list>(<parameter><decl><type><name>int</name></type> <name>argc</name></decl></parameter>, <parameter><decl><type><name>VALUE</name> <modifier>*</modifier></type><name>argv</name></decl></parameter>, <parameter><decl><type><name>VALUE</name></type> <name>self</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>rb_szqueue</name></name> <modifier>*</modifier></type><name>sq</name> <init>= <expr><call><name>szqueue_ptr</name><argument_list>(<argument><expr><name>self</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>should_block</name> <init>= <expr><call><name>szqueue_push_should_block</name><argument_list>(<argument><expr><name>argc</name></expr></argument>, <argument><expr><name>argv</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<while>while <condition>(<expr><call><name>queue_length</name><argument_list>(<argument><expr><name>self</name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>sq</name><operator>-&gt;</operator><name>q</name></name></expr></argument>)</argument_list></call> <operator>&gt;=</operator> <name><name>sq</name><operator>-&gt;</operator><name>max</name></name></expr>)</condition> <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>should_block</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>rb_raise</name><argument_list>(<argument><expr><name>rb_eThreadError</name></expr></argument>, <argument><expr><literal type="string">"queue full"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if>
+
+<if type="elseif">else if <condition>(<expr><call><name>queue_closed_p</name><argument_list>(<argument><expr><name>self</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<goto>goto <name>closed</name>;</goto>
+
+</block_content>}</block></if>
+
+<else>else <block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>queue_waiter</name></name></type> <name>qw</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>list_head</name></name> <modifier>*</modifier></type><name>pushq</name> <init>= <expr><call><name>szqueue_pushq</name><argument_list>(<argument><expr><name>sq</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>qw</name><operator>.</operator><name>w</name><operator>.</operator><name>th</name></name> <operator>=</operator> <call><name>GET_THREAD</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>qw</name><operator>.</operator><name>as</name><operator>.</operator><name>sq</name></name> <operator>=</operator> <name>sq</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>list_add_tail</name><argument_list>(<argument><expr><name>pushq</name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>qw</name><operator>.</operator><name>w</name><operator>.</operator><name>node</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>sq</name><operator>-&gt;</operator><name>num_waiting_push</name></name><operator>++</operator></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_ensure</name><argument_list>(<argument><expr><name>queue_sleep</name></expr></argument>, <argument><expr><name>self</name></expr></argument>, <argument><expr><name>szqueue_sleep_done</name></expr></argument>, <argument><expr><operator>(</operator><name>VALUE</name><operator>)</operator><operator>&amp;</operator><name>qw</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+</block_content>}</block></while>
+
+<if_stmt><if>if <condition>(<expr><call><name>queue_closed_p</name><argument_list>(<argument><expr><name>self</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<label><name>closed</name>:</label>
+
+<expr_stmt><expr><call><name>raise_closed_queue_error</name><argument_list>(<argument><expr><name>self</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<return>return <expr><call><name>queue_do_push</name><argument_list>(<argument><expr><name>self</name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>sq</name><operator>-&gt;</operator><name>q</name></name></expr></argument>, <argument><expr><name><name>argv</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>szqueue_do_pop</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>self</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>should_block</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>rb_szqueue</name></name> <modifier>*</modifier></type><name>sq</name> <init>= <expr><call><name>szqueue_ptr</name><argument_list>(<argument><expr><name>self</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>VALUE</name></type> <name>retval</name> <init>= <expr><call><name>queue_do_pop</name><argument_list>(<argument><expr><name>self</name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>sq</name><operator>-&gt;</operator><name>q</name></name></expr></argument>, <argument><expr><name>should_block</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>queue_length</name><argument_list>(<argument><expr><name>self</name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>sq</name><operator>-&gt;</operator><name>q</name></name></expr></argument>)</argument_list></call> <operator>&lt;</operator> <name><name>sq</name><operator>-&gt;</operator><name>max</name></name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>wakeup_one</name><argument_list>(<argument><expr><call><name>szqueue_pushq</name><argument_list>(<argument><expr><name>sq</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<return>return <expr><name>retval</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>rb_szqueue_pop</name><parameter_list>(<parameter><decl><type><name>int</name></type> <name>argc</name></decl></parameter>, <parameter><decl><type><name>VALUE</name> <modifier>*</modifier></type><name>argv</name></decl></parameter>, <parameter><decl><type><name>VALUE</name></type> <name>self</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>int</name></type> <name>should_block</name> <init>= <expr><call><name>queue_pop_should_block</name><argument_list>(<argument><expr><name>argc</name></expr></argument>, <argument><expr><name>argv</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<return>return <expr><call><name>szqueue_do_pop</name><argument_list>(<argument><expr><name>self</name></expr></argument>, <argument><expr><name>should_block</name></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>rb_szqueue_clear</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>self</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>rb_szqueue</name></name> <modifier>*</modifier></type><name>sq</name> <init>= <expr><call><name>szqueue_ptr</name><argument_list>(<argument><expr><name>self</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>rb_ary_clear</name><argument_list>(<argument><expr><call><name>check_array</name><argument_list>(<argument><expr><name>self</name></expr></argument>, <argument><expr><name><name>sq</name><operator>-&gt;</operator><name>q</name><operator>.</operator><name>que</name></name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>wakeup_all</name><argument_list>(<argument><expr><call><name>szqueue_pushq</name><argument_list>(<argument><expr><name>sq</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>self</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>rb_szqueue_length</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>self</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>rb_szqueue</name></name> <modifier>*</modifier></type><name>sq</name> <init>= <expr><call><name>szqueue_ptr</name><argument_list>(<argument><expr><name>self</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<return>return <expr><call><name>LONG2NUM</name><argument_list>(<argument><expr><call><name>queue_length</name><argument_list>(<argument><expr><name>self</name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>sq</name><operator>-&gt;</operator><name>q</name></name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>rb_szqueue_num_waiting</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>self</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>rb_szqueue</name></name> <modifier>*</modifier></type><name>sq</name> <init>= <expr><call><name>szqueue_ptr</name><argument_list>(<argument><expr><name>self</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<return>return <expr><call><name>INT2NUM</name><argument_list>(<argument><expr><name><name>sq</name><operator>-&gt;</operator><name>q</name><operator>.</operator><name>num_waiting</name></name> <operator>+</operator> <name><name>sq</name><operator>-&gt;</operator><name>num_waiting_push</name></name></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>rb_szqueue_empty_p</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>self</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>rb_szqueue</name></name> <modifier>*</modifier></type><name>sq</name> <init>= <expr><call><name>szqueue_ptr</name><argument_list>(<argument><expr><name>self</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<return>return <expr><ternary><condition><expr><call><name>queue_length</name><argument_list>(<argument><expr><name>self</name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>sq</name><operator>-&gt;</operator><name>q</name></name></expr></argument>)</argument_list></call> <operator>==</operator> <literal type="number">0</literal></expr> ?</condition><then> <expr><name>Qtrue</name></expr> </then><else>: <expr><name>Qfalse</name></expr></else></ternary></expr>;</return>
+
+</block_content>}</block></function>
+
+<struct>struct <name>rb_condvar</name> <block>{
+
+<decl_stmt><decl><type><name><name>struct</name> <name>list_head</name></name></type> <name>waitq</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>rb_serial_t</name></type> <name>fork_gen</name></decl>;</decl_stmt>
+
+}</block>;</struct>
+
+<function><type><specifier>static</specifier> <name>size_t</name></type>
+
+<name>condvar_memsize</name><parameter_list>(<parameter><decl><type><specifier>const</specifier> <name>void</name> <modifier>*</modifier></type><name>ptr</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<return>return <expr><sizeof>sizeof<argument_list>(<argument><expr>struct <name>rb_condvar</name></expr></argument>)</argument_list></sizeof></expr>;</return>
+
+</block_content>}</block></function>
+
+<decl_stmt><decl><type><specifier>static</specifier> <specifier>const</specifier> <name>rb_data_type_t</name></type> <name>cv_data_type</name> <init>= <expr><block>{
+
+<expr><literal type="string">"condvar"</literal></expr>,
+
+<expr><block>{<expr><literal type="number">0</literal></expr>, <expr><name>RUBY_TYPED_DEFAULT_FREE</name></expr>, <expr><name>condvar_memsize</name></expr>,}</block></expr>,
+
+<expr><literal type="number">0</literal></expr>, <expr><literal type="number">0</literal></expr>, <expr><name>RUBY_TYPED_FREE_IMMEDIATELY</name><operator>|</operator><name>RUBY_TYPED_WB_PROTECTED</name></expr>
+
+}</block></expr></init></decl>;</decl_stmt>
+
+<function><type><specifier>static</specifier> <name><name>struct</name> <name>rb_condvar</name></name> <modifier>*</modifier></type>
+
+<name>condvar_ptr</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>self</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>rb_condvar</name></name> <modifier>*</modifier></type><name>cv</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>rb_serial_t</name></type> <name>fork_gen</name> <init>= <expr><call><name>GET_VM</name><argument_list>()</argument_list></call><operator>-&gt;</operator><name>fork_gen</name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>TypedData_Get_Struct</name><argument_list>(<argument><expr><name>self</name></expr></argument>, <argument><expr>struct <name>rb_condvar</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>cv_data_type</name></expr></argument>, <argument><expr><name>cv</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>cv</name><operator>-&gt;</operator><name>fork_gen</name></name> <operator>!=</operator> <name>fork_gen</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name><name>cv</name><operator>-&gt;</operator><name>fork_gen</name></name> <operator>=</operator> <name>fork_gen</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>list_head_init</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>cv</name><operator>-&gt;</operator><name>waitq</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<return>return <expr><name>cv</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>condvar_alloc</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>klass</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>rb_condvar</name></name> <modifier>*</modifier></type><name>cv</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>VALUE</name></type> <name>obj</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>obj</name> <operator>=</operator> <call><name>TypedData_Make_Struct</name><argument_list>(<argument><expr><name>klass</name></expr></argument>, <argument><expr>struct <name>rb_condvar</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>cv_data_type</name></expr></argument>, <argument><expr><name>cv</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>list_head_init</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>cv</name><operator>-&gt;</operator><name>waitq</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>obj</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>rb_condvar_initialize</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>self</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>rb_condvar</name></name> <modifier>*</modifier></type><name>cv</name> <init>= <expr><call><name>condvar_ptr</name><argument_list>(<argument><expr><name>self</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>list_head_init</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>cv</name><operator>-&gt;</operator><name>waitq</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>self</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<struct>struct <name>sleep_call</name> <block>{
+
+<decl_stmt><decl><type><name>VALUE</name></type> <name>mutex</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>VALUE</name></type> <name>timeout</name></decl>;</decl_stmt>
+
+}</block>;</struct>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>ID</name></type> <name>id_sleep</name></decl>;</decl_stmt>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>do_sleep</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>args</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>sleep_call</name></name> <modifier>*</modifier></type><name>p</name> <init>= <expr><operator>(</operator>struct <name>sleep_call</name> <operator>*</operator><operator>)</operator><name>args</name></expr></init></decl>;</decl_stmt>
+
+<return>return <expr><call><name>rb_funcallv</name><argument_list>(<argument><expr><name><name>p</name><operator>-&gt;</operator><name>mutex</name></name></expr></argument>, <argument><expr><name>id_sleep</name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>p</name><operator>-&gt;</operator><name>timeout</name></name></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>delete_from_waitq</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>v</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>sync_waiter</name></name> <modifier>*</modifier></type><name>w</name> <init>= <expr><operator>(</operator><name>void</name> <operator>*</operator><operator>)</operator><name>v</name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>list_del</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>w</name><operator>-&gt;</operator><name>node</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>Qnil</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>rb_condvar_wait</name><parameter_list>(<parameter><decl><type><name>int</name></type> <name>argc</name></decl></parameter>, <parameter><decl><type><name>VALUE</name> <modifier>*</modifier></type><name>argv</name></decl></parameter>, <parameter><decl><type><name>VALUE</name></type> <name>self</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>rb_condvar</name></name> <modifier>*</modifier></type><name>cv</name> <init>= <expr><call><name>condvar_ptr</name><argument_list>(<argument><expr><name>self</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>sleep_call</name></name></type> <name>args</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>sync_waiter</name></name></type> <name>w</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>rb_scan_args</name><argument_list>(<argument><expr><name>argc</name></expr></argument>, <argument><expr><name>argv</name></expr></argument>, <argument><expr><literal type="string">"11"</literal></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>args</name><operator>.</operator><name>mutex</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>args</name><operator>.</operator><name>timeout</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>w</name><operator>.</operator><name>th</name></name> <operator>=</operator> <call><name>GET_THREAD</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>list_add_tail</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>cv</name><operator>-&gt;</operator><name>waitq</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>w</name><operator>.</operator><name>node</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_ensure</name><argument_list>(<argument><expr><name>do_sleep</name></expr></argument>, <argument><expr><operator>(</operator><name>VALUE</name><operator>)</operator><operator>&amp;</operator><name>args</name></expr></argument>, <argument><expr><name>delete_from_waitq</name></expr></argument>, <argument><expr><operator>(</operator><name>VALUE</name><operator>)</operator><operator>&amp;</operator><name>w</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>self</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>rb_condvar_signal</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>self</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>rb_condvar</name></name> <modifier>*</modifier></type><name>cv</name> <init>= <expr><call><name>condvar_ptr</name><argument_list>(<argument><expr><name>self</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>wakeup_one</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>cv</name><operator>-&gt;</operator><name>waitq</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>self</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>rb_condvar_broadcast</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>self</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>rb_condvar</name></name> <modifier>*</modifier></type><name>cv</name> <init>= <expr><call><name>condvar_ptr</name><argument_list>(<argument><expr><name>self</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>wakeup_all</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>cv</name><operator>-&gt;</operator><name>waitq</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>self</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>undumpable</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>obj</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>rb_raise</name><argument_list>(<argument><expr><name>rb_eTypeError</name></expr></argument>, <argument><expr><literal type="string">"can't dump %"</literal><name>PRIsVALUE</name></expr></argument>, <argument><expr><call><name>rb_obj_class</name><argument_list>(<argument><expr><name>obj</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>UNREACHABLE_RETURN</name><argument_list>(<argument><expr><name>Qnil</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>VALUE</name></type>
+
+<name>define_thread_class</name><parameter_list>(<parameter><decl><type><name>VALUE</name></type> <name>outer</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>name</name></decl></parameter>, <parameter><decl><type><name>VALUE</name></type> <name>super</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>VALUE</name></type> <name>klass</name> <init>= <expr><call><name>rb_define_class_under</name><argument_list>(<argument><expr><name>outer</name></expr></argument>, <argument><expr><name>name</name></expr></argument>, <argument><expr><name>super</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>rb_define_const</name><argument_list>(<argument><expr><name>rb_cObject</name></expr></argument>, <argument><expr><name>name</name></expr></argument>, <argument><expr><name>klass</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>klass</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type>
+
+<name>Init_thread_sync</name><parameter_list>(<parameter><decl><type><name>void</name></type></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<cpp:undef>#<cpp:directive>undef</cpp:directive> <name>rb_intern</name></cpp:undef>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><literal type="number">0</literal></expr></cpp:if>
+
+rb_cMutex = rb_define_class("Mutex", rb_cObject); 
+
+rb_cConditionVariable = rb_define_class("ConditionVariable", rb_cObject); 
+
+rb_cQueue = rb_define_class("Queue", rb_cObject); 
+
+rb_cSizedQueue = rb_define_class("SizedQueue", rb_cObject); 
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>DEFINE_CLASS</name><parameter_list>(<parameter><type><name>name</name></type></parameter>, <parameter><type><name>super</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>rb_c##name = define_thread_class(rb_cThread, #name, rb_c##super)</cpp:value></cpp:define>
+
+<expr_stmt><expr><call><name>DEFINE_CLASS</name><argument_list>(<argument><expr><name>Mutex</name></expr></argument>, <argument><expr><name>Object</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_alloc_func</name><argument_list>(<argument><expr><name>rb_cMutex</name></expr></argument>, <argument><expr><name>mutex_alloc</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_method</name><argument_list>(<argument><expr><name>rb_cMutex</name></expr></argument>, <argument><expr><literal type="string">"initialize"</literal></expr></argument>, <argument><expr><name>mutex_initialize</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_method</name><argument_list>(<argument><expr><name>rb_cMutex</name></expr></argument>, <argument><expr><literal type="string">"locked?"</literal></expr></argument>, <argument><expr><name>rb_mutex_locked_p</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_method</name><argument_list>(<argument><expr><name>rb_cMutex</name></expr></argument>, <argument><expr><literal type="string">"try_lock"</literal></expr></argument>, <argument><expr><name>rb_mutex_trylock</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_method</name><argument_list>(<argument><expr><name>rb_cMutex</name></expr></argument>, <argument><expr><literal type="string">"lock"</literal></expr></argument>, <argument><expr><name>rb_mutex_lock</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_method</name><argument_list>(<argument><expr><name>rb_cMutex</name></expr></argument>, <argument><expr><literal type="string">"unlock"</literal></expr></argument>, <argument><expr><name>rb_mutex_unlock</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_method</name><argument_list>(<argument><expr><name>rb_cMutex</name></expr></argument>, <argument><expr><literal type="string">"sleep"</literal></expr></argument>, <argument><expr><name>mutex_sleep</name></expr></argument>, <argument><expr><operator>-</operator><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_method</name><argument_list>(<argument><expr><name>rb_cMutex</name></expr></argument>, <argument><expr><literal type="string">"synchronize"</literal></expr></argument>, <argument><expr><name>rb_mutex_synchronize_m</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_method</name><argument_list>(<argument><expr><name>rb_cMutex</name></expr></argument>, <argument><expr><literal type="string">"owned?"</literal></expr></argument>, <argument><expr><name>rb_mutex_owned_p</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>DEFINE_CLASS</name><argument_list>(<argument><expr><name>Queue</name></expr></argument>, <argument><expr><name>Object</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_alloc_func</name><argument_list>(<argument><expr><name>rb_cQueue</name></expr></argument>, <argument><expr><name>queue_alloc</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>rb_eClosedQueueError</name> <operator>=</operator> <call><name>rb_define_class</name><argument_list>(<argument><expr><literal type="string">"ClosedQueueError"</literal></expr></argument>, <argument><expr><name>rb_eStopIteration</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_method</name><argument_list>(<argument><expr><name>rb_cQueue</name></expr></argument>, <argument><expr><literal type="string">"initialize"</literal></expr></argument>, <argument><expr><name>rb_queue_initialize</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_undef_method</name><argument_list>(<argument><expr><name>rb_cQueue</name></expr></argument>, <argument><expr><literal type="string">"initialize_copy"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_method</name><argument_list>(<argument><expr><name>rb_cQueue</name></expr></argument>, <argument><expr><literal type="string">"marshal_dump"</literal></expr></argument>, <argument><expr><name>undumpable</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_method</name><argument_list>(<argument><expr><name>rb_cQueue</name></expr></argument>, <argument><expr><literal type="string">"close"</literal></expr></argument>, <argument><expr><name>rb_queue_close</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_method</name><argument_list>(<argument><expr><name>rb_cQueue</name></expr></argument>, <argument><expr><literal type="string">"closed?"</literal></expr></argument>, <argument><expr><name>rb_queue_closed_p</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_method</name><argument_list>(<argument><expr><name>rb_cQueue</name></expr></argument>, <argument><expr><literal type="string">"push"</literal></expr></argument>, <argument><expr><name>rb_queue_push</name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_method</name><argument_list>(<argument><expr><name>rb_cQueue</name></expr></argument>, <argument><expr><literal type="string">"pop"</literal></expr></argument>, <argument><expr><name>rb_queue_pop</name></expr></argument>, <argument><expr><operator>-</operator><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_method</name><argument_list>(<argument><expr><name>rb_cQueue</name></expr></argument>, <argument><expr><literal type="string">"empty?"</literal></expr></argument>, <argument><expr><name>rb_queue_empty_p</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_method</name><argument_list>(<argument><expr><name>rb_cQueue</name></expr></argument>, <argument><expr><literal type="string">"clear"</literal></expr></argument>, <argument><expr><name>rb_queue_clear</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_method</name><argument_list>(<argument><expr><name>rb_cQueue</name></expr></argument>, <argument><expr><literal type="string">"length"</literal></expr></argument>, <argument><expr><name>rb_queue_length</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_method</name><argument_list>(<argument><expr><name>rb_cQueue</name></expr></argument>, <argument><expr><literal type="string">"num_waiting"</literal></expr></argument>, <argument><expr><name>rb_queue_num_waiting</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_alias</name><argument_list>(<argument><expr><name>rb_cQueue</name></expr></argument>, <argument><expr><literal type="string">"enq"</literal></expr></argument>, <argument><expr><literal type="string">"push"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_alias</name><argument_list>(<argument><expr><name>rb_cQueue</name></expr></argument>, <argument><expr><literal type="string">"&lt;&lt;"</literal></expr></argument>, <argument><expr><literal type="string">"push"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_alias</name><argument_list>(<argument><expr><name>rb_cQueue</name></expr></argument>, <argument><expr><literal type="string">"deq"</literal></expr></argument>, <argument><expr><literal type="string">"pop"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_alias</name><argument_list>(<argument><expr><name>rb_cQueue</name></expr></argument>, <argument><expr><literal type="string">"shift"</literal></expr></argument>, <argument><expr><literal type="string">"pop"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_alias</name><argument_list>(<argument><expr><name>rb_cQueue</name></expr></argument>, <argument><expr><literal type="string">"size"</literal></expr></argument>, <argument><expr><literal type="string">"length"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>DEFINE_CLASS</name><argument_list>(<argument><expr><name>SizedQueue</name></expr></argument>, <argument><expr><name>Queue</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_alloc_func</name><argument_list>(<argument><expr><name>rb_cSizedQueue</name></expr></argument>, <argument><expr><name>szqueue_alloc</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_method</name><argument_list>(<argument><expr><name>rb_cSizedQueue</name></expr></argument>, <argument><expr><literal type="string">"initialize"</literal></expr></argument>, <argument><expr><name>rb_szqueue_initialize</name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_method</name><argument_list>(<argument><expr><name>rb_cSizedQueue</name></expr></argument>, <argument><expr><literal type="string">"close"</literal></expr></argument>, <argument><expr><name>rb_szqueue_close</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_method</name><argument_list>(<argument><expr><name>rb_cSizedQueue</name></expr></argument>, <argument><expr><literal type="string">"max"</literal></expr></argument>, <argument><expr><name>rb_szqueue_max_get</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_method</name><argument_list>(<argument><expr><name>rb_cSizedQueue</name></expr></argument>, <argument><expr><literal type="string">"max="</literal></expr></argument>, <argument><expr><name>rb_szqueue_max_set</name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_method</name><argument_list>(<argument><expr><name>rb_cSizedQueue</name></expr></argument>, <argument><expr><literal type="string">"push"</literal></expr></argument>, <argument><expr><name>rb_szqueue_push</name></expr></argument>, <argument><expr><operator>-</operator><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_method</name><argument_list>(<argument><expr><name>rb_cSizedQueue</name></expr></argument>, <argument><expr><literal type="string">"pop"</literal></expr></argument>, <argument><expr><name>rb_szqueue_pop</name></expr></argument>, <argument><expr><operator>-</operator><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_method</name><argument_list>(<argument><expr><name>rb_cSizedQueue</name></expr></argument>, <argument><expr><literal type="string">"empty?"</literal></expr></argument>, <argument><expr><name>rb_szqueue_empty_p</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_method</name><argument_list>(<argument><expr><name>rb_cSizedQueue</name></expr></argument>, <argument><expr><literal type="string">"clear"</literal></expr></argument>, <argument><expr><name>rb_szqueue_clear</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_method</name><argument_list>(<argument><expr><name>rb_cSizedQueue</name></expr></argument>, <argument><expr><literal type="string">"length"</literal></expr></argument>, <argument><expr><name>rb_szqueue_length</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_method</name><argument_list>(<argument><expr><name>rb_cSizedQueue</name></expr></argument>, <argument><expr><literal type="string">"num_waiting"</literal></expr></argument>, <argument><expr><name>rb_szqueue_num_waiting</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_alias</name><argument_list>(<argument><expr><name>rb_cSizedQueue</name></expr></argument>, <argument><expr><literal type="string">"enq"</literal></expr></argument>, <argument><expr><literal type="string">"push"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_alias</name><argument_list>(<argument><expr><name>rb_cSizedQueue</name></expr></argument>, <argument><expr><literal type="string">"&lt;&lt;"</literal></expr></argument>, <argument><expr><literal type="string">"push"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_alias</name><argument_list>(<argument><expr><name>rb_cSizedQueue</name></expr></argument>, <argument><expr><literal type="string">"deq"</literal></expr></argument>, <argument><expr><literal type="string">"pop"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_alias</name><argument_list>(<argument><expr><name>rb_cSizedQueue</name></expr></argument>, <argument><expr><literal type="string">"shift"</literal></expr></argument>, <argument><expr><literal type="string">"pop"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_alias</name><argument_list>(<argument><expr><name>rb_cSizedQueue</name></expr></argument>, <argument><expr><literal type="string">"size"</literal></expr></argument>, <argument><expr><literal type="string">"length"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>DEFINE_CLASS</name><argument_list>(<argument><expr><name>ConditionVariable</name></expr></argument>, <argument><expr><name>Object</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_alloc_func</name><argument_list>(<argument><expr><name>rb_cConditionVariable</name></expr></argument>, <argument><expr><name>condvar_alloc</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>id_sleep</name> <operator>=</operator> <call><name>rb_intern</name><argument_list>(<argument><expr><literal type="string">"sleep"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_method</name><argument_list>(<argument><expr><name>rb_cConditionVariable</name></expr></argument>, <argument><expr><literal type="string">"initialize"</literal></expr></argument>, <argument><expr><name>rb_condvar_initialize</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_undef_method</name><argument_list>(<argument><expr><name>rb_cConditionVariable</name></expr></argument>, <argument><expr><literal type="string">"initialize_copy"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_method</name><argument_list>(<argument><expr><name>rb_cConditionVariable</name></expr></argument>, <argument><expr><literal type="string">"marshal_dump"</literal></expr></argument>, <argument><expr><name>undumpable</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_method</name><argument_list>(<argument><expr><name>rb_cConditionVariable</name></expr></argument>, <argument><expr><literal type="string">"wait"</literal></expr></argument>, <argument><expr><name>rb_condvar_wait</name></expr></argument>, <argument><expr><operator>-</operator><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_method</name><argument_list>(<argument><expr><name>rb_cConditionVariable</name></expr></argument>, <argument><expr><literal type="string">"signal"</literal></expr></argument>, <argument><expr><name>rb_condvar_signal</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_define_method</name><argument_list>(<argument><expr><name>rb_cConditionVariable</name></expr></argument>, <argument><expr><literal type="string">"broadcast"</literal></expr></argument>, <argument><expr><name>rb_condvar_broadcast</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>rb_provide</name><argument_list>(<argument><expr><literal type="string">"thread.rb"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+</unit>

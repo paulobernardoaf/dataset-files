@@ -1,0 +1,277 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#if !defined(AVCODEC_AC3DEC_H)
+#define AVCODEC_AC3DEC_H
+
+#include "libavutil/float_dsp.h"
+#include "libavutil/fixed_dsp.h"
+#include "libavutil/lfg.h"
+#include "ac3.h"
+#include "ac3dsp.h"
+#include "bswapdsp.h"
+#include "get_bits.h"
+#include "fft.h"
+#include "fmtconvert.h"
+
+#define AC3_OUTPUT_LFEON 8
+
+#define SPX_MAX_BANDS 17
+
+
+#define AC3_FRAME_BUFFER_SIZE 32768
+
+typedef struct AC3DecodeContext {
+AVClass *class; 
+AVCodecContext *avctx; 
+GetBitContext gbc; 
+
+
+
+int frame_type; 
+int substreamid; 
+int superframe_size; 
+int frame_size; 
+int bit_rate; 
+int sample_rate; 
+int num_blocks; 
+int bitstream_id; 
+int bitstream_mode; 
+int channel_mode; 
+int lfe_on; 
+int dialog_normalization[2]; 
+int compression_exists[2]; 
+int compression_gain[2]; 
+int channel_map; 
+int preferred_downmix; 
+int center_mix_level; 
+int center_mix_level_ltrt; 
+int surround_mix_level; 
+int surround_mix_level_ltrt; 
+int lfe_mix_level_exists; 
+int lfe_mix_level; 
+int eac3; 
+int eac3_frame_dependent_found; 
+int eac3_subsbtreamid_found; 
+int dolby_surround_mode; 
+int dolby_surround_ex_mode; 
+int dolby_headphone_mode; 
+
+
+int preferred_stereo_downmix;
+float ltrt_center_mix_level;
+float ltrt_surround_mix_level;
+float loro_center_mix_level;
+float loro_surround_mix_level;
+int target_level; 
+float level_gain[2];
+
+
+int snr_offset_strategy; 
+int block_switch_syntax; 
+int dither_flag_syntax; 
+int bit_allocation_syntax; 
+int fast_gain_syntax; 
+int dba_syntax; 
+int skip_syntax; 
+
+
+
+int cpl_in_use[AC3_MAX_BLOCKS]; 
+int cpl_strategy_exists[AC3_MAX_BLOCKS];
+int channel_in_cpl[AC3_MAX_CHANNELS]; 
+int phase_flags_in_use; 
+int phase_flags[AC3_MAX_CPL_BANDS]; 
+int num_cpl_bands; 
+uint8_t cpl_band_struct[AC3_MAX_CPL_BANDS];
+uint8_t cpl_band_sizes[AC3_MAX_CPL_BANDS]; 
+int firstchincpl; 
+int first_cpl_coords[AC3_MAX_CHANNELS]; 
+int cpl_coords[AC3_MAX_CHANNELS][AC3_MAX_CPL_BANDS]; 
+
+
+
+
+int spx_in_use; 
+uint8_t channel_uses_spx[AC3_MAX_CHANNELS]; 
+int8_t spx_atten_code[AC3_MAX_CHANNELS]; 
+int spx_src_start_freq; 
+int spx_dst_end_freq; 
+int spx_dst_start_freq; 
+
+int num_spx_bands; 
+uint8_t spx_band_struct[SPX_MAX_BANDS];
+uint8_t spx_band_sizes[SPX_MAX_BANDS]; 
+uint8_t first_spx_coords[AC3_MAX_CHANNELS]; 
+INTFLOAT spx_noise_blend[AC3_MAX_CHANNELS][SPX_MAX_BANDS]; 
+INTFLOAT spx_signal_blend[AC3_MAX_CHANNELS][SPX_MAX_BANDS];
+
+
+
+int channel_uses_aht[AC3_MAX_CHANNELS]; 
+int pre_mantissa[AC3_MAX_CHANNELS][AC3_MAX_COEFS][AC3_MAX_BLOCKS]; 
+
+
+
+int fbw_channels; 
+int channels; 
+int lfe_ch; 
+SHORTFLOAT *downmix_coeffs[2]; 
+int downmixed; 
+int output_mode; 
+int prev_output_mode; 
+int out_channels; 
+int prev_bit_rate; 
+
+
+
+INTFLOAT dynamic_range[2]; 
+INTFLOAT drc_scale; 
+int heavy_compression; 
+INTFLOAT heavy_dynamic_range[2]; 
+
+
+
+int start_freq[AC3_MAX_CHANNELS]; 
+int end_freq[AC3_MAX_CHANNELS]; 
+
+
+
+int consistent_noise_generation; 
+
+
+
+int num_rematrixing_bands; 
+int rematrixing_flags[4]; 
+
+
+
+int num_exp_groups[AC3_MAX_CHANNELS]; 
+int8_t dexps[AC3_MAX_CHANNELS][AC3_MAX_COEFS]; 
+int exp_strategy[AC3_MAX_BLOCKS][AC3_MAX_CHANNELS]; 
+
+
+
+AC3BitAllocParameters bit_alloc_params; 
+int first_cpl_leak; 
+int snr_offset[AC3_MAX_CHANNELS]; 
+int fast_gain[AC3_MAX_CHANNELS]; 
+uint8_t bap[AC3_MAX_CHANNELS][AC3_MAX_COEFS]; 
+int16_t psd[AC3_MAX_CHANNELS][AC3_MAX_COEFS]; 
+int16_t band_psd[AC3_MAX_CHANNELS][AC3_CRITICAL_BANDS]; 
+int16_t mask[AC3_MAX_CHANNELS][AC3_CRITICAL_BANDS]; 
+int dba_mode[AC3_MAX_CHANNELS]; 
+int dba_nsegs[AC3_MAX_CHANNELS]; 
+uint8_t dba_offsets[AC3_MAX_CHANNELS][8]; 
+uint8_t dba_lengths[AC3_MAX_CHANNELS][8]; 
+uint8_t dba_values[AC3_MAX_CHANNELS][8]; 
+
+
+
+int dither_flag[AC3_MAX_CHANNELS]; 
+AVLFG dith_state; 
+
+
+
+int block_switch[AC3_MAX_CHANNELS]; 
+FFTContext imdct_512; 
+FFTContext imdct_256; 
+
+
+
+BswapDSPContext bdsp;
+#if USE_FIXED
+AVFixedDSPContext *fdsp;
+#else
+AVFloatDSPContext *fdsp;
+#endif
+AC3DSPContext ac3dsp;
+FmtConvertContext fmt_conv; 
+
+
+SHORTFLOAT *outptr[AC3_MAX_CHANNELS];
+INTFLOAT *xcfptr[AC3_MAX_CHANNELS];
+INTFLOAT *dlyptr[AC3_MAX_CHANNELS];
+
+
+DECLARE_ALIGNED(16, int, fixed_coeffs)[AC3_MAX_CHANNELS][AC3_MAX_COEFS]; 
+DECLARE_ALIGNED(32, INTFLOAT, transform_coeffs)[AC3_MAX_CHANNELS][AC3_MAX_COEFS]; 
+DECLARE_ALIGNED(32, INTFLOAT, delay)[EAC3_MAX_CHANNELS][AC3_BLOCK_SIZE]; 
+DECLARE_ALIGNED(32, INTFLOAT, window)[AC3_BLOCK_SIZE]; 
+DECLARE_ALIGNED(32, INTFLOAT, tmp_output)[AC3_BLOCK_SIZE]; 
+DECLARE_ALIGNED(32, SHORTFLOAT, output)[EAC3_MAX_CHANNELS][AC3_BLOCK_SIZE]; 
+DECLARE_ALIGNED(32, uint8_t, input_buffer)[AC3_FRAME_BUFFER_SIZE + AV_INPUT_BUFFER_PADDING_SIZE]; 
+DECLARE_ALIGNED(32, SHORTFLOAT, output_buffer)[EAC3_MAX_CHANNELS][AC3_BLOCK_SIZE * 6]; 
+
+} AC3DecodeContext;
+
+
+
+
+
+static int ff_eac3_parse_header(AC3DecodeContext *s);
+
+
+
+
+
+static void ff_eac3_decode_transform_coeffs_aht_ch(AC3DecodeContext *s, int ch);
+
+
+
+
+
+
+static void ff_eac3_apply_spectral_extension(AC3DecodeContext *s);
+
+#if (!USE_FIXED)
+extern float ff_ac3_heavy_dynamic_range_tab[256];
+#endif
+
+#endif 

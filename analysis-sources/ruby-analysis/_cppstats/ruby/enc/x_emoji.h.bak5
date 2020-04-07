@@ -1,0 +1,26 @@
+#include "regint.h"
+
+
+
+
+
+
+ENC_REPLICATE("UTF8-DoCoMo", "UTF-8")
+ENC_REPLICATE("SJIS-DoCoMo", "Windows-31J")
+
+
+
+
+
+ENC_REPLICATE("UTF8-KDDI", "UTF-8")
+ENC_REPLICATE("SJIS-KDDI", "Windows-31J")
+ENC_REPLICATE("ISO-2022-JP-KDDI", "ISO-2022-JP")
+ENC_REPLICATE("stateless-ISO-2022-JP-KDDI", "stateless-ISO-2022-JP")
+
+
+
+
+
+
+ENC_REPLICATE("UTF8-SoftBank", "UTF-8")
+ENC_REPLICATE("SJIS-SoftBank", "Windows-31J")

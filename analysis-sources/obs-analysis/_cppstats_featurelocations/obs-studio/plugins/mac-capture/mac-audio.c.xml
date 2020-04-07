@@ -1,0 +1,837 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" revision="1.0.0" language="C" filename="D:\Pesquisa\Projects\obs-analysis\_cppstats_featurelocations\obs-studio\plugins\mac-capture\mac-audio.c"><cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;AudioUnit/AudioUnit.h&gt;</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;CoreFoundation/CFString.h&gt;</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;CoreAudio/CoreAudio.h&gt;</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;unistd.h&gt;</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;errno.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;obs-module.h&gt;</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;util/threading.h&gt;</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;util/c99defs.h&gt;</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;util/apple/cfstring-utils.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"audio-device-enum.h"</cpp:file></cpp:include>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>PROPERTY_DEFAULT_DEVICE</name></cpp:macro> <cpp:value>kAudioHardwarePropertyDefaultInputDevice</cpp:value></cpp:define>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>PROPERTY_FORMATS</name></cpp:macro> <cpp:value>kAudioStreamPropertyAvailablePhysicalFormats</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>SCOPE_OUTPUT</name></cpp:macro> <cpp:value>kAudioUnitScope_Output</cpp:value></cpp:define>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>SCOPE_INPUT</name></cpp:macro> <cpp:value>kAudioUnitScope_Input</cpp:value></cpp:define>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>SCOPE_GLOBAL</name></cpp:macro> <cpp:value>kAudioUnitScope_Global</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>BUS_OUTPUT</name></cpp:macro> <cpp:value>0</cpp:value></cpp:define>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>BUS_INPUT</name></cpp:macro> <cpp:value>1</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>MAX_DEVICES</name></cpp:macro> <cpp:value>20</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>set_property</name></cpp:macro> <cpp:value>AudioUnitSetProperty</cpp:value></cpp:define>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>get_property</name></cpp:macro> <cpp:value>AudioUnitGetProperty</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>TEXT_AUDIO_INPUT</name></cpp:macro> <cpp:value>obs_module_text("CoreAudio.InputCapture");</cpp:value></cpp:define>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>TEXT_AUDIO_OUTPUT</name></cpp:macro> <cpp:value>obs_module_text("CoreAudio.OutputCapture");</cpp:value></cpp:define>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>TEXT_DEVICE</name></cpp:macro> <cpp:value>obs_module_text("CoreAudio.Device")</cpp:value></cpp:define>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>TEXT_DEVICE_DEFAULT</name></cpp:macro> <cpp:value>obs_module_text("CoreAudio.Device.Default")</cpp:value></cpp:define>
+
+<struct>struct <name>coreaudio_data</name> <block>{
+<decl_stmt><decl><type><name>char</name> <modifier>*</modifier></type><name>device_name</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>char</name> <modifier>*</modifier></type><name>device_uid</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>AudioUnit</name></type> <name>unit</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>AudioDeviceID</name></type> <name>device_id</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>AudioBufferList</name> <modifier>*</modifier></type><name>buf_list</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>bool</name></type> <name>au_initialized</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>bool</name></type> <name>active</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>bool</name></type> <name>default_device</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>bool</name></type> <name>input</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>bool</name></type> <name>no_devices</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>uint32_t</name></type> <name>sample_rate</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name><name>enum</name> <name>audio_format</name></name></type> <name>format</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name><name>enum</name> <name>speaker_layout</name></name></type> <name>speakers</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>pthread_t</name></type> <name>reconnect_thread</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>os_event_t</name> <modifier>*</modifier></type><name>exit_event</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><specifier>volatile</specifier> <name>bool</name></type> <name>reconnecting</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>unsigned</name> <name>long</name></type> <name>retry_time</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>obs_source_t</name> <modifier>*</modifier></type><name>source</name></decl>;</decl_stmt>
+}</block>;</struct>
+
+<function><type><specifier>static</specifier> <name>bool</name></type> <name>get_default_output_device</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>coreaudio_data</name></name> <modifier>*</modifier></type><name>ca</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>device_list</name></name></type> <name>list</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>memset</name><argument_list>(<argument><expr><operator>&amp;</operator><name>list</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr>struct <name>device_list</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>coreaudio_enum_devices</name><argument_list>(<argument><expr><operator>&amp;</operator><name>list</name></expr></argument>, <argument><expr><name>false</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>list</name><operator>.</operator><name>items</name><operator>.</operator><name>num</name></name></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><name>false</name></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>bfree</name><argument_list>(<argument><expr><name><name>ca</name><operator>-&gt;</operator><name>device_uid</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>ca</name><operator>-&gt;</operator><name>device_uid</name></name> <operator>=</operator> <call><name>bstrdup</name><argument_list>(<argument><expr><name><name>list</name><operator>.</operator><name>items</name><operator>.</operator><name>array</name><index>[<expr><literal type="number">0</literal></expr>]</index></name><operator>.</operator><name><name>value</name><operator>.</operator><name>array</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>device_list_free</name><argument_list>(<argument><expr><operator>&amp;</operator><name>list</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>true</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>bool</name></type> <name>find_device_id_by_uid</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>coreaudio_data</name></name> <modifier>*</modifier></type><name>ca</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>UInt32</name></type> <name>size</name> <init>= <expr><sizeof>sizeof<argument_list>(<argument><expr><name>AudioDeviceID</name></expr></argument>)</argument_list></sizeof></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>CFStringRef</name></type> <name>cf_uid</name> <init>= <expr><name>NULL</name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>CFStringRef</name></type> <name>qual</name> <init>= <expr><name>NULL</name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>UInt32</name></type> <name>qual_size</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>OSStatus</name></type> <name>stat</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>bool</name></type> <name>success</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>AudioObjectPropertyAddress</name></type> <name>addr</name> <init>= <expr><block>{
+<expr><operator>.</operator><name>mScope</name> <operator>=</operator> <name>kAudioObjectPropertyScopeGlobal</name></expr>,
+<expr><operator>.</operator><name>mElement</name> <operator>=</operator> <name>kAudioObjectPropertyElementMaster</name></expr>}</block></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>ca</name><operator>-&gt;</operator><name>device_uid</name></name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name><name>ca</name><operator>-&gt;</operator><name>device_uid</name></name> <operator>=</operator> <call><name>bstrdup</name><argument_list>(<argument><expr><literal type="string">"default"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name><name>ca</name><operator>-&gt;</operator><name>default_device</name></name> <operator>=</operator> <name>false</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>ca</name><operator>-&gt;</operator><name>no_devices</name></name> <operator>=</operator> <name>false</name></expr>;</expr_stmt>
+
+
+<if_stmt><if>if <condition>(<expr><call><name>astrcmpi</name><argument_list>(<argument><expr><name><name>ca</name><operator>-&gt;</operator><name>device_uid</name></name></expr></argument>, <argument><expr><literal type="string">"default"</literal></expr></argument>)</argument_list></call> <operator>==</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name><name>ca</name><operator>-&gt;</operator><name>input</name></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name><name>ca</name><operator>-&gt;</operator><name>default_device</name></name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>get_default_output_device</name><argument_list>(<argument><expr><name>ca</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name><name>ca</name><operator>-&gt;</operator><name>no_devices</name></name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+<return>return <expr><name>false</name></expr>;</return>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block></else></if_stmt>
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name>cf_uid</name> <operator>=</operator> <call><name>CFStringCreateWithCString</name><argument_list>(<argument><expr><name>NULL</name></expr></argument>, <argument><expr><name><name>ca</name><operator>-&gt;</operator><name>device_uid</name></name></expr></argument>,
+<argument><expr><name>kCFStringEncodingUTF8</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>ca</name><operator>-&gt;</operator><name>default_device</name></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name><name>addr</name><operator>.</operator><name>mSelector</name></name> <operator>=</operator> <name>PROPERTY_DEFAULT_DEVICE</name></expr>;</expr_stmt>
+<expr_stmt><expr><name>stat</name> <operator>=</operator> <call><name>AudioObjectGetPropertyData</name><argument_list>(<argument><expr><name>kAudioObjectSystemObject</name></expr></argument>,
+<argument><expr><operator>&amp;</operator><name>addr</name></expr></argument>, <argument><expr><name>qual_size</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>qual</name></expr></argument>,
+<argument><expr><operator>&amp;</operator><name>size</name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>ca</name><operator>-&gt;</operator><name>device_id</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name>success</name> <operator>=</operator> <operator>(</operator><name>stat</name> <operator>==</operator> <name>noErr</name><operator>)</operator></expr>;</expr_stmt>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<expr_stmt><expr><name>success</name> <operator>=</operator> <call><name>coreaudio_get_device_id</name><argument_list>(<argument><expr><name>cf_uid</name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>ca</name><operator>-&gt;</operator><name>device_id</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></else></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>cf_uid</name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>CFRelease</name><argument_list>(<argument><expr><name>cf_uid</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<return>return <expr><name>success</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <specifier>inline</specifier> <name>void</name></type> <name>ca_warn</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>coreaudio_data</name></name> <modifier>*</modifier></type><name>ca</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>func</name></decl></parameter>,
+<parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>format</name></decl></parameter>, <parameter><decl><type><modifier>...</modifier></type></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>va_list</name></type> <name>args</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name><name>struct</name> <name>dstr</name></name></type> <name>str</name> <init>= <expr><block>{<expr><literal type="number">0</literal></expr>}</block></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>va_start</name><argument_list>(<argument><expr><name>args</name></expr></argument>, <argument><expr><name>format</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>dstr_printf</name><argument_list>(<argument><expr><operator>&amp;</operator><name>str</name></expr></argument>, <argument><expr><literal type="string">"[%s]:[device '%s'] "</literal></expr></argument>, <argument><expr><name>func</name></expr></argument>, <argument><expr><name><name>ca</name><operator>-&gt;</operator><name>device_name</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>dstr_vcatf</name><argument_list>(<argument><expr><operator>&amp;</operator><name>str</name></expr></argument>, <argument><expr><name>format</name></expr></argument>, <argument><expr><name>args</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>blog</name><argument_list>(<argument><expr><name>LOG_WARNING</name></expr></argument>, <argument><expr><literal type="string">"%s"</literal></expr></argument>, <argument><expr><name><name>str</name><operator>.</operator><name>array</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>dstr_free</name><argument_list>(<argument><expr><operator>&amp;</operator><name>str</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>va_end</name><argument_list>(<argument><expr><name>args</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <specifier>inline</specifier> <name>bool</name></type> <name>ca_success</name><parameter_list>(<parameter><decl><type><name>OSStatus</name></type> <name>stat</name></decl></parameter>, <parameter><decl><type><name><name>struct</name> <name>coreaudio_data</name></name> <modifier>*</modifier></type><name>ca</name></decl></parameter>,
+<parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>func</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>action</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name>stat</name> <operator>!=</operator> <name>noErr</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>blog</name><argument_list>(<argument><expr><name>LOG_WARNING</name></expr></argument>, <argument><expr><literal type="string">"[%s]:[device '%s'] %s failed: %d"</literal></expr></argument>, <argument><expr><name>func</name></expr></argument>,
+<argument><expr><name><name>ca</name><operator>-&gt;</operator><name>device_name</name></name></expr></argument>, <argument><expr><name>action</name></expr></argument>, <argument><expr><operator>(</operator><name>int</name><operator>)</operator><name>stat</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>false</name></expr>;</return>
+</block_content>}</block></if></if_stmt>
+
+<return>return <expr><name>true</name></expr>;</return>
+</block_content>}</block></function>
+
+<enum>enum <name>coreaudio_io_type</name> <block>{
+<decl><name>IO_TYPE_INPUT</name></decl>,
+<decl><name>IO_TYPE_OUTPUT</name></decl>,
+}</block>;</enum>
+
+<function><type><specifier>static</specifier> <specifier>inline</specifier> <name>bool</name></type> <name>enable_io</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>coreaudio_data</name></name> <modifier>*</modifier></type><name>ca</name></decl></parameter>,
+<parameter><decl><type><name><name>enum</name> <name>coreaudio_io_type</name></name></type> <name>type</name></decl></parameter>, <parameter><decl><type><name>bool</name></type> <name>enable</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>UInt32</name></type> <name>enable_int</name> <init>= <expr><name>enable</name></expr></init></decl>;</decl_stmt>
+<return>return <expr><call><name>set_property</name><argument_list>(<argument><expr><name><name>ca</name><operator>-&gt;</operator><name>unit</name></name></expr></argument>, <argument><expr><name>kAudioOutputUnitProperty_EnableIO</name></expr></argument>,
+<argument><expr><ternary><condition><expr><operator>(</operator><name>type</name> <operator>==</operator> <name>IO_TYPE_INPUT</name><operator>)</operator></expr> ?</condition><then> <expr><name>SCOPE_INPUT</name></expr>
+</then><else>: <expr><name>SCOPE_OUTPUT</name></expr></else></ternary></expr></argument>,
+<argument><expr><ternary><condition><expr><operator>(</operator><name>type</name> <operator>==</operator> <name>IO_TYPE_INPUT</name><operator>)</operator></expr> ?</condition><then> <expr><name>BUS_INPUT</name></expr> </then><else>: <expr><name>BUS_OUTPUT</name></expr></else></ternary></expr></argument>,
+<argument><expr><operator>&amp;</operator><name>enable_int</name></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr><name>enable_int</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <specifier>inline</specifier> <name><name>enum</name> <name>audio_format</name></name></type> <name>convert_ca_format</name><parameter_list>(<parameter><decl><type><name>UInt32</name></type> <name>format_flags</name></decl></parameter>,
+<parameter><decl><type><name>UInt32</name></type> <name>bits</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>bool</name></type> <name>planar</name> <init>= <expr><operator>(</operator><name>format_flags</name> <operator>&amp;</operator> <name>kAudioFormatFlagIsNonInterleaved</name><operator>)</operator> <operator>!=</operator> <literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>format_flags</name> <operator>&amp;</operator> <name>kAudioFormatFlagIsFloat</name></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><ternary><condition><expr><name>planar</name></expr> ?</condition><then> <expr><name>AUDIO_FORMAT_FLOAT_PLANAR</name></expr> </then><else>: <expr><name>AUDIO_FORMAT_FLOAT</name></expr></else></ternary></expr>;</return></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><operator>(</operator><name>format_flags</name> <operator>&amp;</operator> <name>kAudioFormatFlagIsSignedInteger</name><operator>)</operator> <operator>&amp;&amp;</operator> <name>bits</name> <operator>==</operator> <literal type="number">8</literal></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><ternary><condition><expr><name>planar</name></expr> ?</condition><then> <expr><name>AUDIO_FORMAT_U8BIT_PLANAR</name></expr> </then><else>: <expr><name>AUDIO_FORMAT_U8BIT</name></expr></else></ternary></expr>;</return></block_content></block></if></if_stmt>
+
+
+<if_stmt><if>if <condition>(<expr><operator>(</operator><name>format_flags</name> <operator>&amp;</operator> <name>kAudioFormatFlagIsSignedInteger</name><operator>)</operator> <operator>==</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><name>AUDIO_FORMAT_UNKNOWN</name></expr>;</return></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>bits</name> <operator>==</operator> <literal type="number">16</literal></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><ternary><condition><expr><name>planar</name></expr> ?</condition><then> <expr><name>AUDIO_FORMAT_16BIT_PLANAR</name></expr> </then><else>: <expr><name>AUDIO_FORMAT_16BIT</name></expr></else></ternary></expr>;</return></block_content></block></if>
+<if type="elseif">else if <condition>(<expr><name>bits</name> <operator>==</operator> <literal type="number">32</literal></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><ternary><condition><expr><name>planar</name></expr> ?</condition><then> <expr><name>AUDIO_FORMAT_32BIT_PLANAR</name></expr> </then><else>: <expr><name>AUDIO_FORMAT_32BIT</name></expr></else></ternary></expr>;</return></block_content></block></if></if_stmt>
+
+<return>return <expr><name>AUDIO_FORMAT_UNKNOWN</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <specifier>inline</specifier> <name><name>enum</name> <name>speaker_layout</name></name></type> <name>convert_ca_speaker_layout</name><parameter_list>(<parameter><decl><type><name>UInt32</name></type> <name>channels</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<switch>switch <condition>(<expr><name>channels</name></expr>)</condition> <block>{<block_content>
+<case>case <expr><literal type="number">1</literal></expr>:</case>
+<return>return <expr><name>SPEAKERS_MONO</name></expr>;</return>
+<case>case <expr><literal type="number">2</literal></expr>:</case>
+<return>return <expr><name>SPEAKERS_STEREO</name></expr>;</return>
+<case>case <expr><literal type="number">3</literal></expr>:</case>
+<return>return <expr><name>SPEAKERS_2POINT1</name></expr>;</return>
+<case>case <expr><literal type="number">4</literal></expr>:</case>
+<return>return <expr><name>SPEAKERS_4POINT0</name></expr>;</return>
+<case>case <expr><literal type="number">5</literal></expr>:</case>
+<return>return <expr><name>SPEAKERS_4POINT1</name></expr>;</return>
+<case>case <expr><literal type="number">6</literal></expr>:</case>
+<return>return <expr><name>SPEAKERS_5POINT1</name></expr>;</return>
+<case>case <expr><literal type="number">8</literal></expr>:</case>
+<return>return <expr><name>SPEAKERS_7POINT1</name></expr>;</return>
+</block_content>}</block></switch>
+
+<return>return <expr><name>SPEAKERS_UNKNOWN</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>bool</name></type> <name>coreaudio_init_format</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>coreaudio_data</name></name> <modifier>*</modifier></type><name>ca</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>AudioStreamBasicDescription</name></type> <name>desc</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>OSStatus</name></type> <name>stat</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>UInt32</name></type> <name>size</name> <init>= <expr><sizeof>sizeof<argument_list>(<argument><expr><name>desc</name></expr></argument>)</argument_list></sizeof></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name><name>struct</name> <name>obs_audio_info</name></name></type> <name>aoi</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>channels</name></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>obs_get_audio_info</name><argument_list>(<argument><expr><operator>&amp;</operator><name>aoi</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>blog</name><argument_list>(<argument><expr><name>LOG_WARNING</name></expr></argument>, <argument><expr><literal type="string">"No active audio"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>false</name></expr>;</return>
+</block_content>}</block></if></if_stmt>
+<expr_stmt><expr><name>channels</name> <operator>=</operator> <call><name>get_audio_channels</name><argument_list>(<argument><expr><name><name>aoi</name><operator>.</operator><name>speakers</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>stat</name> <operator>=</operator> <call><name>get_property</name><argument_list>(<argument><expr><name><name>ca</name><operator>-&gt;</operator><name>unit</name></name></expr></argument>, <argument><expr><name>kAudioUnitProperty_StreamFormat</name></expr></argument>,
+<argument><expr><name>SCOPE_INPUT</name></expr></argument>, <argument><expr><name>BUS_INPUT</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>desc</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>size</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>ca_success</name><argument_list>(<argument><expr><name>stat</name></expr></argument>, <argument><expr><name>ca</name></expr></argument>, <argument><expr><literal type="string">"coreaudio_init_format"</literal></expr></argument>, <argument><expr><literal type="string">"get input format"</literal></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><name>false</name></expr>;</return></block_content></block></if></if_stmt>
+
+
+
+
+<if_stmt><if>if <condition>(<expr><name><name>desc</name><operator>.</operator><name>mChannelsPerFrame</name></name> <operator>&gt;</operator> <literal type="number">8</literal></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name><name>desc</name><operator>.</operator><name>mChannelsPerFrame</name></name> <operator>=</operator> <name>channels</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>desc</name><operator>.</operator><name>mBytesPerFrame</name></name> <operator>=</operator> <name>channels</name> <operator>*</operator> <name><name>desc</name><operator>.</operator><name>mBitsPerChannel</name></name> <operator>/</operator> <literal type="number">8</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>desc</name><operator>.</operator><name>mBytesPerPacket</name></name> <operator>=</operator>
+<name><name>desc</name><operator>.</operator><name>mFramesPerPacket</name></name> <operator>*</operator> <name><name>desc</name><operator>.</operator><name>mBytesPerFrame</name></name></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name>stat</name> <operator>=</operator> <call><name>set_property</name><argument_list>(<argument><expr><name><name>ca</name><operator>-&gt;</operator><name>unit</name></name></expr></argument>, <argument><expr><name>kAudioUnitProperty_StreamFormat</name></expr></argument>,
+<argument><expr><name>SCOPE_OUTPUT</name></expr></argument>, <argument><expr><name>BUS_INPUT</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>desc</name></expr></argument>, <argument><expr><name>size</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>ca_success</name><argument_list>(<argument><expr><name>stat</name></expr></argument>, <argument><expr><name>ca</name></expr></argument>, <argument><expr><literal type="string">"coreaudio_init_format"</literal></expr></argument>, <argument><expr><literal type="string">"set output format"</literal></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><name>false</name></expr>;</return></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>desc</name><operator>.</operator><name>mFormatID</name></name> <operator>!=</operator> <name>kAudioFormatLinearPCM</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>ca_warn</name><argument_list>(<argument><expr><name>ca</name></expr></argument>, <argument><expr><literal type="string">"coreaudio_init_format"</literal></expr></argument>, <argument><expr><literal type="string">"format is not PCM"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>false</name></expr>;</return>
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>ca</name><operator>-&gt;</operator><name>format</name></name> <operator>=</operator> <call><name>convert_ca_format</name><argument_list>(<argument><expr><name><name>desc</name><operator>.</operator><name>mFormatFlags</name></name></expr></argument>, <argument><expr><name><name>desc</name><operator>.</operator><name>mBitsPerChannel</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>ca</name><operator>-&gt;</operator><name>format</name></name> <operator>==</operator> <name>AUDIO_FORMAT_UNKNOWN</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>ca_warn</name><argument_list>(<argument><expr><name>ca</name></expr></argument>, <argument><expr><literal type="string">"coreaudio_init_format"</literal></expr></argument>,
+<argument><expr><literal type="string">"unknown format flags: "</literal>
+<literal type="string">"%u, bits: %u"</literal></expr></argument>,
+<argument><expr><operator>(</operator><name>unsigned</name> <name>int</name><operator>)</operator><name><name>desc</name><operator>.</operator><name>mFormatFlags</name></name></expr></argument>,
+<argument><expr><operator>(</operator><name>unsigned</name> <name>int</name><operator>)</operator><name><name>desc</name><operator>.</operator><name>mBitsPerChannel</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>false</name></expr>;</return>
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>ca</name><operator>-&gt;</operator><name>sample_rate</name></name> <operator>=</operator> <operator>(</operator><name>uint32_t</name><operator>)</operator><name><name>desc</name><operator>.</operator><name>mSampleRate</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>ca</name><operator>-&gt;</operator><name>speakers</name></name> <operator>=</operator> <call><name>convert_ca_speaker_layout</name><argument_list>(<argument><expr><name><name>desc</name><operator>.</operator><name>mChannelsPerFrame</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>ca</name><operator>-&gt;</operator><name>speakers</name></name> <operator>==</operator> <name>SPEAKERS_UNKNOWN</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>ca_warn</name><argument_list>(<argument><expr><name>ca</name></expr></argument>, <argument><expr><literal type="string">"coreaudio_init_format"</literal></expr></argument>,
+<argument><expr><literal type="string">"unknown speaker layout: "</literal>
+<literal type="string">"%u channels"</literal></expr></argument>,
+<argument><expr><operator>(</operator><name>unsigned</name> <name>int</name><operator>)</operator><name><name>desc</name><operator>.</operator><name>mChannelsPerFrame</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>false</name></expr>;</return>
+</block_content>}</block></if></if_stmt>
+
+<return>return <expr><name>true</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>bool</name></type> <name>coreaudio_init_buffer</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>coreaudio_data</name></name> <modifier>*</modifier></type><name>ca</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>UInt32</name></type> <name>buf_size</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>UInt32</name></type> <name>size</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>UInt32</name></type> <name>frames</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>OSStatus</name></type> <name>stat</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>AudioObjectPropertyAddress</name></type> <name>addr</name> <init>= <expr><block>{
+<expr><name>kAudioDevicePropertyStreamConfiguration</name></expr>,
+<expr><name>kAudioDevicePropertyScopeInput</name></expr>,
+<expr><name>kAudioObjectPropertyElementMaster</name></expr>}</block></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>stat</name> <operator>=</operator> <call><name>AudioObjectGetPropertyDataSize</name><argument_list>(<argument><expr><name><name>ca</name><operator>-&gt;</operator><name>device_id</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name>addr</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><name>NULL</name></expr></argument>,
+<argument><expr><operator>&amp;</operator><name>buf_size</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>ca_success</name><argument_list>(<argument><expr><name>stat</name></expr></argument>, <argument><expr><name>ca</name></expr></argument>, <argument><expr><literal type="string">"coreaudio_init_buffer"</literal></expr></argument>, <argument><expr><literal type="string">"get list size"</literal></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><name>false</name></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>size</name> <operator>=</operator> <sizeof>sizeof<argument_list>(<argument><expr><name>frames</name></expr></argument>)</argument_list></sizeof></expr>;</expr_stmt>
+<expr_stmt><expr><name>stat</name> <operator>=</operator> <call><name>get_property</name><argument_list>(<argument><expr><name><name>ca</name><operator>-&gt;</operator><name>unit</name></name></expr></argument>, <argument><expr><name>kAudioDevicePropertyBufferFrameSize</name></expr></argument>,
+<argument><expr><name>SCOPE_GLOBAL</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><operator>&amp;</operator><name>frames</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>size</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>ca_success</name><argument_list>(<argument><expr><name>stat</name></expr></argument>, <argument><expr><name>ca</name></expr></argument>, <argument><expr><literal type="string">"coreaudio_init_buffer"</literal></expr></argument>, <argument><expr><literal type="string">"get frame size"</literal></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><name>false</name></expr>;</return></block_content></block></if></if_stmt>
+
+
+
+<expr_stmt><expr><name><name>ca</name><operator>-&gt;</operator><name>buf_list</name></name> <operator>=</operator> <call><name>bmalloc</name><argument_list>(<argument><expr><name>buf_size</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>stat</name> <operator>=</operator> <call><name>AudioObjectGetPropertyData</name><argument_list>(<argument><expr><name><name>ca</name><operator>-&gt;</operator><name>device_id</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name>addr</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><name>NULL</name></expr></argument>,
+<argument><expr><operator>&amp;</operator><name>buf_size</name></expr></argument>, <argument><expr><name><name>ca</name><operator>-&gt;</operator><name>buf_list</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>ca_success</name><argument_list>(<argument><expr><name>stat</name></expr></argument>, <argument><expr><name>ca</name></expr></argument>, <argument><expr><literal type="string">"coreaudio_init_buffer"</literal></expr></argument>, <argument><expr><literal type="string">"allocate"</literal></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>bfree</name><argument_list>(<argument><expr><name><name>ca</name><operator>-&gt;</operator><name>buf_list</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>ca</name><operator>-&gt;</operator><name>buf_list</name></name> <operator>=</operator> <name>NULL</name></expr>;</expr_stmt>
+<return>return <expr><name>false</name></expr>;</return>
+</block_content>}</block></if></if_stmt>
+
+<for>for <control>(<init><decl><type><name>UInt32</name></type> <name>i</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name><name>ca</name><operator>-&gt;</operator><name>buf_list</name><operator>-&gt;</operator><name>mNumberBuffers</name></name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<expr_stmt><expr><name>size</name> <operator>=</operator> <name><name>ca</name><operator>-&gt;</operator><name>buf_list</name><operator>-&gt;</operator><name>mBuffers</name><index>[<expr><name>i</name></expr>]</index></name><operator>.</operator><name>mDataByteSize</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>ca</name><operator>-&gt;</operator><name>buf_list</name><operator>-&gt;</operator><name>mBuffers</name><index>[<expr><name>i</name></expr>]</index></name><operator>.</operator><name>mData</name> <operator>=</operator> <call><name>bmalloc</name><argument_list>(<argument><expr><name>size</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></for>
+
+<return>return <expr><name>true</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>buf_list_free</name><parameter_list>(<parameter><decl><type><name>AudioBufferList</name> <modifier>*</modifier></type><name>buf_list</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name>buf_list</name></expr>)</condition> <block>{<block_content>
+<for>for <control>(<init><decl><type><name>UInt32</name></type> <name>i</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name><name>buf_list</name><operator>-&gt;</operator><name>mNumberBuffers</name></name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>bfree</name><argument_list>(<argument><expr><name><name>buf_list</name><operator>-&gt;</operator><name>mBuffers</name><index>[<expr><name>i</name></expr>]</index></name><operator>.</operator><name>mData</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></for>
+
+<expr_stmt><expr><call><name>bfree</name><argument_list>(<argument><expr><name>buf_list</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>OSStatus</name></type> <name>input_callback</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>,
+<parameter><decl><type><name>AudioUnitRenderActionFlags</name> <modifier>*</modifier></type><name>action_flags</name></decl></parameter>,
+<parameter><decl><type><specifier>const</specifier> <name>AudioTimeStamp</name> <modifier>*</modifier></type><name>ts_data</name></decl></parameter>, <parameter><decl><type><name>UInt32</name></type> <name>bus_num</name></decl></parameter>,
+<parameter><decl><type><name>UInt32</name></type> <name>frames</name></decl></parameter>, <parameter><decl><type><name>AudioBufferList</name> <modifier>*</modifier></type><name>ignored_buffers</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>coreaudio_data</name></name> <modifier>*</modifier></type><name>ca</name> <init>= <expr><name>data</name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>OSStatus</name></type> <name>stat</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name><name>struct</name> <name>obs_source_audio</name></name></type> <name>audio</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>stat</name> <operator>=</operator> <call><name>AudioUnitRender</name><argument_list>(<argument><expr><name><name>ca</name><operator>-&gt;</operator><name>unit</name></name></expr></argument>, <argument><expr><name>action_flags</name></expr></argument>, <argument><expr><name>ts_data</name></expr></argument>, <argument><expr><name>bus_num</name></expr></argument>, <argument><expr><name>frames</name></expr></argument>,
+<argument><expr><name><name>ca</name><operator>-&gt;</operator><name>buf_list</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>ca_success</name><argument_list>(<argument><expr><name>stat</name></expr></argument>, <argument><expr><name>ca</name></expr></argument>, <argument><expr><literal type="string">"input_callback"</literal></expr></argument>, <argument><expr><literal type="string">"audio retrieval"</literal></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><name>noErr</name></expr>;</return></block_content></block></if></if_stmt>
+
+<for>for <control>(<init><decl><type><name>UInt32</name></type> <name>i</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name><name>ca</name><operator>-&gt;</operator><name>buf_list</name><operator>-&gt;</operator><name>mNumberBuffers</name></name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control><block type="pseudo"><block_content>
+<expr_stmt><expr><name><name>audio</name><operator>.</operator><name>data</name><index>[<expr><name>i</name></expr>]</index></name> <operator>=</operator> <name><name>ca</name><operator>-&gt;</operator><name>buf_list</name><operator>-&gt;</operator><name>mBuffers</name><index>[<expr><name>i</name></expr>]</index></name><operator>.</operator><name>mData</name></expr>;</expr_stmt></block_content></block></for>
+
+<expr_stmt><expr><name><name>audio</name><operator>.</operator><name>frames</name></name> <operator>=</operator> <name>frames</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>audio</name><operator>.</operator><name>speakers</name></name> <operator>=</operator> <name><name>ca</name><operator>-&gt;</operator><name>speakers</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>audio</name><operator>.</operator><name>format</name></name> <operator>=</operator> <name><name>ca</name><operator>-&gt;</operator><name>format</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>audio</name><operator>.</operator><name>samples_per_sec</name></name> <operator>=</operator> <name><name>ca</name><operator>-&gt;</operator><name>sample_rate</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>audio</name><operator>.</operator><name>timestamp</name></name> <operator>=</operator> <name><name>ts_data</name><operator>-&gt;</operator><name>mHostTime</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>obs_source_output_audio</name><argument_list>(<argument><expr><name><name>ca</name><operator>-&gt;</operator><name>source</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name>audio</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>UNUSED_PARAMETER</name><argument_list>(<argument><expr><name>ignored_buffers</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>noErr</name></expr>;</return>
+</block_content>}</block></function>
+
+<function_decl><type><specifier>static</specifier> <name>void</name></type> <name>coreaudio_stop</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>coreaudio_data</name></name> <modifier>*</modifier></type><name>ca</name></decl></parameter>)</parameter_list>;</function_decl>
+<function_decl><type><specifier>static</specifier> <name>bool</name></type> <name>coreaudio_init</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>coreaudio_data</name></name> <modifier>*</modifier></type><name>ca</name></decl></parameter>)</parameter_list>;</function_decl>
+<function_decl><type><specifier>static</specifier> <name>void</name></type> <name>coreaudio_uninit</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>coreaudio_data</name></name> <modifier>*</modifier></type><name>ca</name></decl></parameter>)</parameter_list>;</function_decl>
+
+<function><type><specifier>static</specifier> <name>void</name> <modifier>*</modifier></type><name>reconnect_thread</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>param</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>coreaudio_data</name></name> <modifier>*</modifier></type><name>ca</name> <init>= <expr><name>param</name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>ca</name><operator>-&gt;</operator><name>reconnecting</name></name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+
+<while>while <condition>(<expr><call><name>os_event_timedwait</name><argument_list>(<argument><expr><name><name>ca</name><operator>-&gt;</operator><name>exit_event</name></name></expr></argument>, <argument><expr><name><name>ca</name><operator>-&gt;</operator><name>retry_time</name></name></expr></argument>)</argument_list></call> <operator>==</operator>
+<name>ETIMEDOUT</name></expr>)</condition> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><call><name>coreaudio_init</name><argument_list>(<argument><expr><name>ca</name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+<break>break;</break></block_content></block></if></if_stmt>
+</block_content>}</block></while>
+
+<expr_stmt><expr><call><name>blog</name><argument_list>(<argument><expr><name>LOG_DEBUG</name></expr></argument>, <argument><expr><literal type="string">"coreaudio: exit the reconnect thread"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>ca</name><operator>-&gt;</operator><name>reconnecting</name></name> <operator>=</operator> <name>false</name></expr>;</expr_stmt>
+<return>return <expr><name>NULL</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>coreaudio_begin_reconnect</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>coreaudio_data</name></name> <modifier>*</modifier></type><name>ca</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>int</name></type> <name>ret</name></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>ca</name><operator>-&gt;</operator><name>reconnecting</name></name></expr>)</condition><block type="pseudo"><block_content>
+<return>return;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <call><name>pthread_create</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>ca</name><operator>-&gt;</operator><name>reconnect_thread</name></name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>, <argument><expr><name>reconnect_thread</name></expr></argument>, <argument><expr><name>ca</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name>ret</name> <operator>!=</operator> <literal type="number">0</literal></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>blog</name><argument_list>(<argument><expr><name>LOG_WARNING</name></expr></argument>,
+<argument><expr><literal type="string">"[coreaudio_begin_reconnect] failed to "</literal>
+<literal type="string">"create thread, error code: %d"</literal></expr></argument>,
+<argument><expr><name>ret</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>OSStatus</name></type>
+<name>notification_callback</name><parameter_list>(<parameter><decl><type><name>AudioObjectID</name></type> <name>id</name></decl></parameter>, <parameter><decl><type><name>UInt32</name></type> <name>num_addresses</name></decl></parameter>,
+<parameter><decl><type><specifier>const</specifier> <name>AudioObjectPropertyAddress</name></type> <name><name>addresses</name><index>[]</index></name></decl></parameter>, <parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>coreaudio_data</name></name> <modifier>*</modifier></type><name>ca</name> <init>= <expr><name>data</name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>coreaudio_stop</name><argument_list>(<argument><expr><name>ca</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>coreaudio_uninit</name><argument_list>(<argument><expr><name>ca</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>addresses</name><index>[<expr><literal type="number">0</literal></expr>]</index></name><operator>.</operator><name>mSelector</name> <operator>==</operator> <name>PROPERTY_DEFAULT_DEVICE</name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name><name>ca</name><operator>-&gt;</operator><name>retry_time</name></name> <operator>=</operator> <literal type="number">300</literal></expr>;</expr_stmt></block_content></block></if>
+<else>else<block type="pseudo"><block_content>
+<expr_stmt><expr><name><name>ca</name><operator>-&gt;</operator><name>retry_time</name></name> <operator>=</operator> <literal type="number">2000</literal></expr>;</expr_stmt></block_content></block></else></if_stmt>
+
+<expr_stmt><expr><call><name>blog</name><argument_list>(<argument><expr><name>LOG_INFO</name></expr></argument>,
+<argument><expr><literal type="string">"coreaudio: device '%s' disconnected or changed. "</literal>
+<literal type="string">"attempting to reconnect"</literal></expr></argument>,
+<argument><expr><name><name>ca</name><operator>-&gt;</operator><name>device_name</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>coreaudio_begin_reconnect</name><argument_list>(<argument><expr><name>ca</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>UNUSED_PARAMETER</name><argument_list>(<argument><expr><name>id</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>UNUSED_PARAMETER</name><argument_list>(<argument><expr><name>num_addresses</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><name>noErr</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>OSStatus</name></type> <name>add_listener</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>coreaudio_data</name></name> <modifier>*</modifier></type><name>ca</name></decl></parameter>, <parameter><decl><type><name>UInt32</name></type> <name>property</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>AudioObjectPropertyAddress</name></type> <name>addr</name> <init>= <expr><block>{<expr><name>property</name></expr>,
+<expr><name>kAudioObjectPropertyScopeGlobal</name></expr>,
+<expr><name>kAudioObjectPropertyElementMaster</name></expr>}</block></expr></init></decl>;</decl_stmt>
+
+<return>return <expr><call><name>AudioObjectAddPropertyListener</name><argument_list>(<argument><expr><name><name>ca</name><operator>-&gt;</operator><name>device_id</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name>addr</name></expr></argument>,
+<argument><expr><name>notification_callback</name></expr></argument>, <argument><expr><name>ca</name></expr></argument>)</argument_list></call></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>bool</name></type> <name>coreaudio_init_hooks</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>coreaudio_data</name></name> <modifier>*</modifier></type><name>ca</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>OSStatus</name></type> <name>stat</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>AURenderCallbackStruct</name></type> <name>callback_info</name> <init>= <expr><block>{<expr><operator>.</operator><name>inputProc</name> <operator>=</operator> <name>input_callback</name></expr>,
+<expr><operator>.</operator><name>inputProcRefCon</name> <operator>=</operator> <name>ca</name></expr>}</block></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>stat</name> <operator>=</operator> <call><name>add_listener</name><argument_list>(<argument><expr><name>ca</name></expr></argument>, <argument><expr><name>kAudioDevicePropertyDeviceIsAlive</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>ca_success</name><argument_list>(<argument><expr><name>stat</name></expr></argument>, <argument><expr><name>ca</name></expr></argument>, <argument><expr><literal type="string">"coreaudio_init_hooks"</literal></expr></argument>,
+<argument><expr><literal type="string">"set disconnect callback"</literal></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><name>false</name></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>stat</name> <operator>=</operator> <call><name>add_listener</name><argument_list>(<argument><expr><name>ca</name></expr></argument>, <argument><expr><name>PROPERTY_FORMATS</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>ca_success</name><argument_list>(<argument><expr><name>stat</name></expr></argument>, <argument><expr><name>ca</name></expr></argument>, <argument><expr><literal type="string">"coreaudio_init_hooks"</literal></expr></argument>,
+<argument><expr><literal type="string">"set format change callback"</literal></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><name>false</name></expr>;</return></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>ca</name><operator>-&gt;</operator><name>default_device</name></name></expr>)</condition> <block>{<block_content>
+<decl_stmt><decl><type><name>AudioObjectPropertyAddress</name></type> <name>addr</name> <init>= <expr><block>{
+<expr><name>PROPERTY_DEFAULT_DEVICE</name></expr>,
+<expr><name>kAudioObjectPropertyScopeGlobal</name></expr>,
+<expr><name>kAudioObjectPropertyElementMaster</name></expr>}</block></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>stat</name> <operator>=</operator> <call><name>AudioObjectAddPropertyListener</name><argument_list>(<argument><expr><name>kAudioObjectSystemObject</name></expr></argument>,
+<argument><expr><operator>&amp;</operator><name>addr</name></expr></argument>,
+<argument><expr><name>notification_callback</name></expr></argument>,
+<argument><expr><name>ca</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>ca_success</name><argument_list>(<argument><expr><name>stat</name></expr></argument>, <argument><expr><name>ca</name></expr></argument>, <argument><expr><literal type="string">"coreaudio_init_hooks"</literal></expr></argument>,
+<argument><expr><literal type="string">"set device change callback"</literal></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><name>false</name></expr>;</return></block_content></block></if></if_stmt>
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name>stat</name> <operator>=</operator> <call><name>set_property</name><argument_list>(<argument><expr><name><name>ca</name><operator>-&gt;</operator><name>unit</name></name></expr></argument>, <argument><expr><name>kAudioOutputUnitProperty_SetInputCallback</name></expr></argument>,
+<argument><expr><name>SCOPE_GLOBAL</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><operator>&amp;</operator><name>callback_info</name></expr></argument>,
+<argument><expr><sizeof>sizeof<argument_list>(<argument><expr><name>callback_info</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>ca_success</name><argument_list>(<argument><expr><name>stat</name></expr></argument>, <argument><expr><name>ca</name></expr></argument>, <argument><expr><literal type="string">"coreaudio_init_hooks"</literal></expr></argument>, <argument><expr><literal type="string">"set input callback"</literal></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><name>false</name></expr>;</return></block_content></block></if></if_stmt>
+
+<return>return <expr><name>true</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>coreaudio_remove_hooks</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>coreaudio_data</name></name> <modifier>*</modifier></type><name>ca</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>AURenderCallbackStruct</name></type> <name>callback_info</name> <init>= <expr><block>{<expr><operator>.</operator><name>inputProc</name> <operator>=</operator> <name>NULL</name></expr>,
+<expr><operator>.</operator><name>inputProcRefCon</name> <operator>=</operator> <name>NULL</name></expr>}</block></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>AudioObjectPropertyAddress</name></type> <name>addr</name> <init>= <expr><block>{<expr><name>kAudioDevicePropertyDeviceIsAlive</name></expr>,
+<expr><name>kAudioObjectPropertyScopeGlobal</name></expr>,
+<expr><name>kAudioObjectPropertyElementMaster</name></expr>}</block></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>AudioObjectRemovePropertyListener</name><argument_list>(<argument><expr><name><name>ca</name><operator>-&gt;</operator><name>device_id</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name>addr</name></expr></argument>,
+<argument><expr><name>notification_callback</name></expr></argument>, <argument><expr><name>ca</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>addr</name><operator>.</operator><name>mSelector</name></name> <operator>=</operator> <name>PROPERTY_FORMATS</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>AudioObjectRemovePropertyListener</name><argument_list>(<argument><expr><name><name>ca</name><operator>-&gt;</operator><name>device_id</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name>addr</name></expr></argument>,
+<argument><expr><name>notification_callback</name></expr></argument>, <argument><expr><name>ca</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>ca</name><operator>-&gt;</operator><name>default_device</name></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name><name>addr</name><operator>.</operator><name>mSelector</name></name> <operator>=</operator> <name>PROPERTY_DEFAULT_DEVICE</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>AudioObjectRemovePropertyListener</name><argument_list>(<argument><expr><name>kAudioObjectSystemObject</name></expr></argument>,
+<argument><expr><operator>&amp;</operator><name>addr</name></expr></argument>, <argument><expr><name>notification_callback</name></expr></argument>,
+<argument><expr><name>ca</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>set_property</name><argument_list>(<argument><expr><name><name>ca</name><operator>-&gt;</operator><name>unit</name></name></expr></argument>, <argument><expr><name>kAudioOutputUnitProperty_SetInputCallback</name></expr></argument>,
+<argument><expr><name>SCOPE_GLOBAL</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><operator>&amp;</operator><name>callback_info</name></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr><name>callback_info</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>bool</name></type> <name>coreaudio_get_device_name</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>coreaudio_data</name></name> <modifier>*</modifier></type><name>ca</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>CFStringRef</name></type> <name>cf_name</name> <init>= <expr><name>NULL</name></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>UInt32</name></type> <name>size</name> <init>= <expr><sizeof>sizeof<argument_list>(<argument><expr><name>CFStringRef</name></expr></argument>)</argument_list></sizeof></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>char</name> <modifier>*</modifier></type><name>name</name> <init>= <expr><name>NULL</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>AudioObjectPropertyAddress</name></type> <name>addr</name> <init>= <expr><block>{
+<expr><name>kAudioDevicePropertyDeviceNameCFString</name></expr>,
+<expr><name>kAudioObjectPropertyScopeInput</name></expr>,
+<expr><name>kAudioObjectPropertyElementMaster</name></expr>}</block></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>OSStatus</name></type> <name>stat</name> <init>= <expr><call><name>AudioObjectGetPropertyData</name><argument_list>(<argument><expr><name><name>ca</name><operator>-&gt;</operator><name>device_id</name></name></expr></argument>, <argument><expr><operator>&amp;</operator><name>addr</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>,
+<argument><expr><name>NULL</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>size</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>cf_name</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<if_stmt><if>if <condition>(<expr><name>stat</name> <operator>!=</operator> <name>noErr</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>blog</name><argument_list>(<argument><expr><name>LOG_WARNING</name></expr></argument>,
+<argument><expr><literal type="string">"[coreaudio_get_device_name] failed to "</literal>
+<literal type="string">"get name: %d"</literal></expr></argument>,
+<argument><expr><operator>(</operator><name>int</name><operator>)</operator><name>stat</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>false</name></expr>;</return>
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name>name</name> <operator>=</operator> <call><name>cfstr_copy_cstr</name><argument_list>(<argument><expr><name>cf_name</name></expr></argument>, <argument><expr><name>kCFStringEncodingUTF8</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>name</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>blog</name><argument_list>(<argument><expr><name>LOG_WARNING</name></expr></argument>, <argument><expr><literal type="string">"[coreaudio_get_device_name] failed to "</literal>
+<literal type="string">"convert name to cstr for some reason"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>false</name></expr>;</return>
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>bfree</name><argument_list>(<argument><expr><name><name>ca</name><operator>-&gt;</operator><name>device_name</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>ca</name><operator>-&gt;</operator><name>device_name</name></name> <operator>=</operator> <name>name</name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>cf_name</name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>CFRelease</name><argument_list>(<argument><expr><name>cf_name</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<return>return <expr><name>true</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>bool</name></type> <name>coreaudio_start</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>coreaudio_data</name></name> <modifier>*</modifier></type><name>ca</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>OSStatus</name></type> <name>stat</name></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>ca</name><operator>-&gt;</operator><name>active</name></name></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><name>true</name></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>stat</name> <operator>=</operator> <call><name>AudioOutputUnitStart</name><argument_list>(<argument><expr><name><name>ca</name><operator>-&gt;</operator><name>unit</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><call><name>ca_success</name><argument_list>(<argument><expr><name>stat</name></expr></argument>, <argument><expr><name>ca</name></expr></argument>, <argument><expr><literal type="string">"coreaudio_start"</literal></expr></argument>, <argument><expr><literal type="string">"start audio"</literal></expr></argument>)</argument_list></call></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>coreaudio_stop</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>coreaudio_data</name></name> <modifier>*</modifier></type><name>ca</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>OSStatus</name></type> <name>stat</name></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>ca</name><operator>-&gt;</operator><name>active</name></name></expr>)</condition><block type="pseudo"><block_content>
+<return>return;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name><name>ca</name><operator>-&gt;</operator><name>active</name></name> <operator>=</operator> <name>false</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>stat</name> <operator>=</operator> <call><name>AudioOutputUnitStop</name><argument_list>(<argument><expr><name><name>ca</name><operator>-&gt;</operator><name>unit</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ca_success</name><argument_list>(<argument><expr><name>stat</name></expr></argument>, <argument><expr><name>ca</name></expr></argument>, <argument><expr><literal type="string">"coreaudio_stop"</literal></expr></argument>, <argument><expr><literal type="string">"stop audio"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>bool</name></type> <name>coreaudio_init_unit</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>coreaudio_data</name></name> <modifier>*</modifier></type><name>ca</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>AudioComponentDescription</name></type> <name>desc</name> <init>= <expr><block>{
+<expr><operator>.</operator><name>componentType</name> <operator>=</operator> <name>kAudioUnitType_Output</name></expr>,
+<expr><operator>.</operator><name>componentSubType</name> <operator>=</operator> <name>kAudioUnitSubType_HALOutput</name></expr>}</block></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>AudioComponent</name></type> <name>component</name> <init>= <expr><call><name>AudioComponentFindNext</name><argument_list>(<argument><expr><name>NULL</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>desc</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>component</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>ca_warn</name><argument_list>(<argument><expr><name>ca</name></expr></argument>, <argument><expr><literal type="string">"coreaudio_init_unit"</literal></expr></argument>, <argument><expr><literal type="string">"find component failed"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>false</name></expr>;</return>
+</block_content>}</block></if></if_stmt>
+
+<decl_stmt><decl><type><name>OSStatus</name></type> <name>stat</name> <init>= <expr><call><name>AudioComponentInstanceNew</name><argument_list>(<argument><expr><name>component</name></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>ca</name><operator>-&gt;</operator><name>unit</name></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>ca_success</name><argument_list>(<argument><expr><name>stat</name></expr></argument>, <argument><expr><name>ca</name></expr></argument>, <argument><expr><literal type="string">"coreaudio_init_unit"</literal></expr></argument>, <argument><expr><literal type="string">"instance unit"</literal></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><name>false</name></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name><name>ca</name><operator>-&gt;</operator><name>au_initialized</name></name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+<return>return <expr><name>true</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>bool</name></type> <name>coreaudio_init</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>coreaudio_data</name></name> <modifier>*</modifier></type><name>ca</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>OSStatus</name></type> <name>stat</name></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>ca</name><operator>-&gt;</operator><name>au_initialized</name></name></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><name>true</name></expr>;</return></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>find_device_id_by_uid</name><argument_list>(<argument><expr><name>ca</name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><name>false</name></expr>;</return></block_content></block></if></if_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>coreaudio_get_device_name</name><argument_list>(<argument><expr><name>ca</name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><name>false</name></expr>;</return></block_content></block></if></if_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>coreaudio_init_unit</name><argument_list>(<argument><expr><name>ca</name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+<return>return <expr><name>false</name></expr>;</return></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>stat</name> <operator>=</operator> <call><name>enable_io</name><argument_list>(<argument><expr><name>ca</name></expr></argument>, <argument><expr><name>IO_TYPE_INPUT</name></expr></argument>, <argument><expr><name>true</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>ca_success</name><argument_list>(<argument><expr><name>stat</name></expr></argument>, <argument><expr><name>ca</name></expr></argument>, <argument><expr><literal type="string">"coreaudio_init"</literal></expr></argument>, <argument><expr><literal type="string">"enable input io"</literal></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+<goto>goto <name>fail</name>;</goto></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>stat</name> <operator>=</operator> <call><name>enable_io</name><argument_list>(<argument><expr><name>ca</name></expr></argument>, <argument><expr><name>IO_TYPE_OUTPUT</name></expr></argument>, <argument><expr><name>false</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>ca_success</name><argument_list>(<argument><expr><name>stat</name></expr></argument>, <argument><expr><name>ca</name></expr></argument>, <argument><expr><literal type="string">"coreaudio_init"</literal></expr></argument>, <argument><expr><literal type="string">"disable output io"</literal></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+<goto>goto <name>fail</name>;</goto></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>stat</name> <operator>=</operator> <call><name>set_property</name><argument_list>(<argument><expr><name><name>ca</name><operator>-&gt;</operator><name>unit</name></name></expr></argument>, <argument><expr><name>kAudioOutputUnitProperty_CurrentDevice</name></expr></argument>,
+<argument><expr><name>SCOPE_GLOBAL</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><operator>&amp;</operator><name><name>ca</name><operator>-&gt;</operator><name>device_id</name></name></expr></argument>,
+<argument><expr><sizeof>sizeof<argument_list>(<argument><expr><name><name>ca</name><operator>-&gt;</operator><name>device_id</name></name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>ca_success</name><argument_list>(<argument><expr><name>stat</name></expr></argument>, <argument><expr><name>ca</name></expr></argument>, <argument><expr><literal type="string">"coreaudio_init"</literal></expr></argument>, <argument><expr><literal type="string">"set current device"</literal></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+<goto>goto <name>fail</name>;</goto></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>coreaudio_init_format</name><argument_list>(<argument><expr><name>ca</name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+<goto>goto <name>fail</name>;</goto></block_content></block></if></if_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>coreaudio_init_buffer</name><argument_list>(<argument><expr><name>ca</name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+<goto>goto <name>fail</name>;</goto></block_content></block></if></if_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>coreaudio_init_hooks</name><argument_list>(<argument><expr><name>ca</name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+<goto>goto <name>fail</name>;</goto></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>stat</name> <operator>=</operator> <call><name>AudioUnitInitialize</name><argument_list>(<argument><expr><name><name>ca</name><operator>-&gt;</operator><name>unit</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>ca_success</name><argument_list>(<argument><expr><name>stat</name></expr></argument>, <argument><expr><name>ca</name></expr></argument>, <argument><expr><literal type="string">"coreaudio_initialize"</literal></expr></argument>, <argument><expr><literal type="string">"initialize"</literal></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+<goto>goto <name>fail</name>;</goto></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>coreaudio_start</name><argument_list>(<argument><expr><name>ca</name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+<goto>goto <name>fail</name>;</goto></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>blog</name><argument_list>(<argument><expr><name>LOG_INFO</name></expr></argument>, <argument><expr><literal type="string">"coreaudio: device '%s' initialized"</literal></expr></argument>, <argument><expr><name><name>ca</name><operator>-&gt;</operator><name>device_name</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name><name>ca</name><operator>-&gt;</operator><name>au_initialized</name></name></expr>;</return>
+
+<label><name>fail</name>:</label>
+<expr_stmt><expr><call><name>coreaudio_uninit</name><argument_list>(<argument><expr><name>ca</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>false</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>coreaudio_try_init</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>coreaudio_data</name></name> <modifier>*</modifier></type><name>ca</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>coreaudio_init</name><argument_list>(<argument><expr><name>ca</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>blog</name><argument_list>(<argument><expr><name>LOG_INFO</name></expr></argument>,
+<argument><expr><literal type="string">"coreaudio: failed to find device "</literal>
+<literal type="string">"uid: %s, waiting for connection"</literal></expr></argument>,
+<argument><expr><name><name>ca</name><operator>-&gt;</operator><name>device_uid</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>ca</name><operator>-&gt;</operator><name>retry_time</name></name> <operator>=</operator> <literal type="number">2000</literal></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>ca</name><operator>-&gt;</operator><name>no_devices</name></name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>blog</name><argument_list>(<argument><expr><name>LOG_INFO</name></expr></argument>, <argument><expr><literal type="string">"coreaudio: no device found"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if>
+<else>else<block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>coreaudio_begin_reconnect</name><argument_list>(<argument><expr><name>ca</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></else></if_stmt>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>coreaudio_uninit</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>coreaudio_data</name></name> <modifier>*</modifier></type><name>ca</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>ca</name><operator>-&gt;</operator><name>au_initialized</name></name></expr>)</condition><block type="pseudo"><block_content>
+<return>return;</return></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>ca</name><operator>-&gt;</operator><name>unit</name></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>coreaudio_stop</name><argument_list>(<argument><expr><name>ca</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<decl_stmt><decl><type><name>OSStatus</name></type> <name>stat</name> <init>= <expr><call><name>AudioUnitUninitialize</name><argument_list>(<argument><expr><name><name>ca</name><operator>-&gt;</operator><name>unit</name></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><call><name>ca_success</name><argument_list>(<argument><expr><name>stat</name></expr></argument>, <argument><expr><name>ca</name></expr></argument>, <argument><expr><literal type="string">"coreaudio_uninit"</literal></expr></argument>, <argument><expr><literal type="string">"uninitialize"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>coreaudio_remove_hooks</name><argument_list>(<argument><expr><name>ca</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>stat</name> <operator>=</operator> <call><name>AudioComponentInstanceDispose</name><argument_list>(<argument><expr><name><name>ca</name><operator>-&gt;</operator><name>unit</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>ca_success</name><argument_list>(<argument><expr><name>stat</name></expr></argument>, <argument><expr><name>ca</name></expr></argument>, <argument><expr><literal type="string">"coreaudio_uninit"</literal></expr></argument>, <argument><expr><literal type="string">"dispose"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>ca</name><operator>-&gt;</operator><name>unit</name></name> <operator>=</operator> <name>NULL</name></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>ca</name><operator>-&gt;</operator><name>au_initialized</name></name> <operator>=</operator> <name>false</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>buf_list_free</name><argument_list>(<argument><expr><name><name>ca</name><operator>-&gt;</operator><name>buf_list</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>ca</name><operator>-&gt;</operator><name>buf_list</name></name> <operator>=</operator> <name>NULL</name></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+
+
+<function><type><specifier>static</specifier> <specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>coreaudio_input_getname</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>unused</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<expr_stmt><expr><call><name>UNUSED_PARAMETER</name><argument_list>(<argument><expr><name>unused</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>TEXT_AUDIO_INPUT</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>coreaudio_output_getname</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>unused</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<expr_stmt><expr><call><name>UNUSED_PARAMETER</name><argument_list>(<argument><expr><name>unused</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>TEXT_AUDIO_OUTPUT</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>coreaudio_shutdown</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>coreaudio_data</name></name> <modifier>*</modifier></type><name>ca</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name><name>ca</name><operator>-&gt;</operator><name>reconnecting</name></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>os_event_signal</name><argument_list>(<argument><expr><name><name>ca</name><operator>-&gt;</operator><name>exit_event</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>pthread_join</name><argument_list>(<argument><expr><name><name>ca</name><operator>-&gt;</operator><name>reconnect_thread</name></name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>os_event_reset</name><argument_list>(<argument><expr><name><name>ca</name><operator>-&gt;</operator><name>exit_event</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>coreaudio_uninit</name><argument_list>(<argument><expr><name>ca</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>ca</name><operator>-&gt;</operator><name>unit</name></name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>AudioComponentInstanceDispose</name><argument_list>(<argument><expr><name><name>ca</name><operator>-&gt;</operator><name>unit</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>coreaudio_destroy</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>coreaudio_data</name></name> <modifier>*</modifier></type><name>ca</name> <init>= <expr><name>data</name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>ca</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>coreaudio_shutdown</name><argument_list>(<argument><expr><name>ca</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>os_event_destroy</name><argument_list>(<argument><expr><name><name>ca</name><operator>-&gt;</operator><name>exit_event</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>bfree</name><argument_list>(<argument><expr><name><name>ca</name><operator>-&gt;</operator><name>device_name</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>bfree</name><argument_list>(<argument><expr><name><name>ca</name><operator>-&gt;</operator><name>device_uid</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>bfree</name><argument_list>(<argument><expr><name>ca</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>coreaudio_update</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>, <parameter><decl><type><name>obs_data_t</name> <modifier>*</modifier></type><name>settings</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>coreaudio_data</name></name> <modifier>*</modifier></type><name>ca</name> <init>= <expr><name>data</name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>coreaudio_shutdown</name><argument_list>(<argument><expr><name>ca</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>bfree</name><argument_list>(<argument><expr><name><name>ca</name><operator>-&gt;</operator><name>device_uid</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>ca</name><operator>-&gt;</operator><name>device_uid</name></name> <operator>=</operator> <call><name>bstrdup</name><argument_list>(<argument><expr><call><name>obs_data_get_string</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"device_id"</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>coreaudio_try_init</name><argument_list>(<argument><expr><name>ca</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>coreaudio_defaults</name><parameter_list>(<parameter><decl><type><name>obs_data_t</name> <modifier>*</modifier></type><name>settings</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<expr_stmt><expr><call><name>obs_data_set_default_string</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"device_id"</literal></expr></argument>, <argument><expr><literal type="string">"default"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name> <modifier>*</modifier></type><name>coreaudio_create</name><parameter_list>(<parameter><decl><type><name>obs_data_t</name> <modifier>*</modifier></type><name>settings</name></decl></parameter>, <parameter><decl><type><name>obs_source_t</name> <modifier>*</modifier></type><name>source</name></decl></parameter>,
+<parameter><decl><type><name>bool</name></type> <name>input</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>coreaudio_data</name></name> <modifier>*</modifier></type><name>ca</name> <init>= <expr><call><name>bzalloc</name><argument_list>(<argument><expr><sizeof>sizeof<argument_list>(<argument><expr>struct <name>coreaudio_data</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>os_event_init</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>ca</name><operator>-&gt;</operator><name>exit_event</name></name></expr></argument>, <argument><expr><name>OS_EVENT_TYPE_MANUAL</name></expr></argument>)</argument_list></call> <operator>!=</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>blog</name><argument_list>(<argument><expr><name>LOG_ERROR</name></expr></argument>,
+<argument><expr><literal type="string">"[coreaudio_create] failed to create "</literal>
+<literal type="string">"semephore: %d"</literal></expr></argument>,
+<argument><expr><name>errno</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>bfree</name><argument_list>(<argument><expr><name>ca</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>NULL</name></expr>;</return>
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>ca</name><operator>-&gt;</operator><name>device_uid</name></name> <operator>=</operator> <call><name>bstrdup</name><argument_list>(<argument><expr><call><name>obs_data_get_string</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><literal type="string">"device_id"</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>ca</name><operator>-&gt;</operator><name>source</name></name> <operator>=</operator> <name>source</name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>ca</name><operator>-&gt;</operator><name>input</name></name> <operator>=</operator> <name>input</name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>ca</name><operator>-&gt;</operator><name>device_uid</name></name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name><name>ca</name><operator>-&gt;</operator><name>device_uid</name></name> <operator>=</operator> <call><name>bstrdup</name><argument_list>(<argument><expr><literal type="string">"default"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>coreaudio_try_init</name><argument_list>(<argument><expr><name>ca</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>ca</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name> <modifier>*</modifier></type><name>coreaudio_create_input_capture</name><parameter_list>(<parameter><decl><type><name>obs_data_t</name> <modifier>*</modifier></type><name>settings</name></decl></parameter>,
+<parameter><decl><type><name>obs_source_t</name> <modifier>*</modifier></type><name>source</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<return>return <expr><call><name>coreaudio_create</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><name>source</name></expr></argument>, <argument><expr><name>true</name></expr></argument>)</argument_list></call></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name> <modifier>*</modifier></type><name>coreaudio_create_output_capture</name><parameter_list>(<parameter><decl><type><name>obs_data_t</name> <modifier>*</modifier></type><name>settings</name></decl></parameter>,
+<parameter><decl><type><name>obs_source_t</name> <modifier>*</modifier></type><name>source</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<return>return <expr><call><name>coreaudio_create</name><argument_list>(<argument><expr><name>settings</name></expr></argument>, <argument><expr><name>source</name></expr></argument>, <argument><expr><name>false</name></expr></argument>)</argument_list></call></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>obs_properties_t</name> <modifier>*</modifier></type><name>coreaudio_properties</name><parameter_list>(<parameter><decl><type><name>bool</name></type> <name>input</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>obs_properties_t</name> <modifier>*</modifier></type><name>props</name> <init>= <expr><call><name>obs_properties_create</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>obs_property_t</name> <modifier>*</modifier></type><name>property</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name><name>struct</name> <name>device_list</name></name></type> <name>devices</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>memset</name><argument_list>(<argument><expr><operator>&amp;</operator><name>devices</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr>struct <name>device_list</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>property</name> <operator>=</operator> <call><name>obs_properties_add_list</name><argument_list>(<argument><expr><name>props</name></expr></argument>, <argument><expr><literal type="string">"device_id"</literal></expr></argument>, <argument><expr><name>TEXT_DEVICE</name></expr></argument>,
+<argument><expr><name>OBS_COMBO_TYPE_LIST</name></expr></argument>,
+<argument><expr><name>OBS_COMBO_FORMAT_STRING</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>coreaudio_enum_devices</name><argument_list>(<argument><expr><operator>&amp;</operator><name>devices</name></expr></argument>, <argument><expr><name>input</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>devices</name><operator>.</operator><name>items</name><operator>.</operator><name>num</name></name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>obs_property_list_add_string</name><argument_list>(<argument><expr><name>property</name></expr></argument>, <argument><expr><name>TEXT_DEVICE_DEFAULT</name></expr></argument>,
+<argument><expr><literal type="string">"default"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<for>for <control>(<init><decl><type><name>size_t</name></type> <name>i</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name><name>devices</name><operator>.</operator><name>items</name><operator>.</operator><name>num</name></name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control> <block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>device_item</name></name> <modifier>*</modifier></type><name>item</name> <init>= <expr><name><name>devices</name><operator>.</operator><name>items</name><operator>.</operator><name>array</name></name> <operator>+</operator> <name>i</name></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><call><name>obs_property_list_add_string</name><argument_list>(<argument><expr><name>property</name></expr></argument>, <argument><expr><name><name>item</name><operator>-&gt;</operator><name>name</name><operator>.</operator><name>array</name></name></expr></argument>,
+<argument><expr><name><name>item</name><operator>-&gt;</operator><name>value</name><operator>.</operator><name>array</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></for>
+
+<expr_stmt><expr><call><name>device_list_free</name><argument_list>(<argument><expr><operator>&amp;</operator><name>devices</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>props</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>obs_properties_t</name> <modifier>*</modifier></type><name>coreaudio_input_properties</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>unused</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<expr_stmt><expr><call><name>UNUSED_PARAMETER</name><argument_list>(<argument><expr><name>unused</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><call><name>coreaudio_properties</name><argument_list>(<argument><expr><name>true</name></expr></argument>)</argument_list></call></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>obs_properties_t</name> <modifier>*</modifier></type><name>coreaudio_output_properties</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>unused</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<expr_stmt><expr><call><name>UNUSED_PARAMETER</name><argument_list>(<argument><expr><name>unused</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><call><name>coreaudio_properties</name><argument_list>(<argument><expr><name>false</name></expr></argument>)</argument_list></call></expr>;</return>
+</block_content>}</block></function>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>obs_source_info</name></name></type> <name>coreaudio_input_capture_info</name> <init>= <expr><block>{
+<expr><operator>.</operator><name>id</name> <operator>=</operator> <literal type="string">"coreaudio_input_capture"</literal></expr>,
+<expr><operator>.</operator><name>type</name> <operator>=</operator> <name>OBS_SOURCE_TYPE_INPUT</name></expr>,
+<expr><operator>.</operator><name>output_flags</name> <operator>=</operator> <name>OBS_SOURCE_AUDIO</name> <operator>|</operator> <name>OBS_SOURCE_DO_NOT_DUPLICATE</name></expr>,
+<expr><operator>.</operator><name>get_name</name> <operator>=</operator> <name>coreaudio_input_getname</name></expr>,
+<expr><operator>.</operator><name>create</name> <operator>=</operator> <name>coreaudio_create_input_capture</name></expr>,
+<expr><operator>.</operator><name>destroy</name> <operator>=</operator> <name>coreaudio_destroy</name></expr>,
+<expr><operator>.</operator><name>update</name> <operator>=</operator> <name>coreaudio_update</name></expr>,
+<expr><operator>.</operator><name>get_defaults</name> <operator>=</operator> <name>coreaudio_defaults</name></expr>,
+<expr><operator>.</operator><name>get_properties</name> <operator>=</operator> <name>coreaudio_input_properties</name></expr>,
+<expr><operator>.</operator><name>icon_type</name> <operator>=</operator> <name>OBS_ICON_TYPE_AUDIO_INPUT</name></expr>,
+}</block></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>obs_source_info</name></name></type> <name>coreaudio_output_capture_info</name> <init>= <expr><block>{
+<expr><operator>.</operator><name>id</name> <operator>=</operator> <literal type="string">"coreaudio_output_capture"</literal></expr>,
+<expr><operator>.</operator><name>type</name> <operator>=</operator> <name>OBS_SOURCE_TYPE_INPUT</name></expr>,
+<expr><operator>.</operator><name>output_flags</name> <operator>=</operator> <name>OBS_SOURCE_AUDIO</name> <operator>|</operator> <name>OBS_SOURCE_DO_NOT_DUPLICATE</name> <operator>|</operator>
+<name>OBS_SOURCE_DO_NOT_SELF_MONITOR</name></expr>,
+<expr><operator>.</operator><name>get_name</name> <operator>=</operator> <name>coreaudio_output_getname</name></expr>,
+<expr><operator>.</operator><name>create</name> <operator>=</operator> <name>coreaudio_create_output_capture</name></expr>,
+<expr><operator>.</operator><name>destroy</name> <operator>=</operator> <name>coreaudio_destroy</name></expr>,
+<expr><operator>.</operator><name>update</name> <operator>=</operator> <name>coreaudio_update</name></expr>,
+<expr><operator>.</operator><name>get_defaults</name> <operator>=</operator> <name>coreaudio_defaults</name></expr>,
+<expr><operator>.</operator><name>get_properties</name> <operator>=</operator> <name>coreaudio_output_properties</name></expr>,
+<expr><operator>.</operator><name>icon_type</name> <operator>=</operator> <name>OBS_ICON_TYPE_AUDIO_OUTPUT</name></expr>,
+}</block></expr></init></decl>;</decl_stmt>
+</unit>

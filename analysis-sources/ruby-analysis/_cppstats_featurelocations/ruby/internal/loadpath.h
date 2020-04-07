@@ -1,0 +1,17 @@
+#if !defined(INTERNAL_LOADPATH_H)
+#define INTERNAL_LOADPATH_H
+
+
+
+
+
+
+
+
+
+
+
+extern const char ruby_exec_prefix[];
+extern const char ruby_initial_load_paths[];
+
+#endif 

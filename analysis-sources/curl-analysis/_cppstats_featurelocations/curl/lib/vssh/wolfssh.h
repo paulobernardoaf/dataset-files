@@ -1,0 +1,27 @@
+#if !defined(HEADER_CURL_WOLFSSH_H)
+#define HEADER_CURL_WOLFSSH_H
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+extern const struct Curl_handler Curl_handler_sftp;
+
+#endif 

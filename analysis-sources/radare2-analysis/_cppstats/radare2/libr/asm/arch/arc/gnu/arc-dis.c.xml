@@ -1,0 +1,1769 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" revision="1.0.0" language="C" filename="D:\Pesquisa\Projects\radare2-analysis\_cppstats\radare2\libr\asm\arch\arc\gnu\arc-dis.c"><cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"ansidecl.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"libiberty.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"disas-asm.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"elf-bfd.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"arc.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;string.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"opintl.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;stdarg.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"arc-dis.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"arc-ext.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"arcompact-dis.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;stdlib.h&gt;</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"r_types.h"</cpp:file></cpp:include>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><operator>!</operator><call><name>defined</name><argument_list>(<argument><expr><name>dbg</name></expr></argument>)</argument_list></call></expr></cpp:if>
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>dbg</name></cpp:macro> <cpp:value>(0)</cpp:value></cpp:define>
+
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+<typedef>typedef <type><enum>enum
+
+<block>{
+
+<decl><name>CLASS_A4_ARITH</name></decl>,
+
+<decl><name>CLASS_A4_OP3_GENERAL</name></decl>,
+
+<decl><name>CLASS_A4_FLAG</name></decl>,
+
+<decl><name>CLASS_A4_BRANCH</name></decl>,
+
+<decl><name>CLASS_A4_JC</name></decl> ,
+
+<decl><name>CLASS_A4_LD0</name></decl>,
+
+<decl><name>CLASS_A4_LD1</name></decl>,
+
+<decl><name>CLASS_A4_ST</name></decl>,
+
+<decl><name>CLASS_A4_SR</name></decl>,
+
+<decl><name>CLASS_A4_OP3_SUBOPC3F</name></decl>,
+
+<decl><name>CLASS_A4_LR</name></decl>
+
+}</block></enum></type> <name>a4_decoding_class</name>;</typedef>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>BIT</name><parameter_list>(<parameter><type><name>word</name></type></parameter>,<parameter><type><name>n</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>((word) &amp; (1 &lt;&lt; (n)))</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>BITS</name><parameter_list>(<parameter><type><name>word</name></type></parameter>,<parameter><type><name>s</name></type></parameter>,<parameter><type><name>e</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>(((word) &lt;&lt; (sizeof(word)*8-1 - (e))) &gt;&gt; ((s) + (sizeof(word)*8-1 - (e))))</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>OPCODE</name><parameter_list>(<parameter><type><name>word</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>(BITS ((word), 27, 31))</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>FIELDA</name><parameter_list>(<parameter><type><name>word</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>(BITS ((word), 21, 26))</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>FIELDB</name><parameter_list>(<parameter><type><name>word</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>(BITS ((word), 15, 20))</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>FIELDC</name><parameter_list>(<parameter><type><name>word</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>(BITS ((word), 9, 14))</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>FIELDD</name><parameter_list>(<parameter><type><name>word</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>(BITS (((signed int)(word)), 0, 8))</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>PUT_NEXT_WORD_IN</name><parameter_list>(<parameter><type><name>a</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>do { if (is_limm == 1 &amp;&amp; !NEXT_WORD (1)) mwerror (state, _("Illegal limm reference in last instruction!\n")); (a) = state-&gt;words[1]; } while (0)</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>CHECK_FLAG_COND_NULLIFY</name><parameter_list>()</parameter_list></cpp:macro> <cpp:value>do { if (is_shimm == 0) { flag = BIT (state-&gt;words[0], 8); state-&gt;nullifyMode = BITS (state-&gt;words[0], 5, 6); cond = BITS (state-&gt;words[0], 0, 4); } } while (0)</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>CHECK_COND</name><parameter_list>()</parameter_list></cpp:macro> <cpp:value>do { if (is_shimm == 0) cond = BITS (state-&gt;words[0],0,4); } while (0)</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>CHECK_FIELD</name><parameter_list>(<parameter><type><name>field</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>do { if ((field) == 62) { is_limm++; field##isReg = 0; PUT_NEXT_WORD_IN (field); } else if ((field) &gt; 60) { field##isReg = 0; is_shimm++; flag = ((field) == 61); (field) = FIELDD (state-&gt;words[0]); } } while (0)</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>CHECK_FIELD_A</name><parameter_list>()</parameter_list></cpp:macro> <cpp:value>do { fieldA = FIELDA (state-&gt;words[0]); if (fieldA &gt; 60) { fieldAisReg = 0; fieldA = 0; } } while (0)</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>CHECK_FIELD_B</name><parameter_list>()</parameter_list></cpp:macro> <cpp:value>do { fieldB = FIELDB (state-&gt;words[0]); CHECK_FIELD (fieldB); } while (0)</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>CHECK_FIELD_C</name><parameter_list>()</parameter_list></cpp:macro> <cpp:value>do { fieldC = FIELDC (state-&gt;words[0]); CHECK_FIELD (fieldC); } while (0)</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>IS_SMALL</name><parameter_list>(<parameter><type><name>x</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>(((field##x) &lt; 10) &amp;&amp; ((field##x) &gt;= 0))</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>IS_REG</name><parameter_list>(<parameter><type><name>x</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>(field##x##isReg)</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>WRITE_FORMAT_LB_Rx_RB</name><parameter_list>(<parameter><type><name>x</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>WRITE_FORMAT (x, "[","]","","")</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>WRITE_FORMAT_x_COMMA_LB</name><parameter_list>(<parameter><type><name>x</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>WRITE_FORMAT (x, "",", [","",", [")</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>WRITE_FORMAT_COMMA_x_RB</name><parameter_list>(<parameter><type><name>x</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>WRITE_FORMAT (x, ", ","]",", ","]")</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>WRITE_FORMAT_x_RB</name><parameter_list>(<parameter><type><name>x</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>WRITE_FORMAT (x, "","]","","]")</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>WRITE_FORMAT_COMMA_x</name><parameter_list>(<parameter><type><name>x</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>WRITE_FORMAT (x, ", ","",", ","")</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>WRITE_FORMAT_x_COMMA</name><parameter_list>(<parameter><type><name>x</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>WRITE_FORMAT (x, "",", ","",", ")</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>WRITE_FORMAT_x</name><parameter_list>(<parameter><type><name>x</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>WRITE_FORMAT (x, "","","","")</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>WRITE_FORMAT</name><parameter_list>(<parameter><type><name>x</name></type></parameter>,<parameter><type><name>cb1</name></type></parameter>,<parameter><type><name>ca1</name></type></parameter>,<parameter><type><name>cb</name></type></parameter>,<parameter><type><name>ca</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>strcat (formatString, (IS_REG (x) ? cb1"%r"ca1 : usesAuxReg ? cb"%a"ca : IS_SMALL (x) ? cb"%d"ca : cb"%h"ca))</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>WRITE_FORMAT_RB</name><parameter_list>()</parameter_list></cpp:macro> <cpp:value>strcat (formatString, "]")</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>WRITE_COMMENT</name><parameter_list>(<parameter><type><name>str</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>(state-&gt;comm[state-&gt;commNum++] = (str))</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>WRITE_NOP_COMMENT</name><parameter_list>()</parameter_list></cpp:macro> <cpp:value>if (!fieldAisReg &amp;&amp; !flag) WRITE_COMMENT ("nop");</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>NEXT_WORD</name><parameter_list>(<parameter><type><name>x</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>(offset += 4, state-&gt;words[x])</cpp:value></cpp:define>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>add_target</name><parameter_list>(<parameter><type><name>x</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>(state-&gt;targets[state-&gt;tcnt++] = (x))</cpp:value></cpp:define>
+
+<function><type><specifier>static</specifier> <specifier>const</specifier> <name>char</name> <modifier>*</modifier></type>
+
+<name>core_reg_name</name> <parameter_list>(<parameter><decl><type><name><name>struct</name> <name>arcDisState</name></name> <modifier>*</modifier></type> <name>state</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>val</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><name><name>state</name><operator>-&gt;</operator><name>coreRegName</name></name></expr>)</condition> <block>{<block_content>
+
+<return>return <expr><call>(<modifier>*</modifier><name><name>state</name><operator>-&gt;</operator><name>coreRegName</name></name>) <argument_list>(<argument><expr><name><name>state</name><operator>-&gt;</operator><name>_this</name></name></expr></argument>, <argument><expr><name>val</name></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <specifier>const</specifier> <name>char</name> <modifier>*</modifier></type>
+
+<name>aux_reg_name</name> <parameter_list>(<parameter><decl><type><name><name>struct</name> <name>arcDisState</name></name> <modifier>*</modifier></type> <name>state</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>val</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><name><name>state</name><operator>-&gt;</operator><name>auxRegName</name></name></expr>)</condition> <block>{<block_content>
+
+<return>return <expr><call>(<modifier>*</modifier><name><name>state</name><operator>-&gt;</operator><name>auxRegName</name></name>) <argument_list>(<argument><expr><name><name>state</name><operator>-&gt;</operator><name>_this</name></name></expr></argument>, <argument><expr><name>val</name></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <specifier>const</specifier> <name>char</name> <modifier>*</modifier></type>
+
+<name>cond_code_name</name> <parameter_list>(<parameter><decl><type><name><name>struct</name> <name>arcDisState</name></name> <modifier>*</modifier></type> <name>state</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>val</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><name><name>state</name><operator>-&gt;</operator><name>condCodeName</name></name></expr>)</condition> <block>{<block_content>
+
+<return>return <expr><call>(<modifier>*</modifier><name><name>state</name><operator>-&gt;</operator><name>condCodeName</name></name>) <argument_list>(<argument><expr><name><name>state</name><operator>-&gt;</operator><name>_this</name></name></expr></argument>, <argument><expr><name>val</name></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <specifier>const</specifier> <name>char</name> <modifier>*</modifier></type>
+
+<name>instruction_name</name> <parameter_list>(<parameter><decl><type><name><name>struct</name> <name>arcDisState</name></name> <modifier>*</modifier></type> <name>state</name></decl></parameter>,
+
+<parameter><decl><type><name>int</name></type> <name>op1</name></decl></parameter>,
+
+<parameter><decl><type><name>int</name></type> <name>op2</name></decl></parameter>,
+
+<parameter><decl><type><name>int</name> <modifier>*</modifier></type> <name>flags</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><name><name>state</name><operator>-&gt;</operator><name>instName</name></name></expr>)</condition> <block>{<block_content>
+
+<return>return <expr><call>(<modifier>*</modifier><name><name>state</name><operator>-&gt;</operator><name>instName</name></name>) <argument_list>(<argument><expr><name><name>state</name><operator>-&gt;</operator><name>_this</name></name></expr></argument>, <argument><expr><name>op1</name></expr></argument>, <argument><expr><name>op2</name></expr></argument>, <argument><expr><name>flags</name></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type>
+
+<name>mwerror</name> <parameter_list>(<parameter><decl><type><name><name>struct</name> <name>arcDisState</name></name> <modifier>*</modifier></type> <name>state</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type> <name>msg</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><name><name>state</name><operator>-&gt;</operator><name>err</name></name> <operator>!=</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call>(<modifier>*</modifier><name><name>state</name><operator>-&gt;</operator><name>err</name></name>) <argument_list>(<argument><expr><name><name>state</name><operator>-&gt;</operator><name>_this</name></name></expr></argument>, <argument><expr><operator>(</operator><name>msg</name><operator>)</operator></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <specifier>const</specifier> <name>char</name> <modifier>*</modifier></type>
+
+<name>post_address</name> <parameter_list>(<parameter><decl><type><name><name>struct</name> <name>arcDisState</name></name> <modifier>*</modifier></type> <name>state</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>addr</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><specifier>static</specifier> <name>char</name></type> <name><name>id</name><index>[<expr><literal type="number">3</literal> <operator>*</operator> <call><name>ARRAY_SIZE</name> <argument_list>(<argument><expr><name><name>state</name><operator>-&gt;</operator><name>addresses</name></name></expr></argument>)</argument_list></call></expr>]</index></name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>unsigned</name> <name>int</name></type> <name>j</name></decl>, <decl><type ref="prev"/><name>i</name> <init>= <expr><name><name>state</name><operator>-&gt;</operator><name>acnt</name></name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>i</name> <operator>&lt;</operator> <call><name>ARRAY_SIZE</name> <argument_list>(<argument><expr><name><name>state</name><operator>-&gt;</operator><name>addresses</name></name></expr></argument>)</argument_list></call></expr>)</condition>
+
+<block>{<block_content>
+
+<expr_stmt><expr><name><name>state</name><operator>-&gt;</operator><name>addresses</name><index>[<expr><name>i</name></expr>]</index></name> <operator>=</operator> <name>addr</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><operator>++</operator><name><name>state</name><operator>-&gt;</operator><name>acnt</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>j</name> <operator>=</operator> <name>i</name><operator>*</operator><literal type="number">3</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>id</name><index>[<expr><name>j</name><operator>+</operator><literal type="number">0</literal></expr>]</index></name> <operator>=</operator> <literal type="char">'@'</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>id</name><index>[<expr><name>j</name><operator>+</operator><literal type="number">1</literal></expr>]</index></name> <operator>=</operator> <literal type="char">'0'</literal><operator>+</operator><name>i</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>id</name><index>[<expr><name>j</name><operator>+</operator><literal type="number">2</literal></expr>]</index></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<return>return <expr><name>id</name> <operator>+</operator> <name>j</name></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<return>return <expr><literal type="string">""</literal></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type>
+
+<name>arc_sprintf</name> <parameter_list>(<parameter><decl><type><name><name>struct</name> <name>arcDisState</name></name> <modifier>*</modifier></type><name>state</name></decl></parameter>, <parameter><decl><type><name>char</name> <modifier>*</modifier></type><name>buf</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>format</name></decl></parameter>, <parameter><decl><type><modifier>...</modifier></type></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>char</name> <modifier>*</modifier></type><name>bp</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>p</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>size</name></decl>, <decl><type ref="prev"/><name>leading_zero</name></decl>, <decl><type ref="prev"/><name><name>regMap</name><index>[<expr><literal type="number">2</literal></expr>]</index></name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>va_list</name></type> <name>ap</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>va_start</name> <argument_list>(<argument><expr><name>ap</name></expr></argument>, <argument><expr><name>format</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>bp</name> <operator>=</operator> <name>buf</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><operator>*</operator><name>bp</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>p</name> <operator>=</operator> <name>format</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>regMap</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>regMap</name><index>[<expr><literal type="number">1</literal></expr>]</index></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<while>while <condition>(<expr><literal type="number">1</literal></expr>)</condition> <block>{<block_content>
+
+<switch>switch <condition>(<expr><operator>*</operator><name>p</name><operator>++</operator></expr>)</condition> <block>{<block_content>
+
+<case>case <expr><literal type="number">0</literal></expr>:</case>
+
+<goto>goto <name>DOCOMM</name>;</goto> 
+
+<default>default:</default>
+
+<expr_stmt><expr><operator>*</operator><name>bp</name><operator>++</operator> <operator>=</operator> <name><name>p</name><index>[<expr><operator>-</operator><literal type="number">1</literal></expr>]</index></name></expr>;</expr_stmt>
+
+<break>break;</break>
+
+<case>case <expr><literal type="char">'%'</literal></expr>:</case>
+
+<expr_stmt><expr><name>size</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>leading_zero</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<label><name>RETRY</name>:</label><empty_stmt>;</empty_stmt>
+
+<switch>switch <condition>(<expr><operator>*</operator><name>p</name><operator>++</operator></expr>)</condition> <block>{<block_content>
+
+<case>case <expr><literal type="char">'0'</literal></expr>:</case>
+
+<case>case <expr><literal type="char">'1'</literal></expr>:</case>
+
+<case>case <expr><literal type="char">'2'</literal></expr>:</case>
+
+<case>case <expr><literal type="char">'3'</literal></expr>:</case>
+
+<case>case <expr><literal type="char">'4'</literal></expr>:</case>
+
+<case>case <expr><literal type="char">'5'</literal></expr>:</case>
+
+<case>case <expr><literal type="char">'6'</literal></expr>:</case>
+
+<case>case <expr><literal type="char">'7'</literal></expr>:</case>
+
+<case>case <expr><literal type="char">'8'</literal></expr>:</case>
+
+<case>case <expr><literal type="char">'9'</literal></expr>:</case> <block>{<block_content>
+
+<expr_stmt><expr><name>size</name> <operator>=</operator> <name><name>p</name><index>[<expr><operator>-</operator><literal type="number">1</literal></expr>]</index></name> <operator>-</operator> <literal type="char">'0'</literal></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>size</name> <operator>==</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>leading_zero</name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt> 
+
+</block_content>}</block></if></if_stmt>
+
+<while>while <condition>(<expr><operator>*</operator><name>p</name> <operator>&gt;=</operator> <literal type="char">'0'</literal> <operator>&amp;&amp;</operator> <operator>*</operator><name>p</name> <operator>&lt;=</operator> <literal type="char">'9'</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>size</name> <operator>=</operator> <name>size</name> <operator>*</operator> <literal type="number">10</literal> <operator>+</operator> <operator>*</operator><name>p</name> <operator>-</operator> <literal type="char">'0'</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>p</name><operator>++</operator></expr>;</expr_stmt>
+
+</block_content>}</block></while>
+
+<goto>goto <name>RETRY</name>;</goto>
+
+</block_content>}</block>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>inc_bp</name><parameter_list>()</parameter_list></cpp:macro> <cpp:value>bp = bp + strlen (bp)</cpp:value></cpp:define>
+
+<case>case <expr><literal type="char">'h'</literal></expr>:</case>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>unsigned</name></type> <name>u</name> <init>= <expr><call><name>va_arg</name> <argument_list>(<argument><expr><name>ap</name></expr></argument>, <argument><expr><name>int</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>sprintf</name> <argument_list>(<argument><expr><name>bp</name></expr></argument>, <argument><expr><literal type="string">"0x%x"</literal></expr></argument>, <argument><expr><name>u</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>inc_bp</name> <argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block>
+
+<break>break;</break>
+
+<case>case <expr><literal type="char">'X'</literal></expr>:</case> <case>case <expr><literal type="char">'x'</literal></expr>:</case>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>int</name></type> <name>val</name> <init>= <expr><call><name>va_arg</name> <argument_list>(<argument><expr><name>ap</name></expr></argument>, <argument><expr><name>int</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>size</name> <operator>!=</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><name>leading_zero</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>sprintf</name> <argument_list>(<argument><expr><name>bp</name></expr></argument>, <argument><expr><literal type="string">"%0*x"</literal></expr></argument>, <argument><expr><name>size</name></expr></argument>, <argument><expr><name>val</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<expr_stmt><expr><call><name>sprintf</name> <argument_list>(<argument><expr><name>bp</name></expr></argument>, <argument><expr><literal type="string">"%*x"</literal></expr></argument>, <argument><expr><name>size</name></expr></argument>, <argument><expr><name>val</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<expr_stmt><expr><call><name>sprintf</name> <argument_list>(<argument><expr><name>bp</name></expr></argument>, <argument><expr><literal type="string">"%x"</literal></expr></argument>, <argument><expr><name>val</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+<expr_stmt><expr><call><name>inc_bp</name> <argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block>
+
+<break>break;</break>
+
+<case>case <expr><literal type="char">'d'</literal></expr>:</case>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>int</name></type> <name>val</name> <init>= <expr><call><name>va_arg</name> <argument_list>(<argument><expr><name>ap</name></expr></argument>, <argument><expr><name>int</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>size</name> <operator>!=</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>sprintf</name> <argument_list>(<argument><expr><name>bp</name></expr></argument>, <argument><expr><literal type="string">"%*d"</literal></expr></argument>, <argument><expr><name>size</name></expr></argument>, <argument><expr><name>val</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<expr_stmt><expr><call><name>sprintf</name> <argument_list>(<argument><expr><name>bp</name></expr></argument>, <argument><expr><literal type="string">"%d"</literal></expr></argument>, <argument><expr><name>val</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+<expr_stmt><expr><call><name>inc_bp</name> <argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block>
+
+<break>break;</break>
+
+<case>case <expr><literal type="char">'r'</literal></expr>:</case>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>int</name></type> <name>val</name> <init>= <expr><call><name>va_arg</name> <argument_list>(<argument><expr><name>ap</name></expr></argument>, <argument><expr><name>int</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>REG2NAME</name><parameter_list>(<parameter><type><name>num</name></type></parameter>, <parameter><type><name>name</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>case num: sprintf (bp, ""name); regMap[((num) &lt; 32) ? 0 : 1] |= 1 &lt;&lt; ((num) - (((num) &lt; 32) ? 0 : 32)); break;</cpp:value></cpp:define>
+
+<switch>switch <condition>(<expr><name>val</name></expr>)</condition>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>REG2NAME</name> <argument_list>(<argument><expr><literal type="number">26</literal></expr></argument>, <argument><expr><literal type="string">"gp"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>REG2NAME</name> <argument_list>(<argument><expr><literal type="number">27</literal></expr></argument>, <argument><expr><literal type="string">"fp"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>REG2NAME</name> <argument_list>(<argument><expr><literal type="number">28</literal></expr></argument>, <argument><expr><literal type="string">"sp"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>REG2NAME</name> <argument_list>(<argument><expr><literal type="number">29</literal></expr></argument>, <argument><expr><literal type="string">"ilink1"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>REG2NAME</name> <argument_list>(<argument><expr><literal type="number">30</literal></expr></argument>, <argument><expr><literal type="string">"ilink2"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>REG2NAME</name> <argument_list>(<argument><expr><literal type="number">31</literal></expr></argument>, <argument><expr><literal type="string">"blink"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>REG2NAME</name> <argument_list>(<argument><expr><literal type="number">60</literal></expr></argument>, <argument><expr><literal type="string">"lp_count"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<default>default:</default>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>ext</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>ext</name> <operator>=</operator> <call><name>core_reg_name</name> <argument_list>(<argument><expr><name>state</name></expr></argument>, <argument><expr><name>val</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>ext</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>sprintf</name> <argument_list>(<argument><expr><name>bp</name></expr></argument>, <argument><expr><literal type="string">"%s"</literal></expr></argument>, <argument><expr><name>ext</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<expr_stmt><expr><call><name>sprintf</name> <argument_list>(<argument><expr><name>bp</name></expr></argument>, <argument><expr><literal type="string">"r%d"</literal></expr></argument>, <argument><expr><name>val</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+</block_content>}</block>
+
+<break>break;</break>
+
+</block_content>}</block></switch>
+
+<expr_stmt><expr><call><name>inc_bp</name> <argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block> <break>break;</break>
+
+<case>case <expr><literal type="char">'a'</literal></expr>:</case>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>int</name></type> <name>val</name> <init>= <expr><call><name>va_arg</name> <argument_list>(<argument><expr><name>ap</name></expr></argument>, <argument><expr><name>int</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>AUXREG2NAME</name><parameter_list>(<parameter><type><name>num</name></type></parameter>, <parameter><type><name>name</name></type></parameter>)</parameter_list></cpp:macro> <cpp:value>case num: sprintf (bp,""name); break;</cpp:value></cpp:define>
+
+<switch>switch <condition>(<expr><name>val</name></expr>)</condition>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>AUXREG2NAME</name> <argument_list>(<argument><expr><literal type="number">0x0</literal></expr></argument>, <argument><expr><literal type="string">"status"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>AUXREG2NAME</name> <argument_list>(<argument><expr><literal type="number">0x1</literal></expr></argument>, <argument><expr><literal type="string">"semaphore"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>AUXREG2NAME</name> <argument_list>(<argument><expr><literal type="number">0x2</literal></expr></argument>, <argument><expr><literal type="string">"lp_start"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>AUXREG2NAME</name> <argument_list>(<argument><expr><literal type="number">0x3</literal></expr></argument>, <argument><expr><literal type="string">"lp_end"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>AUXREG2NAME</name> <argument_list>(<argument><expr><literal type="number">0x4</literal></expr></argument>, <argument><expr><literal type="string">"identity"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>AUXREG2NAME</name> <argument_list>(<argument><expr><literal type="number">0x5</literal></expr></argument>, <argument><expr><literal type="string">"debug"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<default>default:</default>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>ext</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>ext</name> <operator>=</operator> <call><name>aux_reg_name</name> <argument_list>(<argument><expr><name>state</name></expr></argument>, <argument><expr><name>val</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>ext</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>sprintf</name> <argument_list>(<argument><expr><name>bp</name></expr></argument>, <argument><expr><literal type="string">"%s"</literal></expr></argument>, <argument><expr><name>ext</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<expr_stmt><expr><call><name>arc_sprintf</name> <argument_list>(<argument><expr><name>state</name></expr></argument>, <argument><expr><name>bp</name></expr></argument>, <argument><expr><literal type="string">"%h"</literal></expr></argument>, <argument><expr><name>val</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+</block_content>}</block>
+
+<break>break;</break>
+
+</block_content>}</block></switch>
+
+<expr_stmt><expr><call><name>inc_bp</name> <argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block>
+
+<break>break;</break>
+
+<case>case <expr><literal type="char">'s'</literal></expr>:</case>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>sprintf</name> <argument_list>(<argument><expr><name>bp</name></expr></argument>, <argument><expr><literal type="string">"%s"</literal></expr></argument>, <argument><expr><call><name>va_arg</name> <argument_list>(<argument><expr><name>ap</name></expr></argument>, <argument><expr><name>char</name> <operator>*</operator></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>inc_bp</name> <argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block>
+
+<break>break;</break>
+
+<default>default:</default>
+
+<expr_stmt><expr><call><name>fprintf</name> <argument_list>(<argument><expr><name>stderr</name></expr></argument>, <argument><expr><literal type="string">"?? format %c\n"</literal></expr></argument>, <argument><expr><name><name>p</name><index>[<expr><operator>-</operator><literal type="number">1</literal></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<break>break;</break>
+
+</block_content>}</block></switch>
+
+</block_content>}</block></switch>
+
+</block_content>}</block></while>
+
+<label><name>DOCOMM</name>:</label> <expr_stmt><expr><operator>*</operator><name>bp</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>va_end</name> <argument_list>(<argument><expr><name>ap</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></function>
+
+<decl_stmt><decl><type><specifier>static</specifier> <specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name><name>condName</name><index>[]</index></name> <init>=
+
+<expr><block>{
+
+<expr><literal type="string">""</literal></expr> , <expr><literal type="string">"z"</literal></expr> , <expr><literal type="string">"nz"</literal></expr> , <expr><literal type="string">"p"</literal></expr> , <expr><literal type="string">"n"</literal></expr> , <expr><literal type="string">"c"</literal></expr> , <expr><literal type="string">"nc"</literal></expr> , <expr><literal type="string">"v"</literal></expr> ,
+
+<expr><literal type="string">"nv"</literal></expr> , <expr><literal type="string">"gt"</literal></expr> , <expr><literal type="string">"ge"</literal></expr> , <expr><literal type="string">"lt"</literal></expr> , <expr><literal type="string">"le"</literal></expr> , <expr><literal type="string">"hi"</literal></expr> , <expr><literal type="string">"ls"</literal></expr> , <expr><literal type="string">"pnz"</literal></expr>
+
+}</block></expr></init></decl>;</decl_stmt>
+
+<function><type><specifier>static</specifier> <name>void</name></type>
+
+<name>write_instr_name_</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>arcDisState</name></name> <modifier>*</modifier></type> <name>state</name></decl></parameter>,
+
+<parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type> <name>instrName</name></decl></parameter>,
+
+<parameter><decl><type><name>int</name></type> <name>cond</name></decl></parameter>,
+
+<parameter><decl><type><name>int</name></type> <name>condCodeIsPartOfName</name></decl></parameter>,
+
+<parameter><decl><type><name>int</name></type> <name>flag</name></decl></parameter>,
+
+<parameter><decl><type><name>int</name></type> <name>signExtend</name></decl></parameter>,
+
+<parameter><decl><type><name>int</name></type> <name>addrWriteBack</name></decl></parameter>,
+
+<parameter><decl><type><name>int</name></type> <name>directMem</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>strncpy</name> <argument_list>(<argument><expr><name><name>state</name><operator>-&gt;</operator><name>instrBuffer</name></name></expr></argument>, <argument><expr><name>instrName</name></expr></argument>, <argument><expr><sizeof>sizeof <argument_list>(<argument><expr><name><name>state</name><operator>-&gt;</operator><name>instrBuffer</name></name></expr></argument>)</argument_list></sizeof><operator>-</operator><literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>cond</name> <operator>&gt;</operator> <literal type="number">0</literal></expr>)</condition>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>cc</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>condCodeIsPartOfName</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>strcat</name> <argument_list>(<argument><expr><name><name>state</name><operator>-&gt;</operator><name>instrBuffer</name></name></expr></argument>, <argument><expr><literal type="string">"."</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>cond</name> <operator>&lt;</operator> <literal type="number">16</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>cc</name> <operator>=</operator> <name><name>condName</name><index>[<expr><name>cond</name></expr>]</index></name></expr>;</expr_stmt>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<expr_stmt><expr><name>cc</name> <operator>=</operator> <call><name>cond_code_name</name> <argument_list>(<argument><expr><name>state</name></expr></argument>, <argument><expr><name>cond</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>cc</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>cc</name> <operator>=</operator> <literal type="string">"???"</literal></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>strcat</name> <argument_list>(<argument><expr><name><name>state</name><operator>-&gt;</operator><name>instrBuffer</name></name></expr></argument>, <argument><expr><name>cc</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>flag</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>strcat</name> <argument_list>(<argument><expr><name><name>state</name><operator>-&gt;</operator><name>instrBuffer</name></name></expr></argument>, <argument><expr><literal type="string">".f"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<switch>switch <condition>(<expr><name><name>state</name><operator>-&gt;</operator><name>nullifyMode</name></name></expr>)</condition> <block>{<block_content>
+
+<case>case <expr><name>BR_exec_always</name></expr>:</case>
+
+<expr_stmt><expr><call><name>strcat</name> <argument_list>(<argument><expr><name><name>state</name><operator>-&gt;</operator><name>instrBuffer</name></name></expr></argument>, <argument><expr><literal type="string">".d"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<break>break;</break>
+
+<case>case <expr><name>BR_exec_when_jump</name></expr>:</case>
+
+<expr_stmt><expr><call><name>strcat</name> <argument_list>(<argument><expr><name><name>state</name><operator>-&gt;</operator><name>instrBuffer</name></name></expr></argument>, <argument><expr><literal type="string">".jd"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<break>break;</break>
+
+<case>case <expr><name>BR_exec_when_no_jump</name></expr>:</case>
+
+<break>break;</break>
+
+</block_content>}</block></switch>
+
+<if_stmt><if>if <condition>(<expr><name>signExtend</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>strcat</name> <argument_list>(<argument><expr><name><name>state</name><operator>-&gt;</operator><name>instrBuffer</name></name></expr></argument>, <argument><expr><literal type="string">".x"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>addrWriteBack</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>strcat</name> <argument_list>(<argument><expr><name><name>state</name><operator>-&gt;</operator><name>instrBuffer</name></name></expr></argument>, <argument><expr><literal type="string">".a"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>directMem</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>strcat</name> <argument_list>(<argument><expr><name><name>state</name><operator>-&gt;</operator><name>instrBuffer</name></name></expr></argument>, <argument><expr><literal type="string">".di"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></function>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>write_instr_name</name><parameter_list>()</parameter_list></cpp:macro> <cpp:value>do { write_instr_name_(state, instrName, cond, condCodeIsPartOfName, flag, signExtend, addrWriteBack, directMem); formatString[0] = '\0'; } while (0)</cpp:value></cpp:define>
+
+<enum>enum
+
+<block>{
+
+<decl><name>op_LD0</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>, <decl><name>op_LD1</name> <init>= <expr><literal type="number">1</literal></expr></init></decl>, <decl><name>op_ST</name> <init>= <expr><literal type="number">2</literal></expr></init></decl>, <decl><name>op_3</name> <init>= <expr><literal type="number">3</literal></expr></init></decl>,
+
+<decl><name>op_BC</name> <init>= <expr><literal type="number">4</literal></expr></init></decl>, <decl><name>op_BLC</name> <init>= <expr><literal type="number">5</literal></expr></init></decl>, <decl><name>op_LPC</name> <init>= <expr><literal type="number">6</literal></expr></init></decl>, <decl><name>op_JC</name> <init>= <expr><literal type="number">7</literal></expr></init></decl>,
+
+<decl><name>op_ADD</name> <init>= <expr><literal type="number">8</literal></expr></init></decl>, <decl><name>op_ADC</name> <init>= <expr><literal type="number">9</literal></expr></init></decl>, <decl><name>op_SUB</name> <init>= <expr><literal type="number">10</literal></expr></init></decl>, <decl><name>op_SBC</name> <init>= <expr><literal type="number">11</literal></expr></init></decl>,
+
+<decl><name>op_AND</name> <init>= <expr><literal type="number">12</literal></expr></init></decl>, <decl><name>op_OR</name> <init>= <expr><literal type="number">13</literal></expr></init></decl>, <decl><name>op_BIC</name> <init>= <expr><literal type="number">14</literal></expr></init></decl>, <decl><name>op_XOR</name> <init>= <expr><literal type="number">15</literal></expr></init></decl>
+
+}</block>;</enum>
+
+<decl_stmt><decl><type><specifier>extern</specifier> <name>disassemble_info</name></type> <name>tm_print_insn_info</name></decl>;</decl_stmt>
+
+<function><type><specifier>static</specifier> <name>int</name></type>
+
+<name>dsmOneArcInst</name> <parameter_list>(<parameter><decl><type><name>bfd_vma</name></type> <name>addr</name></decl></parameter>, <parameter><decl><type><name><name>struct</name> <name>arcDisState</name></name> <modifier>*</modifier></type> <name>state</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>int</name></type> <name>condCodeIsPartOfName</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>a4_decoding_class</name></type> <name>decodingClass</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>instrName</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>repeatsOp</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>fieldAisReg</name> <init>= <expr><literal type="number">1</literal></expr></init></decl>, <decl><type ref="prev"/><name>fieldBisReg</name> <init>= <expr><literal type="number">1</literal></expr></init></decl>, <decl><type ref="prev"/><name>fieldCisReg</name> <init>= <expr><literal type="number">1</literal></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>fieldA</name></decl>, <decl><type ref="prev"/><name>fieldB</name></decl>, <decl><type ref="prev"/><name>fieldC</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>flag</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>, <decl><type ref="prev"/><name>cond</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>, <decl><type ref="prev"/><name>is_shimm</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>, <decl><type ref="prev"/><name>is_limm</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>signExtend</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>, <decl><type ref="prev"/><name>addrWriteBack</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>, <decl><type ref="prev"/><name>directMem</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>is_linked</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>offset</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>usesAuxReg</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>ignoreFirstOpd</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>char</name></type> <name><name>formatString</name><index>[<expr><literal type="number">60</literal></expr>]</index></name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>flags</name> <init>= <expr><name>E_ARC_MACH_A4</name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>state</name><operator>-&gt;</operator><name>instructionLen</name></name> <operator>=</operator> <literal type="number">4</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>state</name><operator>-&gt;</operator><name>nullifyMode</name></name> <operator>=</operator> <name>BR_exec_when_no_jump</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>state</name><operator>-&gt;</operator><name>opWidth</name></name> <operator>=</operator> <literal type="number">12</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>state</name><operator>-&gt;</operator><name>isBranch</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>state</name><operator>-&gt;</operator><name>_mem_load</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>state</name><operator>-&gt;</operator><name>_ea_present</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>state</name><operator>-&gt;</operator><name>_load_len</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>state</name><operator>-&gt;</operator><name>ea_reg1</name></name> <operator>=</operator> <name>no_reg</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>state</name><operator>-&gt;</operator><name>ea_reg2</name></name> <operator>=</operator> <name>no_reg</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>state</name><operator>-&gt;</operator><name>_offset</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>NEXT_WORD</name> <argument_list>(<argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<return>return <expr><literal type="number">0</literal></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>state</name><operator>-&gt;</operator><name>_opcode</name></name> <operator>=</operator> <call><name>OPCODE</name> <argument_list>(<argument><expr><name><name>state</name><operator>-&gt;</operator><name>words</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>instrName</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>decodingClass</name> <operator>=</operator> <name>CLASS_A4_ARITH</name></expr>;</expr_stmt> 
+
+<expr_stmt><expr><name>repeatsOp</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>condCodeIsPartOfName</name><operator>=</operator><literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>state</name><operator>-&gt;</operator><name>commNum</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>state</name><operator>-&gt;</operator><name>tcnt</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>state</name><operator>-&gt;</operator><name>acnt</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>state</name><operator>-&gt;</operator><name>flow</name></name> <operator>=</operator> <name>noflow</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>ignoreFirstOpd</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<switch>switch <condition>(<expr><name><name>state</name><operator>-&gt;</operator><name>_opcode</name></name></expr>)</condition>
+
+<block>{<block_content>
+
+<case>case <expr><name>op_LD0</name></expr>:</case>
+
+<switch>switch <condition>(<expr><call><name>BITS</name> <argument_list>(<argument><expr><name><name>state</name><operator>-&gt;</operator><name>words</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>,<argument><expr><literal type="number">1</literal></expr></argument>,<argument><expr><literal type="number">2</literal></expr></argument>)</argument_list></call></expr>)</condition>
+
+<block>{<block_content>
+
+<case>case <expr><literal type="number">0</literal></expr>:</case>
+
+<expr_stmt><expr><name>instrName</name> <operator>=</operator> <literal type="string">"ld"</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>state</name><operator>-&gt;</operator><name>_load_len</name></name> <operator>=</operator> <literal type="number">4</literal></expr>;</expr_stmt>
+
+<break>break;</break>
+
+<case>case <expr><literal type="number">1</literal></expr>:</case>
+
+<expr_stmt><expr><name>instrName</name> <operator>=</operator> <literal type="string">"ldb"</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>state</name><operator>-&gt;</operator><name>_load_len</name></name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+
+<break>break;</break>
+
+<case>case <expr><literal type="number">2</literal></expr>:</case>
+
+<expr_stmt><expr><name>instrName</name> <operator>=</operator> <literal type="string">"ldw"</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>state</name><operator>-&gt;</operator><name>_load_len</name></name> <operator>=</operator> <literal type="number">2</literal></expr>;</expr_stmt>
+
+<break>break;</break>
+
+<default>default:</default>
+
+<expr_stmt><expr><name>instrName</name> <operator>=</operator> <literal type="string">"??? (0[3])"</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>state</name><operator>-&gt;</operator><name>flow</name></name> <operator>=</operator> <name>invalid_instr</name></expr>;</expr_stmt>
+
+<break>break;</break>
+
+</block_content>}</block></switch>
+
+<expr_stmt><expr><name>decodingClass</name> <operator>=</operator> <name>CLASS_A4_LD0</name></expr>;</expr_stmt>
+
+<break>break;</break>
+
+<case>case <expr><name>op_LD1</name></expr>:</case>
+
+<if_stmt><if>if <condition>(<expr><call><name>BIT</name> <argument_list>(<argument><expr><name><name>state</name><operator>-&gt;</operator><name>words</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>,<argument><expr><literal type="number">13</literal></expr></argument>)</argument_list></call></expr>)</condition>
+
+<block>{<block_content>
+
+<expr_stmt><expr><name>instrName</name> <operator>=</operator> <literal type="string">"lr"</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>decodingClass</name> <operator>=</operator> <name>CLASS_A4_LR</name></expr>;</expr_stmt>
+
+</block_content>}</block></if>
+
+<else>else
+
+<block>{<block_content>
+
+<switch>switch <condition>(<expr><call><name>BITS</name> <argument_list>(<argument><expr><name><name>state</name><operator>-&gt;</operator><name>words</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>, <argument><expr><literal type="number">10</literal></expr></argument>, <argument><expr><literal type="number">11</literal></expr></argument>)</argument_list></call></expr>)</condition>
+
+<block>{<block_content>
+
+<case>case <expr><literal type="number">0</literal></expr>:</case> <expr_stmt><expr><name>instrName</name> <operator>=</operator> <literal type="string">"ld"</literal></expr>;</expr_stmt> <expr_stmt><expr><name><name>state</name><operator>-&gt;</operator><name>_load_len</name></name> <operator>=</operator> <literal type="number">4</literal></expr>;</expr_stmt> <break>break;</break>
+
+<case>case <expr><literal type="number">1</literal></expr>:</case> <expr_stmt><expr><name>instrName</name> <operator>=</operator> <literal type="string">"ldb"</literal></expr>;</expr_stmt> <expr_stmt><expr><name><name>state</name><operator>-&gt;</operator><name>_load_len</name></name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt> <break>break;</break>
+
+<case>case <expr><literal type="number">2</literal></expr>:</case> <expr_stmt><expr><name>instrName</name> <operator>=</operator> <literal type="string">"ldw"</literal></expr>;</expr_stmt> <expr_stmt><expr><name><name>state</name><operator>-&gt;</operator><name>_load_len</name></name> <operator>=</operator> <literal type="number">2</literal></expr>;</expr_stmt> <break>break;</break>
+
+<default>default:</default> <expr_stmt><expr><name>instrName</name> <operator>=</operator> <literal type="string">"??? (1[3])"</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>state</name><operator>-&gt;</operator><name>flow</name></name> <operator>=</operator> <name>invalid_instr</name></expr>;</expr_stmt> <break>break;</break>
+
+</block_content>}</block></switch>
+
+<expr_stmt><expr><name>decodingClass</name> <operator>=</operator> <name>CLASS_A4_LD1</name></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+<break>break;</break>
+
+<case>case <expr><name>op_ST</name></expr>:</case>
+
+<if_stmt><if>if <condition>(<expr><call><name>BIT</name> <argument_list>(<argument><expr><name><name>state</name><operator>-&gt;</operator><name>words</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>, <argument><expr><literal type="number">25</literal></expr></argument>)</argument_list></call></expr>)</condition>
+
+<block>{<block_content>
+
+<expr_stmt><expr><name>instrName</name> <operator>=</operator> <literal type="string">"sr"</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>decodingClass</name> <operator>=</operator> <name>CLASS_A4_SR</name></expr>;</expr_stmt>
+
+</block_content>}</block></if>
+
+<else>else
+
+<block>{<block_content>
+
+<switch>switch <condition>(<expr><call><name>BITS</name> <argument_list>(<argument><expr><name><name>state</name><operator>-&gt;</operator><name>words</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>, <argument><expr><literal type="number">22</literal></expr></argument>, <argument><expr><literal type="number">23</literal></expr></argument>)</argument_list></call></expr>)</condition>
+
+<block>{<block_content>
+
+<case>case <expr><literal type="number">0</literal></expr>:</case> <expr_stmt><expr><name>instrName</name> <operator>=</operator> <literal type="string">"st"</literal></expr>;</expr_stmt> <break>break;</break>
+
+<case>case <expr><literal type="number">1</literal></expr>:</case> <expr_stmt><expr><name>instrName</name> <operator>=</operator> <literal type="string">"stb"</literal></expr>;</expr_stmt> <break>break;</break>
+
+<case>case <expr><literal type="number">2</literal></expr>:</case> <expr_stmt><expr><name>instrName</name> <operator>=</operator> <literal type="string">"stw"</literal></expr>;</expr_stmt> <break>break;</break>
+
+<default>default:</default> <expr_stmt><expr><name>instrName</name> <operator>=</operator> <literal type="string">"??? (2[3])"</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>state</name><operator>-&gt;</operator><name>flow</name></name> <operator>=</operator> <name>invalid_instr</name></expr>;</expr_stmt> <break>break;</break>
+
+</block_content>}</block></switch>
+
+<expr_stmt><expr><name>decodingClass</name> <operator>=</operator> <name>CLASS_A4_ST</name></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+<break>break;</break>
+
+<case>case <expr><name>op_3</name></expr>:</case>
+
+<expr_stmt><expr><name>decodingClass</name> <operator>=</operator> <name>CLASS_A4_OP3_GENERAL</name></expr>;</expr_stmt> 
+
+<switch>switch <condition>(<expr><call><name>FIELDC</name> <argument_list>(<argument><expr><name><name>state</name><operator>-&gt;</operator><name>words</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>)</argument_list></call></expr>)</condition>
+
+<block>{<block_content>
+
+<case>case <expr><literal type="number">0</literal></expr>:</case>
+
+<expr_stmt><expr><name>instrName</name> <operator>=</operator> <literal type="string">"flag"</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>decodingClass</name> <operator>=</operator> <name>CLASS_A4_FLAG</name></expr>;</expr_stmt>
+
+<break>break;</break>
+
+<case>case <expr><literal type="number">1</literal></expr>:</case>
+
+<expr_stmt><expr><name>instrName</name> <operator>=</operator> <literal type="string">"asr"</literal></expr>;</expr_stmt>
+
+<break>break;</break>
+
+<case>case <expr><literal type="number">2</literal></expr>:</case>
+
+<expr_stmt><expr><name>instrName</name> <operator>=</operator> <literal type="string">"lsr"</literal></expr>;</expr_stmt>
+
+<break>break;</break>
+
+<case>case <expr><literal type="number">3</literal></expr>:</case>
+
+<expr_stmt><expr><name>instrName</name> <operator>=</operator> <literal type="string">"ror"</literal></expr>;</expr_stmt>
+
+<break>break;</break>
+
+<case>case <expr><literal type="number">4</literal></expr>:</case>
+
+<expr_stmt><expr><name>instrName</name> <operator>=</operator> <literal type="string">"rrc"</literal></expr>;</expr_stmt>
+
+<break>break;</break>
+
+<case>case <expr><literal type="number">5</literal></expr>:</case>
+
+<expr_stmt><expr><name>instrName</name> <operator>=</operator> <literal type="string">"sexb"</literal></expr>;</expr_stmt>
+
+<break>break;</break>
+
+<case>case <expr><literal type="number">6</literal></expr>:</case>
+
+<expr_stmt><expr><name>instrName</name> <operator>=</operator> <literal type="string">"sexw"</literal></expr>;</expr_stmt>
+
+<break>break;</break>
+
+<case>case <expr><literal type="number">7</literal></expr>:</case>
+
+<expr_stmt><expr><name>instrName</name> <operator>=</operator> <literal type="string">"extb"</literal></expr>;</expr_stmt>
+
+<break>break;</break>
+
+<case>case <expr><literal type="number">8</literal></expr>:</case>
+
+<expr_stmt><expr><name>instrName</name> <operator>=</operator> <literal type="string">"extw"</literal></expr>;</expr_stmt>
+
+<break>break;</break>
+
+<case>case <expr><literal type="number">0x3f</literal></expr>:</case>
+
+<block>{<block_content>
+
+<expr_stmt><expr><name>decodingClass</name> <operator>=</operator> <name>CLASS_A4_OP3_SUBOPC3F</name></expr>;</expr_stmt>
+
+<switch>switch <condition>(<expr><call><name>FIELDD</name> <argument_list>(<argument><expr><name><name>state</name><operator>-&gt;</operator><name>words</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>)</argument_list></call></expr>)</condition>
+
+<block>{<block_content>
+
+<case>case <expr><literal type="number">0</literal></expr>:</case>
+
+<expr_stmt><expr><name>instrName</name> <operator>=</operator> <literal type="string">"brk"</literal></expr>;</expr_stmt>
+
+<break>break;</break>
+
+<case>case <expr><literal type="number">1</literal></expr>:</case>
+
+<expr_stmt><expr><name>instrName</name> <operator>=</operator> <literal type="string">"sleep"</literal></expr>;</expr_stmt>
+
+<break>break;</break>
+
+<case>case <expr><literal type="number">2</literal></expr>:</case>
+
+<expr_stmt><expr><name>instrName</name> <operator>=</operator> <literal type="string">"swi"</literal></expr>;</expr_stmt>
+
+<break>break;</break>
+
+<default>default:</default>
+
+<expr_stmt><expr><name>instrName</name> <operator>=</operator> <literal type="string">"???"</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>state</name><operator>-&gt;</operator><name>flow</name></name><operator>=</operator><name>invalid_instr</name></expr>;</expr_stmt>
+
+<break>break;</break>
+
+</block_content>}</block></switch>
+
+</block_content>}</block>
+
+<break>break;</break>
+
+<default>default:</default>
+
+<expr_stmt><expr><name>instrName</name> <operator>=</operator> <call><name>instruction_name</name> <argument_list>(<argument><expr><name>state</name></expr></argument>,
+
+<argument><expr><name><name>state</name><operator>-&gt;</operator><name>_opcode</name></name></expr></argument>,
+
+<argument><expr><call><name>FIELDC</name> <argument_list>(<argument><expr><name><name>state</name><operator>-&gt;</operator><name>words</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>)</argument_list></call></expr></argument>,
+
+<argument><expr><operator>&amp;</operator><name>flags</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>instrName</name></expr>)</condition>
+
+<block>{<block_content>
+
+<expr_stmt><expr><name>instrName</name> <operator>=</operator> <literal type="string">"???"</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>state</name><operator>-&gt;</operator><name>flow</name></name> <operator>=</operator> <name>invalid_instr</name></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>flags</name> <operator>&amp;</operator> <name>IGNORE_FIRST_OPD</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>ignoreFirstOpd</name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<break>break;</break>
+
+</block_content>}</block></switch>
+
+<break>break;</break>
+
+<case>case <expr><name>op_BC</name></expr>:</case> <expr_stmt><expr><name>instrName</name> <operator>=</operator> <literal type="string">"b"</literal></expr>;</expr_stmt>
+
+<case>case <expr><name>op_BLC</name></expr>:</case>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>instrName</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>instrName</name> <operator>=</operator> <literal type="string">"bl"</literal></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<case>case <expr><name>op_LPC</name></expr>:</case>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>instrName</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>instrName</name> <operator>=</operator> <literal type="string">"lp"</literal></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<case>case <expr><name>op_JC</name></expr>:</case>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>instrName</name></expr>)</condition>
+
+<block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><call><name>BITS</name> <argument_list>(<argument><expr><name><name>state</name><operator>-&gt;</operator><name>words</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>,<argument><expr><literal type="number">9</literal></expr></argument>,<argument><expr><literal type="number">9</literal></expr></argument>)</argument_list></call></expr>)</condition>
+
+<block>{<block_content>
+
+<expr_stmt><expr><name>instrName</name> <operator>=</operator> <literal type="string">"jl"</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>is_linked</name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+
+</block_content>}</block></if>
+
+<else>else
+
+<block>{<block_content>
+
+<expr_stmt><expr><name>instrName</name> <operator>=</operator> <literal type="string">"j"</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>is_linked</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name>condCodeIsPartOfName</name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>decodingClass</name> <operator>=</operator> <operator>(</operator><ternary><condition><expr><operator>(</operator><name><name>state</name><operator>-&gt;</operator><name>_opcode</name></name> <operator>==</operator> <name>op_JC</name><operator>)</operator></expr> ?</condition><then> <expr><name>CLASS_A4_JC</name></expr> </then><else>: <expr><name>CLASS_A4_BRANCH</name></expr></else></ternary> <operator>)</operator></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>state</name><operator>-&gt;</operator><name>isBranch</name></name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+
+<break>break;</break>
+
+<case>case <expr><name>op_ADD</name></expr>:</case>
+
+<case>case <expr><name>op_ADC</name></expr>:</case>
+
+<case>case <expr><name>op_AND</name></expr>:</case>
+
+<expr_stmt><expr><name>repeatsOp</name> <operator>=</operator> <operator>(</operator><call><name>FIELDC</name> <argument_list>(<argument><expr><name><name>state</name><operator>-&gt;</operator><name>words</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>)</argument_list></call> <operator>==</operator> <call><name>FIELDB</name> <argument_list>(<argument><expr><name><name>state</name><operator>-&gt;</operator><name>words</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>)</argument_list></call><operator>)</operator></expr>;</expr_stmt>
+
+<switch>switch <condition>(<expr><name><name>state</name><operator>-&gt;</operator><name>_opcode</name></name></expr>)</condition>
+
+<block>{<block_content>
+
+<case>case <expr><name>op_ADD</name></expr>:</case> <expr_stmt><expr><name>instrName</name> <operator>=</operator> <operator>(</operator><ternary><condition><expr><name>repeatsOp</name></expr> ?</condition><then> <expr><literal type="string">"asl"</literal></expr> </then><else>: <expr><literal type="string">"add"</literal></expr></else></ternary><operator>)</operator></expr>;</expr_stmt> <break>break;</break>
+
+<case>case <expr><name>op_ADC</name></expr>:</case> <expr_stmt><expr><name>instrName</name> <operator>=</operator> <operator>(</operator><ternary><condition><expr><name>repeatsOp</name></expr> ?</condition><then> <expr><literal type="string">"rlc"</literal></expr> </then><else>: <expr><literal type="string">"adc"</literal></expr></else></ternary><operator>)</operator></expr>;</expr_stmt> <break>break;</break>
+
+<case>case <expr><name>op_AND</name></expr>:</case> <expr_stmt><expr><name>instrName</name> <operator>=</operator> <operator>(</operator><ternary><condition><expr><name>repeatsOp</name></expr> ?</condition><then> <expr><literal type="string">"mov"</literal></expr> </then><else>: <expr><literal type="string">"and"</literal></expr></else></ternary><operator>)</operator></expr>;</expr_stmt> <break>break;</break>
+
+</block_content>}</block></switch>
+
+<break>break;</break>
+
+<case>case <expr><name>op_SUB</name></expr>:</case> <expr_stmt><expr><name>instrName</name> <operator>=</operator> <literal type="string">"sub"</literal></expr>;</expr_stmt> <break>break;</break>
+
+<case>case <expr><name>op_SBC</name></expr>:</case> <expr_stmt><expr><name>instrName</name> <operator>=</operator> <literal type="string">"sbc"</literal></expr>;</expr_stmt> <break>break;</break>
+
+<case>case <expr><name>op_OR</name></expr>:</case> <expr_stmt><expr><name>instrName</name> <operator>=</operator> <literal type="string">"or"</literal></expr>;</expr_stmt> <break>break;</break>
+
+<case>case <expr><name>op_BIC</name></expr>:</case> <expr_stmt><expr><name>instrName</name> <operator>=</operator> <literal type="string">"bic"</literal></expr>;</expr_stmt> <break>break;</break>
+
+<case>case <expr><name>op_XOR</name></expr>:</case>
+
+<if_stmt><if>if <condition>(<expr><name><name>state</name><operator>-&gt;</operator><name>words</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>==</operator> <literal type="number">0x7fffffff</literal></expr>)</condition>
+
+<block>{<block_content>
+
+<expr_stmt><expr><name>instrName</name> <operator>=</operator> <literal type="string">"nop"</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>decodingClass</name> <operator>=</operator> <name>CLASS_A4_OP3_SUBOPC3F</name></expr>;</expr_stmt>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<expr_stmt><expr><name>instrName</name> <operator>=</operator> <literal type="string">"xor"</literal></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+<break>break;</break>
+
+<default>default:</default>
+
+<expr_stmt><expr><name>instrName</name> <operator>=</operator> <call><name>instruction_name</name> <argument_list>(<argument><expr><name>state</name></expr></argument>,<argument><expr><name><name>state</name><operator>-&gt;</operator><name>_opcode</name></name></expr></argument>,<argument><expr><literal type="number">0</literal></expr></argument>,<argument><expr><operator>&amp;</operator><name>flags</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>instrName</name></expr>)</condition>
+
+<block>{<block_content>
+
+<expr_stmt><expr><name>instrName</name> <operator>=</operator> <literal type="string">"???"</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>state</name><operator>-&gt;</operator><name>flow</name></name><operator>=</operator><name>invalid_instr</name></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>flags</name> <operator>&amp;</operator> <name>IGNORE_FIRST_OPD</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name>ignoreFirstOpd</name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<break>break;</break>
+
+</block_content>}</block></switch>
+
+<expr_stmt><expr><name>fieldAisReg</name> <operator>=</operator> <name>fieldBisReg</name> <operator>=</operator> <name>fieldCisReg</name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt> 
+
+<expr_stmt><expr><name>flag</name> <operator>=</operator> <name>cond</name> <operator>=</operator> <name>is_shimm</name> <operator>=</operator> <name>is_limm</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>state</name><operator>-&gt;</operator><name>nullifyMode</name></name> <operator>=</operator> <name>BR_exec_when_no_jump</name></expr>;</expr_stmt> 
+
+<expr_stmt><expr><name>signExtend</name> <operator>=</operator> <name>addrWriteBack</name> <operator>=</operator> <name>directMem</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>usesAuxReg</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<switch>switch <condition>(<expr><name>decodingClass</name></expr>)</condition>
+
+<block>{<block_content>
+
+<case>case <expr><name>CLASS_A4_ARITH</name></expr>:</case>
+
+<expr_stmt><expr><call><name>CHECK_FIELD_A</name> <argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>CHECK_FIELD_B</name> <argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>repeatsOp</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>CHECK_FIELD_C</name> <argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>CHECK_FLAG_COND_NULLIFY</name> <argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>write_instr_name</name> <argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>ignoreFirstOpd</name></expr>)</condition>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>WRITE_FORMAT_x</name> <argument_list>(<argument><expr><name>A</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>WRITE_FORMAT_COMMA_x</name> <argument_list>(<argument><expr><name>B</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>repeatsOp</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>WRITE_FORMAT_COMMA_x</name> <argument_list>(<argument><expr><name>C</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>WRITE_NOP_COMMENT</name> <argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>arc_sprintf</name> <argument_list>(<argument><expr><name>state</name></expr></argument>, <argument><expr><name><name>state</name><operator>-&gt;</operator><name>operandBuffer</name></name></expr></argument>, <argument><expr><name>formatString</name></expr></argument>,
+
+<argument><expr><name>fieldA</name></expr></argument>, <argument><expr><name>fieldB</name></expr></argument>, <argument><expr><name>fieldC</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if>
+
+<else>else
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>WRITE_FORMAT_x</name> <argument_list>(<argument><expr><name>B</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>repeatsOp</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>WRITE_FORMAT_COMMA_x</name> <argument_list>(<argument><expr><name>C</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>arc_sprintf</name> <argument_list>(<argument><expr><name>state</name></expr></argument>, <argument><expr><name><name>state</name><operator>-&gt;</operator><name>operandBuffer</name></name></expr></argument>, <argument><expr><name>formatString</name></expr></argument>,
+
+<argument><expr><name>fieldB</name></expr></argument>, <argument><expr><name>fieldC</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+<break>break;</break>
+
+<case>case <expr><name>CLASS_A4_OP3_GENERAL</name></expr>:</case>
+
+<expr_stmt><expr><call><name>CHECK_FIELD_A</name> <argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>CHECK_FIELD_B</name> <argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>CHECK_FLAG_COND_NULLIFY</name> <argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>write_instr_name</name> <argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>ignoreFirstOpd</name></expr>)</condition>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>WRITE_FORMAT_x</name> <argument_list>(<argument><expr><name>A</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>WRITE_FORMAT_COMMA_x</name> <argument_list>(<argument><expr><name>B</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>WRITE_NOP_COMMENT</name> <argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>arc_sprintf</name> <argument_list>(<argument><expr><name>state</name></expr></argument>, <argument><expr><name><name>state</name><operator>-&gt;</operator><name>operandBuffer</name></name></expr></argument>, <argument><expr><name>formatString</name></expr></argument>,
+
+<argument><expr><name>fieldA</name></expr></argument>, <argument><expr><name>fieldB</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if>
+
+<else>else
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>WRITE_FORMAT_x</name> <argument_list>(<argument><expr><name>B</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>arc_sprintf</name> <argument_list>(<argument><expr><name>state</name></expr></argument>, <argument><expr><name><name>state</name><operator>-&gt;</operator><name>operandBuffer</name></name></expr></argument>, <argument><expr><name>formatString</name></expr></argument>, <argument><expr><name>fieldB</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+<break>break;</break>
+
+<case>case <expr><name>CLASS_A4_FLAG</name></expr>:</case>
+
+<expr_stmt><expr><call><name>CHECK_FIELD_B</name> <argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>CHECK_FLAG_COND_NULLIFY</name> <argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>flag</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt> 
+
+<expr_stmt><expr><call><name>write_instr_name</name> <argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>WRITE_FORMAT_x</name> <argument_list>(<argument><expr><name>B</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>arc_sprintf</name> <argument_list>(<argument><expr><name>state</name></expr></argument>, <argument><expr><name><name>state</name><operator>-&gt;</operator><name>operandBuffer</name></name></expr></argument>, <argument><expr><name>formatString</name></expr></argument>, <argument><expr><name>fieldB</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<break>break;</break>
+
+<case>case <expr><name>CLASS_A4_BRANCH</name></expr>:</case>
+
+<expr_stmt><expr><name>fieldA</name> <operator>=</operator> <call><name>BITS</name> <argument_list>(<argument><expr><name><name>state</name><operator>-&gt;</operator><name>words</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>,<argument><expr><literal type="number">7</literal></expr></argument>,<argument><expr><literal type="number">26</literal></expr></argument>)</argument_list></call> <operator>&lt;&lt;</operator> <literal type="number">2</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>fieldA</name> <operator>=</operator> <operator>(</operator><name>fieldA</name> <operator>&lt;&lt;</operator> <literal type="number">10</literal><operator>)</operator> <operator>&gt;&gt;</operator> <literal type="number">10</literal></expr>;</expr_stmt> 
+
+<expr_stmt><expr><name>fieldA</name> <operator>+=</operator> <name>addr</name> <operator>+</operator> <literal type="number">4</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>CHECK_FLAG_COND_NULLIFY</name> <argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>flag</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>write_instr_name</name> <argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>state</name><operator>-&gt;</operator><name>_opcode</name></name> <operator>!=</operator> <name>op_LPC</name></expr> )</condition>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>add_target</name> <argument_list>(<argument><expr><name>fieldA</name></expr></argument>)</argument_list></call></expr>;</expr_stmt> 
+
+<expr_stmt><expr><name><name>state</name><operator>-&gt;</operator><name>flow</name></name>
+
+<operator>=</operator> <ternary><condition><expr><name><name>state</name><operator>-&gt;</operator><name>_opcode</name></name> <operator>==</operator> <name>op_BLC</name></expr> ?</condition><then> <expr><name>direct_call</name></expr> </then><else>: <expr><name>direct_jump</name></expr></else></ternary></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>strcat</name> <argument_list>(<argument><expr><name>formatString</name></expr></argument>, <argument><expr><literal type="string">"%s"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt> 
+
+<expr_stmt><expr><call><name>arc_sprintf</name> <argument_list>(<argument><expr><name>state</name></expr></argument>, <argument><expr><name><name>state</name><operator>-&gt;</operator><name>operandBuffer</name></name></expr></argument>, <argument><expr><name>formatString</name></expr></argument>,
+
+<argument><expr><call><name>post_address</name> <argument_list>(<argument><expr><name>state</name></expr></argument>, <argument><expr><name>fieldA</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<break>break;</break>
+
+<case>case <expr><name>CLASS_A4_JC</name></expr>:</case>
+
+<expr_stmt><expr><name>fieldA</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>CHECK_FIELD_B</name> <argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>CHECK_FLAG_COND_NULLIFY</name> <argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>fieldBisReg</name></expr>)</condition>
+
+<block>{<block_content>
+
+<expr_stmt><expr><name>fieldAisReg</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>fieldA</name> <operator>=</operator> <operator>(</operator><name>fieldB</name> <operator>&gt;&gt;</operator> <literal type="number">25</literal><operator>)</operator> <operator>&amp;</operator> <literal type="number">0x7F</literal></expr>;</expr_stmt> 
+
+<expr_stmt><expr><name>fieldB</name> <operator>=</operator> <operator>(</operator><name>fieldB</name> <operator>&amp;</operator> <literal type="number">0xFFFFFF</literal><operator>)</operator> <operator>&lt;&lt;</operator> <literal type="number">2</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>state</name><operator>-&gt;</operator><name>flow</name></name> <operator>=</operator> <ternary><condition><expr><name>is_linked</name></expr> ?</condition><then> <expr><name>direct_call</name></expr> </then><else>: <expr><name>direct_jump</name></expr></else></ternary></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>add_target</name> <argument_list>(<argument><expr><name>fieldB</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>is_linked</name> <operator>&amp;&amp;</operator> <name><name>state</name><operator>-&gt;</operator><name>nullifyMode</name></name> <operator>==</operator> <name>BR_exec_when_jump</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name><name>state</name><operator>-&gt;</operator><name>nullifyMode</name></name> <operator>=</operator> <name>BR_exec_when_no_jump</name></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+</block_content>}</block></if>
+
+<else>else
+
+<block>{<block_content>
+
+<expr_stmt><expr><name><name>state</name><operator>-&gt;</operator><name>flow</name></name> <operator>=</operator> <ternary><condition><expr><name>is_linked</name></expr> ?</condition><then> <expr><name>indirect_call</name></expr> </then><else>: <expr><name>indirect_jump</name></expr></else></ternary></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>state</name><operator>-&gt;</operator><name>register_for_indirect_jump</name></name> <operator>=</operator> <name>fieldB</name></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+<expr_stmt><expr><call><name>write_instr_name</name> <argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>strcat</name> <argument_list>(<argument><expr><name>formatString</name></expr></argument>,
+
+<argument><expr><ternary><condition><expr><call><name>IS_REG</name> <argument_list>(<argument><expr><name>B</name></expr></argument>)</argument_list></call></expr> ?</condition><then> <expr><literal type="string">"[%r]"</literal></expr> </then><else>: <expr><literal type="string">"%s"</literal></expr></else></ternary></expr></argument>)</argument_list></call></expr>;</expr_stmt> 
+
+<if_stmt><if>if <condition>(<expr><name>fieldA</name> <operator>!=</operator> <literal type="number">0</literal></expr>)</condition>
+
+<block>{<block_content>
+
+<expr_stmt><expr><name>fieldAisReg</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>WRITE_FORMAT_COMMA_x</name> <argument_list>(<argument><expr><name>A</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>IS_REG</name> <argument_list>(<argument><expr><name>B</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>arc_sprintf</name> <argument_list>(<argument><expr><name>state</name></expr></argument>, <argument><expr><name><name>state</name><operator>-&gt;</operator><name>operandBuffer</name></name></expr></argument>, <argument><expr><name>formatString</name></expr></argument>, <argument><expr><name>fieldB</name></expr></argument>, <argument><expr><name>fieldA</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<expr_stmt><expr><call><name>arc_sprintf</name> <argument_list>(<argument><expr><name>state</name></expr></argument>, <argument><expr><name><name>state</name><operator>-&gt;</operator><name>operandBuffer</name></name></expr></argument>, <argument><expr><name>formatString</name></expr></argument>,
+
+<argument><expr><call><name>post_address</name> <argument_list>(<argument><expr><name>state</name></expr></argument>, <argument><expr><name>fieldB</name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name>fieldA</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+<break>break;</break>
+
+<case>case <expr><name>CLASS_A4_LD0</name></expr>:</case>
+
+<expr_stmt><expr><call><name>CHECK_FIELD_A</name> <argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>CHECK_FIELD_B</name> <argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>CHECK_FIELD_C</name> <argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>dbg</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>printf</name> <argument_list>(<argument><expr><literal type="string">"5:b reg %d %d c reg %d %d \n"</literal></expr></argument>,
+
+<argument><expr><name>fieldBisReg</name></expr></argument>, <argument><expr><name>fieldB</name></expr></argument>, <argument><expr><name>fieldCisReg</name></expr></argument>, <argument><expr><name>fieldC</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>state</name><operator>-&gt;</operator><name>_offset</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>state</name><operator>-&gt;</operator><name>_ea_present</name></name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>fieldBisReg</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name><name>state</name><operator>-&gt;</operator><name>ea_reg1</name></name> <operator>=</operator> <name>fieldB</name></expr>;</expr_stmt>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<expr_stmt><expr><name><name>state</name><operator>-&gt;</operator><name>_offset</name></name> <operator>+=</operator> <name>fieldB</name></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>fieldCisReg</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name><name>state</name><operator>-&gt;</operator><name>ea_reg2</name></name> <operator>=</operator> <name>fieldC</name></expr>;</expr_stmt>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<expr_stmt><expr><name><name>state</name><operator>-&gt;</operator><name>_offset</name></name> <operator>+=</operator> <name>fieldC</name></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+<expr_stmt><expr><name><name>state</name><operator>-&gt;</operator><name>_mem_load</name></name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>directMem</name> <operator>=</operator> <call><name>BIT</name> <argument_list>(<argument><expr><name><name>state</name><operator>-&gt;</operator><name>words</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>, <argument><expr><literal type="number">5</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>addrWriteBack</name> <operator>=</operator> <call><name>BIT</name> <argument_list>(<argument><expr><name><name>state</name><operator>-&gt;</operator><name>words</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>, <argument><expr><literal type="number">3</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>signExtend</name> <operator>=</operator> <call><name>BIT</name> <argument_list>(<argument><expr><name><name>state</name><operator>-&gt;</operator><name>words</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>write_instr_name</name> <argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>WRITE_FORMAT_x_COMMA_LB</name><argument_list>(<argument><expr><name>A</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>fieldBisReg</name> <operator>||</operator> <name>fieldB</name> <operator>!=</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>WRITE_FORMAT_x_COMMA</name> <argument_list>(<argument><expr><name>B</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<expr_stmt><expr><name>fieldB</name> <operator>=</operator> <name>fieldC</name></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+<expr_stmt><expr><call><name>WRITE_FORMAT_x_RB</name> <argument_list>(<argument><expr><name>C</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>arc_sprintf</name> <argument_list>(<argument><expr><name>state</name></expr></argument>, <argument><expr><name><name>state</name><operator>-&gt;</operator><name>operandBuffer</name></name></expr></argument>, <argument><expr><name>formatString</name></expr></argument>,
+
+<argument><expr><name>fieldA</name></expr></argument>, <argument><expr><name>fieldB</name></expr></argument>, <argument><expr><name>fieldC</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<break>break;</break>
+
+<case>case <expr><name>CLASS_A4_LD1</name></expr>:</case>
+
+<expr_stmt><expr><call><name>CHECK_FIELD_B</name> <argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>CHECK_FIELD_A</name> <argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>fieldC</name> <operator>=</operator> <call><name>FIELDD</name> <argument_list>(<argument><expr><name><name>state</name><operator>-&gt;</operator><name>words</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>dbg</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>eprintf</name> <argument_list>(<argument><expr><literal type="string">"6:b reg %d %d c 0x%x \n"</literal></expr></argument>,
+
+<argument><expr><name>fieldBisReg</name></expr></argument>, <argument><expr><name>fieldB</name></expr></argument>, <argument><expr><name>fieldC</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>state</name><operator>-&gt;</operator><name>_ea_present</name></name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>state</name><operator>-&gt;</operator><name>_offset</name></name> <operator>=</operator> <name>fieldC</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>state</name><operator>-&gt;</operator><name>_mem_load</name></name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>fieldBisReg</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name><name>state</name><operator>-&gt;</operator><name>ea_reg1</name></name> <operator>=</operator> <name>fieldB</name></expr>;</expr_stmt>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<expr_stmt><expr><name><name>state</name><operator>-&gt;</operator><name>_offset</name></name> <operator>+=</operator> <name>fieldB</name></expr><operator>,</operator> <expr><name><name>state</name><operator>-&gt;</operator><name>_ea_present</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+<expr_stmt><expr><name>directMem</name> <operator>=</operator> <call><name>BIT</name> <argument_list>(<argument><expr><name><name>state</name><operator>-&gt;</operator><name>words</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>,<argument><expr><literal type="number">14</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>addrWriteBack</name> <operator>=</operator> <call><name>BIT</name> <argument_list>(<argument><expr><name><name>state</name><operator>-&gt;</operator><name>words</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>,<argument><expr><literal type="number">12</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>signExtend</name> <operator>=</operator> <call><name>BIT</name> <argument_list>(<argument><expr><name><name>state</name><operator>-&gt;</operator><name>words</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>,<argument><expr><literal type="number">9</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>write_instr_name</name> <argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>WRITE_FORMAT_x_COMMA_LB</name> <argument_list>(<argument><expr><name>A</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>fieldBisReg</name></expr>)</condition>
+
+<block>{<block_content>
+
+<expr_stmt><expr><name>fieldB</name> <operator>=</operator> <name><name>state</name><operator>-&gt;</operator><name>_offset</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>WRITE_FORMAT_x_RB</name> <argument_list>(<argument><expr><name>B</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if>
+
+<else>else
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>WRITE_FORMAT_x</name> <argument_list>(<argument><expr><name>B</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>fieldC</name> <operator>!=</operator> <literal type="number">0</literal> <operator>&amp;&amp;</operator> <operator>!</operator><call><name>BIT</name> <argument_list>(<argument><expr><name><name>state</name><operator>-&gt;</operator><name>words</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>,<argument><expr><literal type="number">13</literal></expr></argument>)</argument_list></call></expr>)</condition>
+
+<block>{<block_content>
+
+<expr_stmt><expr><name>fieldCisReg</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>WRITE_FORMAT_COMMA_x_RB</name> <argument_list>(<argument><expr><name>C</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<expr_stmt><expr><call><name>WRITE_FORMAT_RB</name> <argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+<expr_stmt><expr><call><name>arc_sprintf</name> <argument_list>(<argument><expr><name>state</name></expr></argument>, <argument><expr><name><name>state</name><operator>-&gt;</operator><name>operandBuffer</name></name></expr></argument>, <argument><expr><name>formatString</name></expr></argument>,
+
+<argument><expr><name>fieldA</name></expr></argument>, <argument><expr><name>fieldB</name></expr></argument>, <argument><expr><name>fieldC</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<break>break;</break>
+
+<case>case <expr><name>CLASS_A4_ST</name></expr>:</case>
+
+<expr_stmt><expr><call><name>CHECK_FIELD_B</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>CHECK_FIELD_C</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>fieldA</name> <operator>=</operator> <call><name>FIELDD</name><argument_list>(<argument><expr><name><name>state</name><operator>-&gt;</operator><name>words</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt> 
+
+<if_stmt><if>if <condition>(<expr><name>dbg</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>eprintf</name> <argument_list>(<argument><expr><literal type="string">"7:b reg %d %x off %x\n"</literal></expr></argument>,
+
+<argument><expr><name>fieldBisReg</name></expr></argument>, <argument><expr><name>fieldB</name></expr></argument>, <argument><expr><name>fieldA</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name><name>state</name><operator>-&gt;</operator><name>_ea_present</name></name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>state</name><operator>-&gt;</operator><name>_offset</name></name> <operator>=</operator> <name>fieldA</name></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>fieldBisReg</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name><name>state</name><operator>-&gt;</operator><name>ea_reg1</name></name> <operator>=</operator> <name>fieldB</name></expr>;</expr_stmt>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<expr_stmt><expr><name><name>state</name><operator>-&gt;</operator><name>_offset</name></name> <operator>+=</operator> <name>fieldB</name></expr><operator>,</operator> <expr><name><name>state</name><operator>-&gt;</operator><name>_ea_present</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+<expr_stmt><expr><name>directMem</name> <operator>=</operator> <call><name>BIT</name> <argument_list>(<argument><expr><name><name>state</name><operator>-&gt;</operator><name>words</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>, <argument><expr><literal type="number">26</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>addrWriteBack</name> <operator>=</operator> <call><name>BIT</name> <argument_list>(<argument><expr><name><name>state</name><operator>-&gt;</operator><name>words</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>, <argument><expr><literal type="number">24</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>write_instr_name</name> <argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>WRITE_FORMAT_x_COMMA_LB</name><argument_list>(<argument><expr><name>C</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>fieldBisReg</name></expr>)</condition>
+
+<block>{<block_content>
+
+<expr_stmt><expr><name>fieldB</name> <operator>=</operator> <name><name>state</name><operator>-&gt;</operator><name>_offset</name></name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>WRITE_FORMAT_x_RB</name> <argument_list>(<argument><expr><name>B</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if>
+
+<else>else
+
+<block>{<block_content>
+
+<expr_stmt><expr><call><name>WRITE_FORMAT_x</name> <argument_list>(<argument><expr><name>B</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>fieldBisReg</name> <operator>&amp;&amp;</operator> <name>fieldA</name> <operator>!=</operator> <literal type="number">0</literal></expr>)</condition>
+
+<block>{<block_content>
+
+<expr_stmt><expr><name>fieldAisReg</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>WRITE_FORMAT_COMMA_x_RB</name><argument_list>(<argument><expr><name>A</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<expr_stmt><expr><call><name>WRITE_FORMAT_RB</name> <argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+<expr_stmt><expr><call><name>arc_sprintf</name> <argument_list>(<argument><expr><name>state</name></expr></argument>, <argument><expr><name><name>state</name><operator>-&gt;</operator><name>operandBuffer</name></name></expr></argument>, <argument><expr><name>formatString</name></expr></argument>,
+
+<argument><expr><name>fieldC</name></expr></argument>, <argument><expr><name>fieldB</name></expr></argument>, <argument><expr><name>fieldA</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<break>break;</break>
+
+<case>case <expr><name>CLASS_A4_SR</name></expr>:</case>
+
+<expr_stmt><expr><call><name>CHECK_FIELD_B</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>CHECK_FIELD_C</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>write_instr_name</name> <argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>WRITE_FORMAT_x_COMMA_LB</name><argument_list>(<argument><expr><name>C</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>usesAuxReg</name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>WRITE_FORMAT_x</name> <argument_list>(<argument><expr><name>B</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>WRITE_FORMAT_RB</name> <argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>arc_sprintf</name> <argument_list>(<argument><expr><name>state</name></expr></argument>, <argument><expr><name><name>state</name><operator>-&gt;</operator><name>operandBuffer</name></name></expr></argument>, <argument><expr><name>formatString</name></expr></argument>, <argument><expr><name>fieldC</name></expr></argument>, <argument><expr><name>fieldB</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<break>break;</break>
+
+<case>case <expr><name>CLASS_A4_OP3_SUBOPC3F</name></expr>:</case>
+
+<expr_stmt><expr><call><name>write_instr_name</name> <argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>state</name><operator>-&gt;</operator><name>operandBuffer</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>=</operator> <literal type="char">'\0'</literal></expr>;</expr_stmt>
+
+<break>break;</break>
+
+<case>case <expr><name>CLASS_A4_LR</name></expr>:</case>
+
+<expr_stmt><expr><call><name>CHECK_FIELD_A</name> <argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>CHECK_FIELD_B</name> <argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>write_instr_name</name> <argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>WRITE_FORMAT_x_COMMA_LB</name> <argument_list>(<argument><expr><name>A</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>usesAuxReg</name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>WRITE_FORMAT_x</name> <argument_list>(<argument><expr><name>B</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>WRITE_FORMAT_RB</name> <argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>arc_sprintf</name> <argument_list>(<argument><expr><name>state</name></expr></argument>, <argument><expr><name><name>state</name><operator>-&gt;</operator><name>operandBuffer</name></name></expr></argument>, <argument><expr><name>formatString</name></expr></argument>, <argument><expr><name>fieldA</name></expr></argument>, <argument><expr><name>fieldB</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<break>break;</break>
+
+<default>default:</default>
+
+<expr_stmt><expr><call><name>mwerror</name> <argument_list>(<argument><expr><name>state</name></expr></argument>, <argument><expr><literal type="string">"Bad decoding class in ARC disassembler"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<break>break;</break>
+
+</block_content>}</block></switch>
+
+<expr_stmt><expr><name><name>state</name><operator>-&gt;</operator><name>_cond</name></name> <operator>=</operator> <name>cond</name></expr>;</expr_stmt>
+
+<return>return <expr><name><name>state</name><operator>-&gt;</operator><name>instructionLen</name></name> <operator>=</operator> <name>offset</name></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <specifier>const</specifier> <name>char</name> <modifier>*</modifier></type>
+
+<name>_coreRegName</name> <parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier><name>cpp_this</name></type> <name>ATTRIBUTE_UNUSED</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>regnum</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<return>return <expr><call><name>arcExtMap_coreRegName</name> <argument_list>(<argument><expr><name>regnum</name></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <specifier>const</specifier> <name>char</name> <modifier>*</modifier></type>
+
+<name>_auxRegName</name> <parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier><name>cpp_this</name></type> <name>ATTRIBUTE_UNUSED</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>regnum</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<return>return <expr><call><name>arcExtMap_auxRegName</name> <argument_list>(<argument><expr><name>regnum</name></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <specifier>const</specifier> <name>char</name> <modifier>*</modifier></type>
+
+<name>_condCodeName</name> <parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier><name>cpp_this</name></type> <name>ATTRIBUTE_UNUSED</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>num</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<return>return <expr><call><name>arcExtMap_condCodeName</name> <argument_list>(<argument><expr><name>num</name></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <specifier>const</specifier> <name>char</name> <modifier>*</modifier></type>
+
+<name>_instName</name> <parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier><name>_this</name></type> <name>ATTRIBUTE_UNUSED</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>majop</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>minop</name></decl></parameter>, <parameter><decl><type><name>int</name> <modifier>*</modifier></type><name>flags</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<return>return <expr><call><name>arcExtMap_instName</name> <argument_list>(<argument><expr><name>majop</name></expr></argument>, <argument><expr><name>minop</name></expr></argument>, <argument><expr><name>flags</name></expr></argument>)</argument_list></call></expr>;</return>
+
+</block_content>}</block></function>
+
+<function><type><name>int</name></type>
+
+<name>ARCTangent_decodeInstr</name> <parameter_list>(<parameter><decl><type><name>bfd_vma</name></type> <name>address</name></decl></parameter>, <parameter><decl><type><name>disassemble_info</name> <modifier>*</modifier></type><name>info</name></decl></parameter>)</parameter_list>
+
+<block>{<block_content>
+
+<decl_stmt><decl><type><name>int</name></type> <name>status</name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>bfd_byte</name></type> <name><name>buffer</name><index>[<expr><literal type="number">4</literal></expr>]</index></name></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name><name>struct</name> <name>arcDisState</name></name></type> <name>s</name></decl>;</decl_stmt> 
+
+<decl_stmt><decl><type><name>void</name> <modifier>*</modifier></type><name>stream</name> <init>= <expr><name><name>info</name><operator>-&gt;</operator><name>stream</name></name></expr></init></decl>;</decl_stmt> 
+
+<decl_stmt><decl><type><name>fprintf_ftype</name></type> <name>func</name> <init>= <expr><name><name>info</name><operator>-&gt;</operator><name>fprintf_func</name></name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>memset</name> <argument_list>(<argument><expr><operator>&amp;</operator><name>s</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><sizeof>sizeof<argument_list>(<argument><expr>struct <name>arcDisState</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>status</name> <operator>=</operator> <call>(<modifier>*</modifier><name><name>info</name><operator>-&gt;</operator><name>read_memory_func</name></name>) <argument_list>(<argument><expr><name>address</name></expr></argument>, <argument><expr><name>buffer</name></expr></argument>, <argument><expr><literal type="number">4</literal></expr></argument>, <argument><expr><name>info</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>status</name> <operator>!=</operator> <literal type="number">0</literal></expr>)</condition>
+
+<block>{<block_content>
+
+<expr_stmt><expr><call>(<modifier>*</modifier><name><name>info</name><operator>-&gt;</operator><name>memory_error_func</name></name>) <argument_list>(<argument><expr><name>status</name></expr></argument>, <argument><expr><name>address</name></expr></argument>, <argument><expr><name>info</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<return>return <expr><operator>-</operator><literal type="number">1</literal></expr>;</return>
+
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>info</name><operator>-&gt;</operator><name>endian</name></name> <operator>==</operator> <name>BFD_ENDIAN_LITTLE</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name><name>s</name><operator>.</operator><name>words</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>=</operator> <call><name>bfd_getl32</name> <argument_list>(<argument><expr><name>buffer</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<expr_stmt><expr><name><name>s</name><operator>.</operator><name>words</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>=</operator> <call><name>bfd_getb32</name> <argument_list>(<argument><expr><name>buffer</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+<expr_stmt><expr><name>status</name> <operator>=</operator> <call>(<modifier>*</modifier><name><name>info</name><operator>-&gt;</operator><name>read_memory_func</name></name>) <argument_list>(<argument><expr><name>address</name> <operator>+</operator> <literal type="number">4</literal></expr></argument>, <argument><expr><name>buffer</name></expr></argument>, <argument><expr><literal type="number">4</literal></expr></argument>, <argument><expr><name>info</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>info</name><operator>-&gt;</operator><name>endian</name></name> <operator>==</operator> <name>BFD_ENDIAN_LITTLE</name></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><name><name>s</name><operator>.</operator><name>words</name><index>[<expr><literal type="number">1</literal></expr>]</index></name> <operator>=</operator> <call><name>bfd_getl32</name> <argument_list>(<argument><expr><name>buffer</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<expr_stmt><expr><name><name>s</name><operator>.</operator><name>words</name><index>[<expr><literal type="number">1</literal></expr>]</index></name> <operator>=</operator> <call><name>bfd_getb32</name> <argument_list>(<argument><expr><name>buffer</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+<expr_stmt><expr><name><name>s</name><operator>.</operator><name>_this</name></name> <operator>=</operator> <operator>&amp;</operator><name>s</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>s</name><operator>.</operator><name>coreRegName</name></name> <operator>=</operator> <name>_coreRegName</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>s</name><operator>.</operator><name>auxRegName</name></name> <operator>=</operator> <name>_auxRegName</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>s</name><operator>.</operator><name>condCodeName</name></name> <operator>=</operator> <name>_condCodeName</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><name><name>s</name><operator>.</operator><name>instName</name></name> <operator>=</operator> <name>_instName</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>dsmOneArcInst</name> <argument_list>(<argument><expr><name>address</name></expr></argument>, <argument><expr><operator>(</operator><name>void</name> <operator>*</operator><operator>)</operator><operator>&amp;</operator><name>s</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call>(<modifier>*</modifier><name>func</name>) <argument_list>(<argument><expr><name>stream</name></expr></argument>, <argument><expr><literal type="string">"%s "</literal></expr></argument>, <argument><expr><name><name>s</name><operator>.</operator><name>instrBuffer</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>__TRANSLATION_REQUIRED</name> <argument_list>(<argument><expr><name>s</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{<block_content>
+
+<decl_stmt><decl><type><name>bfd_vma</name></type> <name>addr</name> <init>= <expr><name><name>s</name><operator>.</operator><name>addresses</name><index>[<expr><name><name>s</name><operator>.</operator><name>operandBuffer</name><index>[<expr><literal type="number">1</literal></expr>]</index></name> <operator>-</operator> <literal type="char">'0'</literal></expr>]</index></name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call>(<modifier>*</modifier><name><name>info</name><operator>-&gt;</operator><name>print_address_func</name></name>) <argument_list>(<argument><expr><operator>(</operator><name>bfd_vma</name><operator>)</operator><name>addr</name></expr></argument>, <argument><expr><name>info</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></if> <else>else <block>{<block_content>
+
+<expr_stmt><expr><call>(<modifier>*</modifier><name>func</name>) <argument_list>(<argument><expr><name>stream</name></expr></argument>, <argument><expr><literal type="string">"%s"</literal></expr></argument>, <argument><expr><name><name>s</name><operator>.</operator><name>operandBuffer</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+</block_content>}</block></else></if_stmt>
+
+<return>return <expr><name><name>s</name><operator>.</operator><name>instructionLen</name></name></expr>;</return>
+
+</block_content>}</block></function>
+
+</unit>

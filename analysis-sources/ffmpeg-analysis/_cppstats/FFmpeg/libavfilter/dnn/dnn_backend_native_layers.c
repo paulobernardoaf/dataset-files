@@ -1,0 +1,13 @@
+#include <string.h>
+#include "dnn_backend_native_layers.h"
+#include "dnn_backend_native_layer_pad.h"
+#include "dnn_backend_native_layer_conv2d.h"
+#include "dnn_backend_native_layer_depth2space.h"
+#include "dnn_backend_native_layer_maximum.h"
+LayerFunc layer_funcs[DLT_COUNT] = {
+{NULL, NULL},
+{dnn_execute_layer_conv2d, dnn_load_layer_conv2d},
+{dnn_execute_layer_depth2space, dnn_load_layer_depth2space},
+{dnn_execute_layer_pad, dnn_load_layer_pad},
+{dnn_execute_layer_maximum, dnn_load_layer_maximum},
+};

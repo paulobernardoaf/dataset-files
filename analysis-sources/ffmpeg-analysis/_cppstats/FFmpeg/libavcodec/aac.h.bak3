@@ -1,0 +1,377 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#ifndef AVCODEC_AAC_H
+#define AVCODEC_AAC_H
+
+
+#include "aac_defines.h"
+#include "libavutil/float_dsp.h"
+#include "libavutil/fixed_dsp.h"
+#include "avcodec.h"
+#if !USE_FIXED
+#include "mdct15.h"
+#endif
+#include "fft.h"
+#include "mpeg4audio.h"
+#include "sbr.h"
+
+#include <stdint.h>
+
+#define MAX_CHANNELS 64
+#define MAX_ELEM_ID 16
+
+#define TNS_MAX_ORDER 20
+#define MAX_LTP_LONG_SFB 40
+
+#define CLIP_AVOIDANCE_FACTOR 0.95f
+
+enum RawDataBlockType {
+TYPE_SCE,
+TYPE_CPE,
+TYPE_CCE,
+TYPE_LFE,
+TYPE_DSE,
+TYPE_PCE,
+TYPE_FIL,
+TYPE_END,
+};
+
+enum ExtensionPayloadID {
+EXT_FILL,
+EXT_FILL_DATA,
+EXT_DATA_ELEMENT,
+EXT_DYNAMIC_RANGE = 0xb,
+EXT_SBR_DATA = 0xd,
+EXT_SBR_DATA_CRC = 0xe,
+};
+
+enum WindowSequence {
+ONLY_LONG_SEQUENCE,
+LONG_START_SEQUENCE,
+EIGHT_SHORT_SEQUENCE,
+LONG_STOP_SEQUENCE,
+};
+
+enum BandType {
+ZERO_BT = 0, 
+FIRST_PAIR_BT = 5, 
+ESC_BT = 11, 
+RESERVED_BT = 12, 
+NOISE_BT = 13, 
+INTENSITY_BT2 = 14, 
+INTENSITY_BT = 15, 
+};
+
+#define IS_CODEBOOK_UNSIGNED(x) (((x) - 1) & 10)
+
+enum ChannelPosition {
+AAC_CHANNEL_OFF = 0,
+AAC_CHANNEL_FRONT = 1,
+AAC_CHANNEL_SIDE = 2,
+AAC_CHANNEL_BACK = 3,
+AAC_CHANNEL_LFE = 4,
+AAC_CHANNEL_CC = 5,
+};
+
+
+
+
+enum CouplingPoint {
+BEFORE_TNS,
+BETWEEN_TNS_AND_IMDCT,
+AFTER_IMDCT = 3,
+};
+
+
+
+
+enum OCStatus {
+OC_NONE, 
+OC_TRIAL_PCE, 
+OC_TRIAL_FRAME, 
+OC_GLOBAL_HDR, 
+OC_LOCKED, 
+};
+
+typedef struct OutputConfiguration {
+MPEG4AudioConfig m4ac;
+uint8_t layout_map[MAX_ELEM_ID*4][3];
+int layout_map_tags;
+int channels;
+uint64_t channel_layout;
+enum OCStatus status;
+} OutputConfiguration;
+
+
+
+
+typedef struct PredictorState {
+AAC_FLOAT cor0;
+AAC_FLOAT cor1;
+AAC_FLOAT var0;
+AAC_FLOAT var1;
+AAC_FLOAT r0;
+AAC_FLOAT r1;
+AAC_FLOAT k1;
+AAC_FLOAT x_est;
+} PredictorState;
+
+#define MAX_PREDICTORS 672
+
+#define SCALE_DIV_512 36 
+#define SCALE_ONE_POS 140 
+#define SCALE_MAX_POS 255 
+#define SCALE_MAX_DIFF 60 
+#define SCALE_DIFF_ZERO 60 
+
+#define POW_SF2_ZERO 200 
+
+#define NOISE_PRE 256 
+#define NOISE_PRE_BITS 9 
+#define NOISE_OFFSET 90 
+
+
+
+
+typedef struct LongTermPrediction {
+int8_t present;
+int16_t lag;
+int coef_idx;
+INTFLOAT coef;
+int8_t used[MAX_LTP_LONG_SFB];
+} LongTermPrediction;
+
+
+
+
+typedef struct IndividualChannelStream {
+uint8_t max_sfb; 
+enum WindowSequence window_sequence[2];
+uint8_t use_kb_window[2]; 
+int num_window_groups;
+uint8_t group_len[8];
+LongTermPrediction ltp;
+const uint16_t *swb_offset; 
+const uint8_t *swb_sizes; 
+int num_swb; 
+int num_windows;
+int tns_max_bands;
+int predictor_present;
+int predictor_initialized;
+int predictor_reset_group;
+int predictor_reset_count[31]; 
+uint8_t prediction_used[41];
+uint8_t window_clipping[8]; 
+float clip_avoidance_factor; 
+} IndividualChannelStream;
+
+
+
+
+typedef struct TemporalNoiseShaping {
+int present;
+int n_filt[8];
+int length[8][4];
+int direction[8][4];
+int order[8][4];
+int coef_idx[8][4][TNS_MAX_ORDER];
+INTFLOAT coef[8][4][TNS_MAX_ORDER];
+} TemporalNoiseShaping;
+
+
+
+
+typedef struct DynamicRangeControl {
+int pce_instance_tag; 
+int dyn_rng_sgn[17]; 
+int dyn_rng_ctl[17]; 
+int exclude_mask[MAX_CHANNELS]; 
+int band_incr; 
+int interpolation_scheme; 
+int band_top[17]; 
+int prog_ref_level; 
+
+
+} DynamicRangeControl;
+
+typedef struct Pulse {
+int num_pulse;
+int start;
+int pos[4];
+int amp[4];
+} Pulse;
+
+
+
+
+typedef struct ChannelCoupling {
+enum CouplingPoint coupling_point; 
+int num_coupled; 
+enum RawDataBlockType type[8]; 
+int id_select[8]; 
+int ch_select[8]; 
+
+
+INTFLOAT gain[16][120];
+} ChannelCoupling;
+
+
+
+
+typedef struct SingleChannelElement {
+IndividualChannelStream ics;
+TemporalNoiseShaping tns;
+Pulse pulse;
+enum BandType band_type[128]; 
+enum BandType band_alt[128]; 
+int band_type_run_end[120]; 
+INTFLOAT sf[120]; 
+int sf_idx[128]; 
+uint8_t zeroes[128]; 
+uint8_t can_pns[128]; 
+float is_ener[128]; 
+float pns_ener[128]; 
+DECLARE_ALIGNED(32, INTFLOAT, pcoeffs)[1024]; 
+DECLARE_ALIGNED(32, INTFLOAT, coeffs)[1024]; 
+DECLARE_ALIGNED(32, INTFLOAT, saved)[1536]; 
+DECLARE_ALIGNED(32, INTFLOAT, ret_buf)[2048]; 
+DECLARE_ALIGNED(16, INTFLOAT, ltp_state)[3072]; 
+DECLARE_ALIGNED(32, AAC_FLOAT, lcoeffs)[1024]; 
+DECLARE_ALIGNED(32, AAC_FLOAT, prcoeffs)[1024]; 
+PredictorState predictor_state[MAX_PREDICTORS];
+INTFLOAT *ret; 
+} SingleChannelElement;
+
+
+
+
+typedef struct ChannelElement {
+int present;
+
+int common_window; 
+int ms_mode; 
+uint8_t is_mode; 
+uint8_t ms_mask[128]; 
+uint8_t is_mask[128]; 
+
+SingleChannelElement ch[2];
+
+ChannelCoupling coup;
+SpectralBandReplication sbr;
+} ChannelElement;
+
+
+
+
+struct AACContext {
+AVClass *class;
+AVCodecContext *avctx;
+AVFrame *frame;
+
+int is_saved; 
+DynamicRangeControl che_drc;
+
+
+
+
+
+ChannelElement *che[4][MAX_ELEM_ID];
+ChannelElement *tag_che_map[4][MAX_ELEM_ID];
+int tags_mapped;
+int warned_remapping_once;
+
+
+
+
+
+
+
+DECLARE_ALIGNED(32, INTFLOAT, buf_mdct)[1024];
+
+
+
+
+
+
+FFTContext mdct;
+FFTContext mdct_small;
+FFTContext mdct_ld;
+FFTContext mdct_ltp;
+#if USE_FIXED
+AVFixedDSPContext *fdsp;
+#else
+MDCT15Context *mdct120;
+MDCT15Context *mdct480;
+MDCT15Context *mdct960;
+AVFloatDSPContext *fdsp;
+#endif 
+int random_state;
+
+
+
+
+
+
+SingleChannelElement *output_element[MAX_CHANNELS]; 
+
+
+
+
+
+
+
+int force_dmono_mode;
+int dmono_mode; 
+
+
+DECLARE_ALIGNED(32, INTFLOAT, temp)[128];
+
+OutputConfiguration oc[2];
+int warned_num_aac_frames;
+int warned_960_sbr;
+
+int warned_gain_control;
+
+
+void (*imdct_and_windowing)(AACContext *ac, SingleChannelElement *sce);
+void (*apply_ltp)(AACContext *ac, SingleChannelElement *sce);
+void (*apply_tns)(INTFLOAT coef[1024], TemporalNoiseShaping *tns,
+IndividualChannelStream *ics, int decode);
+void (*windowing_and_mdct_ltp)(AACContext *ac, INTFLOAT *out,
+INTFLOAT *in, IndividualChannelStream *ics);
+void (*update_ltp)(AACContext *ac, SingleChannelElement *sce);
+void (*vector_pow43)(int *coefs, int len);
+void (*subband_scale)(int *dst, int *src, int scale, int offset, int len, void *log_context);
+
+};
+
+void ff_aacdec_init_mips(AACContext *c);
+
+#endif 

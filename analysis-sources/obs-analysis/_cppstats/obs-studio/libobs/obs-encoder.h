@@ -1,0 +1,67 @@
+#pragma once
+#if defined(__cplusplus)
+extern "C" {
+#endif
+#define OBS_ENCODER_CAP_DEPRECATED (1 << 0)
+#define OBS_ENCODER_CAP_PASS_TEXTURE (1 << 1)
+#define OBS_ENCODER_CAP_DYN_BITRATE (1 << 2)
+#define OBS_ENCODER_CAP_INTERNAL (1 << 3)
+enum obs_encoder_type {
+OBS_ENCODER_AUDIO, 
+OBS_ENCODER_VIDEO 
+};
+struct encoder_packet {
+uint8_t *data; 
+size_t size; 
+int64_t pts; 
+int64_t dts; 
+int32_t timebase_num; 
+int32_t timebase_den; 
+enum obs_encoder_type type; 
+bool keyframe; 
+int64_t dts_usec;
+int64_t sys_dts_usec;
+int priority;
+int drop_priority;
+size_t track_idx;
+obs_encoder_t *encoder;
+};
+struct encoder_frame {
+uint8_t *data[MAX_AV_PLANES];
+uint32_t linesize[MAX_AV_PLANES];
+uint32_t frames;
+int64_t pts;
+};
+struct obs_encoder_info {
+const char *id;
+enum obs_encoder_type type;
+const char *codec;
+const char *(*get_name)(void *type_data);
+void *(*create)(obs_data_t *settings, obs_encoder_t *encoder);
+void (*destroy)(void *data);
+bool (*encode)(void *data, struct encoder_frame *frame,
+struct encoder_packet *packet, bool *received_packet);
+size_t (*get_frame_size)(void *data);
+void (*get_defaults)(obs_data_t *settings);
+obs_properties_t *(*get_properties)(void *data);
+bool (*update)(void *data, obs_data_t *settings);
+bool (*get_extra_data)(void *data, uint8_t **extra_data, size_t *size);
+bool (*get_sei_data)(void *data, uint8_t **sei_data, size_t *size);
+void (*get_audio_info)(void *data, struct audio_convert_info *info);
+void (*get_video_info)(void *data, struct video_scale_info *info);
+void *type_data;
+void (*free_type_data)(void *type_data);
+uint32_t caps;
+void (*get_defaults2)(obs_data_t *settings, void *type_data);
+obs_properties_t *(*get_properties2)(void *data, void *type_data);
+bool (*encode_texture)(void *data, uint32_t handle, int64_t pts,
+uint64_t lock_key, uint64_t *next_key,
+struct encoder_packet *packet,
+bool *received_packet);
+};
+EXPORT void obs_register_encoder_s(const struct obs_encoder_info *info,
+size_t size);
+#define obs_register_encoder(info) obs_register_encoder_s(info, sizeof(struct obs_encoder_info))
+#if defined(__cplusplus)
+}
+#endif

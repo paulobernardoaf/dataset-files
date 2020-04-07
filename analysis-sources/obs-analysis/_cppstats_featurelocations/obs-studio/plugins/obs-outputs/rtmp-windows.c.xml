@@ -1,0 +1,351 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" revision="1.0.0" language="C" filename="D:\Pesquisa\Projects\obs-analysis\_cppstats_featurelocations\obs-studio\plugins\obs-outputs\rtmp-windows.c"><cpp:if>#<cpp:directive>if</cpp:directive> <expr><call><name>defined</name><argument_list>(<argument><expr><name>_WIN32</name></expr></argument>)</argument_list></call></expr></cpp:if>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"rtmp-stream.h"</cpp:file></cpp:include>
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;winsock2.h&gt;</cpp:file></cpp:include>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>fatal_sock_shutdown</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>rtmp_stream</name></name> <modifier>*</modifier></type><name>stream</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<expr_stmt><expr><call><name>closesocket</name><argument_list>(<argument><expr><name><name>stream</name><operator>-&gt;</operator><name>rtmp</name><operator>.</operator><name>m_sb</name><operator>.</operator><name>sb_socket</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>stream</name><operator>-&gt;</operator><name>rtmp</name><operator>.</operator><name>m_sb</name><operator>.</operator><name>sb_socket</name></name> <operator>=</operator> <operator>-</operator><literal type="number">1</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>stream</name><operator>-&gt;</operator><name>write_buf_len</name></name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>os_event_signal</name><argument_list>(<argument><expr><name><name>stream</name><operator>-&gt;</operator><name>buffer_space_available_event</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>bool</name></type> <name>socket_event</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>rtmp_stream</name></name> <modifier>*</modifier></type><name>stream</name></decl></parameter>, <parameter><decl><type><name>bool</name> <modifier>*</modifier></type><name>can_write</name></decl></parameter>,
+<parameter><decl><type><name>uint64_t</name></type> <name>last_send_time</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>WSANETWORKEVENTS</name></type> <name>net_events</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>bool</name></type> <name>success</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>success</name> <operator>=</operator> <operator>!</operator><call><name>WSAEnumNetworkEvents</name><argument_list>(<argument><expr><name><name>stream</name><operator>-&gt;</operator><name>rtmp</name><operator>.</operator><name>m_sb</name><operator>.</operator><name>sb_socket</name></name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>,
+<argument><expr><operator>&amp;</operator><name>net_events</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name>success</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>blog</name><argument_list>(<argument><expr><name>LOG_ERROR</name></expr></argument>,
+<argument><expr><literal type="string">"socket_thread_windows: Aborting due to "</literal>
+<literal type="string">"WSAEnumNetworkEvents failure, %d"</literal></expr></argument>,
+<argument><expr><call><name>WSAGetLastError</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>fatal_sock_shutdown</name><argument_list>(<argument><expr><name>stream</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>false</name></expr>;</return>
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>net_events</name><operator>.</operator><name>lNetworkEvents</name></name> <operator>&amp;</operator> <name>FD_WRITE</name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><operator>*</operator><name>can_write</name> <operator>=</operator> <name>true</name></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>net_events</name><operator>.</operator><name>lNetworkEvents</name></name> <operator>&amp;</operator> <name>FD_CLOSE</name></expr>)</condition> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name>last_send_time</name></expr>)</condition> <block>{<block_content>
+<decl_stmt><decl><type><name>uint32_t</name></type> <name>diff</name> <init>=
+<expr><operator>(</operator><call><name>os_gettime_ns</name><argument_list>()</argument_list></call> <operator>/</operator> <literal type="number">1000000</literal><operator>)</operator> <operator>-</operator> <name>last_send_time</name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>blog</name><argument_list>(<argument><expr><name>LOG_ERROR</name></expr></argument>,
+<argument><expr><literal type="string">"socket_thread_windows: Received "</literal>
+<literal type="string">"FD_CLOSE, %u ms since last send "</literal>
+<literal type="string">"(buffer: %d / %d)"</literal></expr></argument>,
+<argument><expr><name>diff</name></expr></argument>, <argument><expr><name><name>stream</name><operator>-&gt;</operator><name>write_buf_len</name></name></expr></argument>,
+<argument><expr><name><name>stream</name><operator>-&gt;</operator><name>write_buf_size</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><call><name>os_event_try</name><argument_list>(<argument><expr><name><name>stream</name><operator>-&gt;</operator><name>stop_event</name></name></expr></argument>)</argument_list></call> <operator>!=</operator> <name>EAGAIN</name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>blog</name><argument_list>(<argument><expr><name>LOG_ERROR</name></expr></argument>,
+<argument><expr><literal type="string">"socket_thread_windows: Aborting due "</literal>
+<literal type="string">"to FD_CLOSE during shutdown, "</literal>
+<literal type="string">"%d bytes lost, error %d"</literal></expr></argument>,
+<argument><expr><name><name>stream</name><operator>-&gt;</operator><name>write_buf_len</name></name></expr></argument>,
+<argument><expr><name><name>net_events</name><operator>.</operator><name>iErrorCode</name><index>[<expr><name>FD_CLOSE_BIT</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if>
+<else>else<block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>blog</name><argument_list>(<argument><expr><name>LOG_ERROR</name></expr></argument>,
+<argument><expr><literal type="string">"socket_thread_windows: Aborting due "</literal>
+<literal type="string">"to FD_CLOSE, error %d"</literal></expr></argument>,
+<argument><expr><name><name>net_events</name><operator>.</operator><name>iErrorCode</name><index>[<expr><name>FD_CLOSE_BIT</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></else></if_stmt>
+
+<expr_stmt><expr><call><name>fatal_sock_shutdown</name><argument_list>(<argument><expr><name>stream</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>false</name></expr>;</return>
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>net_events</name><operator>.</operator><name>lNetworkEvents</name></name> <operator>&amp;</operator> <name>FD_READ</name></expr>)</condition> <block>{<block_content>
+<decl_stmt><decl><type><name>char</name></type> <name><name>discard</name><index>[<expr><literal type="number">16384</literal></expr>]</index></name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>err_code</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>bool</name></type> <name>fatal</name> <init>= <expr><name>false</name></expr></init></decl>;</decl_stmt>
+
+<for>for <control>(<init>;</init><condition>;</condition><incr/>)</control> <block>{<block_content>
+<decl_stmt><decl><type><name>int</name></type> <name>ret</name> <init>= <expr><call><name>recv</name><argument_list>(<argument><expr><name><name>stream</name><operator>-&gt;</operator><name>rtmp</name><operator>.</operator><name>m_sb</name><operator>.</operator><name>sb_socket</name></name></expr></argument>, <argument><expr><name>discard</name></expr></argument>,
+<argument><expr><sizeof>sizeof<argument_list>(<argument><expr><name>discard</name></expr></argument>)</argument_list></sizeof></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<if_stmt><if>if <condition>(<expr><name>ret</name> <operator>==</operator> <operator>-</operator><literal type="number">1</literal></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name>err_code</name> <operator>=</operator> <call><name>WSAGetLastError</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name>err_code</name> <operator>==</operator> <name>WSAEWOULDBLOCK</name></expr>)</condition><block type="pseudo"><block_content>
+<break>break;</break></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><name>fatal</name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+</block_content>}</block></if> <if type="elseif">else if <condition>(<expr><name>ret</name> <operator>==</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name>err_code</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name>fatal</name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>fatal</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>blog</name><argument_list>(<argument><expr><name>LOG_ERROR</name></expr></argument>,
+<argument><expr><literal type="string">"socket_thread_windows: "</literal>
+<literal type="string">"Socket error, recv() returned "</literal>
+<literal type="string">"%d, GetLastError() %d"</literal></expr></argument>,
+<argument><expr><name>ret</name></expr></argument>, <argument><expr><name>err_code</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>stream</name><operator>-&gt;</operator><name>rtmp</name><operator>.</operator><name>last_error_code</name></name> <operator>=</operator> <name>err_code</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>fatal_sock_shutdown</name><argument_list>(<argument><expr><name>stream</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>false</name></expr>;</return>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block></for>
+</block_content>}</block></if></if_stmt>
+
+<return>return <expr><name>true</name></expr>;</return>
+</block_content>}</block></function>
+
+<function><type><specifier>static</specifier> <name>void</name></type> <name>ideal_send_backlog_event</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>rtmp_stream</name></name> <modifier>*</modifier></type><name>stream</name></decl></parameter>,
+<parameter><decl><type><name>bool</name> <modifier>*</modifier></type><name>can_write</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>ULONG</name></type> <name>ideal_send_backlog</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>ret</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <call><name>idealsendbacklogquery</name><argument_list>(<argument><expr><name><name>stream</name><operator>-&gt;</operator><name>rtmp</name><operator>.</operator><name>m_sb</name><operator>.</operator><name>sb_socket</name></name></expr></argument>,
+<argument><expr><operator>&amp;</operator><name>ideal_send_backlog</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name>ret</name> <operator>==</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+<decl_stmt><decl><type><name>int</name></type> <name>cur_tcp_bufsize</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>int</name></type> <name>size</name> <init>= <expr><sizeof>sizeof<argument_list>(<argument><expr><name>cur_tcp_bufsize</name></expr></argument>)</argument_list></sizeof></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <call><name>getsockopt</name><argument_list>(<argument><expr><name><name>stream</name><operator>-&gt;</operator><name>rtmp</name><operator>.</operator><name>m_sb</name><operator>.</operator><name>sb_socket</name></name></expr></argument>, <argument><expr><name>SOL_SOCKET</name></expr></argument>,
+<argument><expr><name>SO_SNDBUF</name></expr></argument>, <argument><expr><operator>(</operator><name>char</name> <operator>*</operator><operator>)</operator><operator>&amp;</operator><name>cur_tcp_bufsize</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>size</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name>ret</name> <operator>==</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name>cur_tcp_bufsize</name> <operator>&lt;</operator> <operator>(</operator><name>int</name><operator>)</operator><name>ideal_send_backlog</name></expr>)</condition> <block>{<block_content>
+<decl_stmt><decl><type><name>int</name></type> <name>bufsize</name> <init>= <expr><operator>(</operator><name>int</name><operator>)</operator><name>ideal_send_backlog</name></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><call><name>setsockopt</name><argument_list>(<argument><expr><name><name>stream</name><operator>-&gt;</operator><name>rtmp</name><operator>.</operator><name>m_sb</name><operator>.</operator><name>sb_socket</name></name></expr></argument>,
+<argument><expr><name>SOL_SOCKET</name></expr></argument>, <argument><expr><name>SO_SNDBUF</name></expr></argument>,
+<argument><expr><operator>(</operator><specifier>const</specifier> <name>char</name> <operator>*</operator><operator>)</operator><operator>&amp;</operator><name>bufsize</name></expr></argument>,
+<argument><expr><sizeof>sizeof<argument_list>(<argument><expr><name>bufsize</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>blog</name><argument_list>(<argument><expr><name>LOG_INFO</name></expr></argument>,
+<argument><expr><literal type="string">"socket_thread_windows: "</literal>
+<literal type="string">"Increasing send buffer to "</literal>
+<literal type="string">"ISB %d (buffer: %d / %d)"</literal></expr></argument>,
+<argument><expr><name>ideal_send_backlog</name></expr></argument>, <argument><expr><name><name>stream</name><operator>-&gt;</operator><name>write_buf_len</name></name></expr></argument>,
+<argument><expr><name><name>stream</name><operator>-&gt;</operator><name>write_buf_size</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<expr_stmt><expr><call><name>blog</name><argument_list>(<argument><expr><name>LOG_ERROR</name></expr></argument>,
+<argument><expr><literal type="string">"socket_thread_windows: Got "</literal>
+<literal type="string">"send_backlog_event but "</literal>
+<literal type="string">"getsockopt() returned %d"</literal></expr></argument>,
+<argument><expr><call><name>WSAGetLastError</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></else></if_stmt>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<expr_stmt><expr><call><name>blog</name><argument_list>(<argument><expr><name>LOG_ERROR</name></expr></argument>,
+<argument><expr><literal type="string">"socket_thread_windows: Got "</literal>
+<literal type="string">"send_backlog_event but WSAIoctl() "</literal>
+<literal type="string">"returned %d"</literal></expr></argument>,
+<argument><expr><call><name>WSAGetLastError</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></else></if_stmt>
+</block_content>}</block></function>
+
+<enum>enum <name>data_ret</name> <block>{ <decl><name>RET_BREAK</name></decl>, <decl><name>RET_FATAL</name></decl>, <decl><name>RET_CONTINUE</name></decl> }</block>;</enum>
+
+<function><type><specifier>static</specifier> <name><name>enum</name> <name>data_ret</name></name></type> <name>write_data</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>rtmp_stream</name></name> <modifier>*</modifier></type><name>stream</name></decl></parameter>, <parameter><decl><type><name>bool</name> <modifier>*</modifier></type><name>can_write</name></decl></parameter>,
+<parameter><decl><type><name>uint64_t</name> <modifier>*</modifier></type><name>last_send_time</name></decl></parameter>,
+<parameter><decl><type><name>size_t</name></type> <name>latency_packet_size</name></decl></parameter>, <parameter><decl><type><name>int</name></type> <name>delay_time</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>bool</name></type> <name>exit_loop</name> <init>= <expr><name>false</name></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_lock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>stream</name><operator>-&gt;</operator><name>write_buf_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>stream</name><operator>-&gt;</operator><name>write_buf_len</name></name></expr>)</condition> <block>{<block_content>
+
+
+
+
+<expr_stmt><expr><call><name>pthread_mutex_unlock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>stream</name><operator>-&gt;</operator><name>write_buf_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+
+<return>return <expr><name>RET_BREAK</name></expr>;</return>
+</block_content>}</block></if></if_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>ret</name></decl>;</decl_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>stream</name><operator>-&gt;</operator><name>low_latency_mode</name></name></expr>)</condition> <block>{<block_content>
+<decl_stmt><decl><type><name>size_t</name></type> <name>send_len</name> <init>=
+<expr><call><name>min</name><argument_list>(<argument><expr><name>latency_packet_size</name></expr></argument>, <argument><expr><name><name>stream</name><operator>-&gt;</operator><name>write_buf_len</name></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <call><name>RTMPSockBuf_Send</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>stream</name><operator>-&gt;</operator><name>rtmp</name><operator>.</operator><name>m_sb</name></name></expr></argument>,
+<argument><expr><operator>(</operator><specifier>const</specifier> <name>char</name> <operator>*</operator><operator>)</operator><name><name>stream</name><operator>-&gt;</operator><name>write_buf</name></name></expr></argument>,
+<argument><expr><operator>(</operator><name>int</name><operator>)</operator><name>send_len</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<expr_stmt><expr><name>ret</name> <operator>=</operator> <call><name>RTMPSockBuf_Send</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>stream</name><operator>-&gt;</operator><name>rtmp</name><operator>.</operator><name>m_sb</name></name></expr></argument>,
+<argument><expr><operator>(</operator><specifier>const</specifier> <name>char</name> <operator>*</operator><operator>)</operator><name><name>stream</name><operator>-&gt;</operator><name>write_buf</name></name></expr></argument>,
+<argument><expr><operator>(</operator><name>int</name><operator>)</operator><name><name>stream</name><operator>-&gt;</operator><name>write_buf_len</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></else></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>ret</name> <operator>&gt;</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><name><name>stream</name><operator>-&gt;</operator><name>write_buf_len</name></name> <operator>-</operator> <name>ret</name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>memmove</name><argument_list>(<argument><expr><name><name>stream</name><operator>-&gt;</operator><name>write_buf</name></name></expr></argument>, <argument><expr><name><name>stream</name><operator>-&gt;</operator><name>write_buf</name></name> <operator>+</operator> <name>ret</name></expr></argument>,
+<argument><expr><name><name>stream</name><operator>-&gt;</operator><name>write_buf_len</name></name> <operator>-</operator> <name>ret</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+<expr_stmt><expr><name><name>stream</name><operator>-&gt;</operator><name>write_buf_len</name></name> <operator>-=</operator> <name>ret</name></expr>;</expr_stmt>
+
+<expr_stmt><expr><operator>*</operator><name>last_send_time</name> <operator>=</operator> <call><name>os_gettime_ns</name><argument_list>()</argument_list></call> <operator>/</operator> <literal type="number">1000000</literal></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>os_event_signal</name><argument_list>(<argument><expr><name><name>stream</name><operator>-&gt;</operator><name>buffer_space_available_event</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<decl_stmt><decl><type><name>int</name></type> <name>err_code</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>bool</name></type> <name>fatal_err</name> <init>= <expr><name>false</name></expr></init></decl>;</decl_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>ret</name> <operator>==</operator> <operator>-</operator><literal type="number">1</literal></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name>err_code</name> <operator>=</operator> <call><name>WSAGetLastError</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>err_code</name> <operator>==</operator> <name>WSAEWOULDBLOCK</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><operator>*</operator><name>can_write</name> <operator>=</operator> <name>false</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>pthread_mutex_unlock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>stream</name><operator>-&gt;</operator><name>write_buf_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>RET_BREAK</name></expr>;</return>
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><name>fatal_err</name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+</block_content>}</block></if> <if type="elseif">else if <condition>(<expr><name>ret</name> <operator>==</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name>err_code</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+<expr_stmt><expr><name>fatal_err</name> <operator>=</operator> <name>true</name></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>fatal_err</name></expr>)</condition> <block>{<block_content>
+
+
+<expr_stmt><expr><call><name>blog</name><argument_list>(<argument><expr><name>LOG_ERROR</name></expr></argument>,
+<argument><expr><literal type="string">"socket_thread_windows: "</literal>
+<literal type="string">"Socket error, send() returned %d, "</literal>
+<literal type="string">"GetLastError() %d"</literal></expr></argument>,
+<argument><expr><name>ret</name></expr></argument>, <argument><expr><name>err_code</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_unlock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>stream</name><operator>-&gt;</operator><name>write_buf_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>stream</name><operator>-&gt;</operator><name>rtmp</name><operator>.</operator><name>last_error_code</name></name> <operator>=</operator> <name>err_code</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>fatal_sock_shutdown</name><argument_list>(<argument><expr><name>stream</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>RET_FATAL</name></expr>;</return>
+</block_content>}</block></if></if_stmt>
+</block_content>}</block></else></if_stmt>
+
+
+<if_stmt><if>if <condition>(<expr><name><name>stream</name><operator>-&gt;</operator><name>write_buf_len</name></name> <operator>&lt;=</operator> <literal type="number">1000</literal></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><name>exit_loop</name> <operator>=</operator> <name>true</name></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_unlock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>stream</name><operator>-&gt;</operator><name>write_buf_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>delay_time</name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>os_sleep_ms</name><argument_list>(<argument><expr><name>delay_time</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<return>return <expr><ternary><condition><expr><name>exit_loop</name></expr> ?</condition><then> <expr><name>RET_BREAK</name></expr> </then><else>: <expr><name>RET_CONTINUE</name></expr></else></ternary></expr>;</return>
+</block_content>}</block></function>
+
+<cpp:define>#<cpp:directive>define</cpp:directive> <cpp:macro><name>LATENCY_FACTOR</name></cpp:macro> <cpp:value>20</cpp:value></cpp:define>
+
+<function><type><specifier>static</specifier> <specifier>inline</specifier> <name>void</name></type> <name>socket_thread_windows_internal</name><parameter_list>(<parameter><decl><type><name><name>struct</name> <name>rtmp_stream</name></name> <modifier>*</modifier></type><name>stream</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name>bool</name></type> <name>can_write</name> <init>= <expr><name>false</name></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>delay_time</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>size_t</name></type> <name>latency_packet_size</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>uint64_t</name></type> <name>last_send_time</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+
+<decl_stmt><decl><type><name>HANDLE</name></type> <name>send_backlog_event</name></decl>;</decl_stmt>
+<decl_stmt><decl><type><name>OVERLAPPED</name></type> <name>send_backlog_overlapped</name></decl>;</decl_stmt>
+
+<expr_stmt><expr><call><name>SetThreadPriority</name><argument_list>(<argument><expr><call><name>GetCurrentThread</name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><name>THREAD_PRIORITY_ABOVE_NORMAL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>WSAEventSelect</name><argument_list>(<argument><expr><name><name>stream</name><operator>-&gt;</operator><name>rtmp</name><operator>.</operator><name>m_sb</name><operator>.</operator><name>sb_socket</name></name></expr></argument>,
+<argument><expr><name><name>stream</name><operator>-&gt;</operator><name>socket_available_event</name></name></expr></argument>,
+<argument><expr><name>FD_READ</name> <operator>|</operator> <name>FD_WRITE</name> <operator>|</operator> <name>FD_CLOSE</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><name>send_backlog_event</name> <operator>=</operator> <call><name>CreateEvent</name><argument_list>(<argument><expr><name>NULL</name></expr></argument>, <argument><expr><name>true</name></expr></argument>, <argument><expr><name>false</name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<if_stmt><if>if <condition>(<expr><name><name>stream</name><operator>-&gt;</operator><name>low_latency_mode</name></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><name>delay_time</name> <operator>=</operator> <literal type="number">1000</literal> <operator>/</operator> <name>LATENCY_FACTOR</name></expr>;</expr_stmt>
+<expr_stmt><expr><name>latency_packet_size</name> <operator>=</operator>
+<name><name>stream</name><operator>-&gt;</operator><name>write_buf_size</name></name> <operator>/</operator> <operator>(</operator><name>LATENCY_FACTOR</name> <operator>-</operator> <literal type="number">2</literal><operator>)</operator></expr>;</expr_stmt>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<expr_stmt><expr><name>latency_packet_size</name> <operator>=</operator> <name><name>stream</name><operator>-&gt;</operator><name>write_buf_size</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name>delay_time</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+</block_content>}</block></else></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><name><name>stream</name><operator>-&gt;</operator><name>disable_send_window_optimization</name></name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>memset</name><argument_list>(<argument><expr><operator>&amp;</operator><name>send_backlog_overlapped</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>,
+<argument><expr><sizeof>sizeof<argument_list>(<argument><expr><name>send_backlog_overlapped</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>send_backlog_overlapped</name><operator>.</operator><name>hEvent</name></name> <operator>=</operator> <name>send_backlog_event</name></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>idealsendbacklognotify</name><argument_list>(<argument><expr><name><name>stream</name><operator>-&gt;</operator><name>rtmp</name><operator>.</operator><name>m_sb</name><operator>.</operator><name>sb_socket</name></name></expr></argument>,
+<argument><expr><operator>&amp;</operator><name>send_backlog_overlapped</name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if> <else>else <block>{<block_content>
+<expr_stmt><expr><call><name>blog</name><argument_list>(<argument><expr><name>LOG_INFO</name></expr></argument>, <argument><expr><literal type="string">"socket_thread_windows: Send window "</literal>
+<literal type="string">"optimization disabled by user."</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></else></if_stmt>
+
+<decl_stmt><decl><type><name>HANDLE</name></type> <name><name>objs</name><index>[<expr><literal type="number">3</literal></expr>]</index></name></decl>;</decl_stmt>
+
+<expr_stmt><expr><name><name>objs</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>=</operator> <name><name>stream</name><operator>-&gt;</operator><name>socket_available_event</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>objs</name><index>[<expr><literal type="number">1</literal></expr>]</index></name> <operator>=</operator> <name><name>stream</name><operator>-&gt;</operator><name>buffer_has_data_event</name></name></expr>;</expr_stmt>
+<expr_stmt><expr><name><name>objs</name><index>[<expr><literal type="number">2</literal></expr>]</index></name> <operator>=</operator> <name>send_backlog_event</name></expr>;</expr_stmt>
+
+<for>for <control>(<init>;</init><condition>;</condition><incr/>)</control> <block>{<block_content>
+<if_stmt><if>if <condition>(<expr><call><name>os_event_try</name><argument_list>(<argument><expr><name><name>stream</name><operator>-&gt;</operator><name>send_thread_signaled_exit</name></name></expr></argument>)</argument_list></call> <operator>!=</operator> <name>EAGAIN</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>pthread_mutex_lock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>stream</name><operator>-&gt;</operator><name>write_buf_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<if_stmt><if>if <condition>(<expr><name><name>stream</name><operator>-&gt;</operator><name>write_buf_len</name></name> <operator>==</operator> <literal type="number">0</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>pthread_mutex_unlock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>stream</name><operator>-&gt;</operator><name>write_buf_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>os_event_reset</name><argument_list>(
+<argument><expr><name><name>stream</name><operator>-&gt;</operator><name>send_thread_signaled_exit</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<break>break;</break>
+</block_content>}</block></if></if_stmt>
+
+<expr_stmt><expr><call><name>pthread_mutex_unlock</name><argument_list>(<argument><expr><operator>&amp;</operator><name><name>stream</name><operator>-&gt;</operator><name>write_buf_mutex</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></if></if_stmt>
+
+<decl_stmt><decl><type><name>int</name></type> <name>status</name> <init>= <expr><call><name>WaitForMultipleObjects</name><argument_list>(<argument><expr><literal type="number">3</literal></expr></argument>, <argument><expr><name>objs</name></expr></argument>, <argument><expr><name>false</name></expr></argument>, <argument><expr><name>INFINITE</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<if_stmt><if>if <condition>(<expr><name>status</name> <operator>==</operator> <name>WAIT_ABANDONED</name> <operator>||</operator> <name>status</name> <operator>==</operator> <name>WAIT_FAILED</name></expr>)</condition> <block>{<block_content>
+<expr_stmt><expr><call><name>blog</name><argument_list>(<argument><expr><name>LOG_ERROR</name></expr></argument>, <argument><expr><literal type="string">"socket_thread_windows: Aborting due "</literal>
+<literal type="string">"to WaitForMultipleObjects failure"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>fatal_sock_shutdown</name><argument_list>(<argument><expr><name>stream</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return;</return>
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>status</name> <operator>==</operator> <name>WAIT_OBJECT_0</name></expr>)</condition> <block>{<block_content>
+
+<if_stmt><if>if <condition>(<expr><operator>!</operator><call><name>socket_event</name><argument_list>(<argument><expr><name>stream</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>can_write</name></expr></argument>, <argument><expr><name>last_send_time</name></expr></argument>)</argument_list></call></expr>)</condition><block type="pseudo"><block_content>
+<return>return;</return></block_content></block></if></if_stmt>
+
+</block_content>}</block></if> <if type="elseif">else if <condition>(<expr><name>status</name> <operator>==</operator> <name>WAIT_OBJECT_0</name> <operator>+</operator> <literal type="number">2</literal></expr>)</condition> <block>{<block_content>
+
+<expr_stmt><expr><call><name>ideal_send_backlog_event</name><argument_list>(<argument><expr><name>stream</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>can_write</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<expr_stmt><expr><call><name>ResetEvent</name><argument_list>(<argument><expr><name>send_backlog_event</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<expr_stmt><expr><call><name>idealsendbacklognotify</name><argument_list>(<argument><expr><name><name>stream</name><operator>-&gt;</operator><name>rtmp</name><operator>.</operator><name>m_sb</name><operator>.</operator><name>sb_socket</name></name></expr></argument>,
+<argument><expr><operator>&amp;</operator><name>send_backlog_overlapped</name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<continue>continue;</continue>
+</block_content>}</block></if></if_stmt>
+
+<if_stmt><if>if <condition>(<expr><name>can_write</name></expr>)</condition> <block>{<block_content>
+<for>for <control>(<init>;</init><condition>;</condition><incr/>)</control> <block>{<block_content>
+<decl_stmt><decl><type><name><name>enum</name> <name>data_ret</name></name></type> <name>ret</name> <init>= <expr><call><name>write_data</name><argument_list>(
+<argument><expr><name>stream</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>can_write</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>last_send_time</name></expr></argument>,
+<argument><expr><name>latency_packet_size</name></expr></argument>, <argument><expr><name>delay_time</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<switch>switch <condition>(<expr><name>ret</name></expr>)</condition> <block>{<block_content>
+<case>case <expr><name>RET_BREAK</name></expr>:</case>
+<goto>goto <name>exit_write_loop</name>;</goto>
+<case>case <expr><name>RET_FATAL</name></expr>:</case>
+<return>return;</return>
+<case>case <expr><name>RET_CONTINUE</name></expr>:</case><empty_stmt>;</empty_stmt>
+</block_content>}</block></switch>
+</block_content>}</block></for>
+</block_content>}</block></if></if_stmt>
+<label><name>exit_write_loop</name>:</label><empty_stmt>;</empty_stmt>
+</block_content>}</block></for>
+
+<if_stmt><if>if <condition>(<expr><name><name>stream</name><operator>-&gt;</operator><name>rtmp</name><operator>.</operator><name>m_sb</name><operator>.</operator><name>sb_socket</name></name> <operator>!=</operator> <name>INVALID_SOCKET</name></expr>)</condition><block type="pseudo"><block_content>
+<expr_stmt><expr><call><name>WSAEventSelect</name><argument_list>(<argument><expr><name><name>stream</name><operator>-&gt;</operator><name>rtmp</name><operator>.</operator><name>m_sb</name><operator>.</operator><name>sb_socket</name></name></expr></argument>,
+<argument><expr><name><name>stream</name><operator>-&gt;</operator><name>socket_available_event</name></name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt></block_content></block></if></if_stmt>
+
+<expr_stmt><expr><call><name>blog</name><argument_list>(<argument><expr><name>LOG_INFO</name></expr></argument>, <argument><expr><literal type="string">"socket_thread_windows: Normal exit"</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+</block_content>}</block></function>
+
+<function><type><name>void</name> <modifier>*</modifier></type><name>socket_thread_windows</name><parameter_list>(<parameter><decl><type><name>void</name> <modifier>*</modifier></type><name>data</name></decl></parameter>)</parameter_list>
+<block>{<block_content>
+<decl_stmt><decl><type><name><name>struct</name> <name>rtmp_stream</name></name> <modifier>*</modifier></type><name>stream</name> <init>= <expr><name>data</name></expr></init></decl>;</decl_stmt>
+<expr_stmt><expr><call><name>socket_thread_windows_internal</name><argument_list>(<argument><expr><name>stream</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<return>return <expr><name>NULL</name></expr>;</return>
+</block_content>}</block></function>
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+</unit>

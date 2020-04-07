@@ -1,0 +1,70 @@
+#if defined(__cplusplus)
+extern "C" {
+#endif
+#if defined(LV_CONF_INCLUDE_SIMPLE)
+#include "lv_conf.h"
+#else
+#include "../../../lv_conf.h"
+#endif
+#if LV_USE_TABVIEW != 0
+#if LV_USE_BTNM == 0
+#error "lv_tabview: lv_btnm is required. Enable it in lv_conf.h (LV_USE_BTNM 1) "
+#endif
+#if LV_USE_PAGE == 0
+#error "lv_tabview: lv_page is required. Enable it in lv_conf.h (LV_USE_PAGE 1) "
+#endif
+#include "../lv_core/lv_obj.h"
+#include "../lv_objx/lv_win.h"
+#include "../lv_objx/lv_page.h"
+enum { LV_TABVIEW_BTNS_POS_TOP, LV_TABVIEW_BTNS_POS_BOTTOM, LV_TABVIEW_BTNS_POS_LEFT, LV_TABVIEW_BTNS_POS_RIGHT };
+typedef uint8_t lv_tabview_btns_pos_t;
+typedef struct
+{
+lv_obj_t * btns;
+lv_obj_t * indic;
+lv_obj_t * content; 
+const char ** tab_name_ptr;
+lv_point_t point_last;
+uint16_t tab_cur;
+uint16_t tab_cnt;
+#if LV_USE_ANIMATION
+uint16_t anim_time;
+#endif
+uint8_t slide_enable : 1; 
+uint8_t draging : 1;
+uint8_t drag_hor : 1;
+uint8_t scroll_ver : 1;
+uint8_t btns_hide : 1;
+lv_tabview_btns_pos_t btns_pos : 2;
+} lv_tabview_ext_t;
+enum {
+LV_TABVIEW_STYLE_BG,
+LV_TABVIEW_STYLE_INDIC,
+LV_TABVIEW_STYLE_BTN_BG,
+LV_TABVIEW_STYLE_BTN_REL,
+LV_TABVIEW_STYLE_BTN_PR,
+LV_TABVIEW_STYLE_BTN_TGL_REL,
+LV_TABVIEW_STYLE_BTN_TGL_PR,
+};
+typedef uint8_t lv_tabview_style_t;
+lv_obj_t * lv_tabview_create(lv_obj_t * par, const lv_obj_t * copy);
+void lv_tabview_clean(lv_obj_t * tabview);
+lv_obj_t * lv_tabview_add_tab(lv_obj_t * tabview, const char * name);
+void lv_tabview_set_tab_act(lv_obj_t * tabview, uint16_t id, lv_anim_enable_t anim);
+void lv_tabview_set_sliding(lv_obj_t * tabview, bool en);
+void lv_tabview_set_anim_time(lv_obj_t * tabview, uint16_t anim_time);
+void lv_tabview_set_style(lv_obj_t * tabview, lv_tabview_style_t type, const lv_style_t * style);
+void lv_tabview_set_btns_pos(lv_obj_t * tabview, lv_tabview_btns_pos_t btns_pos);
+void lv_tabview_set_btns_hidden(lv_obj_t * tabview, bool en);
+uint16_t lv_tabview_get_tab_act(const lv_obj_t * tabview);
+uint16_t lv_tabview_get_tab_count(const lv_obj_t * tabview);
+lv_obj_t * lv_tabview_get_tab(const lv_obj_t * tabview, uint16_t id);
+bool lv_tabview_get_sliding(const lv_obj_t * tabview);
+uint16_t lv_tabview_get_anim_time(const lv_obj_t * tabview);
+const lv_style_t * lv_tabview_get_style(const lv_obj_t * tabview, lv_tabview_style_t type);
+lv_tabview_btns_pos_t lv_tabview_get_btns_pos(const lv_obj_t * tabview);
+bool lv_tabview_get_btns_hidden(const lv_obj_t * tabview);
+#endif 
+#if defined(__cplusplus)
+} 
+#endif

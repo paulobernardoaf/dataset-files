@@ -1,0 +1,53 @@
+#if defined(ALLEGRO_XWINDOWS_WITH_XF86VIDMODE)
+#include <X11/extensions/xf86vmode.h>
+#endif
+#if defined(ALLEGRO_XWINDOWS_WITH_XINERAMA)
+#include <X11/extensions/Xinerama.h>
+#endif
+#if defined(ALLEGRO_XWINDOWS_WITH_XRANDR)
+#include <X11/extensions/Xrandr.h>
+#endif
+#if defined(ALLEGRO_XWINDOWS_WITH_XSCREENSAVER)
+#include <X11/extensions/scrnsaver.h>
+#endif
+#include "allegro5/internal/aintern_system.h"
+struct ALLEGRO_SYSTEM_XGLX
+{
+ALLEGRO_SYSTEM system;
+Display *x11display;
+Display *gfxdisplay;
+Atom AllegroAtom;
+Atom XEmbedAtom;
+bool have_xevents_thread;
+_AL_THREAD xevents_thread;
+_AL_MUTEX lock; 
+_AL_COND resized; 
+ALLEGRO_DISPLAY *mouse_grab_display; 
+int toggle_mouse_grab_keycode; 
+unsigned int toggle_mouse_grab_modifiers;
+bool inhibit_screensaver; 
+bool screen_saver_query_available;
+bool mmon_interface_inited;
+#if defined(ALLEGRO_XWINDOWS_WITH_XINERAMA)
+int xinerama_available;
+int xinerama_screen_count;
+XineramaScreenInfo *xinerama_screen_info;
+#endif
+#if defined(ALLEGRO_XWINDOWS_WITH_XF86VIDMODE)
+int xfvm_available;
+int xfvm_screen_count;
+struct {
+int mode_count;
+XF86VidModeModeInfo **modes;
+XF86VidModeModeInfo *original_mode;
+} *xfvm_screen;
+#endif
+#if defined(ALLEGRO_XWINDOWS_WITH_XRANDR)
+int xrandr_available;
+int xrandr_event_base;
+_AL_VECTOR xrandr_screens;
+_AL_VECTOR xrandr_adaptermap;
+#endif
+int adapter_use_count;
+int adapter_map[32]; 
+};

@@ -1,0 +1,20 @@
+
+
+
+
+
+
+
+
+
+
+
+
+#if !defined(LZMA_DELTA_COMMON_H)
+#define LZMA_DELTA_COMMON_H
+
+#include "common.h"
+
+extern uint64_t lzma_delta_coder_memusage(const void *options);
+
+#endif

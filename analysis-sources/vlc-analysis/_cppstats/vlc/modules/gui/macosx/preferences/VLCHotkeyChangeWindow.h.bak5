@@ -1,0 +1,27 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#import <Cocoa/Cocoa.h>
+
+@interface VLCHotkeyChangeWindow : NSWindow
+
+@end

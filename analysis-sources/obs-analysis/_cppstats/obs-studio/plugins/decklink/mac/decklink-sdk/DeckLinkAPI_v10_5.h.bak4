@@ -1,0 +1,46 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#if !defined(BMD_DECKLINKAPI_v10_5_H)
+#define BMD_DECKLINKAPI_v10_5_H
+
+#include "DeckLinkAPI.h"
+
+
+
+
+
+typedef uint32_t BMDDeckLinkAttributeID_v10_5;
+enum _BMDDeckLinkAttributeID_v10_5 {
+
+
+
+BMDDeckLinkDeviceBusyState_v10_5 = 0x64627374,
+};
+
+#endif 
+

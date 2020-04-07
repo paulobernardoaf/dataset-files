@@ -1,0 +1,91 @@
+
+
+
+
+
+
+
+
+
+
+#include "rubysocket.h"
+
+
+
+
+
+
+
+
+
+static VALUE
+tcp_init(int argc, VALUE *argv, VALUE sock)
+{
+VALUE remote_host, remote_serv;
+VALUE local_host, local_serv;
+
+rb_scan_args(argc, argv, "22", &remote_host, &remote_serv,
+&local_host, &local_serv);
+
+return rsock_init_inetsock(sock, remote_host, remote_serv,
+local_host, local_serv, INET_CLIENT);
+}
+
+static VALUE
+tcp_sockaddr(struct sockaddr *addr, socklen_t len)
+{
+return rsock_make_ipaddr(addr, len);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+static VALUE
+tcp_s_gethostbyname(VALUE obj, VALUE host)
+{
+struct rb_addrinfo *res =
+rsock_addrinfo(host, Qnil, AF_UNSPEC, SOCK_STREAM, AI_CANONNAME);
+return rsock_make_hostent(host, res, tcp_sockaddr);
+}
+
+void
+rsock_init_tcpsocket(void)
+{
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+rb_cTCPSocket = rb_define_class("TCPSocket", rb_cIPSocket);
+rb_define_singleton_method(rb_cTCPSocket, "gethostbyname", tcp_s_gethostbyname, 1);
+rb_define_method(rb_cTCPSocket, "initialize", tcp_init, -1);
+}

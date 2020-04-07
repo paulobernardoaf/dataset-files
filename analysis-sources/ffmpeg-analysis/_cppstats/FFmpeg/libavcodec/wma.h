@@ -1,0 +1,104 @@
+#include "libavutil/float_dsp.h"
+#include "avcodec.h"
+#include "fft.h"
+#include "get_bits.h"
+#include "put_bits.h"
+#define BLOCK_MIN_BITS 7
+#define BLOCK_MAX_BITS 11
+#define BLOCK_MAX_SIZE (1 << BLOCK_MAX_BITS)
+#define BLOCK_NB_SIZES (BLOCK_MAX_BITS - BLOCK_MIN_BITS + 1)
+#define HIGH_BAND_MAX_SIZE 16
+#define NB_LSP_COEFS 10
+#define MAX_CODED_SUPERFRAME_SIZE 32768
+#define MAX_CHANNELS 2
+#define NOISE_TAB_SIZE 8192
+#define LSP_POW_BITS 7
+#define VLCBITS 9
+#define VLCMAX ((22 + VLCBITS - 1) / VLCBITS)
+typedef float WMACoef; 
+typedef struct CoefVLCTable {
+int n; 
+int max_level;
+const uint32_t *huffcodes; 
+const uint8_t *huffbits; 
+const uint16_t *levels; 
+} CoefVLCTable;
+typedef struct WMACodecContext {
+AVCodecContext *avctx;
+GetBitContext gb;
+PutBitContext pb;
+int version; 
+int use_bit_reservoir;
+int use_variable_block_len;
+int use_exp_vlc; 
+int use_noise_coding; 
+int byte_offset_bits;
+VLC exp_vlc;
+int exponent_sizes[BLOCK_NB_SIZES];
+uint16_t exponent_bands[BLOCK_NB_SIZES][25];
+int high_band_start[BLOCK_NB_SIZES]; 
+int coefs_start; 
+int coefs_end[BLOCK_NB_SIZES]; 
+int exponent_high_sizes[BLOCK_NB_SIZES];
+int exponent_high_bands[BLOCK_NB_SIZES][HIGH_BAND_MAX_SIZE];
+VLC hgain_vlc;
+int high_band_coded[MAX_CHANNELS][HIGH_BAND_MAX_SIZE];
+int high_band_values[MAX_CHANNELS][HIGH_BAND_MAX_SIZE];
+VLC coef_vlc[2];
+uint16_t *run_table[2];
+float *level_table[2];
+uint16_t *int_table[2];
+const CoefVLCTable *coef_vlcs[2];
+int frame_len; 
+int frame_len_bits; 
+int nb_block_sizes; 
+int reset_block_lengths;
+int block_len_bits; 
+int next_block_len_bits; 
+int prev_block_len_bits; 
+int block_len; 
+int block_num; 
+int block_pos; 
+uint8_t ms_stereo; 
+uint8_t channel_coded[MAX_CHANNELS]; 
+int exponents_bsize[MAX_CHANNELS]; 
+DECLARE_ALIGNED(32, float, exponents)[MAX_CHANNELS][BLOCK_MAX_SIZE];
+float max_exponent[MAX_CHANNELS];
+WMACoef coefs1[MAX_CHANNELS][BLOCK_MAX_SIZE];
+DECLARE_ALIGNED(32, float, coefs)[MAX_CHANNELS][BLOCK_MAX_SIZE];
+DECLARE_ALIGNED(32, FFTSample, output)[BLOCK_MAX_SIZE * 2];
+FFTContext mdct_ctx[BLOCK_NB_SIZES];
+const float *windows[BLOCK_NB_SIZES];
+DECLARE_ALIGNED(32, float, frame_out)[MAX_CHANNELS][BLOCK_MAX_SIZE * 2];
+uint8_t last_superframe[MAX_CODED_SUPERFRAME_SIZE + AV_INPUT_BUFFER_PADDING_SIZE]; 
+int last_bitoffset;
+int last_superframe_len;
+int exponents_initialized[MAX_CHANNELS];
+float noise_table[NOISE_TAB_SIZE];
+int noise_index;
+float noise_mult; 
+float lsp_cos_table[BLOCK_MAX_SIZE];
+float lsp_pow_e_table[256];
+float lsp_pow_m_table1[(1 << LSP_POW_BITS)];
+float lsp_pow_m_table2[(1 << LSP_POW_BITS)];
+AVFloatDSPContext *fdsp;
+#if defined(TRACE)
+int frame_count;
+#endif 
+} WMACodecContext;
+extern const uint16_t ff_wma_hgain_huffcodes[37];
+extern const uint8_t ff_wma_hgain_huffbits[37];
+extern const float ff_wma_lsp_codebook[NB_LSP_COEFS][16];
+extern const uint32_t ff_aac_scalefactor_code[121];
+extern const uint8_t ff_aac_scalefactor_bits[121];
+av_warn_unused_result
+int ff_wma_init(AVCodecContext *avctx, int flags2);
+int ff_wma_total_gain_to_bits(int total_gain);
+int ff_wma_end(AVCodecContext *avctx);
+unsigned int ff_wma_get_large_val(GetBitContext *gb);
+int ff_wma_run_level_decode(AVCodecContext *avctx, GetBitContext *gb,
+VLC *vlc, const float *level_table,
+const uint16_t *run_table, int version,
+WMACoef *ptr, int offset, int num_coefs,
+int block_len, int frame_len_bits,
+int coef_nb_bits);

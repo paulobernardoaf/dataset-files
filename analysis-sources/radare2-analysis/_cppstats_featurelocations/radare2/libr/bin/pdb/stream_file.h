@@ -1,0 +1,29 @@
+#if !defined(STREAM_FILE_H)
+#define STREAM_FILE_H
+
+#include <stdio.h>
+
+
+
+
+
+int init_r_stream_file(R_STREAM_FILE *stream_file, RBuffer *buf, int *pages,
+int pages_amount, int size, int page_size);
+
+
+
+void stream_file_read(R_STREAM_FILE *stream_file, int size, char *res);
+
+
+void stream_file_seek(R_STREAM_FILE *stream_file, int offset, int whence);
+
+
+int stream_file_tell(R_STREAM_FILE *stream_file);
+
+
+void stream_file_get_data(R_STREAM_FILE *stream_file, char *data);
+
+
+void stream_file_get_size(R_STREAM_FILE *stream_file, int *data_size);
+
+#endif 

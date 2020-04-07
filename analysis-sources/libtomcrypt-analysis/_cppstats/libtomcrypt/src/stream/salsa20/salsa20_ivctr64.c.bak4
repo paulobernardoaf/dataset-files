@@ -1,0 +1,48 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#include "tomcrypt_private.h"
+
+#if defined(LTC_SALSA20)
+
+
+
+
+
+
+
+
+
+int salsa20_ivctr64(salsa20_state *st, const unsigned char *iv, unsigned long ivlen, ulong64 counter)
+{
+LTC_ARGCHK(st != NULL);
+LTC_ARGCHK(iv != NULL);
+
+LTC_ARGCHK(ivlen == 8);
+
+LOAD32L(st->input[6], iv + 0);
+LOAD32L(st->input[7], iv + 4);
+st->input[8] = (ulong32)(counter & 0xFFFFFFFF);
+st->input[9] = (ulong32)(counter >> 32);
+st->ksleft = 0;
+st->ivlen = ivlen;
+return CRYPT_OK;
+}
+
+#endif
+
+
+
+

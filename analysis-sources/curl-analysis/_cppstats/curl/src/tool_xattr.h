@@ -1,0 +1,2 @@
+#include "tool_setup.h"
+int fwrite_xattr(CURL *curl, int fd);
